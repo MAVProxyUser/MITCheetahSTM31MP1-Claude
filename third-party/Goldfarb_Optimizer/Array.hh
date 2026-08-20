@@ -97,9 +97,9 @@ namespace GolDIdnani{
 
   template <typename T>
   GVect<T>::GVect(const GVect<T>& rhs)
-    : v(new T[rhs.n])
+    : v(new T[rhs.row])
   {
-    this->row = rhs.n;
+    this->row = rhs.row;
     for (unsigned int	i = 0; i < row; i++)
       v[i] = rhs[i];
   }
@@ -139,7 +139,7 @@ namespace GolDIdnani{
   {
     if (this != &rhs)
       {
-        resize(rhs.n);
+        resize(rhs.row);
         for (unsigned int i = 0; i < row; i++)
           v[i] = rhs[i];
       }
@@ -993,7 +993,7 @@ namespace GolDIdnani{
 
   template <typename T>
   GMatr<T>::GMatr(const GMatr<T>& rhs)
-    : v(new T*[rhs.n])
+    : v(new T*[rhs.row])
   {
     unsigned int i, j;
     row = rhs.row; col = rhs.col;
@@ -1023,7 +1023,7 @@ namespace GolDIdnani{
     unsigned int i, j;
     if (this != &rhs)
       {
-        resize(rhs.n, rhs.m);
+        resize(rhs.row, rhs.col);
         for (i = 0; i < row; i++)
           for (j = 0; j < col; j++)
             v[i][j] = rhs[i][j];

@@ -13,6 +13,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <stdexcept>
+#include <thread>
 
 #include "rt/rt_rc_interface.h"
 
@@ -29,6 +30,11 @@ static_assert(sizeof(SpiData)    == sizeof(spi_data_t),    "SpiData layout misma
 void get_rc_control_settings(void* settings) {
   memset(settings, 0, sizeof(rc_control_settings));
 }
+
+// The RC chain (rt_rc_interface.cpp) normally defines this global; the MIT
+// FSM references it via `extern rc_control_settings rc_control`. Headless port
+// has no RC, so provide a zeroed instance.
+rc_control_settings rc_control;
 
 Stm32mp1HardwareBridge::Stm32mp1HardwareBridge(RobotController* controller,
                                                std::string robot_yaml,
@@ -135,6 +141,27 @@ void Stm32mp1HardwareBridge::run() {
   motorTask.start();
 
   _robotRunner->start();
+
+  // GAZEBO SITL has no operator/RC: auto-sequence the FSM control_mode so an FSM
+  // controller (MIT_Controller) goes PASSIVE -> STAND_UP -> LOCOMOTION on its own.
+  // Controllers that ignore control_mode (JPos/Stand) are unaffected. Override with
+  // $SIM_MODE (final control_mode) / $SIM_STAND_S / $SIM_LOCO_S.
+  if (_backend == Backend::GAZEBO) {
+    std::thread([this]() {
+      const char* m = getenv("SIM_MODE");
+      int final_mode = m ? atoi(m) : 4;               // default: LOCOMOTION
+      int t_stand = getenv("SIM_STAND_S") ? atoi(getenv("SIM_STAND_S")) : 4;
+      int t_loco  = getenv("SIM_LOCO_S")  ? atoi(getenv("SIM_LOCO_S"))  : 9;
+      usleep(t_stand * 1000000);
+      _robotParams.control_mode = 1;                  // K_STAND_UP
+      printf("[sim] control_mode -> STAND_UP\n"); fflush(stdout);
+      if (final_mode != 1) {
+        usleep((t_loco - t_stand) * 1000000);
+        _robotParams.control_mode = final_mode;       // K_LOCOMOTION (4) etc.
+        printf("[sim] control_mode -> %d\n", final_mode); fflush(stdout);
+      }
+    }).detach();
+  }
 
   for (;;) usleep(1000000);
 }

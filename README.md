@@ -28,8 +28,8 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | 🚧 in progress |
-| OpenPilot waypoint navigation | ⬜ planned |
+| MIT_Controller (MPC + WBC) locomotion | ✅ compiles + runs on the A7 (keeps up @ 500 Hz), stands the Go1; 🚧 trot needs a Go1-specific model (uses Mini Cheetah's) |
+| OpenPilot waypoint navigation | ⬜ planned (GPS already piped in via `gazebo_get_aux()`) |
 
 ## Quick start
 

@@ -15,6 +15,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 option(MINI_CHEETAH_BUILD "use compiler flags for mini cheetah computer" OFF)
 option(STM32MP1_BUILD "cross-compile for the Octavo OSD32MP1 (Cortex-A7 armv7l)" OFF)
+option(STM32MP1_MIT "also build the MIT_Controller (MPC+WBC) locomotion stack for the port" OFF)
 set(BUILD_TYPE_RELEASE TRUE)
 
 option(NO_SIM "Do not build simulator" OFF)
@@ -39,13 +40,24 @@ if(STM32MP1_BUILD)
   # requirement so it emits unaligned NEON loads. MUST be identical in every TU
   # (ABI: it changes sizeof of aligned Eigen members) -> a clean rebuild is required.
   set(STM32MP1_EIGEN_FLAGS "-DEIGEN_MAX_ALIGN_BYTES=0 -DEIGEN_MAX_STATIC_ALIGN_BYTES=0")
-  set(CMAKE_CXX_FLAGS "-O3 -no-pie -g0 ${STM32MP1_ARCH_FLAGS} ${STM32MP1_EIGEN_FLAGS} -Wall -Wextra \
+  # Compile -fPIC (not -no-pie): PIC objects work both in the SHARED MIT_Controller
+  # sublibs and in the final -no-pie executable. -no-pie stays on the exe link only.
+  set(CMAKE_CXX_FLAGS "-O3 -fPIC -g0 ${STM32MP1_ARCH_FLAGS} ${STM32MP1_EIGEN_FLAGS} -Wall -Wextra \
   -Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare")
-  set(CMAKE_C_FLAGS "-O3 -g0 ${STM32MP1_ARCH_FLAGS} -std=gnu99 -I.")
+  set(CMAKE_C_FLAGS "-O3 -fPIC -g0 ${STM32MP1_ARCH_FLAGS} -std=gnu99 -I.")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -no-pie -static-libstdc++ -static-libgcc")
   # Vendored Eigen 3.4.0, visible to every subdirectory (JCQP, common, robot, ...)
   # so <eigen3/Eigen/...> resolves without a system Eigen install.
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third-party/eigen")
+  # Null LCM shim + POD LCM types, visible everywhere so <lcm-cpp.hpp> /
+  # <lcm/lcm-cpp.hpp> / the *_t.hpp types resolve without glib/LCM (needed by the
+  # MIT_Controller WBC/MPC subdirs too).
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/stm32mp1/lcm_shim")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/stm32mp1/lcm_shim/lcm")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/lcm-types/cpp")
+  # The null LCM shim is header-only; provide an empty `lcm` target so the many
+  # `target_link_libraries(... lcm)` in the MIT_Controller subdirs resolve to nothing.
+  add_library(lcm INTERFACE)
   message("**** STM32MP1 (Cortex-A7) cross build enabled ****")
 elseif(MINI_CHEETAH_BUILD)
   SET (THIS_COM "../" )
@@ -98,4 +110,7 @@ endif()
 if(NOT STM32MP1_BUILD)
   add_subdirectory(user)
   add_subdirectory(rc_test)
+elseif(STM32MP1_MIT)
+  # Locomotion stack (MPC + WBC) for the port, gated so it can't break jpos/sim/stand.
+  add_subdirectory(user/MIT_Controller)
 endif()

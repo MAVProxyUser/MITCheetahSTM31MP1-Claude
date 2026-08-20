@@ -25,7 +25,7 @@ rm -rf "$PKG"; mkdir -p "$PKG"
 
 # main executables (hardware + Gazebo SITL)
 cp "$(find "$BUILD" -name jpos_ctrl -type f | head -1)" "$PKG/"
-for b in jpos_ctrl_sim stand_sim; do
+for b in jpos_ctrl_sim stand_sim mit_ctrl_sim; do
   f="$(find "$BUILD" -name "$b" -type f | head -1)"; [ -n "$f" ] && cp "$f" "$PKG/"
 done
 # every shared lib it needs (co-located; resolved via $ORIGIN rpath)
