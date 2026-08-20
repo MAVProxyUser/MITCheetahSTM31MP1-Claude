@@ -12,6 +12,9 @@
 #include "Controllers/OrientationEstimator.h"
 #include "Dynamics/Cheetah3.h"
 #include "Dynamics/MiniCheetah.h"
+#ifdef USE_GO1_MODEL
+#include "Dynamics/Go1.h"
+#endif
 #include "Utilities/Utilities_print.h"
 #include "ParamHandler.hpp"
 #include "Utilities/Timer.h"
@@ -36,7 +39,11 @@ void RobotRunner::init() {
 
   // Build the appropriate Quadruped object
   if (robotType == RobotType::MINI_CHEETAH) {
+#ifdef USE_GO1_MODEL
+    _quadruped = buildGo1<float>();       // Unitree Go1 kinematics/inertials
+#else
     _quadruped = buildMiniCheetah<float>();
+#endif
   } else {
     _quadruped = buildCheetah3<float>();
   }
