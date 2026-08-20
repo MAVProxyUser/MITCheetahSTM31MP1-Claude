@@ -21,7 +21,14 @@ class RobotState
         Matrix<fpt,3,3> I_body;
         Quaternionf q;
         fpt yaw;
+#ifdef USE_GO1_MODEL
+        // Unitree Go1: total robot mass (gazebo go1.urdf sums to 13.1 kg).
+        // The stock 9 kg (mini cheetah) under-supports the Go1 by ~30%,
+        // dropping the body at gait start and tumbling the robot.
+        fpt m = 13.1f;
+#else
         fpt m = 9;
+#endif
         //fpt m = 50.236; //DH
     //private:
 };

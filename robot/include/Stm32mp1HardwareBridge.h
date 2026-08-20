@@ -58,6 +58,7 @@ class Stm32mp1HardwareBridge {
   SpiData             _spiData;
   SpiCommand          _spiCommand;
   VectorNavData       _vectorNavData;
+  CheaterState<double> _cheaterState;   //!< sim ground truth (SIM_CHEATER=1, GAZEBO backend)
   RobotControlParameters _robotParams;
   RobotRunner*        _robotRunner = nullptr;
 

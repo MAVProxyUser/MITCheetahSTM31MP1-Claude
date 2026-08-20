@@ -39,10 +39,9 @@ if(STM32MP1_BUILD)
   # (the kernel cannot fix up NEON alignment traps). Disable Eigen's alignment
   # requirement so it emits unaligned NEON loads. MUST be identical in every TU
   # (ABI: it changes sizeof of aligned Eigen members) -> a clean rebuild is required.
-  # NOTE: -DUSE_GO1_MODEL (buildGo1) is currently OFF: the buildGo1 conventions
-  # regressed even joint-space stand, so we keep the Mini Cheetah model (which
-  # stands/squats the Go1 reliably) until buildGo1's kinematic frame is corrected.
-  set(STM32MP1_EIGEN_FLAGS "-DEIGEN_MAX_ALIGN_BYTES=0 -DEIGEN_MAX_STATIC_ALIGN_BYTES=0")
+  # Go1 model re-enabled: the earlier "buildGo1 regressed the stand" test was
+  # confounded by a loaded board (~150 Hz); re-validating on the clean 500 Hz baseline.
+  set(STM32MP1_EIGEN_FLAGS "-DEIGEN_MAX_ALIGN_BYTES=0 -DEIGEN_MAX_STATIC_ALIGN_BYTES=0 -DUSE_GO1_MODEL")
   # Compile -fPIC (not -no-pie): PIC objects work both in the SHARED MIT_Controller
   # sublibs and in the final -no-pie executable. -no-pie stays on the exe link only.
   set(CMAKE_CXX_FLAGS "-O3 -fPIC -g0 ${STM32MP1_ARCH_FLAGS} ${STM32MP1_EIGEN_FLAGS} -Wall -Wextra \

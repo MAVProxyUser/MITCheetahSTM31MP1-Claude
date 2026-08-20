@@ -31,6 +31,7 @@ std::mutex         g_mtx;
 
 spi_data_t         g_data;      // latest joint feedback (guarded by g_mtx)
 SimAuxSensors      g_aux;       // latest baro/gps (guarded by g_mtx)
+SimTruth           g_truth;     // latest sim ground truth (guarded by g_mtx)
 std::atomic<uint32_t> g_cmd_seq{0};
 std::atomic<float> g_hz{0.f};
 
@@ -57,6 +58,8 @@ void unpack_sensor(const sim_sensor_packet& p) {
   g_aux.baro_alt = p.baro_alt; g_aux.baro_pressure = p.baro_pressure;
   g_aux.gps_lat = p.gps_lat; g_aux.gps_lon = p.gps_lon; g_aux.gps_alt = p.gps_alt;
   for (int i = 0; i < 3; ++i) g_aux.gps_vel[i] = p.gps_vel[i];
+  for (int i = 0; i < 3; ++i) { g_truth.pos[i] = p.truth_pos[i]; g_truth.vworld[i] = p.truth_vworld[i]; }
+  for (int i = 0; i < 4; ++i) g_truth.quat[i] = p.truth_quat[i];
 }
 
 void reader_loop() {
@@ -149,6 +152,11 @@ void gazebo_close() {
 }
 
 float gazebo_sensor_hz() { return g_hz.load(); }
+
+void gazebo_get_truth(SimTruth* out) {
+  std::lock_guard<std::mutex> lk(g_mtx);
+  *out = g_truth;
+}
 
 void gazebo_get_aux(SimAuxSensors* out) {
   std::lock_guard<std::mutex> lk(g_mtx);

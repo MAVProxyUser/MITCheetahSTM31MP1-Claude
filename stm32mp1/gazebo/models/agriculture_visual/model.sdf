@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="agriculture_visual">
+    <static>true</static>
+    <!-- Same placement as agriculture_world (pad -> world origin), but VISUAL
+         ONLY: no <collision>, so the dog rests on the flat ground_plane at z=0
+         and the farm is pure scenery. Mesh referenced by absolute path so its
+         own textures resolve next to the .dae. -->
+    <pose>22 27 -0.31 0 0 3.14159265358979</pose>
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <mesh><uri>meshes/agriculture_world.dae</uri></mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>

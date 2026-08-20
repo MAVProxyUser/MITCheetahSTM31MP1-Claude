@@ -32,11 +32,29 @@ MODEL = "go1"
 JOINTS = [f"{leg}_{j}_joint" for leg in ("FR", "FL", "RR", "RL")
           for j in ("hip", "thigh", "calf")]           # flat order
 
-# Go1 <-> Cheetah joint convention: q_cheetah = SIGN*q_gz + OFFSET (rad).
-# Identity works for joint-space controllers (Stand/Walk command Go1 angles directly).
-# (The MIT model's Cartesian control needs a different mapping -- see CLAUDE.md.)
-SIGN   = [1.0] * 12
-OFFSET = [0.0] * 12
+# Go1 <-> Cheetah joint convention: q_cheetah = SIGN*q_gz + OFFSET (rad),
+# applied symmetrically to q (sensor), qd, the PD error, and tau (command).
+#
+#  BRIDGE_CONV=identity (default): SIGN=[1..], for the joint-space Stand/Walk
+#    controllers, which are written directly in Go1 URDF angles.
+#
+#  BRIDGE_CONV=mit: SIGN=[1,-1,-1] per leg. The MIT_Controller works in the
+#    Cheetah *abstract* leg convention (buildGo1 keeps robotType=MINI_CHEETAH).
+#    Matching the abstract forward kinematics in LegController.cpp
+#    (p = f(abad,hip,knee), l1=abadLink, l2=hipLink, l3=kneeLink) against the
+#    Go1 URDF chain (abad about +x, thigh/calf about +y, same link lengths)
+#    gives EXACTLY: abad_abstract = abad_go1, hip_abstract = -hip_go1,
+#    knee_abstract = -knee_go1, all offsets 0 (both have q=0 => leg straight
+#    down). Without this the MIT stand/MPC drives the Go1 hips/knees the wrong
+#    way and it rolls over the instant it leaves the (abad~0) stand.
+if os.environ.get("BRIDGE_CONV", "identity").lower() == "mit":
+    SIGN   = [1.0, -1.0, -1.0] * 4
+    OFFSET = [0.0] * 12
+    print("[bridge] joint convention: MIT abstract (hip & knee negated)", flush=True)
+else:
+    SIGN   = [1.0] * 12
+    OFFSET = [0.0] * 12
+    print("[bridge] joint convention: identity (Go1 URDF angles)", flush=True)
 
 IMU_TOPIC   = "/imu"
 BARO_TOPIC  = "/air_pressure"
@@ -50,7 +68,8 @@ CTRL_IP     = sys.argv[1] if len(sys.argv) > 1 else None   # learned from first 
 
 SENSOR_MAGIC  = 0x53454E53   # 'SENS'
 COMMAND_MAGIC = 0x434D4443   # 'CMDC'
-SENSOR_FMT  = "<II 3f 3f 4f 12f 12f f f d d f 3f"
+# trailing 3f 4f 3f = sim ground truth pos/quat/vWorld (cheater mode)
+SENSOR_FMT  = "<II 3f 3f 4f 12f 12f f f d d f 3f 3f 4f 3f"
 COMMAND_FMT = "<II 12f 12f 12f 12f 12f"
 
 # ---- shared state ----
@@ -60,6 +79,9 @@ baro = {"pressure": 101325.0, "alt": 0.0}
 gps  = {"lat": 0.0, "lon": 0.0, "alt": 0.0, "vel": [0.0,0.0,0.0]}  # vel NED
 qj  = [0.0]*12    # joint pos, Go1 frame
 qdj = [0.0]*12
+# sim ground truth (cheater mode): world pose + finite-diff world velocity
+truth = {"pos": [0.0,0.0,0.0], "quat": [0.0,0.0,0.0,1.0], "vworld": [0.0,0.0,0.0],
+         "t": None}
 cmd = {"q_des":[0.0]*12, "qd_des":[0.0]*12, "kp":[0.0]*12, "kd":[0.0]*12, "tau_ff":[0.0]*12}
 peer_ip = [CTRL_IP]
 seq_out = [0]
@@ -68,11 +90,19 @@ last_tau = [0.0]*12
 
 node = transport.Node()
 
+# Gazebo's IMU reports the sensor orientation as body->world; MIT's estimator
+# wants the quaternion whose rotation matrix is world->body (vBody = R*vWorld).
+# QUAT_CONJ=1 sends the conjugate [-x,-y,-z,w] to match MIT's convention.
+QUAT_CONJ = os.environ.get("QUAT_CONJ", "0") == "1"
+if QUAT_CONJ:
+    print("[bridge] IMU quaternion: conjugated (body->world => world->body)", flush=True)
+
 def on_imu(msg: IMU):
     with lock:
         imu["accel"] = [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z]
         imu["gyro"]  = [msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z]
-        imu["quat"]  = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+        q = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+        imu["quat"] = [-q[0], -q[1], -q[2], q[3]] if QUAT_CONJ else q
 
 def on_baro(msg: FluidPressure):
     with lock:
@@ -90,6 +120,29 @@ def on_navsat(msg: NavSat):
         gps["alt"] = msg.altitude
         # gz NavSat velocity is ENU-ish (east/north/up); convert to NED
         gps["vel"] = [msg.velocity_north, msg.velocity_east, -msg.velocity_up]
+
+def on_pose(msg):
+    """Ground truth from /world/.../dynamic_pose/info (published at physics rate).
+    World velocity by finite difference, lightly low-passed (alpha=0.25 @1kHz
+    ~ 45Hz bandwidth) so cheater-mode vBody is usable by the WBC."""
+    now = time.monotonic()
+    for p in msg.pose:
+        if p.name != MODEL:
+            continue
+        with lock:
+            tprev, pprev = truth["t"], truth["pos"]
+            pos = [p.position.x, p.position.y, p.position.z]
+            if tprev is not None:
+                dt = now - tprev
+                if 1e-4 < dt < 0.1:
+                    a = 0.25
+                    for i in range(3):
+                        v_raw = (pos[i] - pprev[i]) / dt
+                        truth["vworld"][i] += a * (v_raw - truth["vworld"][i])
+            truth["pos"] = pos
+            truth["quat"] = [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
+            truth["t"] = now
+        return
 
 def on_joint(msg: Model):
     idx = {jn: i for i, jn in enumerate(JOINTS)}
@@ -147,12 +200,14 @@ def send_sensor():
         a, g, quat = imu["accel"], imu["gyro"], imu["quat"]
         ba, bp = baro["alt"], baro["pressure"]
         glat, glon, galt, gvel = gps["lat"], gps["lon"], gps["alt"], gps["vel"]
+        tpos, tquat, tvw = list(truth["pos"]), list(truth["quat"]), list(truth["vworld"])
     if peer_ip[0] is None:
         return
     seq_out[0] += 1
     pkt = struct.pack(SENSOR_FMT, SENSOR_MAGIC, seq_out[0],
                       *a, *g, *quat, *qc, *qdc,
-                      ba, bp, glat, glon, galt, *gvel)
+                      ba, bp, glat, glon, galt, *gvel,
+                      *tpos, *tquat, *tvw)
     try:
         sock.sendto(pkt, (peer_ip[0], SENSOR_PORT))
     except OSError:
@@ -177,23 +232,33 @@ def main():
     assert node.subscribe(Model, JOINT_TOPIC, on_joint), "joint_state subscribe failed"
     node.subscribe(FluidPressure, BARO_TOPIC, on_baro)
     node.subscribe(NavSat, GPS_TOPIC, on_navsat)
+    from gz.msgs10.pose_v_pb2 import Pose_V
+    node.subscribe(Pose_V, f"/world/{WORLD}/dynamic_pose/info", on_pose)
     print(f"[bridge] subscribed {IMU_TOPIC} {BARO_TOPIC} {GPS_TOPIC} {JOINT_TOPIC}; {len(JOINTS)} force pubs")
     print(f"[bridge] UDP: recv cmd :{CMD_PORT}, send sensors :{SENSOR_PORT} -> {peer_ip[0] or '(learn)'}")
     period = 1.0/500.0    # 500 Hz
     last = time.time()
     hb = time.time()
+    stalls = [0, 0.0]    # count >5ms, worst gap (python GIL/callback jitter diagnostics)
+    prev = time.time()
     while True:
         control_step()
         send_sensor()
         now = time.time()
+        gap = now - prev
+        prev = now
+        if gap > 0.005:
+            stalls[0] += 1
+            if gap > stalls[1]: stalls[1] = gap
         if now - hb >= 1.0:
             with lock:
                 q0 = round(qj[0], 3); t0 = round(last_tau[0], 2); t2 = round(last_tau[2], 2)
                 bp = round(baro["pressure"], 0); ba = round(baro["alt"], 2)
                 la = round(gps["lat"], 5); lo = round(gps["lon"], 5)
             print(f"[bridge] cmd_rx={cmd_rx[0]}/s peer={peer_ip[0]} imu_az={round(imu['accel'][2],2)} "
-                  f"q_FR_hip={q0} tau=[{t0},{t2}] baro={bp}Pa/{ba}m gps=({la},{lo})", flush=True)
-            cmd_rx[0] = 0; hb = now
+                  f"q_FR_hip={q0} tau=[{t0},{t2}] stalls>{5}ms={stalls[0]}/worst={round(stalls[1]*1000,1)}ms "
+                  f"baro={bp}Pa/{ba}m gps=({la},{lo})", flush=True)
+            cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0
         last += period
         dt = last - now
         if dt > 0: time.sleep(dt)

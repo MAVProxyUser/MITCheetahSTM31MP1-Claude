@@ -95,6 +95,20 @@ void RobotRunner::run() {
   //cheetahMainVisualization->p = _stateEstimate.position;
   visualizationData->clear();
 
+  // STM32MP1 SITL debug: throttled estimator dump so we can compare the
+  // estimated body state to Gazebo ground truth (set STM32MP1_EST_DBG=1).
+  if (getenv("STM32MP1_EST_DBG")) {
+    static int _estdbg = 0;
+    if ((++_estdbg % 25) == 0) {   // 20 Hz at 500 Hz
+      printf("[EST] rpy=%.3f %.3f %.3f pos=%.3f %.3f %.3f vB=%.3f %.3f %.3f wB=%.3f %.3f %.3f\n",
+             _stateEstimate.rpy[0], _stateEstimate.rpy[1], _stateEstimate.rpy[2],
+             _stateEstimate.position[0], _stateEstimate.position[1], _stateEstimate.position[2],
+             _stateEstimate.vBody[0], _stateEstimate.vBody[1], _stateEstimate.vBody[2],
+             _stateEstimate.omegaBody[0], _stateEstimate.omegaBody[1], _stateEstimate.omegaBody[2]);
+      fflush(stdout);
+    }
+  }
+
   // Update the data from the robot
   setupStep();
 
@@ -136,8 +150,27 @@ void RobotRunner::run() {
           _legController->commands[leg].kdJoint = kdMat;
         }
       } else {
-        // Run Control 
+        // Run Control
         _robot_ctrl->runController();
+
+        // STM32MP1 SITL debug: dump what the controller commands the front
+        // legs (WBC output), to separate "kinWBC folds the legs" from
+        // "WBIC/QP starves force" from "joint gains never set".
+        if (getenv("STM32MP1_EST_DBG")) {
+          static int _legdbg = 0;
+          if ((++_legdbg % 25) == 0) {
+            for (int leg = 0; leg < 4; ++leg) {
+              auto& c = _legController->commands[leg];
+              auto& d = _legController->datas[leg];
+              printf("[LEG%d] q=%.2f %.2f %.2f p=%.3f %.3f %.3f "
+                     "fff=%.1f %.1f %.1f tff=%.2f %.2f %.2f\n",
+                     leg, d.q[0], d.q[1], d.q[2], d.p[0], d.p[1], d.p[2],
+                     c.forceFeedForward[0], c.forceFeedForward[1], c.forceFeedForward[2],
+                     c.tauFeedForward[0], c.tauFeedForward[1], c.tauFeedForward[2]);
+            }
+            fflush(stdout);
+          }
+        }
         cheetahMainVisualization->p = _stateEstimate.position;
 
         // Update Visualization

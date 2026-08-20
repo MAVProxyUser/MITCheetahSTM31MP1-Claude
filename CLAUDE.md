@@ -94,3 +94,44 @@ gz Python bindings: system python3.14 lacks them; use the OpenPilot venv or **py
 - Don't build on the board. Don't use `-march=native`. Don't change the Eigen align flags without
   a clean rebuild. Don't re-enable Goldfarb/qpOASES/SOEM/vectornav in the port without gating them
   so they can't break the working `jpos/sim/stand` build. Don't trust the DroneCAN node id from docs.
+
+## Locomotion findings (Aug 2026): how the Go1 got from A to B
+
+**WORKING**: `static_gait_sim` — statically-stable crawl (analytic IK + lateral CoM
+shift, pure joint PD at 500 Hz, abstract convention). Walked 2.1 m upright in 66 s,
+then a 10-min endurance run. Knobs: `SG_VX/SG_T/SG_SHIFT/SG_LIFT/SG_H/SG_TURN`.
+Run the bridge with `BRIDGE_CONV=mit`. This is the A→B workhorse for waypoint nav.
+
+Fixes that got the MIT stack (and everything else) healthy — each was load-bearing:
+- **Joint convention**: the MIT stack works in the Cheetah *abstract* leg frame;
+  the Go1 URDF differs by hip/knee sign. `BRIDGE_CONV=mit` in the bridge applies
+  `SIGN=[1,-1,-1]` per leg to q/qd/tau symmetrically. Pure-PD controllers mask a
+  wrong map (PD is sign-consistent automatically); only tau_ff exposes it.
+- **Joint damping/friction in the sim**: the URDF ships `damping=0 friction=0`;
+  real actuators reflect ~0.4 N·m·s/rad (MIT: 0.01 rotor × 6.33²). Without it every
+  force-based controller (WBIC balance, MPC loco) rings up at ~1.5 Hz and flips.
+  Worlds now carry `damping=1.0 friction=0.2` per joint (and foot μ=2.0 vs the
+  URDF's 0.6, which let feet skate inward and collapse the support polygon).
+- **convexMPC hard-codes mini-cheetah body**: `RobotState.h m=9`, inertia
+  `(.07,.26,.242)` — gated Go1 values (13.1 kg, scaled inertia) behind
+  `USE_GO1_MODEL`. With m=9 the MPC under-supports the Go1 by ~30% and it
+  free-falls at gait start (`imu_az≈3.3` signature).
+- **FSM staging**: enter LOCOMOTION *through* BALANCE_STAND (sequencer does
+  1→3→4, `SIM_BAL_S`). Jumping 1→4 makes the MPC see a 9 cm height step and
+  command ~2× bodyweight (a leap). Velocity must be *ramped* (`SIM_VX_RAMP_S`),
+  never stepped.
+- **JPos crouch**: old MIT crouch (±0.6 abad splay) rested the trunk on the ground
+  and let feet scrub — random per-run stance skew. New crouch (0,-1.3,2.5 abstract)
+  keeps the trunk clear and feet under hips.
+- **Swing stance width**: ConvexMPCLocomotion's `.065` lateral foot offset is
+  mini-cheetah's abad link; Go1's is `.08` (patched via `_abadLinkLength`).
+- **Cheater mode** (`SIM_CHEATER=1`): bridge streams sim ground truth
+  (pos/quat/vWorld) in the sensor packet; Stm32mp1HardwareBridge feeds
+  CheaterState. Used to prove the estimator was NOT the tip-over cause.
+- **Debug**: `STM32MP1_EST_DBG=1` dumps `[EST]` (estimator) + `[LEG0..3]`
+  (q, foot p, force/tau ff) at 20 Hz.
+
+**STATUS of MIT MPC+WBC**: BALANCE_STAND is stable (with all of the above);
+trot/walk gaits still tumble within ~1 s of gait start — all four legs fold in the
+first 50 ms (whole-body command transient at gait entry, under investigation).
+The convex-MPC A→B path is deferred; the static crawl carries the mission.

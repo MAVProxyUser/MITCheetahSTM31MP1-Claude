@@ -51,8 +51,15 @@ if(STM32MP1_BUILD)
   target_include_directories(walk_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
   target_link_libraries(walk_sim robot biomimetics dynacore_param_handler pthread)
 
+  # Statically-stable crawl with CoM shift (abstract convention; BRIDGE_CONV=mit).
+  add_executable(static_gait_sim
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/static_gait_main.cpp
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/StaticGaitController.cpp)
+  target_include_directories(static_gait_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+  target_link_libraries(static_gait_sim robot biomimetics dynacore_param_handler pthread)
+
   # Find the co-deployed third-party .so's next to the binary (deploy = copy the folder).
-  set_target_properties(jpos_ctrl jpos_ctrl_sim stand_sim walk_sim PROPERTIES
+  set_target_properties(jpos_ctrl jpos_ctrl_sim stand_sim walk_sim static_gait_sim PROPERTIES
     BUILD_WITH_INSTALL_RPATH TRUE
     INSTALL_RPATH "$ORIGIN")
 

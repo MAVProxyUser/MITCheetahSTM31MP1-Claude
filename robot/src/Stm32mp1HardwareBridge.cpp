@@ -16,6 +16,7 @@
 #include <thread>
 
 #include "rt/rt_rc_interface.h"
+#include "Math/orientation_tools.h"
 
 // The SpineBoard structs and the LCM POD structs must be layout-identical for the
 // memcpy bridge below to be valid.
@@ -83,10 +84,27 @@ void Stm32mp1HardwareBridge::runMotors() {
   // RobotRunner has written _spiCommand; ship it and read back _spiData.
   // SpiCommand/spi_command_t (and SpiData/spi_data_t) are layout-identical (asserted above).
   memcpy(&_utCmd, &_spiCommand, sizeof(_utCmd));
-  if (_backend == Backend::GAZEBO)
+  if (_backend == Backend::GAZEBO) {
     gazebo_send_receive(&_utCmd, &_utData);
-  else
+    // Cheater mode ($SIM_CHEATER=1): feed the estimator sim ground truth.
+    // MIT quat order is (w,x,y,z); vBody = rBody * vWorld with rBody = world->body.
+    if (_robotParams.cheater_mode > 0.5) {
+      SimTruth t;
+      gazebo_get_truth(&t);
+      Quat<double> q;
+      q << t.quat[3], t.quat[0], t.quat[1], t.quat[2];
+      _cheaterState.orientation = q;
+      _cheaterState.position << t.pos[0], t.pos[1], t.pos[2];
+      Vec3<double> vWorld(t.vworld[0], t.vworld[1], t.vworld[2]);
+      _cheaterState.vBody = ori::quaternionToRotationMatrix(q) * vWorld;
+      _cheaterState.omegaBody << _vectorNavData.gyro[0], _vectorNavData.gyro[1],
+          _vectorNavData.gyro[2];
+      _cheaterState.acceleration << _vectorNavData.accelerometer[0],
+          _vectorNavData.accelerometer[1], _vectorNavData.accelerometer[2];
+    }
+  } else {
     unitree_send_receive(&_utCmd, &_utData);
+  }
   memcpy(&_spiData, &_utData, sizeof(_spiData));
 }
 
@@ -129,6 +147,13 @@ void Stm32mp1HardwareBridge::run() {
   _robotRunner->spiCommand = &_spiCommand;
   _robotRunner->robotType = RobotType::MINI_CHEETAH;   // Unitree legs mapped onto the MC model for now
   _robotRunner->vectorNavData = &_vectorNavData;
+  _robotRunner->cheaterState = &_cheaterState;
+  // $SIM_CHEATER=1 (GAZEBO backend): estimator uses sim ground truth instead of
+  // the VectorNav orientation + LinearKF -- bisects estimator vs controller bugs.
+  if (_backend == Backend::GAZEBO && getenv("SIM_CHEATER")) {
+    _robotParams.cheater_mode = 1;
+    printf("[stm32mp1] CHEATER MODE: estimator fed sim ground truth\n");
+  }
   _robotRunner->controlParameters = &_robotParams;
   _robotRunner->visualizationData = &_visualizationData;
   _robotRunner->cheetahMainVisualization = &_mainCheetahVisualization;
@@ -151,19 +176,40 @@ void Stm32mp1HardwareBridge::run() {
       const char* m = getenv("SIM_MODE");
       int final_mode = m ? atoi(m) : 4;               // default: LOCOMOTION
       int t_stand = getenv("SIM_STAND_S") ? atoi(getenv("SIM_STAND_S")) : 4;
-      int t_loco  = getenv("SIM_LOCO_S")  ? atoi(getenv("SIM_LOCO_S"))  : 9;
+      int t_bal   = getenv("SIM_BAL_S")   ? atoi(getenv("SIM_BAL_S"))   : 8;
+      int t_loco  = getenv("SIM_LOCO_S")  ? atoi(getenv("SIM_LOCO_S"))  : 14;
       usleep(t_stand * 1000000);
       _robotParams.control_mode = 1;                  // K_STAND_UP
       printf("[sim] control_mode -> STAND_UP\n"); fflush(stdout);
       if (final_mode != 1) {
-        usleep((t_loco - t_stand) * 1000000);
+        // Go THROUGH BALANCE_STAND (like MIT's operator flow): it lifts the body
+        // from the ~0.20 m stand-up crouch to the 0.29 m locomotion height. Jumping
+        // 1 -> 4 directly makes the MPC see a 9 cm height step and command ~2x
+        // bodyweight stance forces (a leap) right as the gait starts.
+        if (final_mode == 4) {
+          usleep((t_bal - t_stand) * 1000000);
+          _robotParams.control_mode = 3;              // K_BALANCE_STAND
+          printf("[sim] control_mode -> BALANCE_STAND\n"); fflush(stdout);
+          usleep((t_loco - t_bal) * 1000000);
+        } else {
+          usleep((t_loco - t_stand) * 1000000);
+        }
         _robotParams.control_mode = final_mode;       // K_LOCOMOTION (4) etc.
         printf("[sim] control_mode -> %d\n", final_mode); fflush(stdout);
-        // After the trot stabilizes, command a forward velocity (open-loop test).
-        // $SIM_VX sets forward speed on the gamepad's left stick (0 = walk in place).
+        // After the trot stabilizes, RAMP in the forward velocity (a 0 -> vx step
+        // through the ~6-10 ms UDP loop knocked the trot over; ramping does not).
+        // $SIM_VX target speed, $SIM_VX_RAMP_S ramp duration (default 3 s).
         if (final_mode == 4 && getenv("SIM_VX")) {
           usleep(3000000);
           float vx = atof(getenv("SIM_VX"));
+          float ramp_s = getenv("SIM_VX_RAMP_S") ? atof(getenv("SIM_VX_RAMP_S")) : 3.f;
+          printf("[sim] ramping forward velocity -> %.2f over %.1f s\n", vx, ramp_s);
+          fflush(stdout);
+          const int steps = (int)(ramp_s * 10.f);
+          for (int s = 1; s <= steps; ++s) {
+            _gamepadCommand.leftStickAnalog[1] = vx * s / steps;
+            usleep(100000);
+          }
           _gamepadCommand.leftStickAnalog[1] = vx;
           printf("[sim] forward velocity command -> %.2f\n", vx); fflush(stdout);
         }

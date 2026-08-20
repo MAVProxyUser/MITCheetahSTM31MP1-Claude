@@ -6,6 +6,7 @@
  */
 
 #include "FSM_State_Locomotion.h"
+#include <cstdlib>
 #include <Utilities/Timer.h>
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
 //#include <rt/rt_interface_lcm.h>
@@ -21,10 +22,21 @@ FSM_State_Locomotion<T>::FSM_State_Locomotion(ControlFSMData<T>* _controlFSMData
     : FSM_State<T>(_controlFSMData, FSM_StateName::LOCOMOTION, "LOCOMOTION")
 {
   if(_controlFSMData->_quadruped->_robotType == RobotType::MINI_CHEETAH){
+    double mpc_ms = 27;
+#ifdef USE_GO1_MODEL
+    // Go1 SITL: $SIM_MPC_MS stretches the gait segment clock (ms). The stock
+    // 27 ms segments give a 260 ms trot cycle tuned for MIT's ~2 ms loop; the
+    // UDP SITL loop is ~8 ms, so a slower cycle (e.g. 40 -> 400 ms) buys the
+    // swing/touchdown dynamics real phase margin.
+    if (const char* e = getenv("SIM_MPC_MS")) {
+      double v = atof(e);
+      if (v >= 10 && v <= 80) mpc_ms = v;
+    }
+#endif
     cMPCOld = new ConvexMPCLocomotion(_controlFSMData->controlParameters->controller_dt,
         //30 / (1000. * _controlFSMData->controlParameters->controller_dt),
         //22 / (1000. * _controlFSMData->controlParameters->controller_dt),
-        27 / (1000. * _controlFSMData->controlParameters->controller_dt),
+        mpc_ms / (1000. * _controlFSMData->controlParameters->controller_dt),
         _controlFSMData->userParameters);
 
   }else if(_controlFSMData->_quadruped->_robotType == RobotType::CHEETAH_3){

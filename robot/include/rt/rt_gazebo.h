@@ -40,6 +40,10 @@ struct sim_sensor_packet {
   double   gps_lon;      // deg
   float    gps_alt;      // m
   float    gps_vel[3];   // NED m/s
+  // ground-truth state from the sim (cheater mode / debugging; SIM_CHEATER=1)
+  float    truth_pos[3];    // world m
+  float    truth_quat[4];   // x, y, z, w (body->world attitude)
+  float    truth_vworld[3]; // world m/s
 };
 
 //! controller -> Gazebo bridge: per-joint impedance command (the bridge runs the motor PD).
@@ -72,6 +76,13 @@ struct SimAuxSensors {
   float  gps_alt = 0, gps_vel[3] = {0, 0, 0};
 };
 
+//! Ground-truth body state from the sim (for cheater-mode state estimation).
+struct SimTruth {
+  float pos[3]     = {0, 0, 0};
+  float quat[4]    = {0, 0, 0, 1};   // x,y,z,w
+  float vworld[3]  = {0, 0, 0};
+};
+
 /*! Open the UDP socket and start the receiver thread that keeps *imu_out and the
  *  internal joint feedback current. Returns 0 on success. */
 int  init_gazebo(const GazeboUdpConfig& cfg, VectorNavData* imu_out);
@@ -85,6 +96,9 @@ float gazebo_sensor_hz();   //!< measured inbound sensor rate (diagnostics)
 
 /*! Latest baro + GPS from the sim (for future waypoint nav; Cheetah ignores these today). */
 void  gazebo_get_aux(SimAuxSensors* out);
+
+/*! Latest ground-truth body state from the sim (cheater mode). */
+void  gazebo_get_truth(SimTruth* out);
 
 #endif  // linux
 #endif  // PROJECT_RT_GAZEBO_H

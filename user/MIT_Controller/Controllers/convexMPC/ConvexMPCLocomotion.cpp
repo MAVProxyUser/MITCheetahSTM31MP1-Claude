@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <Utilities/Timer.h>
 #include <Utilities/Utilities_print.h>
@@ -73,6 +74,18 @@ void ConvexMPCLocomotion::recompute_timing(int iterations_per_mpc) {
 void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   if(data._quadruped->_robotType == RobotType::MINI_CHEETAH){
     _body_height = 0.29;
+#ifdef USE_GO1_MODEL
+    // Go1 SITL: allow a crouched gait ($SIM_BODY_H, m) - lower CoM = much
+    // larger roll/pitch margins through the UDP loop's extra latency.
+    {
+      static float h_env = -1.f;
+      if (h_env < 0.f) {
+        const char* e = getenv("SIM_BODY_H");
+        h_env = e ? atof(e) : 0.f;
+      }
+      if (h_env > 0.05f) _body_height = h_env;
+    }
+#endif
   }else if(data._quadruped->_robotType == RobotType::CHEETAH_3){
     _body_height = 0.45;
   }else{
@@ -251,7 +264,14 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     //if(firstSwing[i]) {
     //footSwingTrajectories[i].setHeight(.05);
     footSwingTrajectories[i].setHeight(.06);
+#ifdef USE_GO1_MODEL
+    // Place swing feet at the robot's own lateral hip offset (abad link). The
+    // stock .065 is mini-cheetah's abad link; Go1's is .08, so .065 narrows the
+    // stance 1.5 cm every step and erodes roll stability.
+    Vec3<float> offset(0, side_sign[i] * data._quadruped->_abadLinkLength, 0);
+#else
     Vec3<float> offset(0, side_sign[i] * .065, 0);
+#endif
 
     Vec3<float> pRobotFrame = (data._quadruped->getHipLocation(i) + offset);
 

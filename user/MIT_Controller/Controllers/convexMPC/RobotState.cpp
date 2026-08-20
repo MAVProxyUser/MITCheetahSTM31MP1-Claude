@@ -35,7 +35,13 @@ void RobotState::set(flt* p_, flt* v_, flt* q_, flt* w_, flt* r_,flt yaw_)
                0,   0,   1;
 
     Matrix<fpt,3,1> Id;
+#ifdef USE_GO1_MODEL
+    // Go1 whole-body inertia about the CoM (mini-cheetah values scaled by the
+    // 13.1/9 mass ratio; body length is nearly identical, 0.376 vs 0.38 m).
+    Id << 0.102f, 0.379f, 0.352f;
+#else
     Id << .07f, 0.26f, 0.242f;
+#endif
     //Id << 0.3f, 2.1f, 2.1f; // DH
     I_body.diagonal() = Id;
 

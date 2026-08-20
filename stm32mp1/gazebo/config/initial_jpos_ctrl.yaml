@@ -1,14 +1,16 @@
-# Go1 SITL startup pose for the JPosInitializer (leg-major: abad,hip,knee x4).
-# Ramps the legs from spawn to a standing crouch before the controller takes over.
-# (identity bridge map: these are Go1 joint angles in rad)
+# Go1 SITL crouch for JPosInitializer (ABSTRACT convention: abad,hip,knee x4;
+# the bridge converts hip/knee sign to Go1). Chosen so the trunk stays OFF the
+# ground (z~0.13 > trunk half-height 0.057) and the feet sit under the hips
+# (px~0): the old MIT crouch (+-0.6 abad splay, trunk resting on the ground)
+# let the feet scrub sideways during the ramp, seeding run-to-run variance.
 target_jpos: [
-    0.0, 0.8, -1.5,
-    0.0, 0.8, -1.5,
-    0.0, 0.8, -1.5,
-    0.0, 0.8, -1.5]
+    0.0, -1.3, 2.5,
+    0.0, -1.3, 2.5,
+    0.0, -1.3, 2.5,
+    0.0, -1.3, 2.5]
 
 mid_jpos: [
-    0.0, 1.2, -2.4,
-    0.0, 1.2, -2.4,
-    0.0, 1.2, -2.4,
-    0.0, 1.2, -2.4]
+    0.0, -1.6, 2.7,
+    0.0, -1.6, 2.7,
+    0.0, -1.6, 2.7,
+    0.0, -1.6, 2.7]
