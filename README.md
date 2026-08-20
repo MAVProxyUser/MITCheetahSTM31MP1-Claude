@@ -1,73 +1,77 @@
-## Cheetah-Software
-This repository contains the Robot and Simulation software project.  For a getting started guide, see the documentation folder.
+# MIT Cheetah on the STM32MP1 (Octavo OSD32MP1)
 
-The common folder contains the common library with dynamics and utilities
-The resources folder will contain data files, like CAD of the robot used for the visualization
-The robot folder will contain the robot program
-The sim folder will contain the simulation program. It is the only program which depends on QT.
-The third-party will contain *small* third party libraries that we have modified. This should just be libsoem for Cheetah 3, which Pat modified at one point.
+A port of MIT Biomimetics' [Cheetah-Software](https://github.com/mit-biomimetics/Cheetah-Software)
+to run its locomotion control stack on an **Octavo OSD32MP1** (STM32MP157: dual
+Cortex-A7 running Linux + a Cortex-M4), driving **Unitree RS485 legs**, with a
+**Gazebo (Go1) software-in-the-loop** simulation for development and — the end goal —
+**OpenPilot-style waypoint navigation**.
 
-## Build
-To build all code:
-```
-mkdir build
-cd build
-cmake ..
-./../scripts/make_types.sh
-make -j4
+> Fork of MIT Cheetah-Software (BSD-3, see `LICENSE`). All original build/run docs
+> for the desktop + Mini Cheetah still apply; this README covers the STM32MP1 port,
+> which lives under **`stm32mp1/`**. See also `CLAUDE.md` (rules + traps) and
+> `SKILLS.md` (the exact commands).
+
+## Why the STM32MP1
+
+The MIT stack ran the locomotion controller on an x86 computer and the motor I/O on
+separate SPI "spine" boards, with a Jetson only for perception. The STM32MP1 collapses
+**control brain + motor I/O onto one chip**: the A7/Linux cores run the Cheetah
+controller, and motor I/O (Unitree RS485, or CAN sensors) runs on the same SoC. No
+GPU is needed for locomotion — perception/ROS stays separate and optional.
+
+## Status
+
+| Piece | State |
+|---|---|
+| Cross-build (Mac → armv7) | ✅ `libbiomimetics.a` + JCQP/osqp/etc. build for Cortex-A7 |
+| Unitree RS485 actuator driver | ✅ compiles + probe; **not hardware-validated** (no adapter yet) |
+| CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
+| `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
+| **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
+| MIT_Controller (MPC + WBC) locomotion | 🚧 in progress |
+| OpenPilot waypoint navigation | ⬜ planned |
+
+## Quick start
+
+**Cross-compile (on a Mac with the toolchain):**
+```bash
+brew tap messense/macos-cross-toolchains && brew install arm-unknown-linux-gnueabihf
+stm32mp1/build.sh                 # -> mp1-build/robot/{jpos_ctrl,jpos_ctrl_sim,stand_sim}
+stm32mp1/deploy.sh push <board-ip> /usr/local/cheetah-mp1
 ```
 
-If you are building code on your computer that you would like to copy over to the mini cheetah, you must replace the cmake command with
+**Gazebo SITL (Go1) — Gazebo on the Mac, controller on the board:**
+```bash
+stm32mp1/gazebo/run_gazebo_sim.sh                 # Mac: Gazebo (headless) + bridge
+ssh <board-ip> 'cd /usr/local/cheetah-mp1 && ./stand_sim <mac-ip>'   # board: stand + squat
 ```
-cmake -DMINI_CHEETAH_BUILD=TRUE
-```
-otherwise it will not work.  If you are building mini cheetah code one the mini cheetah computer, you do not need to do this.
 
-This build process builds the common library, robot code, and simulator. If you just change robot code, you can simply run `make -j4` again. If you change LCM types, you'll need to run `cmake ..; make -j4`. This automatically runs `make_types.sh`.
+See `SKILLS.md` for hardware bring-up, the sensor/actuator probes, and debugging.
 
-To test the common library, run `common/test-common`. To run the robot code, run `robot/robot`. To run the simulator, run `sim/sim`.
-
-Part of this build process will automatically download the gtest software testing framework and sets it up. After it is done building, it will produce a `libbiomimetics.a` static library and an executable `test-common`.  Run the tests with `common/test-common`. This output should hopefully end with
+## Layout of the port
 
 ```
-[----------] Global test environment tear-down
-[==========] 18 tests from 3 test cases ran. (0 ms total)
-[  PASSED  ] 18 tests.
+stm32mp1/
+  toolchain.cmake            arm-unknown-linux-gnueabihf, Cortex-A7 + NEON, static libstdc++
+  build.sh deploy.sh         cross build + package/scp to the board
+  robot_main.cpp             hardware entry (JPos)
+  config/                    board robot + user parameter YAMLs
+  tools/                     unitree_probe, imu_probe (standalone bring-up)
+  lcm_shim/                  null LCM (no glib) so the robot links headless
+  gazebo/                    Go1 SITL: world generator, bridge, run script, README
+robot/
+  include/Stm32mp1HardwareBridge.h, src/Stm32mp1HardwareBridge.cpp   headless bridge
+  {include,src}/rt/rt_unitree.*   Unitree A1/B1 RS485 driver
+  {include,src}/rt/rt_can_imu.*   DroneCAN compact-stream IMU + Madgwick AHRS
+  {include,src}/rt/rt_gazebo.*    UDP backend to the Gazebo bridge
+third-party/
+  eigen/                     vendored Eigen 3.4.0 (for the cross build)
+  unitree_motor_sdk/         vendored Unitree A1/B1 wire protocol + CRC
+  JCQP/simd_compat.h         NEON shim replacing JCQP's x86 AVX2
 ```
-## Run simulator
-To run the simulator:
-1. Open the control board
-```
-./sim/sim
-```
-2. In the another command window, run the robot control code
-```
-./user/${controller_folder}/${controller_name} ${robot_name} ${target_system}
-```
-Example)
-```
-./user/JPos_Controller/jpos_ctrl 3 s
-```
-3: Cheetah 3, m: Mini Cheetah
-s: simulation, r: robot
 
-## Run Mini cheetah
-1. Create build folder `mkdir mc-build`
-2. Build as mini cheetah executable `cd mc-build; cmake -DMINI_CHEETAH_BUILD=TRUE ..; make -j`
-3. Connect to mini cheetah over ethernet, verify you can ssh in
-4. Copy program to mini cheetah with `../scripts/send_to_mini_cheetah.sh`
-5. ssh into the mini cheetah `ssh user@10.0.0.34`
-6. Enter the robot program folder `cd robot-software-....`
-7. Run robot code `./run_mc.sh` 
+## Credits
 
-
-
-## Dependencies:
-- Qt 5.10 - https://www.qt.io/download-qt-installer
-- LCM - https://lcm-proj.github.io/ (Please make it sure that you have a java to let lcm compile java-extension together)
-- Eigen - http://eigen.tuxfamily.org
-- `mesa-common-dev`
-- `freeglut3-dev`
-- `libblas-dev liblapack-dev`
-
-To use Ipopt, use CMake Ipopt option. Ex) cmake -DIPOPT_OPTION=ON ..
+Built on MIT Biomimetics **Cheetah-Software**. Unitree Go1 model from
+`unitreerobotics/unitree_ros`. Gazebo SITL pattern adapted from the author's
+OpenPilot/NinjaPilot `gazebo_bridge`.

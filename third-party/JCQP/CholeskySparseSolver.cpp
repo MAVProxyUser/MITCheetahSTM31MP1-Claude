@@ -9,7 +9,7 @@
 #include "Timer.h"
 #include "amd.h"
 #include <iostream>
-#include <immintrin.h>
+#include "simd_compat.h"   // <immintrin.h> on x86, scalar/NEON emulation elsewhere
 
 
 template<typename T>

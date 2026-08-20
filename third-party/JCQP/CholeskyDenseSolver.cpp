@@ -8,7 +8,7 @@
 #include "Timer.h"
 #include <cassert>
 #include <iostream>
-#include <immintrin.h>
+#include "simd_compat.h"   // <immintrin.h> on x86, scalar/NEON emulation elsewhere
 
 static constexpr s64 UNROLL_MATVEC = 8; //! Loop unroll for all inner loops, AVX2 only
 

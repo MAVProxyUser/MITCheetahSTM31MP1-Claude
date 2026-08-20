@@ -1,26 +1,79 @@
-include_directories(${CMAKE_BINARY_DIR})
-include_directories(${PROJECT_SOURCE_DIR})
-include_directories("include/")
-include_directories("./")
-include_directories("../common/include/")
-include_directories("../third-party")
-include_directories("../third-party/ParamHandler")
-include_directories("../third-party/vectornav/include")
-include_directories("../third-party/vectornav/include/vn")
-include_directories("../third-party/lord_imu/Include")
+if(STM32MP1_BUILD)
+  # ---- Trimmed headless port: Unitree RS485 + CAN IMU, no SPI/EtherCAT/VectorNav ----
+  include_directories(${CMAKE_BINARY_DIR})
+  include_directories(${PROJECT_SOURCE_DIR})
+  include_directories("include/")
+  include_directories("./")
+  include_directories("../common/include/")
+  include_directories("../third-party")
+  include_directories("../third-party/ParamHandler")
+  include_directories("../lcm-types/cpp")
+  # Null LCM shim resolves both <lcm-cpp.hpp> and <lcm/lcm-cpp.hpp>
+  include_directories("${PROJECT_SOURCE_DIR}/stm32mp1/lcm_shim")
+  include_directories("${PROJECT_SOURCE_DIR}/stm32mp1/lcm_shim/lcm")
 
-include_directories("../lcm-types/cpp")
-include_directories("/usr/local/include/lcm/")   # lcm includes
-include_directories("../third-party/SOEM/osal")
-include_directories("../third-party/SOEM/osal/linux")
-include_directories("../third-party/SOEM/oshw")
-include_directories("../third-party/SOEM/oshw/linux")
+  set(STM32MP1_ROBOT_SRC
+    src/RobotRunner.cpp
+    src/JPosInitializer.cpp
+    src/Stm32mp1HardwareBridge.cpp
+    src/rt/rt_unitree.cpp
+    src/rt/rt_can_imu.cpp
+    src/rt/rt_gazebo.cpp)
 
-file(GLOB sources "src/*.cpp" "src/rt/*.c"  "src/rt/*.cpp")
+  add_library(robot STATIC ${STM32MP1_ROBOT_SRC})
+  target_link_libraries(robot biomimetics pthread)
 
-add_library(robot SHARED ${sources})
+  # Hardware robot executable (JPos controller for bring-up).
+  add_executable(jpos_ctrl
+    ${PROJECT_SOURCE_DIR}/stm32mp1/robot_main.cpp
+    ${PROJECT_SOURCE_DIR}/user/JPos_Controller/JPos_Controller.cpp)
+  target_include_directories(jpos_ctrl PRIVATE ${PROJECT_SOURCE_DIR}/user/JPos_Controller)
+  target_link_libraries(jpos_ctrl robot biomimetics dynacore_param_handler pthread)
 
-target_link_libraries(robot biomimetics pthread lcm inih dynacore_param_handler lord_imu soem)
-if(CMAKE_SYSTEM_NAME MATCHES Linux)
-target_link_libraries(robot libvnc rt)
+  # Gazebo SITL executable (same controller, UDP backend to Gazebo on the workstation).
+  add_executable(jpos_ctrl_sim
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/sim_main.cpp
+    ${PROJECT_SOURCE_DIR}/user/JPos_Controller/JPos_Controller.cpp)
+  target_include_directories(jpos_ctrl_sim PRIVATE ${PROJECT_SOURCE_DIR}/user/JPos_Controller)
+  target_link_libraries(jpos_ctrl_sim robot biomimetics dynacore_param_handler pthread)
+
+  # Stand controller against Gazebo (holds a Go1 stance; validates the joint map).
+  add_executable(stand_sim
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/stand_main.cpp
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/StandController.cpp)
+  target_include_directories(stand_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+  target_link_libraries(stand_sim robot biomimetics dynacore_param_handler pthread)
+
+  # Find the co-deployed third-party .so's next to the binary (deploy = copy the folder).
+  set_target_properties(jpos_ctrl jpos_ctrl_sim stand_sim PROPERTIES
+    BUILD_WITH_INSTALL_RPATH TRUE
+    INSTALL_RPATH "$ORIGIN")
+
+else()
+  include_directories(${CMAKE_BINARY_DIR})
+  include_directories(${PROJECT_SOURCE_DIR})
+  include_directories("include/")
+  include_directories("./")
+  include_directories("../common/include/")
+  include_directories("../third-party")
+  include_directories("../third-party/ParamHandler")
+  include_directories("../third-party/vectornav/include")
+  include_directories("../third-party/vectornav/include/vn")
+  include_directories("../third-party/lord_imu/Include")
+
+  include_directories("../lcm-types/cpp")
+  include_directories("/usr/local/include/lcm/")   # lcm includes
+  include_directories("../third-party/SOEM/osal")
+  include_directories("../third-party/SOEM/osal/linux")
+  include_directories("../third-party/SOEM/oshw")
+  include_directories("../third-party/SOEM/oshw/linux")
+
+  file(GLOB sources "src/*.cpp" "src/rt/*.c"  "src/rt/*.cpp")
+
+  add_library(robot SHARED ${sources})
+
+  target_link_libraries(robot biomimetics pthread lcm inih dynacore_param_handler lord_imu soem)
+  if(CMAKE_SYSTEM_NAME MATCHES Linux)
+  target_link_libraries(robot libvnc rt)
+  endif()
 endif()

@@ -1,0 +1,11 @@
+# JPos_Controller user parameters (STM32MP1 port).
+# Conservative joint-PD gains for bring-up. kp/kd are joint-space; the RS485 driver
+# reflects them to the motor with the gear ratio. Raise gains only once the sign/
+# offset/gear mapping is validated on the bench.
+__collection-name__: user-parameters
+
+tau_ff    : 0.0
+kp        : 5.0
+kd        : 0.1
+zero      : 0.0
+calibrate : 0.0

@@ -28,3 +28,6 @@ documentation/doxygen/html
 documentation/doxygen/latex
 .DS_Store
 tags
+
+# STM32MP1 cross build output
+mp1-build/

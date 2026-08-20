@@ -1,0 +1,14 @@
+# Go1 SITL startup pose for the JPosInitializer (leg-major: abad,hip,knee x4).
+# Ramps the legs from spawn to a standing crouch before the controller takes over.
+# (identity bridge map: these are Go1 joint angles in rad)
+target_jpos: [
+    0.0, 0.8, -1.5,
+    0.0, 0.8, -1.5,
+    0.0, 0.8, -1.5,
+    0.0, 0.8, -1.5]
+
+mid_jpos: [
+    0.0, 1.2, -2.4,
+    0.0, 1.2, -2.4,
+    0.0, 1.2, -2.4,
+    0.0, 1.2, -2.4]
