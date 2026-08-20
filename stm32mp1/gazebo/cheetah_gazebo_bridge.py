@@ -33,7 +33,8 @@ JOINTS = [f"{leg}_{j}_joint" for leg in ("FR", "FL", "RR", "RL")
           for j in ("hip", "thigh", "calf")]           # flat order
 
 # Go1 <-> Cheetah joint convention: q_cheetah = SIGN*q_gz + OFFSET (rad).
-# Start identity; tune per joint on the bench-in-sim to make the robot stand.
+# Identity works for joint-space controllers (Stand/Walk command Go1 angles directly).
+# (The MIT model's Cartesian control needs a different mapping -- see CLAUDE.md.)
 SIGN   = [1.0] * 12
 OFFSET = [0.0] * 12
 
@@ -152,7 +153,10 @@ def send_sensor():
     pkt = struct.pack(SENSOR_FMT, SENSOR_MAGIC, seq_out[0],
                       *a, *g, *quat, *qc, *qdc,
                       ba, bp, glat, glon, galt, *gvel)
-    sock.sendto(pkt, (peer_ip[0], SENSOR_PORT))
+    try:
+        sock.sendto(pkt, (peer_ip[0], SENSOR_PORT))
+    except OSError:
+        pass   # controller restarting / gone; keep the bridge alive
 
 def control_step():
     with lock:

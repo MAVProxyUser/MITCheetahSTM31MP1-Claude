@@ -159,11 +159,29 @@ void Stm32mp1HardwareBridge::run() {
         usleep((t_loco - t_stand) * 1000000);
         _robotParams.control_mode = final_mode;       // K_LOCOMOTION (4) etc.
         printf("[sim] control_mode -> %d\n", final_mode); fflush(stdout);
+        // After the trot stabilizes, command a forward velocity (open-loop test).
+        // $SIM_VX sets forward speed on the gamepad's left stick (0 = walk in place).
+        if (final_mode == 4 && getenv("SIM_VX")) {
+          usleep(3000000);
+          float vx = atof(getenv("SIM_VX"));
+          _gamepadCommand.leftStickAnalog[1] = vx;
+          printf("[sim] forward velocity command -> %.2f\n", vx); fflush(stdout);
+        }
       }
     }).detach();
   }
 
-  for (;;) usleep(1000000);
+  for (;;) {
+    usleep(1000000);
+    if (_robotRunner) {
+      printf("[stm32mp1] ctrl loop: maxRuntime=%.2f ms  maxPeriod=%.2f ms  (period target %.1f ms)\n",
+             _robotRunner->getMaxRuntime() * 1000.f,
+             _robotRunner->getMaxPeriod() * 1000.f,
+             _robotParams.controller_dt * 1000.f);
+      fflush(stdout);
+      _robotRunner->clearMax();
+    }
+  }
 }
 
 #endif  // linux

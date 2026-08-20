@@ -44,8 +44,15 @@ if(STM32MP1_BUILD)
   target_include_directories(stand_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
   target_link_libraries(stand_sim robot biomimetics dynacore_param_handler pthread)
 
+  # Joint-space creep-gait walk controller against Gazebo (walk A->B).
+  add_executable(walk_sim
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/walk_main.cpp
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/WalkController.cpp)
+  target_include_directories(walk_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+  target_link_libraries(walk_sim robot biomimetics dynacore_param_handler pthread)
+
   # Find the co-deployed third-party .so's next to the binary (deploy = copy the folder).
-  set_target_properties(jpos_ctrl jpos_ctrl_sim stand_sim PROPERTIES
+  set_target_properties(jpos_ctrl jpos_ctrl_sim stand_sim walk_sim PROPERTIES
     BUILD_WITH_INSTALL_RPATH TRUE
     INSTALL_RPATH "$ORIGIN")
 
