@@ -142,6 +142,10 @@ private:
   MixedFrequncyGait random, random2;
   Mat3<float> Kp, Kd, Kp_stance, Kd_stance;
   bool firstRun = true;
+  // entry height ramp: avoid stepping _body_height at LOCOMOTION entry
+  float _entry_height = 0.f;
+  float _height_blend = 0.f;
+  float _height_ramp_s = 1.0f;
   bool firstSwing[4];
   float swingTimeRemaining[4];
   float stand_traj[6];

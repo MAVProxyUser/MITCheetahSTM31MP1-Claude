@@ -417,7 +417,14 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
     s16 num_variables = 12*setup->horizon;
 
 
-    qpOASES::int_t nWSR = 100;
+    // Working-set recalculation budget. qpOASES is explicitly designed to be
+    // truncated - it returns its best iterate - and this solve is COLD STARTED
+    // every MPC update (a fresh QProblem, no hotstart), which on this Cortex-A7
+    // costs 56-85 ms for the 12*horizon variable problem against a 2 ms control
+    // period. MIT's x86 UP board did the same solve in 1-2 ms and never noticed.
+    // $SIM_MPC_NWSR trades optimality for latency.
+    static const int _nwsr_env = getenv("SIM_MPC_NWSR") ? atoi(getenv("SIM_MPC_NWSR")) : 100;
+    qpOASES::int_t nWSR = _nwsr_env;
 
 
     int new_vars = num_variables;

@@ -28,9 +28,25 @@ Quadruped<T> buildGo1() {
   go1._hipLinkLength = 0.213;         // thigh
   go1._kneeLinkY_offset = 0.0;
   go1._kneeLinkLength = 0.213;        // calf
-  go1._maxLegLength = 0.40;
+  // Reach is set by the KNEE LIMIT, not by the link lengths. The Go1 shank is
+  // limited to -161..-51 deg, so the leg can never straighten: at the most
+  // extended knee the hip-to-foot distance is
+  //   sqrt(l2^2 + l3^2 + 2*l2*l3*cos(0.888)) = 0.385 m
+  // (0.426 m would need a straight leg the joint cannot reach). MIT uses this
+  // for the swing planner and for SafetyChecker's maxPDes = L*sin(60deg), so an
+  // optimistic value invites commands the joint physically cannot honour.
+  go1._maxLegLength = 0.385;
 
-  go1._motorTauMax = 23.7f;           // Go1 joint motor
+  // MOTOR-side torque caps. ActuatorModel computes
+  //     tau_joint = gearRatio * clamp(tau_motor, +-_tauMax)
+  // so these are the published JOINT limits divided by the 6.33 gear:
+  //   hip / abad : 23.70 Nm / 6.33 = 3.744
+  //   knee       : 35.55 Nm / 6.33 = 5.616   (Go1 knee is 1.5x, same gear)
+  // Putting the joint figure (23.7) here made the model believe 150 Nm per
+  // joint - 6.3x the real machine - so the WBC planned torques the actuator
+  // could never deliver and Gazebo clamped them at the URDF's 23.7/35.55.
+  go1._motorTauMax = 3.744f;
+  go1._kneeMotorTauMax = 5.616f;
   go1._batteryV = 21.6;
   go1._motorKT = .05;
   go1._motorR = 0.173;

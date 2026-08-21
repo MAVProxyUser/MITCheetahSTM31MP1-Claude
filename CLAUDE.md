@@ -472,6 +472,96 @@ over by 0.5 m/s commanded. With forces, state and transport all verified good,
 what is left is contact timing / phase margin through the SITL loop. Gait period
 was swept (`SIM_MPC_MS` 27/45/60) without fixing it.
 
+## Why MIT's gaits could not run: the A7 cannot solve the dense MPC inline
+
+Measured, after fixing everything else: **the convex-MPC solve costs 60-105 ms
+on this Cortex-A7 against a 2 ms control period.** The control loop reports
+`maxRuntime=62-105 ms` for the ticks that solve, i.e. ~30-50 missed control
+periods, and it happens on the FIRST tick of LOCOMOTION. Stance legs run at
+`Kp_stance = 0*Kp` by MIT's design (all support comes from MPC/WBC force), so
+the robot free-falls through the stall, drops ~7 cm, and rolls out. That is the
+"tumbles ~1 s after gait start" symptom, start to finish.
+
+What it is NOT (all measured, all ruled out):
+- not the QP iteration budget: `nWSR` 100 / 25 / 10 -> 105 / 103 / 104 ms;
+- not the horizon: 10 / 6 / 4 -> 81 / 56 / 57 ms (so not O(n^3) QP work);
+- not the WBC: `use_wbc` 1 / 0 -> 58 / 85 ms, the MPC path dominates either way;
+- not unvectorised code, though that WAS a real bug - see below.
+
+It is the dense linear algebra in `SolverMPC`: `qH = 2*(B_qp^T * S * B_qp + ...)`
+is ~4M double-precision MACs at horizon 10, and this board has no FP throughput
+to spare. MIT's x86 UP board did the same solve in 1-2 ms and never had to care.
+The fix that keeps MIT's design is to run the solve ASYNCHRONOUSLY, which is
+what MIT's own hardware does (MPC at 30-40 Hz, leg control at 500 Hz).
+
+### Build bug found along the way
+`third-party/qpOASES/CMakeLists.txt` did a blanket
+`set(CMAKE_CXX_FLAGS "-O3 -no-pie -ggdb -w")`, **clobbering the parent's flags**,
+so the hottest code in the stack was compiled for a generic ARM baseline with
+no `-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard` and without the project's
+Eigen alignment defines. Now appends under `STM32MP1_BUILD` instead. (It did not
+move the MPC number much, but a third-party library silently dropping the
+project's ABI-sensitive Eigen flags is a trap worth removing regardless.)
+
+## Two more upstream bugs in MIT's locomotion
+
+1. **Lateral capture point is ~22x too weak.** In `ConvexMPCLocomotion.cpp` the
+   Raibert terms read
+   ```
+   pfx_rel = vWorld[0] * (.5 + bonus) * stance_time + ...
+   pfy_rel = vWorld[1] * .5 * stance_time * dtMPC   + ...
+   ```
+   Same capture-point quantity, but y carries an extra `* dtMPC` (0.045 s). So
+   sideways velocity goes essentially uncorrected by foot placement: measured
+   `vB_y` climbing 0.013 -> 0.466 m/s over ~1 s while roll ran away. Removed.
+2. **Gait numbers >= 10 are reserved.** `run()` does
+   `if(gaitNumber >= 10) { gaitNumber -= 10; omniMode = true; }`, so adding
+   `walking`/`walking2`/`galloping` at 10/11/12 silently selected
+   trotting/bounding/pronking instead - an entire gait matrix measured the wrong
+   thing. They now live at 20/21/22 and bypass the omni rewrite.
+
+## Go1 adaptation of MIT constants (verified against the URDF)
+
+The URDF matches Unitree's published spec exactly - abad +-49 deg, thigh
+-39..258 deg, shank -161..-51 deg, 23.7 / 23.7 / 35.55 Nm, 13.101 kg total - and
+`buildGo1()` matches the URDF. Corrections made:
+- `_motorTauMax` is MOTOR-side (`ActuatorModel` does
+  `tau_joint = gearRatio * clamp(tau_motor)`). It held 23.7, the JOINT figure,
+  so the model believed 150 Nm per joint. Now 3.744 (23.70/6.33), plus a new
+  `_kneeMotorTauMax = 5.616` (35.55/6.33) because the Go1's knee is 1.5x the hip
+  at the SAME gear ratio, which MIT's single-value struct could not express
+  (mini-cheetah used a bigger knee gear instead). NOTE: `buildActuatorModels()`
+  is only referenced by unit tests, so this is model correctness, not behaviour.
+- `_maxLegLength` 0.40 -> **0.385**: reach is set by the KNEE LIMIT, not the
+  links. The shank cannot pass -51 deg, so the leg never straightens and
+  hip-to-foot maxes at `sqrt(l2^2+l3^2+2*l2*l3*cos(0.888)) = 0.385 m`.
+- MPC per-foot force cap 120 N -> **175 N**, holding MIT's own ratio (120 N for
+  a 9 kg / 88 N mini-cheetah = 1.36x bodyweight) for the 13.1 kg / 128 N Go1.
+  250 N was tried and made the stand sit lower.
+- Entry height ramp: BALANCE_STAND settles the Go1 at 0.21-0.26 m while
+  locomotion's nominal `_body_height` is 0.30, and handing the MPC that 9 cm
+  step on the first tick made it LAUNCH the robot (measured z 0.211 -> 0.342 at
+  0.32 m/s vertical, then a roll-out). `_body_height` now ramps from the height
+  the robot is actually at. A mini-cheetah never sees this because its balance
+  stand already sits at its locomotion height.
+
+## Measured gait matrix (`gait_matrix.sh`, farm, 0.5 m/s commanded)
+
+| gait | num | dist before fall | up for | outcome |
+|---|---|---|---|---|
+| standing | 4 | 0.08 m | 18 s | upright |
+| walking | 20 | 0.18 m | 18 s | upright |
+| pronking | 2 | 0.81 m | 13.8 s | fell |
+| bounding | 1 | 0.34 m | 14.2 s | fell |
+| pacing | 8 | 0.40 m | 3.9 s | fell |
+| galloping | 22 | 0.29 m | 6.2 s | fell |
+| trotRunning | 5 | 0.20 m | 6.7 s | fell |
+| trotting | 9 | 0.15 m | 6.8 s | fell |
+| walking2 | 21 | 0.24 m | 6.1 s | fell |
+
+Every one of them is limited by the same 60-105 ms solve stall, not by gait
+tuning. **Fix the async solve before tuning any of these numbers.**
+
 ## Still open
 - The trot's travel direction is inverted: at 1.0 m/s commanded it makes 1.00
   m/s of ground speed with the *magnitude right and the sign wrong*, and

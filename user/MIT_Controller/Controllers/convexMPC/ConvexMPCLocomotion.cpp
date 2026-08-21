@@ -4,6 +4,21 @@
 #include <Utilities/Utilities_print.h>
 
 #include "ConvexMPCLocomotion.h"
+
+// Per-foot force cap handed to the convex MPC. Mini-cheetah's 120 N suits a
+// 9 kg / 88 N robot; the Go1 is 13.1 kg / 128 N and its knee (35.55 Nm over a
+// ~0.10-0.15 m stance moment arm) is good for 240-355 N at the foot. At 120 N
+// the solver cannot plan the 2-3x bodyweight peaks bounding and galloping need.
+#ifdef USE_GO1_MODEL
+// MIT uses 120 N for the 9 kg / 88 N mini-cheetah - 1.36x bodyweight per foot.
+// Holding that ratio for the 13.1 kg / 128 N Go1 gives 175 N, which is well
+// inside what its knee can actually deliver (35.55 Nm over a 0.10-0.15 m stance
+// moment arm is 240-355 N at the foot). 250 N was tried and made the stand sit
+// lower, so this keeps MIT's tuning rather than inventing a new one.
+#define MPC_F_MAX 175
+#else
+#define MPC_F_MAX 120
+#endif
 #include "convexMPC_interface.h"
 #include "../../../../common/FootstepPlanner/GraphSearch.h"
 
@@ -19,7 +34,11 @@
 
 ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc, MIT_UserParameters* parameters) :
   iterationsBetweenMPC(_iterations_between_mpc),
-  horizonLength(10),
+  // Horizon is env-tunable ($SIM_MPC_HORIZON) because dense-QP solve cost grows
+  // steeply with it, and this board is 30x slower than the x86 UP board MIT
+  // shipped on: the 10-step horizon measures 62-68 ms per solve on the A7
+  // against a 2 ms control period.
+  horizonLength(getenv("SIM_MPC_HORIZON") ? atoi(getenv("SIM_MPC_HORIZON")) : 10),
   dt(_dt),
   trotting(horizonLength, Vec4<int>(0,5,5,0), Vec4<int>(5,5,5,5),"Trotting"),
   bounding(horizonLength, Vec4<int>(5,5,0,0),Vec4<int>(4,4,4,4),"Bounding"),
@@ -42,7 +61,7 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   dtMPC = dt * iterationsBetweenMPC;
   default_iterations_between_mpc = iterationsBetweenMPC;
   printf("[Convex MPC] dt: %.3f iterations: %d, dtMPC: %.3f\n", dt, iterationsBetweenMPC, dtMPC);
-  setup_problem(dtMPC, horizonLength, 0.4, 120);
+  setup_problem(dtMPC, horizonLength, 0.4, MPC_F_MAX);
   //setup_problem(dtMPC, horizonLength, 0.4, 650); // DH
   rpy_comp[0] = 0;
   rpy_comp[1] = 0;
@@ -64,6 +83,7 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
 void ConvexMPCLocomotion::initialize(){
   for(int i = 0; i < 4; i++) firstSwing[i] = true;
   firstRun = true;
+  _height_blend = 0.f;      // restart the entry height ramp (see _SetupCommand)
 }
 
 void ConvexMPCLocomotion::recompute_timing(int iterations_per_mpc) {
@@ -96,6 +116,26 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
     assert(false);
   }
 
+  // ---- ENTRY HEIGHT RAMP ----
+  // BALANCE_STAND settles the Go1 around 0.21-0.26 m, but locomotion's nominal
+  // _body_height is 0.30. Handing the MPC that 9 cm step on the first tick of
+  // LOCOMOTION makes it solve for a large upward force and LAUNCH the robot:
+  // measured z 0.211 -> 0.342 in ~0.2 s at 0.32 m/s vertical, after which it
+  // comes down badly and rolls out (wB peaked at -3.2 rad/s, roll -49 deg,
+  // then the FSM bailed to RECOVERY_STAND for the rest of the run). MIT never
+  // sees this because a mini-cheetah's balance stand already sits at its
+  // locomotion height.
+  // So start from the height the robot is ACTUALLY at and ramp to nominal.
+  {
+    float z_now = data._stateEstimator->getResult().position[2];
+    if (_height_blend <= 0.f && z_now > 0.05f) _entry_height = z_now;
+    if (_height_blend < 1.f) {
+      _height_blend += dt / _height_ramp_s;
+      if (_height_blend > 1.f) _height_blend = 1.f;
+      _body_height = _entry_height + (_body_height - _entry_height) * _height_blend;
+    }
+  }
+
   float x_vel_cmd, y_vel_cmd;
   float filter(0.1);
   if(data.controlParameters->use_rc){
@@ -113,6 +153,20 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   _x_vel_des = _x_vel_des*(1-filter) + x_vel_cmd*filter;
   _y_vel_des = _y_vel_des*(1-filter) + y_vel_cmd*filter;
 
+  // STM32MP1 SITL: prove the velocity command actually reaches the MPC.
+  if (getenv("STM32MP1_EST_DBG")) {
+    static int _vdbg = 0; ++_vdbg;
+    if ((_vdbg % 25) == 0) {
+      printf("[MPC] gait=%d pad=%.3f stick=%.3f xcmd=%.3f -> xdes=%.3f  yawrate=%.3f  bodyH=%.3f\n",
+             gaitNumber,
+             data._desiredStateCommand->gamepadCommand
+               ? data._desiredStateCommand->gamepadCommand->leftStickAnalog[1] : -9.f,
+             data._desiredStateCommand->leftAnalogStick[1],
+             x_vel_cmd, _x_vel_des, _yaw_turn_rate, _body_height);
+      fflush(stdout);
+    }
+  }
+
   _yaw_des = data._stateEstimator->getResult().rpy[2] + dt * _yaw_turn_rate;
   _roll_des = 0.;
   _pitch_des = 0.;
@@ -126,7 +180,12 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // Command Setup
   _SetupCommand(data);
   gaitNumber = data.userParameters->cmpc_gait;
-  if(gaitNumber >= 10) {
+  // 20+ are this port's additions (walking / walking2 / galloping); they must
+  // bypass MIT's omni rewrite, which would otherwise turn 20/21/22 into
+  // 10/11/12 and then into 0/1/2.
+  if(gaitNumber >= 20) {
+    // keep as-is
+  } else if(gaitNumber >= 10) {
     gaitNumber -= 10;
     omniMode = true;
   }
@@ -167,17 +226,27 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // MIT defines `walking` and `walking2` but the stock selector stops at 8, so
   // neither is reachable and anything else silently falls through to `trotting`.
   // Both matter here:
-  //   10 = walking  - 4-beat, offsets (0,3,5,8), one foot down at a time
-  //   11 = walking2 - diagonal pairs like a trot but 7/10 duty, i.e. a 40%
+  // NUMBERING: MIT reserves >=10 for "same gait, omniMode" - run() does
+  //   if(gaitNumber >= 10) { gaitNumber -= 10; omniMode = true; }
+  // so 10/11/12 are rewritten to 0/1/2 and silently select trotting/bounding/
+  // pronking. The new gaits therefore live at 20+, which survives that
+  // subtraction as 10/11/12 only if omni is wanted - so they are matched
+  // BEFORE the subtraction instead (see run()).
+  //   20 = walking  - 4-beat, offsets (0,3,5,8), one foot down at a time
+  //   21 = walking2 - diagonal pairs like a trot but 7/10 duty, i.e. a 40%
   //                   DOUBLE-SUPPORT overlap. A 50%-duty trot is on exactly two
   //                   feet at every instant and free to roll about that
   //                   diagonal the whole time; the overlap is what removes that
   //                   window, and it is the single thing that made this port's
   //                   own hand-rolled trot stable.
-  else if(gaitNumber == 10)
+  else if(gaitNumber == 20)
     gait = &walking;
-  else if(gaitNumber == 11)
+  else if(gaitNumber == 21)
     gait = &walking2;
+  //   22 = galloping - offsets (0,2,7,9), the only gait here with a real
+  //        flight phase, and the one the published 2.5-4.7 m/s figures rely on.
+  else if(gaitNumber == 22)
+    gait = &galloping;
   current_gait = gaitNumber;
 
   gait->setIterations(iterationsBetweenMPC, iterationCounter);
@@ -340,7 +409,17 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       .03f*(seResult.vWorld[0]-v_des_world[0]) +
       (0.5f*seResult.position[2]/9.81f) * (seResult.vWorld[1]*_yaw_turn_rate);
 
-    float pfy_rel = seResult.vWorld[1] * .5 * stance_time * dtMPC +
+    // NOTE the missing `* dtMPC`. Upstream reads
+    //     vWorld[1] * .5 * stance_time * dtMPC
+    // while the x term one line up is
+    //     vWorld[0] * (.5 + bonus) * stance_time
+    // - no dtMPC. Both are the same capture-point quantity (v * T_stance / 2),
+    // so the extra factor makes LATERAL foot placement ~22x too weak at
+    // dtMPC = 0.045 s. Sideways velocity then goes essentially uncorrected:
+    // measured vB_y climbing 0.013 -> 0.466 m/s over ~1 s at gait entry while
+    // roll ran away to -0.75 rad and the robot fell over every single time.
+    // A mini-cheetah tolerates it; the Go1 does not.
+    float pfy_rel = seResult.vWorld[1] * .5 * stance_time +
       .03f*(seResult.vWorld[1]-v_des_world[1]) +
       (0.5f*seResult.position[2]/9.81f) * (-seResult.vWorld[0]*_yaw_turn_rate);
     pfx_rel = fminf(fmaxf(pfx_rel, -p_rel_max), p_rel_max);
@@ -663,7 +742,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
 
   Timer t1;
   dtMPC = dt * iterationsBetweenMPC;
-  setup_problem(dtMPC,horizonLength,0.4,120);
+  setup_problem(dtMPC,horizonLength,0.4,MPC_F_MAX);
   //setup_problem(dtMPC,horizonLength,0.4,650); //DH
   update_x_drag(x_comp_integral);
   if(vxy[0] > 0.3 || vxy[0] < -0.3) {

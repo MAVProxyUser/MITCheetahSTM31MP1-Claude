@@ -53,7 +53,17 @@ SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/libs)
 ############################################################
 
 # warnings are disabled! (qpOASES has many warnings)
-set(CMAKE_CXX_FLAGS "-O3 -no-pie -ggdb -w")
+# STM32MP1: do NOT clobber the parent's flags. Upstream's blanket set() drops
+# -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard, so the QP solver - the
+# hottest code in the convex MPC - gets built for a generic ARM baseline with
+# no NEON while everything around it is tuned for the A7. Measured 56-85 ms per
+# MPC solve against a 2 ms control period, which is what stops MIT's locomotion
+# gaits from running on this board at all.
+if(STM32MP1_BUILD)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
+else()
+  set(CMAKE_CXX_FLAGS "-O3 -no-pie -ggdb -w")
+endif()
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__NO_COPYRIGHT__ -Wno-error")
 IF ( UNIX )
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic -Wfloat-equal -Wshadow -DLINUX")
