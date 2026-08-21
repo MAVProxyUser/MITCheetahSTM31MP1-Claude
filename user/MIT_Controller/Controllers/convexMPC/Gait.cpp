@@ -1,3 +1,5 @@
+#include <cstdlib>
+
 #include "Gait.h"
 
 // Offset - Duration Gait
@@ -115,13 +117,33 @@ Vec4<float> MixedFrequncyGait::getSwingState() {
 }
 
 
+bool OffsetDurationGait::getFlightState() {
+  // Port of Unitree's OffsetDurationGait::getFlightState (0xf7880). A leg is in
+  // STANCE while its wrapped progress through the cycle is still inside its
+  // duration; if every leg has passed that point, all four are swinging and the
+  // robot is airborne.
+  int phase = _iteration % _nIterations;
+  for (int i = 0; i < 4; i++) {
+    int progress = phase - _offsets[i];
+    if (progress < 0) progress += _nIterations;
+    if ((float)progress < (float)_durations[i]) return false;   // still standing
+  }
+  return true;
+}
+
 int* OffsetDurationGait::getMpcTable()
 {
 
   //printf("MPC table:\n");
   for(int i = 0; i < _nIterations; i++)
   {
-    int iter = (i + _iteration + 1) % _nIterations;
+    // MIT shifts the contact schedule one MPC step into the future (+1);
+    // Unitree's build of this same function (0xf7758) does NOT. Plausibly MIT
+    // compensating for solve latency. Made switchable rather than assumed,
+    // because on this port the latency is much larger than on either of theirs.
+    static const int sched_lead =
+        getenv("SIM_MPC_SCHED_LEAD") ? atoi(getenv("SIM_MPC_SCHED_LEAD")) : 1;
+    int iter = (i + _iteration + sched_lead) % _nIterations;
     Array4i progress = iter - _offsets;
     for(int j = 0; j < 4; j++)
     {
@@ -187,8 +209,15 @@ int MixedFrequncyGait::getCurrentGaitPhase() {
 }
 
 float OffsetDurationGait::getCurrentSwingTime(float dtMPC, int leg) {
-  (void)leg;
-  return dtMPC * _swing;
+  // PER-LEG, as Unitree's build of this same class does (it indexes
+  // _durations[leg] at 0xf7420 rather than using a scalar). Upstream MIT throws
+  // the leg away and returns one number for all four, which silently forbids
+  // any gait whose legs do not share a duty cycle - MIT only supports that in
+  // MixedFrequncyGait. The gaits in this port that need it are the asymmetric
+  // ones. Falls back to the scalar when the per-leg table is uniform, so every
+  // existing gait is bit-identical.
+  if (leg < 0 || leg > 3) return dtMPC * _swing;
+  return dtMPC * (float)(_nIterations - _durations[leg]);
 }
 
 float MixedFrequncyGait::getCurrentSwingTime(float dtMPC, int leg) {
@@ -196,8 +225,9 @@ float MixedFrequncyGait::getCurrentSwingTime(float dtMPC, int leg) {
 }
 
 float OffsetDurationGait::getCurrentStanceTime(float dtMPC, int leg) {
-  (void) leg;
-  return dtMPC * _stance;
+  // PER-LEG - see getCurrentSwingTime above (Unitree indexes at 0xf7438).
+  if (leg < 0 || leg > 3) return dtMPC * _stance;
+  return dtMPC * (float)_durations[leg];
 }
 
 float MixedFrequncyGait::getCurrentStanceTime(float dtMPC, int leg) {

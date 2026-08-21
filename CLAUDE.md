@@ -1151,6 +1151,68 @@ controller-side clamp and is **not yet enforced anywhere in this port**.
   that event.
 
 
+## Implementing the RE findings: what worked, what did not
+
+Three things were ported from `Legged_sport` into this stack. The process is
+worth recording because two of the three steps were wrong first.
+
+**1. `getFlightState()` (Gait.h/.cpp).** All-four-legs-in-swing detector, ported
+from `OffsetDurationGait::getFlightState` (0xf7880). Upstream MIT has no
+equivalent, so it has no way to know a gait even HAS a flight phase.
+
+**2. Per-leg stance/swing durations.** MIT's `OffsetDurationGait` does
+`(void)leg; return dtMPC * _stance;` - one scalar for all four legs. Unitree's
+build of the SAME class indexes a per-leg array (0xf7420 / 0xf7438). MIT only
+supports per-leg timing in `MixedFrequncyGait`.
+
+**3. Zero-velocity gait hold - and the dead guard it exposed.**
+
+FIRST ATTEMPT, WRONG: patch the MPC contact table so every all-swing horizon
+step is forced back to stance. Measured: **no effect whatsoever** - pronking
+still reached 0.00 m and collapsed at 10 s with the amendment confirmed firing
+(`6/10 horizon steps were airborne ... forced to stance`). It cannot work: the
+table only tells the MPC what to SOLVE AGAINST, while the gait's own
+contact/swing states still swing the legs. The result is the MPC commanding
+forces into feet that are in the air - strictly worse than leaving it alone.
+
+Re-reading the binary showed Unitree does not rewrite the schedule at all: it
+raises a TRANSITION REQUEST (`data+0x36a`). They leave the flight gait rather
+than patch it.
+
+Implementing that exposed the actual defect: **this port's standing-gait entry
+window is gated behind `if (_mpcAsync)`**, and the solve runs INLINE by default
+(`SIM_MPC_ASYNC=0` is the working config). So nothing had ever stopped a dynamic
+gait from engaging while the sequencer still held velocity at zero - dead code
+for the entire gait matrix. `zeroVelHold()` now applies in both modes.
+
+### Result: trotRunning went from broken to working
+
+| gait | before | after |
+|---|---|---|
+| **trotRunning (5)** | 2.96 m, fell @ 24 s | **16.72 m, upright to end (0.6 m/s)** |
+| **bounding (1)** | 1.84 m, fell @ 24 s | **5.23 m, 30 s (1.0 m/s)** - speed-limited |
+| pronking (2) | fell | 0.03-0.12 m, 18 s at every speed - still broken |
+| galloping (22) | fell | 0.04-0.06 m, 18 s at every speed - still broken |
+
+Flight gaits need a speed worth flying for: bounding is 0.05 m at 0.6 m/s and
+5.23 m at 1.0. Pronking (all four legs in phase) and galloping do not respond to
+speed at all, which is consistent with a true all-airborne phase leaving the MPC
+with no contacts - the friction cone forces every foot force to zero and the
+body is purely ballistic, so landing depends entirely on timing and inertia.
+
+### Also ruled out by the binary
+`Kp_stance = 0` is NOT this port's bug. Unitree's stance gain vector
+(`.rodata 0x2fe0f8`) is zeros, same as MIT. All support genuinely is meant to
+come from MPC force.
+
+### Left as a knob, not a guess
+MIT shifts the contact schedule one MPC step into the future
+(`iter = (i + _iteration + 1) % _nIterations`); Unitree's build of the same
+function (0xf7758) does **not**. Plausibly MIT compensating for solve latency,
+and this port's latency is larger than either of theirs - so it is exposed as
+`SIM_MPC_SCHED_LEAD` (default 1 = MIT) rather than silently changed.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer

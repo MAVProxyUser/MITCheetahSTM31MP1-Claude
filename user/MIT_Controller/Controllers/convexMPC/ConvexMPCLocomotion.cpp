@@ -260,6 +260,14 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       gaitNumber = 4;
   }
 
+  // Zero-velocity hold. NOTE the window above only applies when _mpcAsync is
+  // set, and this port runs the solve INLINE by default - so until now nothing
+  // stopped a dynamic gait from engaging while the sequencer still held the
+  // velocity command at zero, which is exactly where every flight-phase gait
+  // dies. Applies in both modes.
+  if (zeroVelHold())
+    gaitNumber = 4;      // MIT's standing gait
+
   auto& seResult = data._stateEstimator->getResult();
 
   // Check if transition to standing
@@ -770,6 +778,53 @@ void ConvexMPCLocomotion::run(ControlFSMData<double>& data) {
   (void)data;
   printf("call to old CMPC with double!\n");
 
+}
+
+/*!
+ * True while the operator command has been effectively zero long enough that a
+ * dynamic gait should not be running.
+ *
+ * Ported from Unitree's ConvexMPCLocomotion::zeroVelTransitionAmend (0xe41c0),
+ * which upstream MIT does not have. Note what that function actually DOES: it
+ * classifies the command against a 0.01 m/s threshold, runs a debounced counter
+ * so one tick of zero cannot trigger anything, and then raises a TRANSITION
+ * REQUEST (data+0x36a). It does not rewrite the contact schedule.
+ *
+ * That distinction was established by measurement here, not by reading. Patching
+ * the MPC table directly - forcing every airborne horizon step back to stance -
+ * was tried first and does nothing: pronking still reached 0.00 m and collapsed
+ * at 10 s with the amendment confirmed firing ("6/10 horizon steps were airborne
+ * ... forced to stance"). It cannot work, because the table only tells the MPC
+ * what to solve against; the gait's own contact/swing states still swing the
+ * legs, so the MPC ends up commanding forces into feet that are in the air.
+ *
+ * The mechanism that does matter: at zero commanded velocity a flight-phase gait
+ * is a jump with nothing asked of it. All four feet leave the ground, the MPC has
+ * no contact to push against, and with Kp_stance = 0 (MIT's design, which Unitree
+ * keeps - their stance gain vector at .rodata 0x2fe0f8 is zeros) nothing else
+ * holds the body up. Measured signature: dead level, sinking to ~0.10 m, no
+ * orientation trip.
+ *
+ * So hold MIT's standing gait until there is actually a velocity to deliver.
+ * $SIM_ZEROVEL_HOLD_GAIT=0 restores stock behaviour; $SIM_ZEROVEL_HOLD sets the
+ * debounce in control ticks.
+ */
+bool ConvexMPCLocomotion::zeroVelHold() {
+  static const bool enabled = !getenv("SIM_ZEROVEL_HOLD_GAIT") ||
+                              atoi(getenv("SIM_ZEROVEL_HOLD_GAIT")) != 0;
+  if (!enabled) return false;
+
+  const float kZeroVel = 0.01f;      // Unitree's threshold, .rodata 0x2665e0
+  static const int kHold =
+      getenv("SIM_ZEROVEL_HOLD") ? atoi(getenv("SIM_ZEROVEL_HOLD")) : 25;
+
+  const bool zeroish =
+      std::sqrt(_x_vel_des * _x_vel_des + _y_vel_des * _y_vel_des) < kZeroVel &&
+      std::fabs(_yaw_turn_rate) < kZeroVel;
+
+  static int zeroTicks = 0;
+  zeroTicks = zeroish ? (zeroTicks + 1) : 0;
+  return zeroTicks >= kHold;
 }
 
 void ConvexMPCLocomotion::updateMPCIfNeeded(int *mpcTable, ControlFSMData<float> &data, bool omniMode) {

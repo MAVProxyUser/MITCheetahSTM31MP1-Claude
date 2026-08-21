@@ -40,6 +40,18 @@ public:
   int getCurrentGaitPhase();
   void debugPrint();
 
+  /*!
+   * True when ALL FOUR legs are in swing at once, i.e. the robot is airborne.
+   *
+   * Ported from Unitree's Legged_sport (OffsetDurationGait::getFlightState,
+   * 0xf7880), which is the same MIT codebase - upstream MIT has no equivalent
+   * and therefore no way to know a gait has a flight phase. The gaits this port
+   * cannot run (bounding, pronking, galloping, trotRunning) are exactly the
+   * ones with a flight phase, and they collapse AT GAIT ENGAGEMENT with the
+   * velocity command still at zero.
+   */
+  bool getFlightState();
+
 private:
   int* _mpc_table;
   Array4i _offsets; // offset in mpc segments
@@ -67,6 +79,18 @@ public:
   float getCurrentSwingTime(float dtMPC, int leg);
   int getCurrentGaitPhase();
   void debugPrint();
+
+  /*!
+   * True when ALL FOUR legs are in swing at once, i.e. the robot is airborne.
+   *
+   * Ported from Unitree's Legged_sport (OffsetDurationGait::getFlightState,
+   * 0xf7880), which is the same MIT codebase - upstream MIT has no equivalent
+   * and therefore no way to know a gait has a flight phase. The gaits this port
+   * cannot run (bounding, pronking, galloping, trotRunning) are exactly the
+   * ones with a flight phase, and they collapse AT GAIT ENGAGEMENT with the
+   * velocity command still at zero.
+   */
+  bool getFlightState();
 
 private:
   float _duty_cycle;

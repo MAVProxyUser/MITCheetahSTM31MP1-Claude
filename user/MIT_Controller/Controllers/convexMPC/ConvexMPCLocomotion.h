@@ -131,6 +131,11 @@ private:
   float _body_height_jumping = 0.36;
 
   void recompute_timing(int iterations_per_mpc);
+  //! True while the command has been ~zero long enough that a dynamic gait
+  //! should not be running (ported from Unitree's Legged_sport; MIT has no
+  //! equivalent). See the .cpp - the table-patching alternative was measured
+  //! and does not work.
+  bool zeroVelHold();
   void updateMPCIfNeeded(int* mpcTable, ControlFSMData<float>& data, bool omniMode);
   void solveDenseMPC(int *mpcTable, ControlFSMData<float> &data);
   void solveSparseMPC(int *mpcTable, ControlFSMData<float> &data);
