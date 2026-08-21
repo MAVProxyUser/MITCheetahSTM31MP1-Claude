@@ -5,6 +5,10 @@
 #include <FSM_States/ControlFSMData.h>
 #include <SparseCMPC/SparseCMPC.h>
 #include "cppTypes.h"
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include "Gait.h"
 
 #include <cstdio>
@@ -85,6 +89,7 @@ public:
 
   ConvexMPCLocomotion(float _dt, int _iterations_between_mpc, MIT_UserParameters* parameters);
   void initialize();
+  ~ConvexMPCLocomotion();
 
   template<typename T>
   void run(ControlFSMData<T>& data);
@@ -146,6 +151,38 @@ private:
   float _entry_height = 0.f;
   float _height_blend = 0.f;
   float _height_ramp_s = 1.0f;
+
+  // ---- asynchronous MPC solve ----------------------------------------------
+  // The dense convex-MPC solve measures 60-105 ms on this Cortex-A7 against a
+  // 2 ms control period, and it lands on the first tick of LOCOMOTION. Solved
+  // inline it stalls the 500 Hz loop for ~30-50 periods; because MIT runs
+  // stance at Kp_stance = 0 (all support is MPC/WBC force), the robot simply
+  // free-falls through the stall and rolls out. MIT's own hardware runs the MPC
+  // asynchronously - roughly 30-40 Hz - while leg control stays at 500 Hz, so
+  // this restores their architecture rather than changing their maths: the
+  // worker below runs solveDenseMPC's body verbatim on a snapshot, and the
+  // control loop keeps applying the most recent solution.
+  struct MpcSnapshot {
+    float p[3], v[3], q[4], w[3], r[12], yaw, alpha;
+    float traj[12 * 36];
+    int   table[4 * 36];
+    int   horizon;
+    float dtMPC;
+    Mat3<float> rBody;
+  };
+  MpcSnapshot        _mpcIn;
+  Vec3<float>        _f_ff_async[4];
+  Vec3<float>        _Fr_des_async[4];
+  std::thread        _mpcThread;
+  std::mutex         _mpcMtx;
+  std::condition_variable _mpcCv;
+  bool               _mpcRequest = false;
+  bool               _mpcBusy = false;
+  std::atomic<bool>  _mpcQuit{false};
+  std::atomic<bool>  _mpcHaveSolution{false};
+  bool               _mpcAsync = true;
+  void _mpcWorker();
+  void _runSolve(const MpcSnapshot& in, Vec3<float>* f_ff_out, Vec3<float>* fr_out);
   bool firstSwing[4];
   float swingTimeRemaining[4];
   float stand_traj[6];

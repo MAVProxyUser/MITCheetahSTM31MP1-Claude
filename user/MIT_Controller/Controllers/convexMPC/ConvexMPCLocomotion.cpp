@@ -3,6 +3,11 @@
 #include <Utilities/Timer.h>
 #include <Utilities/Utilities_print.h>
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <pthread.h>
+#include <sched.h>
 #include "ConvexMPCLocomotion.h"
 
 // Per-foot force cap handed to the convex MPC. Mini-cheetah's 120 N suits a
@@ -63,6 +68,17 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   printf("[Convex MPC] dt: %.3f iterations: %d, dtMPC: %.3f\n", dt, iterationsBetweenMPC, dtMPC);
   setup_problem(dtMPC, horizonLength, 0.4, MPC_F_MAX);
   //setup_problem(dtMPC, horizonLength, 0.4, 650); // DH
+
+  // Start the MPC worker (see the header for why the solve cannot run inline on
+  // this board). SIM_MPC_ASYNC=0 restores the stock inline behaviour for A/B.
+  _mpcAsync = !(getenv("SIM_MPC_ASYNC") && atoi(getenv("SIM_MPC_ASYNC")) == 0);
+  if (_mpcAsync) {
+    _mpcThread = std::thread(&ConvexMPCLocomotion::_mpcWorker, this);
+    printf("[Convex MPC] solve runs ASYNC on a worker thread\n");
+  } else {
+    printf("[Convex MPC] solve runs INLINE (stock)\n");
+  }
+
   rpy_comp[0] = 0;
   rpy_comp[1] = 0;
   rpy_comp[2] = 0;
@@ -78,6 +94,13 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
    pBody_des.setZero();
    vBody_des.setZero();
    aBody_des.setZero();
+}
+
+ConvexMPCLocomotion::~ConvexMPCLocomotion() {
+  _mpcQuit.store(true);
+  { std::lock_guard<std::mutex> lk(_mpcMtx); _mpcRequest = true; }
+  _mpcCv.notify_all();
+  if (_mpcThread.joinable()) _mpcThread.join();
 }
 
 void ConvexMPCLocomotion::initialize(){
@@ -756,23 +779,126 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
       _parameters->jcqp_sigma, _parameters->jcqp_alpha, _parameters->jcqp_terminate, _parameters->use_jcqp);
   //t1.stopPrint("Setup MPC");
 
-  Timer t2;
-  //cout << "dtMPC: " << dtMPC << "\n";
-  update_problem_data_floats(p,v,q,w,r,yaw,weights,trajAll,alpha,mpcTable);
-  //t2.stopPrint("Run MPC");
-  //printf("MPC Solve time %f ms\n", t2.getMs());
-
-  for(int leg = 0; leg < 4; leg++)
+  // ---- hand the solve to the worker, keep using the latest solution --------
+  // Everything above (weights, alpha, x_drag, solver settings) is unchanged
+  // MIT; only WHERE the solve runs changes. setup_problem/update_problem_data/
+  // get_solution touch solver globals and are not re-entrant, so ONLY the
+  // worker ever calls them.
+  if (!_mpcAsync) {                    // stock behaviour: solve right here
+    MpcSnapshot in;
+    for (int i = 0; i < 3; ++i) { in.p[i]=p[i]; in.v[i]=v[i]; in.w[i]=w[i]; }
+    for (int i = 0; i < 4; ++i) in.q[i]=q[i];
+    for (int i = 0; i < 12; ++i) in.r[i]=r[i];
+    in.yaw=yaw; in.alpha=alpha; in.horizon=horizonLength; in.dtMPC=dtMPC;
+    in.rBody=seResult.rBody;
+    for (int i = 0; i < 12*horizonLength; ++i) in.traj[i]=trajAll[i];
+    for (int i = 0; i < 4*horizonLength; ++i) in.table[i]=mpcTable[i];
+    _runSolve(in, f_ff, Fr_des);
+    return;
+  }
   {
+    std::unique_lock<std::mutex> lk(_mpcMtx);
+    if (!_mpcBusy) {
+      for (int i = 0; i < 3; ++i) { _mpcIn.p[i]=p[i]; _mpcIn.v[i]=v[i]; _mpcIn.w[i]=w[i]; }
+      for (int i = 0; i < 4; ++i) _mpcIn.q[i]=q[i];
+      for (int i = 0; i < 12; ++i) _mpcIn.r[i]=r[i];
+      _mpcIn.yaw = yaw;
+      _mpcIn.alpha = alpha;
+      _mpcIn.horizon = horizonLength;
+      _mpcIn.dtMPC = dtMPC;
+      _mpcIn.rBody = seResult.rBody;
+      int ntraj = 12 * horizonLength, ntab = 4 * horizonLength;
+      if (ntraj > (int)(sizeof(_mpcIn.traj)/sizeof(float))) ntraj = sizeof(_mpcIn.traj)/sizeof(float);
+      if (ntab  > (int)(sizeof(_mpcIn.table)/sizeof(int)))  ntab  = sizeof(_mpcIn.table)/sizeof(int);
+      for (int i = 0; i < ntraj; ++i) _mpcIn.traj[i] = trajAll[i];
+      for (int i = 0; i < ntab;  ++i) _mpcIn.table[i] = mpcTable[i];
+      _mpcRequest = true;
+      _mpcBusy = true;
+      _mpcCv.notify_one();
+    }
+    // publish whatever the worker has finished most recently
+    if (_mpcHaveSolution.load()) {
+      for (int leg = 0; leg < 4; ++leg) {
+        f_ff[leg]   = _f_ff_async[leg];
+        Fr_des[leg] = _Fr_des_async[leg];
+      }
+    }
+  }
+}
+
+//! The original MIT solve, run on the worker thread against a snapshot.
+void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in,
+                                    Vec3<float>* f_ff_out, Vec3<float>* fr_out) {
+  float Q[12] = {0.25, 0.25, 10, 2, 2, 50, 0, 0, 0.3, 0.2, 0.2, 0.1};
+  setup_problem(in.dtMPC, in.horizon, 0.4, MPC_F_MAX);
+  update_x_drag(x_comp_integral);
+  update_solver_settings(_parameters->jcqp_max_iter, _parameters->jcqp_rho,
+      _parameters->jcqp_sigma, _parameters->jcqp_alpha,
+      _parameters->jcqp_terminate, _parameters->use_jcqp);
+  update_problem_data_floats((float*)in.p, (float*)in.v, (float*)in.q, (float*)in.w,
+                             (float*)in.r, in.yaw, Q, (float*)in.traj,
+                             in.alpha, (int*)in.table);
+  for (int leg = 0; leg < 4; ++leg) {
     Vec3<float> f;
-    for(int axis = 0; axis < 3; axis++)
-      f[axis] = get_solution(leg*3 + axis);
+    for (int axis = 0; axis < 3; ++axis) f[axis] = get_solution(leg*3 + axis);
+    f_ff_out[leg] = -in.rBody * f;
+    fr_out[leg]   = f;
+  }
+}
 
-    //printf("[%d] %7.3f %7.3f %7.3f\n", leg, f[0], f[1], f[2]);
-
-    f_ff[leg] = -seResult.rBody * f;
-    // Update for WBC
-    Fr_des[leg] = f;
+void ConvexMPCLocomotion::_mpcWorker() {
+  // The worker MUST NOT compete with the 500 Hz control loop. It inherits the
+  // creator's SCHED_FIFO priority (49 here), and with the control loop and the
+  // motor task also at FIFO 49 on a DUAL-core A7, an equal-priority 60 ms solve
+  // preempts the very thing it was supposed to protect - moving the solve off
+  // the control thread bought nothing at all until this was fixed.
+  // Drop to SCHED_OTHER so the RT threads always win, and pin to the second
+  // core so the solve does not evict the control loop's cache either.
+  {
+    // Priority: BELOW the 500 Hz control loop and motor task (both FIFO 49) so
+    // it can never preempt them, but still real-time so it is not starved to
+    // death by them - as SCHED_OTHER was: one solve took 359 ms instead of 60,
+    // and the run completed a single MPC solve in 28 s.
+    int prio = getenv("SIM_MPC_PRIO") ? atoi(getenv("SIM_MPC_PRIO")) : 20;
+    struct sched_param sp; sp.sched_priority = prio;
+    if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0) {
+      sp.sched_priority = 0;
+      pthread_setschedparam(pthread_self(), SCHED_OTHER, &sp);
+      printf("[Convex MPC] worker: SCHED_OTHER (FIFO %d refused)\n", prio);
+    } else {
+      printf("[Convex MPC] worker: SCHED_FIFO %d\n", prio);
+    }
+    cpu_set_t set; CPU_ZERO(&set); CPU_SET(1, &set);
+    pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
+    fflush(stdout);
+  }
+  Vec3<float> f_local[4], fr_local[4];
+  while (!_mpcQuit.load()) {
+    MpcSnapshot in;
+    {
+      std::unique_lock<std::mutex> lk(_mpcMtx);
+      _mpcCv.wait(lk, [&]{ return _mpcRequest || _mpcQuit.load(); });
+      if (_mpcQuit.load()) return;
+      in = _mpcIn;
+      _mpcRequest = false;
+    }
+    Timer _tsolve;
+    _runSolve(in, f_local, fr_local);
+    if (getenv("STM32MP1_EST_DBG")) {
+      static int _sc = 0;
+      if ((++_sc % 10) == 1)
+        printf("[MPCW] solve #%d took %.1f ms, fz=[%.0f %.0f %.0f %.0f]\n", _sc, _tsolve.getMs(),
+               f_local[0][2], f_local[1][2], f_local[2][2], f_local[3][2]), fflush(stdout);
+    }
+    {
+      std::lock_guard<std::mutex> lk(_mpcMtx);
+      for (int leg = 0; leg < 4; ++leg) {
+        _f_ff_async[leg]   = f_local[leg];
+        _Fr_des_async[leg] = fr_local[leg];
+      }
+      _mpcBusy = false;
+    }
+    _mpcHaveSolution.store(true);
   }
 }
 
