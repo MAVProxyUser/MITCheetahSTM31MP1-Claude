@@ -463,7 +463,17 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   Kp << 700, 0, 0,
      0, 700, 0,
      0, 0, 150;
-  Kp_stance = 0*Kp;
+  // MIT runs stance with ZERO Cartesian stiffness - the MPC is supposed to do
+  // all of it. That works when the MPC solves at 30-40 Hz; here it manages
+  // ~11 Hz, and with force == bodyweight the body sits in neutral equilibrium
+  // at whatever height it happens to be (measured: parked at 0.204 m against a
+  // 0.30 m reference and never rising). A small stance stiffness gives the
+  // height something to servo against between MPC updates without taking the
+  // force authority away from the MPC. $SIM_KP_STANCE, 0 restores stock.
+  {
+    static const float kps = getenv("SIM_KP_STANCE") ? atof(getenv("SIM_KP_STANCE")) : 0.f;
+    Kp_stance = kps * Kp;
+  }
 
 
   Kd << 7, 0, 0,

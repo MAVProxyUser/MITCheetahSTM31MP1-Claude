@@ -705,7 +705,29 @@ Two things that did NOT help, so do not spend time on them again:
   numerically identical, but it is not a lever.
 - `nWSR` on the qpOASES path, and the MPC horizon by itself.
 
-### The next thing to look at
+### The height problem, narrowed (start here)
+
+The MPC now commands correct forces at ~11 Hz and the robot still parks at
+z = 0.204 against a 0.30 reference, upright, without travelling. What is ruled
+out so far:
+- the reference is right: `[MPC] bodyH=0.300` and `traj[5] = 0.30`;
+- the estimate is right (and NaN is now guarded);
+- the forces are right in MAGNITUDE: -67 N on each foot of the stance diagonal,
+  134 N under a 128 N robot - but that is only ~5% above bodyweight, and 5% will
+  not lift a body 10 cm;
+- stance Cartesian stiffness does NOT fix it: `SIM_KP_STANCE` 0 / 0.15 / 0.4
+  all park at 0.204-0.205. (MIT ships `Kp_stance = 0*Kp` - all support is meant
+  to come from MPC force. The knob is left in place, defaulting to stock 0.)
+
+So the question is why a z error of -0.096 m against a Q weight of 50 produces
+only 5% extra force. Look at `X_d` over the whole horizon, not just the first
+step - if the reference z is 0.30 at every step while the model predicts the
+body cannot get there in one horizon, the optimiser will trade the z error away
+against the input cost. Compare `pz_err` and `x_comp_integral` too, and try
+raising Q[5] to see whether the solution responds at all - if it does not, the
+z row of `B_qp` is the thing to inspect.
+
+### Older note
 
 The MPC now commands CORRECT forces at ~11 Hz, and the robot still sits at
 z ~= 0.204 against a `_body_height` target of 0.30, so it stands crouched and
