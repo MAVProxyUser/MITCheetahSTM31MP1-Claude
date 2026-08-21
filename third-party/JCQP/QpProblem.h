@@ -79,6 +79,14 @@ public:
 
     Vector<T>& getSolution() { return *_x; }
 
+    //! Keep the previous iterates (x/z/y) as the initial guess for the next
+    //! solve instead of zeroing them. Sequential MPC problems are nearly
+    //! identical, so ADMM warm-started from the last solution converges in a
+    //! fraction of the iterations. The _hotStarted flag and the skip of
+    //! coldStart() already exist upstream - nothing ever SET the flag.
+    //! Only meaningful on a persistent object whose dimensions are unchanged.
+    void hotStart() { _hotStarted = true; }
+
 
 
   // public data

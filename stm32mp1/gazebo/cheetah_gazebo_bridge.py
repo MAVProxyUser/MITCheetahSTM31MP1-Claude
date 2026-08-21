@@ -193,6 +193,33 @@ def udp_rx():
             cmd["kp"]     = list(vals[26:38])
             cmd["kd"]     = list(vals[38:50])
             cmd["tau_ff"] = list(vals[50:62])
+            if _dump_f:
+                _dump_n[0] += 1
+                if (_dump_n[0] % 5) == 0:
+                    row = [f"{time.time():.3f}"]
+                    row += [f"{v:.4f}" for v in qj]
+                    row += [f"{v:.3f}" for v in cmd["qd_des"]]
+                    row += [f"{v:.4f}" for v in cmd["q_des"]]
+                    row += [f"{v:.1f}" for v in cmd["kp"]]
+                    row += [f"{v:.2f}" for v in cmd["kd"]]
+                    row += [f"{v:.2f}" for v in cmd["tau_ff"]]
+                    _dump_f.write(",".join(row) + "\n")
+
+# BRIDGE_DUMP=<path>: record every 5th command packet (100 Hz) with the joint
+# state at arrival - q, q_des, kp, kd, tau_ff for all 12 joints. Mac-side and
+# free: board-side instrumentation measurably destabilises the controller
+# (printf stalls on the FIFO control thread), which made every instrumented
+# run lie. The bridge sees the entire command stream anyway.
+_dump_path = os.environ.get("BRIDGE_DUMP")
+_dump_f = open(_dump_path, "w") if _dump_path else None
+_dump_n = [0]
+if _dump_f:
+    _dump_f.write("t," + ",".join(f"q{i}" for i in range(12)) + ","
+                  + ",".join(f"qd_des{i}" for i in range(12)) + ","
+                  + ",".join(f"qdes{i}" for i in range(12)) + ","
+                  + ",".join(f"kp{i}" for i in range(12)) + ","
+                  + ",".join(f"kd{i}" for i in range(12)) + ","
+                  + ",".join(f"tff{i}" for i in range(12)) + "\n")
 
 threading.Thread(target=udp_rx, daemon=True).start()
 

@@ -5,6 +5,7 @@
 #include <FSM_States/ControlFSMData.h>
 #include <SparseCMPC/SparseCMPC.h>
 #include "cppTypes.h"
+#include <chrono>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -169,10 +170,31 @@ private:
     int   horizon;
     float dtMPC;
     Mat3<float> rBody;
+    int64_t t_ms;      // steady-clock ms when the snapshot was taken
   };
   MpcSnapshot        _mpcIn;
-  Vec3<float>        _f_ff_async[4];
-  Vec3<float>        _Fr_des_async[4];
+  // Async solution: WORLD-frame ground-reaction trajectory for the first three
+  // MPC segments, plus when its snapshot was taken. MIT's solver already
+  // computes forces for every step of the horizon; the stock code only ever
+  // read step 0. With a solve that takes 1-2 gait segments, applying step-0
+  // forces "now" means applying them one or two segments late - worst exactly
+  // at contact switches, which is where the cheater-mode runs fell. The
+  // control loop instead indexes this trajectory by ELAPSED TIME since the
+  // snapshot and rotates into the body frame with the CURRENT attitude, so
+  // solve latency is compensated with data the solver already produced.
+  Vec3<float>        _frTraj[3][4];
+  int64_t            _snapMs = 0;
+  int64_t            _locoEntryMs = 0;   // when this LOCOMOTION episode began
+  // pipelined-MPC state: the solution currently being APPLIED (promoted at
+  // segment boundaries), and the prefetched next-segment contact table.
+  Vec3<float>        _fApplied[4];
+  bool               _fAppliedValid = false;
+  int                _mpcTableNext[4 * 36] = {0};
+  float              _snapDtMPC = 0.045f;
+  static int64_t nowMs() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+  }
   std::thread        _mpcThread;
   std::mutex         _mpcMtx;
   std::condition_variable _mpcCv;
@@ -182,7 +204,7 @@ private:
   std::atomic<bool>  _mpcHaveSolution{false};
   bool               _mpcAsync = true;
   void _mpcWorker();
-  void _runSolve(const MpcSnapshot& in, Vec3<float>* f_ff_out, Vec3<float>* fr_out);
+  void _runSolve(const MpcSnapshot& in, Vec3<float> frTraj[3][4]);
   bool firstSwing[4];
   float swingTimeRemaining[4];
   float stand_traj[6];

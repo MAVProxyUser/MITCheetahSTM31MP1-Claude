@@ -108,6 +108,11 @@ void ConvexMPCLocomotion::initialize(){
   for(int i = 0; i < 4; i++) firstSwing[i] = true;
   firstRun = true;
   _height_blend = 0.f;      // restart the entry height ramp (see _SetupCommand)
+  _locoEntryMs = nowMs();
+  // A solution from a previous LOCOMOTION episode is stale by definition
+  // (different pose, different gait phase); drop it so the bootstrap and the
+  // standing-entry window below re-engage cleanly on re-entry.
+  _mpcHaveSolution.store(false);
 }
 
 void ConvexMPCLocomotion::recompute_timing(int iterations_per_mpc) {
@@ -212,6 +217,32 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   } else if(gaitNumber >= 10) {
     gaitNumber -= 10;
     omniMode = true;
+  }
+
+  // ---- ENTER THROUGH MIT'S OWN STANDING GAIT ----
+  // The sequencer switches control_mode straight into a dynamic gait, so a
+  // diagonal pair lifts on the very first gait tick - while the only support
+  // is the constant-force bootstrap, which has no attitude feedback. On MIT's
+  // hardware the first solve is synchronous, so model-based forces exist from
+  // tick one; here the first solve lands 30-240 ms later, and the robot is
+  // already tipping about the support diagonal when it does (measured: falls
+  // 0.1-0.3 s after entry, repeatably). MIT's own flow drives LOCOMOTION at
+  // gait 4 (standing) first and lets the operator pick a dynamic gait, so do
+  // the same: hold `standing` until the async pipeline has produced its first
+  // solution AND a settle window has passed ($SIM_GAIT_WAIT_MS, default 600).
+  if (_mpcAsync) {
+    static const int64_t waitMs = getenv("SIM_GAIT_WAIT_MS")
+                                ? atoll(getenv("SIM_GAIT_WAIT_MS")) : 600;
+    bool hold = (!_mpcHaveSolution.load() || (nowMs() - _locoEntryMs) < waitMs);
+    if (getenv("STM32MP1_MPC_IN")) {
+      static int _wc = 0;
+      if ((++_wc % 500) == 1)
+        printf("[WIN] hold=%d gait=%d have=%d age_ms=%lld wait=%lld\n",
+               (int)hold, gaitNumber, (int)_mpcHaveSolution.load(),
+               (long long)(nowMs() - _locoEntryMs), (long long)waitMs), fflush(stdout);
+    }
+    if (hold)
+      gaitNumber = 4;
   }
 
   auto& seResult = data._stateEstimator->getResult();
@@ -484,7 +515,53 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   Vec4<float> contactStates = gait->getContactState();
   Vec4<float> swingStates = gait->getSwingState();
   int* mpcTable = gait->getMpcTable();
-  updateMPCIfNeeded(mpcTable, data, omniMode);
+
+  // ---- PIPELINED MPC (replaces the kSeg latency indexing) ----
+  // MIT's design assumption is a solve that completes within one MPC segment,
+  // synchronous with the gait clock. This board cannot do that inline, and the
+  // previous scheme (solve whenever idle, index the solution trajectory by
+  // elapsed time) recreated MIT's timing only approximately - and every edge
+  // case of it (stale solutions across contact flips, busy-flag leaks, engage
+  // bootstraps) has cost hours. So do what a slow synchronous MPC would do,
+  // explicitly, as a two-stage pipeline:
+  //   at segment boundary k:  APPLY the solution computed during segment k-1
+  //                           (solved FOR this segment's contact table), and
+  //                           DISPATCH a solve for segment k+1's table.
+  // Latency is one segment, constant, by construction - the same zero-order
+  // hold MIT already has between solves - and a gait-table change (standing ->
+  // trot at engage) has its forces ready BEFORE its first tick executes.
+  if (_mpcAsync && (iterationCounter % iterationsBetweenMPC) == 0) {
+    // stage 1: promote last segment's solve result to the applied slot
+    std::lock_guard<std::mutex> lk(_mpcMtx);
+    if (_mpcHaveSolution.load()) {
+      for (int leg = 0; leg < 4; ++leg) _fApplied[leg] = _frTraj[0][leg];
+      _fAppliedValid = true;
+    }
+    // stage 2 happens in updateMPCIfNeeded below (dispatch with mpcTableNext)
+  }
+  // prefetch: the contact table one segment ahead, for the solve we dispatch now
+  {
+    gait->setIterations(iterationsBetweenMPC, iterationCounter + iterationsBetweenMPC);
+    int* nxt = gait->getMpcTable();
+    for (int i = 0; i < 4 * horizonLength && i < (int)(sizeof(_mpcTableNext)/sizeof(int)); ++i)
+      _mpcTableNext[i] = nxt[i];
+    gait->setIterations(iterationsBetweenMPC, iterationCounter);   // restore
+  }
+  updateMPCIfNeeded(_mpcAsync ? _mpcTableNext : mpcTable, data, omniMode);
+
+  // ---- latency-compensated application of the async MPC solution ----
+  // Index the force trajectory by how long ago its snapshot was taken, in MPC
+  // segments, and rotate with the CURRENT attitude. A solve that took 1-2
+  // segments then lands on the segment it was computed FOR instead of being
+  // applied late - stale step-0 forces across a contact switch were the
+  // sharpest remaining destabiliser once the solver itself was correct.
+  if (_mpcAsync && _fAppliedValid) {
+    std::lock_guard<std::mutex> lk(_mpcMtx);
+    for (int leg = 0; leg < 4; ++leg) {
+      f_ff[leg]   = -seResult.rBody * _fApplied[leg];   // current attitude
+      Fr_des[leg] = _fApplied[leg];
+    }
+  }
 
   //  StateEstimator* se = hw_i->state_estimator;
   Vec4<float> se_contactState(0,0,0,0);
@@ -652,6 +729,18 @@ void ConvexMPCLocomotion::run(ControlFSMData<double>& data) {
 
 void ConvexMPCLocomotion::updateMPCIfNeeded(int *mpcTable, ControlFSMData<float> &data, bool omniMode) {
   //iterationsBetweenMPC = 30;
+  // ASYNC: dispatch whenever the worker is idle, not only on segment
+  // boundaries. MIT's synchronous solver refreshes forces within one segment
+  // of any gait-table change by construction. The async port only snapshotted
+  // at boundaries, so a table flip (standing -> trot at engage) left the legs
+  // running the PREVIOUS gait's forces for up to a full segment plus the
+  // solve time - ~77 ms of half-support with a swing pair already lifting,
+  // which collapsed the robot at every gait engage. Continuous dispatch cuts
+  // the exposure to the solve time alone (~32 ms) and raises the effective
+  // MPC rate to whatever the worker can sustain (~30 Hz).
+  // Boundary-only dispatch: the pipeline in run() hands this the NEXT
+  // segment's contact table, and the solve (32 ms) fits inside the 45 ms
+  // segment, so each boundary applies the previous solve and starts the next.
   if((iterationCounter % iterationsBetweenMPC) == 0)
   {
     auto seResult = data._stateEstimator->getResult();
@@ -750,7 +839,9 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   //float Q[12] = {0.25, 0.25, 10, 2, 2, 40, 0, 0, 0.3, 0.2, 0.2, 0.2};
   float yaw = seResult.rpy[2];
   float* weights = Q;
-  float alpha = 4e-5; // make setting eventually
+  static const float alpha_env = getenv("SIM_MPC_ALPHA") ? atof(getenv("SIM_MPC_ALPHA")) : 4e-5f;
+  float alpha = alpha_env; // input-cost weight (MIT default 4e-5); env knob for
+                           // short-horizon retunes
   //float alpha = 4e-7; // make setting eventually: DH
   float* p = seResult.position.data();
   float* v = seResult.vWorld.data();
@@ -811,11 +902,23 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
     in.rBody=seResult.rBody;
     for (int i = 0; i < 12*horizonLength; ++i) in.traj[i]=trajAll[i];
     for (int i = 0; i < 4*horizonLength; ++i) in.table[i]=mpcTable[i];
-    _runSolve(in, f_ff, Fr_des);
+    in.t_ms = nowMs();
+    Vec3<float> trInl[3][4];
+    _runSolve(in, trInl);
+    for (int leg = 0; leg < 4; ++leg) {
+      f_ff[leg]   = -seResult.rBody * trInl[0][leg];
+      Fr_des[leg] = trInl[0][leg];
+    }
     return;
   }
   {
     std::unique_lock<std::mutex> lk(_mpcMtx);
+    if (getenv("STM32MP1_MPC_IN")) {
+      static int _dsp = 0;
+      if ((++_dsp % 22) == 1)
+        printf("[DSP] attempt #%d busy=%d haveSol=%d\n", _dsp, (int)_mpcBusy,
+               (int)_mpcHaveSolution.load()), fflush(stdout);
+    }
     if (!_mpcBusy) {
       for (int i = 0; i < 3; ++i) { _mpcIn.p[i]=p[i]; _mpcIn.v[i]=v[i]; _mpcIn.w[i]=w[i]; }
       for (int i = 0; i < 4; ++i) _mpcIn.q[i]=q[i];
@@ -825,6 +928,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
       _mpcIn.horizon = horizonLength;
       _mpcIn.dtMPC = dtMPC;
       _mpcIn.rBody = seResult.rBody;
+      _mpcIn.t_ms = nowMs();
       int ntraj = 12 * horizonLength, ntab = 4 * horizonLength;
       if (ntraj > (int)(sizeof(_mpcIn.traj)/sizeof(float))) ntraj = sizeof(_mpcIn.traj)/sizeof(float);
       if (ntab  > (int)(sizeof(_mpcIn.table)/sizeof(int)))  ntab  = sizeof(_mpcIn.table)/sizeof(int);
@@ -853,19 +957,13 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
         Fr_des[leg] = fw;
       }
     }
-    // publish whatever the worker has finished most recently
-    if (_mpcHaveSolution.load()) {
-      for (int leg = 0; leg < 4; ++leg) {
-        f_ff[leg]   = _f_ff_async[leg];
-        Fr_des[leg] = _Fr_des_async[leg];
-      }
-    }
+    // (The solution is applied in run() every tick, indexed by elapsed time -
+    // see _frTraj in the header. Nothing further to publish here.)
   }
 }
 
 //! The original MIT solve, run on the worker thread against a snapshot.
-void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in,
-                                    Vec3<float>* f_ff_out, Vec3<float>* fr_out) {
+void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in, Vec3<float> frTraj[3][4]) {
   float Q[12] = {0.25, 0.25, 10, 2, 2, 50, 0, 0, 0.3, 0.2, 0.2, 0.1};
   setup_problem(in.dtMPC, in.horizon, 0.4, MPC_F_MAX);
   update_x_drag(x_comp_integral);
@@ -889,11 +987,15 @@ void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in,
   update_problem_data_floats((float*)in.p, (float*)in.v, (float*)in.q, (float*)in.w,
                              (float*)in.r, in.yaw, Q, (float*)in.traj,
                              in.alpha, (int*)in.table);
-  for (int leg = 0; leg < 4; ++leg) {
-    Vec3<float> f;
-    for (int axis = 0; axis < 3; ++axis) f[axis] = get_solution(leg*3 + axis);
-    f_ff_out[leg] = -in.rBody * f;
-    fr_out[leg]   = f;
+  // Read the first three SEGMENTS of the solution, not just step 0 - the
+  // solver computes the whole horizon anyway, and the control loop needs the
+  // later steps to compensate its own solve latency. World frame; rotation
+  // into the body frame happens at APPLICATION time with the current attitude.
+  for (int st = 0; st < 3; ++st) {
+    int step = (st < in.horizon) ? st : in.horizon - 1;
+    for (int leg = 0; leg < 4; ++leg)
+      for (int axis = 0; axis < 3; ++axis)
+        frTraj[st][leg][axis] = get_solution(12*step + leg*3 + axis);
   }
 }
 
@@ -923,7 +1025,6 @@ void ConvexMPCLocomotion::_mpcWorker() {
     pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
     fflush(stdout);
   }
-  Vec3<float> f_local[4], fr_local[4];
   while (!_mpcQuit.load()) {
     MpcSnapshot in;
     {
@@ -934,34 +1035,50 @@ void ConvexMPCLocomotion::_mpcWorker() {
       _mpcRequest = false;
     }
     Timer _tsolve;
-    _runSolve(in, f_local, fr_local);
+    Vec3<float> tr[3][4];
+    _runSolve(in, tr);
     // NaN GUARD. An ill-conditioned or diverging QP can return non-finite
     // forces; those propagate through J^T into the joint torques and Gazebo
     // rejects them ("Invalid joint force value [nan]"). On real hardware a NaN
     // torque command is undefined behaviour, so never publish one - drop the
     // solution and keep the previous (or the bootstrap) instead.
     bool finite = true;
-    for (int leg = 0; leg < 4 && finite; ++leg)
-      for (int a = 0; a < 3; ++a)
-        if (!std::isfinite(f_local[leg][a]) || !std::isfinite(fr_local[leg][a])) finite = false;
+    for (int st = 0; st < 3 && finite; ++st)
+      for (int leg = 0; leg < 4 && finite; ++leg)
+        for (int a = 0; a < 3; ++a)
+          if (!std::isfinite(tr[st][leg][a])) finite = false;
     if (!finite) {
       static int _nanc = 0;
-      if ((++_nanc % 20) == 1)
+      ++_nanc;
+      if ((_nanc % 20) == 1)
         printf("[MPCW] REJECTED non-finite solution (%d so far)\n", _nanc), fflush(stdout);
+      // CLEAR THE BUSY FLAG. The original `continue` skipped the publish block
+      // below - which is also what releases _mpcBusy - so a single non-finite
+      // solution silenced the MPC for the rest of the run: no new dispatch is
+      // ever accepted while busy, the stale trajectory keeps being applied at
+      // kSeg=2 (whose forces for the current stance feet are ~zero), and the
+      // robot sags on kp=8 joint PD alone for ~1.5 s until the orientation
+      // E-stop. Measured in the bridge command dump: all four knee tau_ff
+      // collapse from -13 Nm to 0.3 Nm at t=9.85 and never recover.
+      {
+        std::lock_guard<std::mutex> lk(_mpcMtx);
+        _mpcBusy = false;
+      }
       continue;
     }
     if (getenv("STM32MP1_EST_DBG")) {
       static int _sc = 0;
       if ((++_sc % 10) == 1)
-        printf("[MPCW] solve #%d took %.1f ms, fz=[%.0f %.0f %.0f %.0f]\n", _sc, _tsolve.getMs(),
-               f_local[0][2], f_local[1][2], f_local[2][2], f_local[3][2]), fflush(stdout);
+        printf("[MPCW] solve #%d took %.1f ms, world fz=[%.0f %.0f %.0f %.0f]\n", _sc, _tsolve.getMs(),
+               tr[0][0][2], tr[0][1][2], tr[0][2][2], tr[0][3][2]), fflush(stdout);
     }
     {
       std::lock_guard<std::mutex> lk(_mpcMtx);
-      for (int leg = 0; leg < 4; ++leg) {
-        _f_ff_async[leg]   = f_local[leg];
-        _Fr_des_async[leg] = fr_local[leg];
-      }
+      for (int st = 0; st < 3; ++st)
+        for (int leg = 0; leg < 4; ++leg)
+          _frTraj[st][leg] = tr[st][leg];
+      _snapMs = in.t_ms;
+      _snapDtMPC = in.dtMPC;
       _mpcBusy = false;
     }
     _mpcHaveSolution.store(true);

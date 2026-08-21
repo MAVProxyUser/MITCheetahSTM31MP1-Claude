@@ -28,7 +28,11 @@ if not up:
     print(f"{'nostand':>9} {'-':>7} {'-':>7} {'-':>7} {'-':>8}"); raise SystemExit
 ox,oy=up[0][1],up[0][2]; tup=up[0][0]
 fall=None
-for p in up:
+# scan EVERY sample after the robot first stood - scanning only the z>0.18
+# samples made a clean collapse to the belly invisible (z drops straight
+# through the filter), and three collapsed runs scored as "upright 24s".
+after=[p for p in r if p[0]>=tup]
+for p in after:
     if abs(p[4])>FALL_ROLL or abs(p[5])>FALL_ROLL or p[3]<FALL_Z:
         fall=p; break
 end = fall if fall else r[-1]

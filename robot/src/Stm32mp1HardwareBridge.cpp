@@ -200,6 +200,17 @@ void Stm32mp1HardwareBridge::run() {
         // through the ~6-10 ms UDP loop knocked the trot over; ramping does not).
         // $SIM_VX target speed, $SIM_VX_RAMP_S ramp duration (default 3 s).
         if (final_mode == 4 && getenv("SIM_VX")) {
+          // Let the gait ENGAGE before asking it to go anywhere. The MPC port
+          // holds MIT's standing gait for a short window after LOCOMOTION
+          // entry (first async solution + settle), so a velocity ramp that
+          // starts at mode-4 is already at 0.2-0.3 m/s when the trot actually
+          // begins - and the first strides lunge (measured: 21 cm surge,
+          // +23 deg pitch, roll-over). Real operators do the same thing with
+          // the stick: stand, trot in place, then push forward.
+          float delay_s = getenv("SIM_VX_DELAY_S") ? atof(getenv("SIM_VX_DELAY_S")) : 3.f;
+          printf("[sim] holding velocity at 0 for %.1f s while the gait engages\n", delay_s);
+          fflush(stdout);
+          usleep((useconds_t)(delay_s * 1e6f));
           usleep(3000000);
           float vx = atof(getenv("SIM_VX"));
           float ramp_s = getenv("SIM_VX_RAMP_S") ? atof(getenv("SIM_VX_RAMP_S")) : 3.f;

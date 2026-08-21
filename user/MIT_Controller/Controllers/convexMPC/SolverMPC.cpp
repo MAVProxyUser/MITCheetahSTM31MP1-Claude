@@ -425,21 +425,84 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   // on every matrix. A Cortex-A7's NEON is 4-wide FLOAT and has no
   // double-precision SIMD at all, so the solve was running scalar VFP on data
   // that started out single precision anyway. jcqp_f keeps it float end to end.
-  QpProblem<JCQP_T> jcqp(setup->horizon*12, setup->horizon*20);
   if(update->use_jcqp == 1) {
-    jcqp.A = fmat.cast<JCQP_T>();
-    jcqp.P = qH.cast<JCQP_T>();
-    jcqp.q = qg.cast<JCQP_T>();
-    jcqp.u = U_b.cast<JCQP_T>();
-    for(s16 i = 0; i < 20*setup->horizon; i++)
-      jcqp.l[i] = 0.;
+    // ---- CONTACT-ONLY REDUCTION ----
+    // This ports MIT's own qpOASES-path variable elimination to the JCQP path,
+    // which never had it: swing-foot forces are pinned to exactly zero by
+    // their friction-cone rows (U_b = gait*f_max = 0 forces fz = 0, and the
+    // four mu-rows then pin fx = fy = 0), yet the stock JCQP path still
+    // carried all 12h of them as decision variables - half of them known-zero
+    // in a trot. Setting x_elim = 0 and dropping those columns/rows is EXACT
+    // (P_red = P(keep,keep), q_red = q(keep): the eliminated block contributes
+    // nothing at x_elim = 0), and the KKT system the solver factorises shrinks
+    // from (12h + 20h) to about half that in a trot - factorisation cost is
+    // cubic in that size.
+    static s16 vi[12*36];                       // kept variable indices
+    static s16 ci[20*36];                       // kept constraint rows
+    s32 nv = 0, nc = 0, nA = 0;
+    for(s16 i = 0; i < setup->horizon; i++) {
+      for(s16 j = 0; j < 4; j++) {
+        s32 fs = i*4 + j;
+        if(update->gait[fs]) {
+          for(s32 a = 0; a < 3; a++) vi[nv++] = 3*fs + a;
+          for(s32 a = 0; a < 5; a++) ci[nc++] = 5*fs + a;
+          nA++;
+        }
+      }
+    }
+    for(s16 i = 0; i < 12*setup->horizon; i++) q_soln[i] = 0.0;
 
-    jcqp.settings.sigma = update->sigma;
-    jcqp.settings.alpha = update->solver_alpha;
-    jcqp.settings.terminate = update->terminate;
-    jcqp.settings.rho = update->rho;
-    jcqp.settings.maxIterations = update->max_iterations;
-    jcqp.runFromDense(update->max_iterations, true, false);
+    if(nA > 0) {
+      // ---- PERSISTENT SOLVER + WARM START ----
+      // The stock path constructed a fresh QpProblem every solve and cold
+      // started ADMM from zero. Consecutive MPC problems differ only by one
+      // gait segment and a slightly moved state, so the previous solution is
+      // an excellent initial iterate. Only the worker thread ever runs this,
+      // so a static is safe; on a contact-pattern change the dimensions
+      // differ and we rebuild + cold start.
+      static QpProblem<JCQP_T>* jc = nullptr;
+      static s32 jc_nv = -1, jc_nc = -1;
+      bool fresh = (!jc || jc_nv != nv || jc_nc != nc);
+      if(fresh) {
+        delete jc;
+        jc = new QpProblem<JCQP_T>(nv, nc);
+        jc_nv = nv; jc_nc = nc;
+      }
+      for(s32 rI = 0; rI < nv; rI++) {
+        jc->q[rI] = qg(vi[rI]);
+        for(s32 cI = 0; cI < nv; cI++) jc->P(rI,cI) = qH(vi[rI], vi[cI]);
+      }
+      for(s32 rI = 0; rI < nc; rI++) {
+        jc->u[rI] = U_b(ci[rI]);
+        jc->l[rI] = 0.;
+        for(s32 cI = 0; cI < nv; cI++) jc->A(rI,cI) = fmat(ci[rI], vi[cI]);
+      }
+      jc->settings.sigma = update->sigma;
+      jc->settings.alpha = update->solver_alpha;
+      jc->settings.terminate = update->terminate;
+      jc->settings.rho = update->rho;
+      jc->settings.maxIterations = update->max_iterations;
+      // Warm starting is only valid when the previous solution means the same
+      // thing: the gait table SHIFTS one segment per solve, so slot k of the
+      // reduced vector changes identity (a different foot-step) between
+      // consecutive problems. ADMM started from an identity-mismatched iterate
+      // and truncated at 60 iterations returns a half-converged wrong answer -
+      // measured as weak, lopsided forces and a launch. So warm start ONLY
+      // when the contact table is bit-identical to the previous solve
+      // ($SIM_MPC_WARM=0 disables even that).
+      static u8 prev_gait[4*36];
+      static s32 prev_ng = -1;
+      s32 ng = 4*setup->horizon;
+      bool same_table = (prev_ng == ng);
+      if(same_table)
+        for(s32 g = 0; g < ng; g++) if(prev_gait[g] != update->gait[g]) { same_table = false; break; }
+      for(s32 g = 0; g < ng; g++) prev_gait[g] = update->gait[g];
+      prev_ng = ng;
+      static const bool warm_ok = !(getenv("SIM_MPC_WARM") && atoi(getenv("SIM_MPC_WARM")) == 0);
+      if(!fresh && same_table && warm_ok) jc->hotStart();
+      jc->runFromDense(update->max_iterations, true, false);
+      for(s32 rI = 0; rI < nv; rI++) q_soln[vi[rI]] = jc->getSolution()[rI];
+    }
   } else {
 
 
@@ -656,11 +719,8 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
 
 
 
-  if(update->use_jcqp == 1) {
-    for(int i = 0; i < 12 * setup->horizon; i++) {
-      q_soln[i] = jcqp.getSolution()[i];
-    }
-  }
+  // (JCQP solution is scattered into q_soln inside its branch above;
+  // eliminated swing-foot entries stay exactly zero.)
 
   if(getenv("STM32MP1_MPC_MAT")) {
     static int _sc2 = 0;
