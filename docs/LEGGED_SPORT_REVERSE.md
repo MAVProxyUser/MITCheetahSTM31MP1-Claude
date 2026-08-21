@@ -474,14 +474,39 @@ it most likely reflects Unitree's leg-frame convention rather than a control
 improvement, and getting a force sign wrong per leg is exactly the kind of change
 that silently destroys a gait. It is recorded here for whoever needs it.
 
-## 8. Open leads
+## 8. Open leads, and what was deliberately NOT reduced
 
-- `trajPlanner`, `runSwingLegControl`, `runContactLegControl` — not yet reduced
-  to pseudocode; the swing/stance split is the most likely place their gait
-  robustness lives.
-- `getFlightState` / `getCurrentHybridMode` — the flight-phase machinery our
-  failing gaits appear to need.
-- `0x2fdc40`'s `0.092` and `0.0985` are unidentified fields between
+**Reduced to pseudocode** (in this document): `getFlightState`, `getMpcTable`,
+`zeroVelTransitionAmend`, `runContactLegControl`, `locomotionSafe`, and the
+`OffsetDurationGait` accessors. **Constants recovered**: `buildMiniCheetah`
+(the whole robot model), `RobotState::set` (inertia), `solveDenseMPC` (alpha),
+`trajPlanner`, `runSwingLegControl`, `runContactLegControl`.
+
+**`trajPlanner` (2776 bytes) is deliberately not fully reduced.** Its entry
+copies the state estimate onto the stack and builds a series of pointers spaced
+0x18 apart (per-leg / per-axis blocks) before the trajectory math, all of it
+inlined Eigen. The actionable content - the three complementary filter pairs at
+250 ms - 1 s, against MIT's 20 ms - is already recovered in §7a. Producing
+statement-level pseudocode for the remainder would be a large amount of work
+with a real risk of confident-looking errors, and speculative pseudocode in a
+reference document is worse than an acknowledged gap.
+
+The same applies to the bulk of `runSwingLegControl` (3056 bytes); its entry
+block IS decoded above, because that is where the swing/stance split and the
+per-leg duration calls are visible.
+
+### Leads worth pursuing
+- **`runSwingLegControl`'s body** is the best remaining candidate for pronking
+  and galloping. During a flight phase ALL FOUR legs are in swing, so this
+  function is doing everything at the moment those gaits fail.
+- The per-leg arrays at `0x2fe180` / `0x2fe190` (antisymmetric front-to-rear)
+  have no MIT counterpart. NOT ported - the field they land in is unconfirmed.
+- The per-leg force sign pattern in `runContactLegControl` (§7c). Likewise not
+  ported: most likely a leg-frame convention, and a wrong per-leg force sign
+  destroys a gait silently.
+- `setItCorrected` / `setItCorrectedStart` (544 bytes) - runtime correction of
+  gait iteration, which MIT has no equivalent for.
+- `0x2fdc40`'s `0.092` and `0.0985`, unidentified fields between
   `_maxLegLength` and `_batteryV`.
-- The second (operational) joint-limit set is not enforced anywhere in this port;
-  it belongs as a controller-side clamp, not a physics limit.
+- The operational joint-limit set (§4) is not enforced anywhere in this port; it
+  belongs as a controller-side clamp, not a physics limit.
