@@ -323,8 +323,35 @@ void FSM_State_Locomotion<T>::LocomotionControlStep() {
     static const int wbc_decim = getenv("SIM_WBC_DECIM")
                                ? std::max(1, atoi(getenv("SIM_WBC_DECIM"))) : 1;
     static int wbc_tick = 0;
+    // CACHE AND RE-APPLY between WBC runs. The original decimation assumed the
+    // leg controller "keeps applying" the WBC's commands on skipped ticks - it
+    // does not: RobotRunner::setupStep() calls zeroCommand() EVERY tick, so a
+    // skipped tick sent all-zero gains and torques to the legs. At decim 2
+    // that is a 250 Hz full-command/zero-command chatter (visible in the
+    // bridge dump as alternating healthy/zero packets), i.e. half the average
+    // stiffness and force - and the robot folded at every gait engage while
+    // the logs showed nothing wrong. Now the WBC's outputs are cached when it
+    // runs and rewritten into the freshly-zeroed commands on the ticks it is
+    // skipped, which is what the decimation was always meant to mean.
+    static Vec3<T> c_qDes[4], c_qdDes[4], c_tau[4];
+    static Mat3<T> c_kp[4], c_kd[4];
+    static bool c_valid = false;
     if ((wbc_tick++ % wbc_decim) == 0) {
       _wbc_ctrl->run(_wbc_data, *this->_data);
+      for (int leg = 0; leg < 4; ++leg) {
+        auto& cmd = this->_data->_legController->commands[leg];
+        c_qDes[leg] = cmd.qDes;   c_qdDes[leg] = cmd.qdDes;
+        c_tau[leg]  = cmd.tauFeedForward;
+        c_kp[leg]   = cmd.kpJoint; c_kd[leg] = cmd.kdJoint;
+      }
+      c_valid = true;
+    } else if (c_valid) {
+      for (int leg = 0; leg < 4; ++leg) {
+        auto& cmd = this->_data->_legController->commands[leg];
+        cmd.qDes = c_qDes[leg];   cmd.qdDes = c_qdDes[leg];
+        cmd.tauFeedForward = c_tau[leg];
+        cmd.kpJoint = c_kp[leg];  cmd.kdJoint = c_kd[leg];
+      }
     }
   }
   for(int leg(0); leg<4; ++leg){
