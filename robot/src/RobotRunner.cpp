@@ -7,6 +7,7 @@
 
 #include <unistd.h>
 
+#include <cmath>
 #include "RobotRunner.h"
 #include "Controllers/ContactEstimator.h"
 #include "Controllers/OrientationEstimator.h"
@@ -94,6 +95,33 @@ void RobotRunner::run() {
   _stateEstimator->run();
   //cheetahMainVisualization->p = _stateEstimate.position;
   visualizationData->clear();
+
+  // NaN GUARD ON THE STATE ESTIMATE.
+  // LinearKFPositionVelocityEstimator carries a covariance that it propagates
+  // every tick; when the gait gives it long all-swing windows (galloping and
+  // pronking both have them) the position update is unobservable, the
+  // covariance blows up and the whole estimate goes non-finite. From there the
+  // NaN travels straight into the MPC - measured `p=nan nan nan v=nan nan nan`
+  // going into update_problem_data_floats - and out again as NaN joint torques,
+  // which Gazebo rejects and which are undefined behaviour on real hardware.
+  // Reinitialising the estimator is far better than propagating NaN.
+  {
+    const auto& r = _stateEstimate;
+    bool bad = false;
+    for (int i = 0; i < 3 && !bad; ++i)
+      if (!std::isfinite(r.position[i]) || !std::isfinite(r.vWorld[i]) ||
+          !std::isfinite(r.vBody[i])    || !std::isfinite(r.rpy[i])) bad = true;
+    for (int i = 0; i < 4 && !bad; ++i)
+      if (!std::isfinite(r.orientation[i])) bad = true;
+    if (bad) {
+      static int nanCount = 0;
+      ++nanCount;
+      printf("[stm32mp1] STATE ESTIMATE WENT NON-FINITE (%d) - reinitialising\n", nanCount);
+      fflush(stdout);
+      initializeStateEstimator(_cheaterModeEnabled);
+      _stateEstimator->run();
+    }
+  }
 
   // STM32MP1 SITL debug: throttled estimator dump so we can compare the
   // estimated body state to Gazebo ground truth (set STM32MP1_EST_DBG=1).
