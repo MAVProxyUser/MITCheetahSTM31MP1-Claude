@@ -319,6 +319,59 @@ at 0.00 m travelled.
 
 ---
 
+## 7a. `trajPlanner` and `runSwingLegControl` (constants recovered)
+
+Not reduced to pseudocode, but their constants are informative.
+
+### `trajPlanner` (0xe6a70): the reference is heavily filtered
+
+Immediates include three complementary first-order pairs:
+
+```
+0.998 / 0.002      0.994 / 0.006      0.992 / 0.008
+```
+
+At 500 Hz those are **250 ms - 1 s** time constants. MIT hard-codes
+`float filter(0.1)` for the operator command - about **20 ms**. So Unitree
+smooths the reference it hands downstream 12-50x harder than MIT does.
+
+Relevant here because the gaits still failing (pronking, galloping) die on the
+transient at gait engagement, at a fixed ~18 s regardless of commanded speed,
+rather than in steady state. Exposed as `SIM_CMD_FILTER` (default stays MIT's
+0.1) so it can be measured rather than assumed.
+
+Other clamps present: +-0.11, +-0.3, +-0.75, 1.5.
+
+### `runSwingLegControl` (0xe7548): per-leg foot-placement bias
+
+`9.81` confirms MIT's capture-point formula, and `0.07` matches the swing
+height. The constant pool carries something MIT does not have:
+
+```
+0x2fe180:  -0.030   +0.030   +0.015   -0.015
+0x2fe190:  -0.020   +0.020   +0.020   -0.020
+```
+
+Four-element, antisymmetric front-to-rear. MIT places the swing foot with a
+single uniform lateral offset for every leg:
+
+```cpp
+Vec3<float> offset(0, side_sign[i] * .065, 0);
+```
+
+- no front/rear asymmetry and no per-leg trim. The Go1's mass is not evenly
+distributed front-to-rear, so a deliberate per-leg stance bias is the sort of
+thing a factory controller carries and a reference implementation does not.
+NOT implemented here: the exact field these land in is unconfirmed, and foot
+placement is not somewhere to change on a guess.
+
+### `runContactLegControl` (0xe3f30): stance stiffness really is zero
+
+Its pool includes an all-zero vector at `0x2fe0f8`, consistent with MIT's
+`Kp_stance = 0*Kp`. **This rules out stance stiffness as the cause of this
+port's collapses** - Unitree relies on MPC force for support exactly as MIT
+does.
+
 ## 8. Open leads
 
 - `trajPlanner`, `runSwingLegControl`, `runContactLegControl` — not yet reduced

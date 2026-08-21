@@ -166,7 +166,16 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   }
 
   float x_vel_cmd, y_vel_cmd;
-  float filter(0.1);
+  // Command smoothing. MIT hard-codes 0.1, i.e. a ~20 ms time constant at
+  // 500 Hz - quite fast. Unitree's trajPlanner (0xe6a70) instead carries three
+  // complementary first-order pairs, 0.998/0.002, 0.994/0.006 and 0.992/0.008,
+  // which are 250 ms - 1 s constants: 12-50x heavier smoothing of the reference
+  // it hands downstream. Worth testing here because the gaits still failing
+  // (pronking, galloping) die on the transient at gait engagement, not in
+  // steady state. $SIM_CMD_FILTER overrides; default stays MIT's 0.1.
+  static const float kCmdFilter =
+      getenv("SIM_CMD_FILTER") ? atof(getenv("SIM_CMD_FILTER")) : 0.1f;
+  float filter(kCmdFilter);
   if(data.controlParameters->use_rc){
     const rc_control_settings* rc_cmd = data._desiredStateCommand->rcCommand;
     data.userParameters->cmpc_gait = rc_cmd->variable[0];
