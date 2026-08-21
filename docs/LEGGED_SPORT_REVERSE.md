@@ -372,6 +372,34 @@ Its pool includes an all-zero vector at `0x2fe0f8`, consistent with MIT's
 port's collapses** - Unitree relies on MPC force for support exactly as MIT
 does.
 
+## 7b. Unitree DISABLED MIT's `locomotionSafe()`
+
+`FSM_State_Locomotion<float>::locomotionSafe()` (0x166a48) is eight bytes:
+
+```asm
+mov  w0, #1        ; return true
+ret
+```
+
+So is `FSM_State_Dance`'s. The factory controller does not run MIT's locomotion
+safety check at all.
+
+This is the same check this port had to fix twice: its lateral foot limit is
+mini-cheetah's 0.18 m (the Go1 legitimately stands ~30% wider), and the line
+carries an upstream typo, `std::fabs(p_leg[1] > 0.18)`, taking `fabs` of a
+*bool*. Failing it sends the FSM to **RECOVERY_STAND, which folds all four
+legs** - which is why every early "the MPC tumbles at gait start" note in
+CLAUDE.md turned out to be this check firing. This port gated it to 0.24 m for
+the Go1; Unitree simply returns true and relies on the orientation check in
+`ControlFSM::safetyPreCheck` plus their own layer.
+
+**Checked, and NOT the cause of this port's remaining failures**: the logs for
+the collapsing runs (pronking, galloping, bounding) contain zero
+`RECOVERY_STAND` transitions, so the 0.24 m gating is already permissive enough
+and the check is not firing. Recorded because it is the factory's answer to a
+check this port has twice had to work around, not because it explains the
+current bug.
+
 ## 8. Open leads
 
 - `trajPlanner`, `runSwingLegControl`, `runContactLegControl` — not yet reduced
