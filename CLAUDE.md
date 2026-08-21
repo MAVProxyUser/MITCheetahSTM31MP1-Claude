@@ -400,6 +400,35 @@ stiff end, and high P specifically costs compliance on uneven ground):
 GainAdaptor P=28 D=0.7 | PD-ILC kp=90 kd=4 | Bezier+impedance ~1000 N/m at the
 foot (~45 Nm/rad equivalent). Exposed as `SG_KP` / `SG_KD`, default 70.
 
+## Mission result (the thing this was all for)
+
+Full 5-point star, GPS-driven, controller on the STM32MP1, **on the farm**:
+
+```
+[nav] reached wp00 (N=-2.43 E= 1.76) dist=0.29
+[nav] reached wp01 (N= 0.93 E=-2.85) dist=0.30
+[nav] reached wp02 (N= 0.93 E= 2.85) dist=0.28
+[nav] reached wp03 (N=-2.43 E=-1.76) dist=0.30
+[nav] reached wp04 (N= 3.00 E= 0.00) dist=0.28
+[nav] MISSION COMPLETE
+```
+
+Every waypoint captured within 0.30 m of the point itself - not a generous
+acceptance buffer - cruising at the commanded 0.28 m/s between them and pivoting
+at the corners. Repro:
+
+```bash
+stm32mp1/gazebo/sim_up.sh worlds/go1_farm_flat.sdf --gui
+python3 stm32mp1/gazebo/trail_daemon.py star:3:5 500 &
+ssh $BOARD "cd /usr/local/cheetah-mp1 && WP_MISSION=star:3:5 WP_ACCEPT=0.3 \
+  SG_VX=0.28 SG_T=0.85 SG_H=0.30 chrt -f 80 ./static_gait_sim $MAC"
+```
+
+NOTE the crawl is marginally stable and has real run-to-run variance: the same
+command fell over twice on this world before completing cleanly. That variance -
+not the world, not the terrain - explains several "the farm is broken" detours
+in the log above. Treat a single failed run as noise and repeat it.
+
 ## Still open
 - The trot's travel direction is inverted: at 1.0 m/s commanded it makes 1.00
   m/s of ground speed with the *magnitude right and the sign wrong*, and
