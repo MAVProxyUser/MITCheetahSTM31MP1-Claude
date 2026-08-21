@@ -409,4 +409,8 @@ T QpProblem<T>::calcAndDisplayResidual(bool print)
 
 
 template class QpProblem<double>;
-//template class QpProblem<float>;
+// Enabled for the STM32MP1 port: the Cortex-A7's NEON is 4-wide FLOAT with no
+// double-precision SIMD, and everything MIT feeds this solver is already
+// single precision (convexMPC's fpt is float) - it was only widened by the
+// QpProblem<double> instantiation and the .cast<double>() at the call site.
+template class QpProblem<float>;

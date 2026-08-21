@@ -12,6 +12,14 @@
 #include <Utilities/Timer.h>
 #include <JCQP/QpProblem.h>
 
+// Precision for the JCQP solve. Float on the A7 (no double-precision SIMD);
+// SIM_MPC_DOUBLE restores MIT's double at build time if ever needed.
+#ifdef STM32MP1_MPC_DOUBLE
+typedef double JCQP_T;
+#else
+typedef float JCQP_T;
+#endif
+
 //#define K_PRINT_EVERYTHING
 #define BIG_NUMBER 5e10
 //big enough to act like infinity, small enough to avoid numerical weirdness.
@@ -403,12 +411,17 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
     }
   }
 
-  QpProblem<double> jcqp(setup->horizon*12, setup->horizon*20);
+  // SINGLE PRECISION. Everything MIT builds here is already `fpt` = float, and
+  // this was the one place it got widened: QpProblem<double> plus .cast<double>()
+  // on every matrix. A Cortex-A7's NEON is 4-wide FLOAT and has no
+  // double-precision SIMD at all, so the solve was running scalar VFP on data
+  // that started out single precision anyway. jcqp_f keeps it float end to end.
+  QpProblem<JCQP_T> jcqp(setup->horizon*12, setup->horizon*20);
   if(update->use_jcqp == 1) {
-    jcqp.A = fmat.cast<double>();
-    jcqp.P = qH.cast<double>();
-    jcqp.q = qg.cast<double>();
-    jcqp.u = U_b.cast<double>();
+    jcqp.A = fmat.cast<JCQP_T>();
+    jcqp.P = qH.cast<JCQP_T>();
+    jcqp.q = qg.cast<JCQP_T>();
+    jcqp.u = U_b.cast<JCQP_T>();
     for(s16 i = 0; i < 20*setup->horizon; i++)
       jcqp.l[i] = 0.;
 

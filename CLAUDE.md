@@ -662,7 +662,8 @@ solve rate versus solution quality:
 
 | horizon | solve time | MPC rate | stance forces | verdict |
 |---|---|---|---|---|
-| 10 | 349 ms | ~3 Hz | -73 -60 0 -66 N | correct forces, far too slow |
+| 10 (double) | 349 ms | ~3 Hz | -73 -60 0 -66 N | correct forces, far too slow |
+| 10 (float) | 230 ms | ~4.3 Hz | -66 0 0 -67 N | correct forces, still too slow |
 | 6 | 97 ms | ~10 Hz | -19 x4 (76 N) | fast enough-ish, UNDER-SUPPORTS |
 | 4 | 76 ms | ~13 Hz | -7 x4 (28 N) | badly under-supports |
 
@@ -678,10 +679,19 @@ behaviour, so the worker drops any non-finite solution and keeps the previous
 one. It fired intermittently at horizon 6.
 
 **Next, in priority order:**
-1. Make the horizon-10 solve fast enough, or re-tune the cost weights for a
-   short horizon. JCQP is `QpProblem<double>`; single precision is the obvious
-   first lever on a Cortex-A7 with no DP throughput to spare. Failing that,
-   re-tune `Q` for horizon 4-6 so the shorter horizon still commands bodyweight.
+1. **Get the solve from 230 ms to ~30 ms.** Single precision is now DONE (349
+   -> 230 ms, 1.5x: JCQP was instantiated `QpProblem<double>` with
+   `.cast<double>()` on every matrix, even though convexMPC's `fpt` is already
+   float and the A7 has no double-precision SIMD; `QpProblem<float>` and
+   `CholeskySparseSolver<float>` are now instantiated, which needed AMD's
+   diagnostic `Info` array pinned to double since its API is not templated).
+   Remaining ideas, in order: profile inside `solve_mpc` to see whether the time
+   is the dense triple product `B_qp^T S B_qp` or the ADMM iterations; exploit
+   that `S` is DIAGONAL (MIT builds it with `S.diagonal() = ...`, so
+   `B^T S B` should never be a full matrix multiply); cut `jcqp_max_iter` from
+   200 once it is known how many iterations are actually used.
+2. Or re-tune `Q` for horizon 4-6 so a short horizon still commands bodyweight -
+   at horizon 6 the solver only asks for 76 N under a 128 N robot.
 2. Get the solve under ~30 ms so the MPC can run at 30 Hz. Horizon barely moves
    it (10/6/4 -> 81/56/57 ms), and nor does `nWSR`, so the cost is the dense
    algebra (`qH = 2*(B_qp^T S B_qp + ...)`, ~4M double MACs at horizon 10).

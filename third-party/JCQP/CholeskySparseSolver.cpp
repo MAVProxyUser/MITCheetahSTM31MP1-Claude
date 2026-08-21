@@ -581,7 +581,9 @@ void CholeskySparseSolver<T>::solveOrder()
 template<typename T>
 void CholeskySparseSolver<T>::amdOrder(MatCSC<T> &mat, u32 *perm, u32* iperm)
 {
-  T amdInfo[AMD_INFO];
+  // AMD_INFO is AMD's diagnostic output and its API is always double, so this
+  // must not follow T - with T=float it fails to compile (c_float* is double*).
+  double amdInfo[AMD_INFO];
   int amdRV = amd_order((int)mat.n, (int*)mat.colPtrs, (int*)mat.rowIdx, (int*)perm, nullptr, amdInfo);
   if(amdRV < 0) throw std::runtime_error("reorder failed");
 
@@ -591,3 +593,6 @@ void CholeskySparseSolver<T>::amdOrder(MatCSC<T> &mat, u32 *perm, u32* iperm)
 }
 
 template class CholeskySparseSolver<double>;
+// Float instantiation for the STM32MP1 port - see QpProblem.cpp. The A7 has no
+// double-precision SIMD, and convexMPC's data is single precision to begin with.
+template class CholeskySparseSolver<float>;
