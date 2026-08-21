@@ -348,12 +348,20 @@ Other clamps present: +-0.11, +-0.3, +-0.75, 1.5.
 height. The constant pool carries something MIT does not have:
 
 ```
+0x2fe170:  -1.000   +1.000   -1.000   +1.000     <- MIT's own side_sign, NOT new
 0x2fe180:  -0.030   +0.030   +0.015   -0.015
 0x2fe190:  -0.020   +0.020   +0.020   -0.020
 ```
 
-Four-element, antisymmetric front-to-rear. MIT places the swing foot with a
-single uniform lateral offset for every leg:
+CORRECTION to an earlier reading of this section: `0x2fe170` is `{-1,+1,-1,+1}`,
+which is **MIT's `side_sign` verbatim** - disassembling the swing entry
+(`0xe7614`: load `q0` from `0x2fe170`, spill, then `ldr s1, [sp+0x170 + leg*4]`)
+shows it indexed per leg exactly as MIT does. It is not a Unitree addition and
+was wrongly grouped with the two arrays below.
+
+The remaining two ARE four-element and antisymmetric front-to-rear, and have no
+MIT counterpart. MIT places the swing foot with a single uniform lateral offset
+for every leg:
 
 ```cpp
 Vec3<float> offset(0, side_sign[i] * .065, 0);
@@ -441,6 +449,19 @@ void ConvexMPCLocomotion::runContactLegControl(ControlFSMData<float>& data) {
     }
 }
 ```
+
+### Swing entry, decoded (`0xe7548`)
+
+Two things confirmed by the entry block, both load-bearing for this port:
+
+* it processes legs where `swingState > 0` - the exact complement of
+  `runContactLegControl`, so the two functions really are MIT's swing/stance
+  branches split apart;
+* it fetches `getCurrentSwingTime(dtMPC, leg)` and
+  `getCurrentStanceTime(dtMPC, leg)` **per leg**, through the vtable
+  (`blr` on offsets 0x48/0x50). That is direct confirmation that the per-leg
+  duration change made in this port matches what the factory controller does -
+  MIT's scalar version would make these four calls redundant.
 
 **Confidence.** The loop structure, the stance test, the rotation, the force
 source and the sign selection are read directly from the instructions. The exact
