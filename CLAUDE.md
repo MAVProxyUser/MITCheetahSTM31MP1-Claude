@@ -607,6 +607,23 @@ MPC worker MUST sit below the control loop (here: control/motor at FIFO 49, MPC
 worker at FIFO 20 pinned to cpu1) - but they can afford to spread it over four
 cores where this board has two.
 
+### WBC decimation: fixes timing, does NOT fix height
+
+`SIM_WBC_DECIM` runs WBIC every Nth tick and holds its joint commands in
+between (it writes qDes/qdDes/kp/kd/tau, which the leg controller keeps applying
+on skipped ticks). Measured:
+
+| WBC rate | worst control loop | body z |
+|---|---|---|
+| every tick (stock) | 55.89 ms | 0.224 |
+| every 5 ticks | **5.45 ms** | 0.214 |
+| every 10 ticks | 6.63 ms | 0.223 |
+
+So decimation buys back the control loop (56 -> 5.5 ms) at no cost in height -
+but it disproves the hypothesis below: the body parks at ~0.22 whether the WBC
+runs every tick, every fifth, or not at all. Something else is holding it down,
+and BodyPosTask is not it.
+
 ### THE WBC IS NOT OPTIONAL
 
 The binary contains `WBIC`, `LocomotionCtrl`, `BodyOriTask`, `LinkPosTask`,
@@ -639,6 +656,18 @@ The URDF's 258 deg thigh is not reachable in practice. Reach from the SDK's
 -48 deg calf is 0.389 m (this port uses 0.385 from the URDF's -51 deg - close
 enough to leave alone), and the wider +-60 deg abad means the lateral foot
 limit can be more generous than the URDF implies.
+
+### URDF vs reality (applied)
+The abad limit is now **+-1.047 rad (+-60 deg)** in all four worlds, matching
+`go1_const.h` rather than the URDF's +-0.863 (+-49 deg). The firmware on the
+real machine allows +-60, lateral foot placement is the axis roll stability
+depends on, and simulating it 11 deg tighter than the robot is a self-inflicted
+handicap on exactly the wrong axis. The thigh's URDF range (-39..258 deg) is
+left alone for now even though the SDK enforces -38..170 - it is permissive
+rather than restrictive, so it costs nothing until a controller tries to use it.
+Still worth getting from the real dog: measured joint damping/dry friction (the
+URDF ships 0 and this port guessed 0.6/0.2), and real foot friction (URDF 0.6,
+this port uses 2.0 to stop the feet skating).
 
 ### Per-robot drift calibration
 `/var/local/unitree_legged_config.yaml` carries ONLY drift trim, calibrated per

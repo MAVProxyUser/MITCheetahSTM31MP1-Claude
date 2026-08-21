@@ -8,6 +8,7 @@
 #include "FSM_State_Locomotion.h"
 #include <cstdlib>
 #include <Utilities/Timer.h>
+#include <algorithm>
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
 //#include <rt/rt_interface_lcm.h>
 
@@ -307,7 +308,24 @@ void FSM_State_Locomotion<T>::LocomotionControlStep() {
       _wbc_data->Fr_des[i] = cMPCOld->Fr_des[i]; 
     }
     _wbc_data->contact_state = cMPCOld->contact_state;
-    _wbc_ctrl->run(_wbc_data, *this->_data);
+
+    // WBC DECIMATION.
+    // The factory Go1 runs this every tick, but it has 4x Cortex-A72 at
+    // 1.5 GHz on a PREEMPT_RT kernel - roughly 11x this board's 2x Cortex-A7 at
+    // 650 MHz. Here WBIC costs ~50 ms against a 2 ms control period, so running
+    // it every tick is impossible and running it NOT AT ALL loses BodyPosTask /
+    // BodyOriTask, which are the only thing servoing body pose once
+    // Kp_stance = 0 (measured: body parks at 0.204 m against a 0.30 m
+    // reference). So run it every Nth tick and hold its joint commands in
+    // between - the WBC writes qDes/qdDes/kp/kd/tau, all of which the leg
+    // controller keeps applying on the ticks it is skipped.
+    // $SIM_WBC_DECIM (default 1 = stock every-tick behaviour).
+    static const int wbc_decim = getenv("SIM_WBC_DECIM")
+                               ? std::max(1, atoi(getenv("SIM_WBC_DECIM"))) : 1;
+    static int wbc_tick = 0;
+    if ((wbc_tick++ % wbc_decim) == 0) {
+      _wbc_ctrl->run(_wbc_data, *this->_data);
+    }
   }
   for(int leg(0); leg<4; ++leg){
     //this->_data->_legController->commands[leg].pDes = pDes_backup[leg];
