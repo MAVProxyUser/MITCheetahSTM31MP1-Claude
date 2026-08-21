@@ -31,6 +31,7 @@
 #define TROT_CONTROLLER_H
 
 #include <RobotController.h>
+#include "SafetyCheck.hpp"
 
 class TrotController : public RobotController {
  public:
@@ -41,6 +42,7 @@ class TrotController : public RobotController {
   ControlParameters* getUserControlParameters() override { return nullptr; }
 
  private:
+  SafetyCheck _safety;
   void legIK(int leg, float x, float y, float z, float* q);
   // per-leg foot position at the moment of liftoff (start of its swing arc)
   float _liftoffX[4] = {0, 0, 0, 0};

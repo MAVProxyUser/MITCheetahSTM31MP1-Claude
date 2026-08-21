@@ -19,6 +19,7 @@
 #define STATIC_GAIT_CONTROLLER_H
 
 #include <RobotController.h>
+#include "SafetyCheck.hpp"
 
 class StaticGaitController : public RobotController {
  public:
@@ -29,6 +30,7 @@ class StaticGaitController : public RobotController {
   ControlParameters* getUserControlParameters() override { return nullptr; }
 
  private:
+  SafetyCheck _safety;
   // abstract-convention IK for one leg (x fwd, y left, z down<0, rel abad pivot)
   void legIK(int leg, float x, float y, float z, float* q);
 };

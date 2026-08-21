@@ -11,6 +11,8 @@ static const float L2 = 0.213f;   // thigh
 static const float L3 = 0.213f;   // calf
 // leg order 0..3 = FR, FL, RR, RL; side sign of the abad y-offset
 static const float SIDE[4] = {-1.f, 1.f, -1.f, 1.f};
+static const float FRONT[4] = {1.f, 1.f, -1.f, -1.f};
+static const float HIPX = 0.1881f;   // hip x offset from body centre
 
 static float clampf(float v, float lo, float hi) {
   return v < lo ? lo : (v > hi ? hi : v);
@@ -55,6 +57,12 @@ void StaticGaitController::runController() {
   kd.diagonal() << 2.f, 2.f, 2.f;
   _legController->_maxTorque = 33;
   _legController->_legsEnabled = true;
+
+  // Fall detection: attitude, not impact (footfalls are legitimate impacts).
+  if (_safety.update(_stateEstimate, 0.002f)) {
+    SafetyCheck::goLimp(_legController);
+    return;
+  }
 
   const float standTime = 4.0f;
   // classic crawl order: RR, FR, RL, FL (legs 2,0,3,1); quarter k swings order[k]
@@ -113,9 +121,12 @@ void StaticGaitController::runController() {
         float nv = 0.f, nw = 0.f;
         bool running = nav->update(N, E, bearing, spd, 0.002f, &nv, &nw);
         navV = running ? nv : 0.f;
-        // nav steers in compass sense (+ = toward east); the gait's turn command
-        // is CCW-positive, so it takes the opposite sign.
-        navW = running ? -nw : 0.f;
+        // Sign, measured not assumed: with the body-axis yaw, SG_TURN=+0.6
+        // produces a CLOCKWISE turn (world yaw -217 deg in 15 s). nav's yaw
+        // rate is compass-sense (+ = turn toward east = clockwise), so the two
+        // now agree and the command passes straight through. NOTE this is the
+        // opposite of the old differential-stride turn, which was CCW-positive.
+        navW = running ? nw : 0.f;
         static int navlog = 0;
         if ((++navlog % 250) == 0) {
           printf("[nav] wp%d/%d  pos N=%.2f E=%.2f  hdg=%.0f deg  d=%.2f m  v=%.2f w=%.2f\n",
@@ -180,8 +191,29 @@ void StaticGaitController::runController() {
       continue;
     }
 
-    // per-leg stride (differential for turning: +turn shortens right strides)
-    float legStride = stride * vscale * (1.f - 0.5f * TURN_NOW * SIDE[leg]);
+    // Forward stride for this leg.
+    float legStride = stride * vscale;
+
+    // YAW. Differential stride length alone (what this used to do) is a very
+    // weak steering authority - the dog needed metres of arc to come round onto
+    // the next leg, which is what produced the big loops in the ground track.
+    // A quadruped turns by ROTATING ITS STANCE FEET ABOUT THE BODY AXIS: for a
+    // body yaw rate w, a foot under hip (hx,hy) must travel at -(w x r), i.e.
+    // (+w*hy, -w*hx) in the body frame. Over a stance that is a real
+    // displacement per step, so the dog pivots instead of arcing.
+    float hx = FRONT[leg] * HIPX;
+    float hy = SIDE[leg] * L1;
+    // Radians of body yaw per gait cycle, CLAMPED to what the legs can reach.
+    // The lateral foot displacement this asks for is yawStep*HIPX; the abad
+    // joint can only take the foot ~0.10 m sideways before the IK clamps, and
+    // an over-large request simply saturates every joint and rotates nothing
+    // (a 1.6 rad/s command at a 0.85 s cycle asks for 25 cm and deadlocks).
+    float yawStep = TURN_NOW * vscale * T;
+    const float YAW_STEP_MAX = 0.45f;
+    yawStep = clampf(yawStep, -YAW_STEP_MAX, YAW_STEP_MAX);
+    float turnDx = clampf( yawStep * hy, -0.06f, 0.06f);
+    float turnDy = clampf(-yawStep * hx, -0.10f, 0.10f);
+
     y = SIDE[leg] * L1 + lean;
 
     if (leg == swingLeg && sp >= 0.15f && sp <= 0.85f && vscale > 0.02f) {
@@ -189,13 +221,15 @@ void StaticGaitController::runController() {
       // stance sweep evaluated at the swing window edges (f=0.9125 / 0.0875):
       // +-(0.4125 - 0.825*0.0875) = +-0.3403 stride, so touchdown is seamless.
       float ss = (sp - 0.15f) / 0.7f;
-      x = x_home + 0.6806f * legStride * (ss - 0.5f);
+      x = x_home + 0.6806f * (legStride * (ss - 0.5f) + turnDx * (ss - 0.5f));
+      y += 0.6806f * turnDy * (ss - 0.5f);
       z = -H + LIFT * sinf((float)M_PI * ss);
     } else {
       // stance: sweep backward at body speed. f = cycle fraction since this
       // leg's mid-swing; foot goes +0.4125*stride (just landed) -> -0.4125.
       float f = fmodf(ph - (quarterOf[leg] + 0.5f) / 4.f + 1.f, 1.f);
-      x = x_home + legStride * (0.4125f - 0.825f * f);
+      x = x_home + (legStride + turnDx) * (0.4125f - 0.825f * f);
+      y += turnDy * (0.4125f - 0.825f * f);
       z = -H;
     }
 

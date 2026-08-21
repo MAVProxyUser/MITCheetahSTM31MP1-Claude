@@ -263,3 +263,45 @@ nav's steering output is negated on the way in.
 - The farm world keeps `agriculture_world` **with collision**, so buildings and
   fences are solid; probe spheres measured the terrain around spawn as flat to
   ~1 mm over +-6 m, so footing is honest and the feet do not clip.
+
+## Function audit: how these gaits sit against MIT's pipeline
+
+Worth stating plainly, because the custom gaits deviate in one structural way
+that had a real safety consequence.
+
+**Shared and unchanged** (every binary in this port goes through it):
+`Stm32mp1HardwareBridge` -> `RobotRunner` (PeriodicTask, 500 Hz) ->
+`_stateEstimator->run()` -> `setupStep()` (`legController->updateData(spiData)`,
+`zeroCommand()`, `setEnabled()`, `setMaxTorque()`) -> `JPosInitializer` until
+initialised -> `_robot_ctrl->runController()` -> `finalizeStep()`
+(`legController->updateCommand(spiCommand)`). Leg data, the estimator, the
+Jacobian/FK, the torque assembly in `LegController::updateCommand` (tau_ff +
+forceFeedForward + Cartesian PD through J^T, plus joint PD) and the
+SpiCommand/SpiData wire format are all stock MIT.
+
+**Where the custom gaits deviate.** `MIT_Controller::runController()` is a thin
+wrapper around `ControlFSM::runFSM()`, which does:
+1. `operatingMode = safetyPreCheck()` - `SafetyChecker::checkSafeOrientation()`,
+   trips at `|roll|` or `|pitch| >= 0.5 rad`;
+2. on failure force **ESTOP -> the PASSIVE state** (legs limp);
+3. run the current FSM state, then `safetyPostCheck()`, which clamps
+   `checkPDesFoot()` (desired foot position) and `checkForceFeedForward()`.
+
+`StaticGaitController` and `TrotController` subclass `RobotController` directly
+and write leg commands themselves, so they never enter `ControlFSM` and
+inherited **none** of that: a fallen robot kept running its gait, grinding its
+legs - fine in sim, gear-stripping on hardware.
+
+**Closed** by `SafetyCheck.hpp`, which reproduces step 1 and 2 in the same
+spirit: sustained attitude beyond a threshold latches a fault and the legs go
+limp and stay limp until a deliberate restart. Attitude, not acceleration, is
+the discriminator - a legged robot takes a genuine impact spike on every
+footfall, so acceleration cannot separate "trotting hard" from "fallen over",
+whereas a working quadruped is never on its side or its face. The trip is 35 deg
+held 0.25 s (`SAFE_ROLL_DEG` / `SAFE_PITCH_DEG` / `SAFE_HOLD_S`), a little
+looser than MIT's 28.6 deg because a hard corner touches that transiently.
+
+**Still not reproduced from `safetyPostCheck()`**: the `checkPDesFoot` /
+`checkForceFeedForward` clamps. The custom gaits bound foot targets in their own
+IK (`clampf` on reach and abad angle) rather than through MIT's checker, so the
+protection exists but is not the same code path.

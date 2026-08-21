@@ -54,7 +54,8 @@ if(STM32MP1_BUILD)
   # Dynamic trot (Raibert footholds + attitude feedback); the speed gait.
   add_executable(trot_sim
     ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/trot_main.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/TrotController.cpp)
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/TrotController.cpp
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/WaypointNav.cpp)
   target_include_directories(trot_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
   target_link_libraries(trot_sim robot biomimetics dynacore_param_handler pthread)
 

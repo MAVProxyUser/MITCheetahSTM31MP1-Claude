@@ -148,11 +148,19 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
 
   // ---- SPEED: cruise, easing off near the point and when badly mis-aimed ----
   float v = _wp[_idx].speed;
-  if (dist < slow_radius) v *= fmaxf(0.25f, dist / slow_radius);
-  float aim = cosf(err);                      // 1 = pointing at it
-  if (aim < 0.f) aim = 0.f;
-  v *= (0.25f + 0.75f * aim);                 // turn in place when way off
-
+  // Do NOT taper speed into the point: easing off near the waypoint makes the
+  // dog loiter on top of it, and the acceptance test then fires late. Drive at
+  // cruise right through the point; only slow for a genuine stop-type waypoint.
+  if (confirm_speed > 0.f && dist < slow_radius)
+    v *= fmaxf(0.3f, dist / slow_radius);
+  // Turn FIRST, then go. Beyond ~35 deg of heading error, stop translating and
+  // pivot - arcing toward the target while badly mis-aimed is what drew those
+  // long loops instead of straight legs.
+  // Slow hard when mis-aimed so the dog turns rather than arcs, but never to
+  // zero: a full stop deadlocks the mission if the achievable yaw rate is lower
+  // than the commanded one (observed: 90 s pinned at v=0 with yaw saturated).
+  float aerr = fabsf(err);
+  if (aerr > 0.25f) v *= fmaxf(0.22f, 1.f - (aerr - 0.25f) / 0.9f);
   *v_cmd = v;
   *yawrate = wz;
   return true;

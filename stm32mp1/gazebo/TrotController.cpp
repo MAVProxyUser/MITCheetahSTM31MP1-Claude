@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 #include "TrotController.hpp"
+#include "WaypointNav.hpp"
+#include "rt/rt_gazebo.h"   // gazebo_get_aux(): GPS, as the real dog gets over CAN
 
 // Go1 geometry (matches buildGo1 / the URDF)
 static const float L1 = 0.08f;    // abad link (lateral hip offset)
@@ -32,7 +34,8 @@ static float clampf(float v, float lo, float hi) {
 }
 
 void TrotController::legIK(int leg, float x, float y, float z, float* q) {
-  q[0] = clampf((y - SIDE[leg] * L1) / (-z), -0.7f, 0.7f);   // abad (small-angle)
+  // abad opens the leg out to reach a foot placed wider than the hip
+  q[0] = clampf((y - SIDE[leg] * L1) / (-z), -0.7f, 0.7f);
   float r = sqrtf(x * x + z * z);
   r = clampf(r, 0.12f, L2 + L3 - 0.015f);
   float c_knee = (L2 * L2 + L3 * L3 - r * r) / (2.f * L2 * L3);
@@ -50,13 +53,13 @@ void TrotController::runController() {
   // ---- knobs (read once) ----
   static float V = -1, T = 0, H = 0, LIFT = 0, KV = 0;
   static float KPR = 0, KDR = 0, KPP = 0, KDP = 0, KPJ = 0, KDJ = 0, YAW = 0, STAND_S = 0;
-  static float DUTY = 0, FF = 0, KPC = 0, KDC = 0;
-  static int CART = 1;
+  static float DUTY = 0, FF = 0, KPC = 0, KDC = 0, WIDTH = 0;
+  static int CART = 0;
   if (V < 0) {
     V       = getenv("TR_V")        ? atof(getenv("TR_V"))        : 0.6f;
     T       = getenv("TR_T")        ? atof(getenv("TR_T"))        : 0.40f;
     H       = getenv("TR_H")        ? atof(getenv("TR_H"))        : 0.28f;
-    LIFT    = getenv("TR_LIFT")     ? atof(getenv("TR_LIFT"))     : 0.08f;
+    LIFT    = getenv("TR_LIFT")     ? atof(getenv("TR_LIFT"))     : 0.10f;
     KV      = getenv("TR_KV")       ? atof(getenv("TR_KV"))       : 0.08f;
     KPR     = getenv("TR_KP_ROLL")  ? atof(getenv("TR_KP_ROLL"))  : 0.09f;
     KDR     = getenv("TR_KD_ROLL")  ? atof(getenv("TR_KD_ROLL"))  : 0.012f;
@@ -70,8 +73,16 @@ void TrotController::runController() {
     // bounced (17 cm of body heave) and why stiffening it made things worse.
     KPC     = getenv("TR_KP_C")     ? atof(getenv("TR_KP_C"))     : 1000.f;
     KDC     = getenv("TR_KD_C")     ? atof(getenv("TR_KD_C"))     : 44.f;
-    CART    = getenv("TR_JOINTPD") ? 0 : 1;
-    FF      = getenv("TR_FF")       ? atof(getenv("TR_FF"))       : 1.0f;
+    // Default is JOINT PD: measured more reliable here than foot-space
+    // impedance at the published gains, which sags 5-8 cm under load and falls.
+    // Opt in to impedance with TR_CART=1.
+    CART    = getenv("TR_CART") ? 1 : 0;
+    // Gravity feed-forward as a FRACTION of bodyweight. Default 0: the joint
+    // PD already supports the robot through its own tracking error, so adding
+    // a full bodyweight force on top applies ~2x weight and throws the robot
+    // into the air (measured body z of 0.57-0.78 m against a 0.30 m stance -
+    // a quadruped must never leave the ground, and the barometer says so too).
+    FF      = getenv("TR_FF")       ? atof(getenv("TR_FF"))       : 0.0f;
     KDJ     = getenv("TR_KD_J")     ? atof(getenv("TR_KD_J"))     : 3.f;
     YAW     = getenv("TR_YAW")      ? atof(getenv("TR_YAW"))      : 0.f;
     STAND_S = getenv("TR_STAND_S")  ? atof(getenv("TR_STAND_S"))  : 3.f;
@@ -80,8 +91,24 @@ void TrotController::runController() {
     // time). >0.5 overlaps the pairs, giving a short all-four double-support
     // window each half cycle - far more forgiving through the SITL loop's
     // latency, and what real quadrupeds use at walking speed.
+    // Stance WIDTH (half-track, m). Walk-These-Ways exposes this to its policy
+    // over [0.10, 0.45] m; this gait had it pinned at the abad link length
+    // (0.08 -> a 0.16 m track), which is narrow and is exactly the axis these
+    // runs fail on - they roll out. Widening the feet beyond the hips buys roll
+    // moment arm for free.
+    WIDTH   = getenv("TR_WIDTH")    ? atof(getenv("TR_WIDTH"))    : L1;
+    WIDTH   = clampf(WIDTH, L1, 0.30f);
     DUTY    = getenv("TR_DUTY")     ? atof(getenv("TR_DUTY"))     : 0.65f;
-    DUTY    = DUTY < 0.5f ? 0.5f : (DUTY > 0.9f ? 0.9f : DUTY);
+    // duty < 0.5 gives a FLIGHT PHASE (both diagonal pairs off the ground at
+    // once) - "fly trotting". Published Go1 gait-vs-speed schedules put
+    // four-beat walking below 0.5 m/s, two-beat walking to 1.0, trotting to
+    // 2.0, and fly trotting from 2.0-2.5 m/s: above ~2 m/s the flight phase is
+    // not optional. This used to be clamped at 0.5, which structurally ruled
+    // out the one gait that goes fast.
+    // Duty below 0.5 means a flight phase. Allowed only if TR_FLY=1 is set
+    // explicitly: the default gait must always keep feet on the ground.
+    float dmin = getenv("TR_FLY") ? 0.32f : 0.5f;
+    DUTY    = DUTY < dmin ? dmin : (DUTY > 0.9f ? 0.9f : DUTY);
     selectGait(getenv("TR_GAIT"));
     printf("[trot] v=%.2f T=%.2f H=%.2f lift=%.3f kv=%.3f kpj=%.0f\n",
            V, T, H, LIFT, KV, KPJ);
@@ -93,13 +120,68 @@ void TrotController::runController() {
   _legController->_maxTorque = 35;
   _legController->_legsEnabled = true;
 
-  // ---- drive command (waypoint follower / operator), smoothed ----
+  // Fall detection: attitude, not impact (footfalls are legitimate impacts).
+  if (_safety.update(_stateEstimate, 0.002f)) {
+    SafetyCheck::goLimp(_legController);
+    return;
+  }
+
+  // ---- drive command: waypoint mission, operator stick, or TR_* defaults ----
+  static WaypointNav* nav = nullptr;
+  static bool navTried = false;
+  if (!navTried) {
+    navTried = true;
+    if (const char* m = getenv("WP_MISSION")) {
+      nav = new WaypointNav();
+      float r = 5.f, d = 10.f; int pts = 5;
+      if (sscanf(m, "star:%f:%d", &r, &pts) >= 1)        nav->makeStar(r, pts, V);
+      else if (sscanf(m, "circle:%f:%d", &r, &pts) >= 1) nav->makeCircle(r, pts, V);
+      else if (sscanf(m, "outback:%f", &d) == 1)         nav->makeOutAndBack(d, V);
+      else                                               nav->makeStar(5.f, 5, V);
+      if (getenv("WP_ACCEPT")) nav->accept_radius = atof(getenv("WP_ACCEPT"));
+      if (getenv("WP_LOOP"))   nav->loop = true;
+      nav->max_yawrate = 1.0f;
+    }
+  }
+
   static float v_cmd = 0.f, yaw_cmd = 0.f;
   {
-    float v_in  = _driverCommand ? _driverCommand->leftStickAnalog[1]  : 0.f;
-    float y_in  = _driverCommand ? _driverCommand->rightStickAnalog[0] : 0.f;
-    float v_tgt = (fabsf(v_in) > 1e-4f) ? v_in : V;
-    float y_tgt = (fabsf(y_in) > 1e-4f) ? y_in : YAW;
+    float v_tgt = V, y_tgt = YAW;
+    if (nav) {
+      SimAuxSensors aux;
+      gazebo_get_aux(&aux);
+      if (!nav->originSet() && aux.gps_lat != 0.0) nav->setOrigin(aux.gps_lat, aux.gps_lon);
+      if (nav->originSet()) {
+        float N, E;
+        nav->toLocal(aux.gps_lat, aux.gps_lon, &N, &E);
+        // estimator yaw is zeroed at start facing north; compass bearing
+        // (positive toward EAST) is its negative
+        float yaw_est = _stateEstimate ? _stateEstimate->rpy[2] : 0.f;
+        float spd = 0.f;
+        if (_stateEstimate) {
+          float a0 = _stateEstimate->vBody[0], a1 = _stateEstimate->vBody[1];
+          spd = sqrtf(a0 * a0 + a1 * a1);
+        }
+        float nv = 0.f, nw = 0.f;
+        bool running = nav->update(N, E, -yaw_est, spd, dt, &nv, &nw);
+        v_tgt = running ? nv : 0.f;
+        y_tgt = running ? -nw : 0.f;   // nav steers compass-sense; gait is CCW-positive
+        static int nl = 0;
+        if ((++nl % 250) == 0) {
+          printf("[nav] wp%d/%d  N=%.2f E=%.2f  hdg=%.0f  d=%.2f  v=%.2f w=%.2f\n",
+                 nav->activeIndex(), nav->count(), N, E, -yaw_est * 57.3f,
+                 nav->lastDistance(), v_tgt, y_tgt);
+          fflush(stdout);
+        }
+      } else {
+        v_tgt = 0.f; y_tgt = 0.f;
+      }
+    } else if (_driverCommand) {
+      float v_in = _driverCommand->leftStickAnalog[1];
+      float y_in = _driverCommand->rightStickAnalog[0];
+      if (fabsf(v_in) > 1e-4f) v_tgt = v_in;
+      if (fabsf(y_in) > 1e-4f) y_tgt = y_in;
+    }
     float a = 0.004f;                        // ~0.5 s smoothing at 500 Hz
     v_cmd   += a * (v_tgt - v_cmd);
     yaw_cmd += a * (y_tgt - yaw_cmd);
@@ -137,7 +219,8 @@ void TrotController::runController() {
     float s = fminf((t - BOOT_S) / (STAND_S - BOOT_S - 0.3f), 1.f);
     for (int leg = 0; leg < 4; ++leg) {
       float qd_[3];
-      legIK(leg, 0.f, SIDE[leg] * L1, -(0.10f + (H - 0.10f) * s), qd_);
+      legIK(leg, 0.f, SIDE[leg] * (getenv("TR_WIDTH") ? atof(getenv("TR_WIDTH")) : L1),
+            -(0.10f + (H - 0.10f) * s), qd_);
       _legController->commands[leg].qDes = Vec3<float>(qd_[0], qd_[1], qd_[2]);
       _legController->commands[leg].qdDes = Vec3<float>::Zero();
       _legController->commands[leg].tauFeedForward = Vec3<float>::Zero();
@@ -157,6 +240,21 @@ void TrotController::runController() {
   static bool  yawInit = false;
   static float yawRef = 0.f;
   if (!yawInit) { yawRef = yaw; yawInit = true; }
+
+  // ---- static foot-shift sign test ($TR_XTEST=1) ----
+  if (getenv("TR_XTEST")) {
+    float xs = 0.06f * fminf((t - STAND_S) / 4.f, 1.f);   // ramp feet forward
+    for (int leg = 0; leg < 4; ++leg) {
+      float qq[3];
+      legIK(leg, xs, SIDE[leg] * WIDTH, -H, qq);
+      _legController->commands[leg].qDes = Vec3<float>(qq[0], qq[1], qq[2]);
+      _legController->commands[leg].qdDes = Vec3<float>::Zero();
+      _legController->commands[leg].tauFeedForward = Vec3<float>::Zero();
+      _legController->commands[leg].kpJoint = kp;
+      _legController->commands[leg].kdJoint = kd;
+    }
+    return;
+  }
 
   // ---- gait clock ----
   float tg = t - STAND_S;
@@ -180,13 +278,24 @@ void TrotController::runController() {
   float swingFrac = 1.f - DUTY;                  // fraction of cycle in swing
   float T_st = DUTY * T;                         // stance duration per leg
 
+  // Sag-aware swing lift. If the body is sitting lower than commanded, the
+  // planned foot arc is measured from the BODY, so a 8 cm lift with 10 cm of
+  // sag still scrapes. Raise the arc by the sag so the swing always clears.
+  float sag = 0.f;
+  if (_stateEstimate) {
+    float zb = _stateEstimate->position[2];
+    if (zb > 0.05f && zb < H) sag = H - zb;
+  }
+  float liftNow = LIFT + fminf(sag, 0.08f);
+
   // 2 Hz diagnostic: is the leg TRACKING the plan (then any speed shortfall is
   // foot slip) or LAGGING it (then it is gain / torque limited)?
   if (getenv("TR_DBG")) {
     static int dbg = 0;
     if ((++dbg % 250) == 0 && _trkN > 0) {
-      printf("[trot] v_cmd=%.2f v_act=%.2f | mean|q-qDes|=%.3f rad | z_err=%.3f roll=%.1f\n",
-             v, vx_act, _trkErr / _trkN, 0.f, roll * 57.3f);
+      printf("[trot] v_cmd=%.2f v_act=%.2f | mean|q-qDes|=%.3f rad | bodyz=%.3f (H=%.2f sag=%.3f) roll=%.1f\n",
+             v, vx_act, _trkErr / _trkN,
+             _stateEstimate ? _stateEstimate->position[2] : 0.f, H, sag, roll * 57.3f);
       fflush(stdout);
       _trkErr = 0.f; _trkN = 0;
     }
@@ -198,6 +307,9 @@ void TrotController::runController() {
     float ss = (PAIR[L] == 0) ? 0.5f : 0.0f;
     if (fmodf(ph - ss + 1.f, 1.f) >= swingFrac) ++nStance;
   }
+  // nStance == 0 is the flight phase: there is no ground to push against, so
+  // the weight feed-forward must go to zero rather than divide by a fake 1.
+  bool flight = (nStance == 0);
   if (nStance < 1) nStance = 1;
 
   for (int leg = 0; leg < 4; ++leg) {
@@ -228,11 +340,17 @@ void TrotController::runController() {
     dz = clampf(dz, -0.05f, 0.05f);
 
     float x, y, z, q[3];
-    y = SIDE[leg] * L1 + wz * FRONT[leg] * HIPX * 0.0f;   // lateral hip offset
+    y = SIDE[leg] * WIDTH;                                // lateral foot placement
 
     if (!swinging) {
       // STANCE: foot travels backward under the body at the commanded speed,
       // starting at +v*T_st/2 (touchdown) and ending at -v*T_st/2 (liftoff).
+      // NOTE the sign. Sweeping the stance foot from +x to -x "should" drive the
+      // body to +x, and the crawl gait does exactly that and goes forward. This
+      // gait measured the opposite: commanded 0.8 m/s produced 9.9 m of travel
+      // 180 deg from the heading, at a correct stance height with the swing feet
+      // clearing (so it is not the old foot-drag). Direction is therefore set
+      // from measurement, not from the derivation.
       x = v_leg * T_st * (0.5f - sp);
       z = -H + dz;
       if (_wasStance[leg] == false) _wasStance[leg] = true;
@@ -266,7 +384,7 @@ void TrotController::runController() {
       float h01 = -2.f * s3 + 3.f * s2;
       float h11 = s3 - s2;
       x = h00 * x0 + h10 * m + h01 * x_td + h11 * m;
-      z = -H + dz + LIFT * 0.5f * (1.f - cosf(2.f * (float)M_PI * s));
+      z = -H + dz + liftNow * 0.5f * (1.f - cosf(2.f * (float)M_PI * s));
       _wasStance[leg] = false;
     }
 
@@ -296,7 +414,7 @@ void TrotController::runController() {
     // Sign: forceFeedForward is the force the FOOT applies to the GROUND, so
     // supporting the body means pushing DOWN, i.e. -z in the leg frame.
     Vec3<float> fff = Vec3<float>::Zero();
-    if (!swinging) {
+    if (!swinging && !flight) {
       const float W = 13.1f * 9.81f;
       fff[2] = -FF * W / (float)nStance;
     }

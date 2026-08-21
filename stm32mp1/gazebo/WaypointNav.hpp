@@ -69,12 +69,12 @@ class WaypointNav {
   bool  complete() const { return _complete; }
 
   // --- tunables (OpenPilot ConditionParameters equivalents) ---
-  float accept_radius = 0.35f;   //!< m, acceptance sphere
+  float accept_radius = 0.25f;   //!< m, acceptance sphere (hit the point, not a buffer)
   float corridor      = 2.0f;    //!< half-plane lateral bound = corridor*accept
   float confirm_speed = 0.f;     //!< m/s; 0 = fly-through waypoints
   float confirm_dwell = 0.f;     //!< s to hold below confirm_speed
-  float kp_heading    = 1.2f;    //!< yaw rate per rad of heading error
-  float max_yawrate   = 0.8f;    //!< rad/s
+  float kp_heading    = 2.2f;    //!< yaw rate per rad of heading error
+  float max_yawrate   = 0.7f;    //!< rad/s - what the crawl can actually deliver
   float slow_radius   = 0.8f;    //!< m; ease off speed inside this
   bool  loop          = false;   //!< repeat the mission forever
 
