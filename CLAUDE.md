@@ -1190,15 +1190,33 @@ for the entire gait matrix. `zeroVelHold()` now applies in both modes.
 | gait | before | after |
 |---|---|---|
 | **trotRunning (5)** | 2.96 m, fell @ 24 s | **16.72 m, upright to end (0.6 m/s)** |
-| **bounding (1)** | 1.84 m, fell @ 24 s | **5.23 m, 30 s (1.0 m/s)** - speed-limited |
+| **bounding (1)** | 1.84 m, fell @ 24 s | **BIMODAL at 1.0 m/s** - see below |
 | pronking (2) | fell | 0.03-0.12 m, 18 s at every speed - still broken |
 | galloping (22) | fell | 0.04-0.06 m, 18 s at every speed - still broken |
 
-Flight gaits need a speed worth flying for: bounding is 0.05 m at 0.6 m/s and
-5.23 m at 1.0. Pronking (all four legs in phase) and galloping do not respond to
-speed at all, which is consistent with a true all-airborne phase leaving the MPC
-with no contacts - the friction cone forces every foot force to zero and the
-body is purely ballistic, so landing depends entirely on timing and inertia.
+trotRunning is REPRODUCIBLE - four runs at 0.6 m/s gave 16.72 / 16.59 / 16.82 /
+16.82 m, all upright to the end of the run (1.4% spread). Its ceiling is 0.6:
+0.8 falls at 34 s and 1.0 at 28 s.
+
+**Bounding at 1.0 m/s is BIMODAL, and this is a caution about single runs.** Four
+runs at identical settings:
+
+    5.23 m / 30 s     0.04 m / 18 s     0.03 m / 18 s     5.52 m / 30 s
+
+Two clean ~5.4 m runs and two collapses at engagement - roughly a coin flip. It
+was reported here as "speed-responsive" off the first run and then as "broken"
+off the next two; neither was right. It is a genuine but MARGINALLY STABLE
+operating point, and it is distinct from pronking/galloping, which never exceed
+0.12 m at any speed tried (0.3 / 0.6 / 1.0). At 0.6, 1.4 and 1.8 bounding gives
+~0.02-0.05 m, so the window really is around 1.0.
+
+Pronking (all four legs in phase) and galloping do not respond to speed at all,
+consistent with a true all-airborne phase leaving the MPC with no contacts - the
+friction cone forces every foot force to zero and the body is purely ballistic,
+so landing depends entirely on timing and inertia.
+
+**Method note: repeat every marginal cell before believing it.** This port has
+documented run-to-run variance and it bit three separate claims in one session.
 
 ### Also ruled out by the binary
 `Kp_stance = 0` is NOT this port's bug. Unitree's stance gain vector

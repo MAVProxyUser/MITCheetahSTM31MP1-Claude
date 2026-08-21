@@ -21,11 +21,15 @@ TARGET="${TARGET:-100}"
 OUT="${OUT:-/tmp/dash_$(date +%H%M%S)}"
 mkdir -p "$OUT"
 
-COMMON="SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_CHEATER=1 SIM_WBC_DECIM=1 \
-SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12"
+# SIM_ZEROVEL_HOLD_GAIT: hold MIT's standing gait until there is a velocity to
+# deliver. Without it a dynamic gait engages against a zero command and the
+# flight-phase gaits collapse at engagement (measured: 0.00 m).
+COMMON="SIM_ZEROVEL_HOLD_GAIT=1 SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_CHEATER=1 \
+SIM_WBC_DECIM=1 SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 \
+SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12"
 
 # gait:number:speed-ladder (high to low)
-LADDERS="${LADDERS:-walk2:21:1.8,1.4,1.0 walk:20:1.8,1.4,1.0 trot:9:1.2,0.9,0.6 pace:8:1.0,0.8,0.6 pronk:2:0.3 bound:1:0.3 gallop:22:0.3 trotrun:5:0.3}"
+LADDERS="${LADDERS:-walk2:21:1.8,1.4,1.0 walk:20:1.8,1.4,1.0 trot:9:1.2,0.9,0.6 pace:8:1.0,0.8,0.6 trotrun:5:0.8,0.6,0.4 bound:1:1.4,1.0,0.6 pronk:2:1.0,0.6 gallop:22:1.0,0.6}"
 
 printf '%-10s %8s %9s %9s %9s  %s\n' GAIT CMD_M/S T100_S V_FLY DIST_M RESULT
 printf '%s\n' "---------------------------------------------------------------------"
