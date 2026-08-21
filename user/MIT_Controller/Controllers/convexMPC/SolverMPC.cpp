@@ -394,6 +394,14 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   }
   qH = 2*(B_qp.transpose()*S*B_qp + update->alpha*eye_12h);
   qg = 2*B_qp.transpose()*S*(A_qp*x_0 - X_d);
+  if(getenv("STM32MP1_MPC_MAT")) {
+    static int _mc2 = 0;
+    if((++_mc2 % 10) == 1) {
+      printf("[MPCCOST] |S|=%.3g |qH|=%.3g |qg|=%.3g |fmat|=%.3g alpha=%.2g\n",
+             S.norm(), qH.norm(), qg.norm(), fmat.norm(), (double)update->alpha);
+      fflush(stdout);
+    }
+  }
 
   QpProblem<double> jcqp(setup->horizon*12, setup->horizon*20);
   if(update->use_jcqp == 1) {
@@ -629,6 +637,17 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   if(update->use_jcqp == 1) {
     for(int i = 0; i < 12 * setup->horizon; i++) {
       q_soln[i] = jcqp.getSolution()[i];
+    }
+  }
+
+  if(getenv("STM32MP1_MPC_MAT")) {
+    static int _sc2 = 0;
+    if((++_sc2 % 10) == 1) {
+      double nrm = 0; for(int i=0;i<12*setup->horizon;i++) nrm += q_soln[i]*q_soln[i];
+      printf("[MPCSOL] |q_soln|=%.4g  first12=%.1f %.1f %.1f  %.1f %.1f %.1f  %.1f %.1f %.1f  %.1f %.1f %.1f\n",
+             sqrt(nrm), q_soln[0],q_soln[1],q_soln[2], q_soln[3],q_soln[4],q_soln[5],
+             q_soln[6],q_soln[7],q_soln[8], q_soln[9],q_soln[10],q_soln[11]);
+      fflush(stdout);
     }
   }
 

@@ -604,7 +604,29 @@ Kp_stance = 0 there is otherwise NO support for the 73-240 ms that first solve
 takes - the robot collapsed before its first MPC answer ever arrived, which is
 why later solves saw a robot already on the floor.
 
-### The zero-force problem, narrowed (this is where to start)
+### The zero-force problem: SOLVED (a race I introduced with the async solve)
+
+`setup_problem()` calls `resize_qp_mats()`, which `setZero()`s S, fmat, qH, qg
+and the rest. Both the control thread (in `solveDenseMPC`) and the new worker
+called it, so the control thread was wiping the matrices the worker was midway
+through building. The worker's problem came out with **|S| = 0 and |fmat| = 0** -
+no state cost and no friction constraints - so the QP reduced to
+`min alpha*||u||^2` and BOTH solvers correctly returned zero force. Not a solver
+bug, not a model bug: a data race in this port's own threading.
+
+Only the worker calls `setup_problem()` now. Measured immediately after:
+
+| | before | after |
+|---|---|---|
+| `\|S\|` state cost | 0 | 162 |
+| `\|fmat\|` friction | 0 | 34.6 |
+| `\|q_soln\|` | 0 | 118-185 |
+| stance forces | 0 N | -47, -68, -59, -65 N |
+
+Those are correct ground reaction forces for a 128 N robot, and with them every
+gait except pacing now survives a full 18 s run with zero safety trips.
+
+### Old notes on narrowing it (kept for the method)
 
 Everything feeding the QP is verified correct, and BOTH solvers still return an
 all-zero force vector. Measured at the first solve, robot standing at 0.29 m:

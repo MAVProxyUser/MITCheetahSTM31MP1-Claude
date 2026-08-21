@@ -765,8 +765,15 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
 
   Timer t1;
   dtMPC = dt * iterationsBetweenMPC;
-  setup_problem(dtMPC,horizonLength,0.4,MPC_F_MAX);
-  //setup_problem(dtMPC,horizonLength,0.4,650); //DH
+  // NOTE: setup_problem() is NOT called here any more. It calls
+  // resize_qp_mats(), which setZero()s S, fmat, qH, qg and friends - and with
+  // the solve now on a worker thread, doing that from the control thread wipes
+  // the matrices the worker is mid-way through building. That is exactly what
+  // happened: the worker's problem came out with |S| = 0 and |fmat| = 0, i.e.
+  // no state cost and no friction constraints, so the QP reduced to
+  // min alpha*||u||^2 and both solvers correctly returned ZERO force.
+  // The worker calls setup_problem itself, on its own thread, before each solve.
+  if (!_mpcAsync) setup_problem(dtMPC,horizonLength,0.4,MPC_F_MAX);
   update_x_drag(x_comp_integral);
   if(vxy[0] > 0.3 || vxy[0] < -0.3) {
     //x_comp_integral += _parameters->cmpc_x_drag * pxy_err[0] * dtMPC / vxy[0];
