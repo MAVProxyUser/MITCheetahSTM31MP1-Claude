@@ -31,6 +31,10 @@ class StaticGaitController : public RobotController {
 
  private:
   SafetyCheck _safety;
+  // per-leg terrain memory: where this foot last found the ground (body frame)
+  float _groundZ[4] = {0.f, 0.f, 0.f, 0.f};
+  float _qLast[4] = {0.f, 0.f, 0.f, 0.f};
+  bool  _touched[4] = {false, false, false, false};
   // abstract-convention IK for one leg (x fwd, y left, z down<0, rel abad pivot)
   void legIK(int leg, float x, float y, float z, float* q);
 };

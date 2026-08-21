@@ -72,6 +72,38 @@ void StaticGaitController::runController() {
 
   float x_home = -0.01f;   // feet a hair behind hips (trunk CoM sits 2.2 cm fwd)
 
+  // ---- TERRAIN ADAPTATION ----
+  // A fixed foot depth of -H under the body assumes the world is a table. On
+  // real ground (and on the farm mesh) a foot on a rise hits early and levers
+  // the robot up - high-centring it so it cannot even pivot - while a foot over
+  // a dip never lands and carries no load. Real dogs do not care, because they
+  // FEEL the ground and stop the leg where it lands.
+  //
+  // There is no foot force sensor here, so contact is inferred from the joint
+  // the ground actually resists: while the swing foot is descending, a knee
+  // that falls behind its commanded angle by more than a threshold is being
+  // held up by something. That height is remembered per leg as the local ground
+  // level, and the stance phase then holds THAT height instead of -H. The mean
+  // of the four is the terrain under the robot, so the body rides parallel to
+  // the ground rather than pushing into it.
+  // OPT-IN ($SG_TERRAIN=1) and NOT yet trustworthy. The contact test below
+  // compares the measured knee angle against the PREVIOUS COMMANDED one, which
+  // is a lagged tracking error, not a contact force: it false-triggers, latches
+  // a wrong ground height for that leg, and the resulting per-leg offsets
+  // rolled the robot over (safety stop at roll -102 deg on the farm). Doing
+  // this properly needs a real contact signal - LegController computes
+  // datas[leg].tauEstimate, and the swing-leg torque jump at touchdown is the
+  // honest indicator - plus a plane fit across the four contact heights rather
+  // than four independent offsets.
+  const bool TERRAIN = getenv("SG_TERRAIN") != nullptr;
+  const float CONTACT_ERR = getenv("SG_CONTACT_ERR")
+                          ? atof(getenv("SG_CONTACT_ERR")) : 0.12f;   // rad
+  float groundMean = 0.f;
+  if (TERRAIN) {
+    for (int L = 0; L < 4; ++L) groundMean += _groundZ[L];
+    groundMean *= 0.25f;
+  }
+
   float tg = t - standTime;
   float vscale = (tg > 0) ? fminf(tg / T, 1.f) : 0.f;   // speed ramp, 1st cycle
 
@@ -223,17 +255,37 @@ void StaticGaitController::runController() {
       float ss = (sp - 0.15f) / 0.7f;
       x = x_home + 0.6806f * (legStride * (ss - 0.5f) + turnDx * (ss - 0.5f));
       y += 0.6806f * turnDy * (ss - 0.5f);
-      z = -H + LIFT * sinf((float)M_PI * ss);
+      // Descend PAST the nominal ground on the back half of the arc, so a foot
+      // over a dip keeps reaching until it lands instead of pawing at air.
+      float probe = (TERRAIN && ss > 0.5f) ? 0.06f * (ss - 0.5f) / 0.5f : 0.f;
+      z = -H + (TERRAIN ? (_groundZ[leg] - groundMean) : 0.f) - probe
+          + LIFT * sinf((float)M_PI * ss);
+      if (TERRAIN && ss > 0.55f) {
+        // knee lagging its command while descending == something is holding the
+        // foot up: that is touchdown. Record where it happened.
+        float kneeErr = fabsf(_legController->datas[leg].q[2] - _qLast[leg]);
+        if (kneeErr > CONTACT_ERR && !_touched[leg]) {
+          _touched[leg] = true;
+          _groundZ[leg] = z + groundMean;      // absolute-ish terrain height
+        }
+      } else {
+        _touched[leg] = false;
+      }
     } else {
       // stance: sweep backward at body speed. f = cycle fraction since this
       // leg's mid-swing; foot goes +0.4125*stride (just landed) -> -0.4125.
       float f = fmodf(ph - (quarterOf[leg] + 0.5f) / 4.f + 1.f, 1.f);
       x = x_home + (legStride + turnDx) * (0.4125f - 0.825f * f);
       y += turnDy * (0.4125f - 0.825f * f);
-      z = -H;
+      // Hold the height where THIS foot found the ground, relative to the mean
+      // terrain under the robot, so a foot on a rise does not lever the body up.
+      z = -H + (TERRAIN ? (_groundZ[leg] - groundMean) : 0.f);
     }
 
     legIK(leg, x, y, z, qDes);
+    _qLast[leg] = qDes[2];
+    // terrain memory decays toward the nominal plane so old bumps are forgotten
+    if (TERRAIN) _groundZ[leg] *= 0.999f;
     _legController->commands[leg].qDes = Vec3<float>(qDes[0], qDes[1], qDes[2]);
     _legController->commands[leg].qdDes = Vec3<float>::Zero();
     _legController->commands[leg].tauFeedForward = Vec3<float>::Zero();

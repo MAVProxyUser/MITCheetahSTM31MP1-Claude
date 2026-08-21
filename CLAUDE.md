@@ -305,3 +305,48 @@ looser than MIT's 28.6 deg because a hard corner touches that transiently.
 `checkForceFeedForward` clamps. The custom gaits bound foot targets in their own
 IK (`clampf` on reach and abad angle) rather than through MIT's checker, so the
 protection exists but is not the same code path.
+
+## Waypoint steering: what fixed the long arcs
+
+Three changes turned a mission that looped huge arcs and loitered on each point
+into one that captures every waypoint at 0.28-0.29 m and cruises the legs
+between them:
+
+1. **Yaw by rotating the stance feet about the body axis**, not by differential
+   stride length. For body yaw rate w, a foot under hip (hx,hy) must travel
+   at -(w x r) = (+w*hy, -w*hx) in the body frame. Differential stride alone
+   delivered 0.09 rad/s against a 0.6 rad/s command - the dog had to arc metres
+   to come round. Body-axis rotation gives ~0.25 rad/s.
+   **Clamp the per-step foot displacement**: an unclamped 1.6 rad/s command at a
+   0.85 s cycle asks for 25 cm of lateral foot travel, saturates every joint and
+   rotates *nothing* - the mission sat pinned for 90 s with yaw commanded at max.
+2. **The nav-to-gait turn sign flipped with it.** Measured, not assumed:
+   `SG_TURN=+0.6` now yields a CLOCKWISE turn (world yaw -217 deg in 15 s),
+   which matches nav's compass-sense output, so it passes straight through. The
+   old differential-stride turn was CCW-positive.
+3. **Nav shaping**: acceptance radius 0.25 m (hit the point, not a buffer), no
+   speed taper into the waypoint (tapering made it loiter on top and fire the
+   arrival test late), and turn-first speed shaping - but with a floor, because
+   a hard `v=0` pivot deadlocks whenever the achievable yaw rate is below the
+   commanded one.
+
+**Heading fusion is correct** and was ruled out by measurement: commanding a
+steady turn moved Gazebo truth yaw 88 -> 0 deg while the nav's bearing went
+0 -> +87 deg. Bearing = -yaw_est, so those agree.
+
+## Terrain: still an open gap (SG_TERRAIN, default OFF)
+
+The gaits command every foot to a fixed depth below the body, which assumes flat
+ground. On the farm mesh the robot spawns on a 7.6 cm rise (measured by dropping
+probe spheres) and gets levered up on one leg - high-centred enough that it
+cannot pivot, which stalled a whole mission at zero waypoints. A real dog just
+feels the ground and stops the leg where it lands.
+
+A first attempt at this (`SG_TERRAIN=1`) probes downward on the back half of the
+swing and remembers a per-leg ground height. It is **off by default because it
+tips the robot**: contact is inferred from the measured knee angle versus the
+previous *commanded* one, which is a lagged tracking error rather than a contact
+force, so it false-triggers and latches wrong heights. Doing it properly needs
+the swing-leg torque jump at touchdown (`LegController` already computes
+`datas[leg].tauEstimate`) and a plane fit across the four contact heights
+instead of four independent per-leg offsets.
