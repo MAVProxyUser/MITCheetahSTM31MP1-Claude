@@ -35,6 +35,16 @@ class StaticGaitController : public RobotController {
   float _groundZ[4] = {0.f, 0.f, 0.f, 0.f};
   float _qLast[4] = {0.f, 0.f, 0.f, 0.f};
   bool  _touched[4] = {false, false, false, false};
+  bool  _standContact[4] = {false, false, false, false};
+  float _standZ[4] = {0.f, 0.f, 0.f, 0.f};
+  float _zStandCmd[4] = {0.f, 0.f, 0.f, 0.f};
+  bool  _terrainSeeded = false;
+  float _standStall[4] = {0.f, 0.f, 0.f, 0.f};
+  float _zStandPrevAct[4] = {0.f, 0.f, 0.f, 0.f};
+  float _swPrevAct[4] = {0.f, 0.f, 0.f, 0.f};
+  // ILC memory: feed-forward torque per (leg, gait-phase bin, joint)
+  static const int ILC_BINS = 40;
+  float _ilc[4][ILC_BINS][3] = {};
   // abstract-convention IK for one leg (x fwd, y left, z down<0, rel abad pivot)
   void legIK(int leg, float x, float y, float z, float* q);
 };

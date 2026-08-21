@@ -51,10 +51,16 @@ void StaticGaitController::runController() {
     fflush(stdout);
   }
 
+  // Joint PD. Published Go1 values sit well below where this started (120):
+  // 90/4 for PD-ILC work, 28/0.7 for GainAdaptor, ~45 N*m/rad equivalent for
+  // Cartesian-impedance work. High P specifically costs compliance on uneven
+  // ground, so the default is now modest and tunable.
+  float KPJ = getenv("SG_KP") ? atof(getenv("SG_KP")) : 70.f;
+  float KDJ = getenv("SG_KD") ? atof(getenv("SG_KD")) : 2.f;
   Mat3<float> kp = Mat3<float>::Zero();
-  kp.diagonal() << 70.f, 70.f, 70.f;
+  kp.diagonal() << KPJ, KPJ, KPJ;
   Mat3<float> kd = Mat3<float>::Zero();
-  kd.diagonal() << 2.f, 2.f, 2.f;
+  kd.diagonal() << KDJ, KDJ, KDJ;
   _legController->_maxTorque = 33;
   _legController->_legsEnabled = true;
 
@@ -86,22 +92,32 @@ void StaticGaitController::runController() {
   // level, and the stance phase then holds THAT height instead of -H. The mean
   // of the four is the terrain under the robot, so the body rides parallel to
   // the ground rather than pushing into it.
-  // OPT-IN ($SG_TERRAIN=1) and NOT yet trustworthy. The contact test below
-  // compares the measured knee angle against the PREVIOUS COMMANDED one, which
-  // is a lagged tracking error, not a contact force: it false-triggers, latches
-  // a wrong ground height for that leg, and the resulting per-leg offsets
-  // rolled the robot over (safety stop at roll -102 deg on the farm). Doing
-  // this properly needs a real contact signal - LegController computes
-  // datas[leg].tauEstimate, and the swing-leg torque jump at touchdown is the
-  // honest indicator - plus a plane fit across the four contact heights rather
-  // than four independent offsets.
+  // TERRAIN ADAPTATION. Contact is detected KINEMATICALLY: the sim reports only
+  // q and qd (no joint torque), but LegController runs forward kinematics every
+  // tick, so datas[leg].p is where the foot actually is. While a swing foot is
+  // descending, "actual foot sits HIGHER than commanded" means something is
+  // holding it up - that is touchdown, and it needs no force sensor.
+  // (The first attempt compared the knee angle to the PREVIOUS COMMANDED angle,
+  // which is a lagged tracking error rather than contact, false-triggered, and
+  // rolled the robot over. Foot position in Cartesian space is the honest one.)
   const bool TERRAIN = getenv("SG_TERRAIN") != nullptr;
-  const float CONTACT_ERR = getenv("SG_CONTACT_ERR")
-                          ? atof(getenv("SG_CONTACT_ERR")) : 0.12f;   // rad
+  const bool ILC = getenv("SG_ILC") != nullptr;
+  const float CONTACT_MARGIN = getenv("SG_CONTACT_M")
+                             ? atof(getenv("SG_CONTACT_M")) : 0.012f;  // m
+  if (TERRAIN && !_terrainSeeded && t >= standTime) {
+    // carry the stand's per-leg findings into the walking gait
+    _terrainSeeded = true;
+    for (int L = 0; L < 4; ++L)
+      _groundZ[L] = _standContact[L] ? (_standZ[L] + H) : 0.f;
+  }
   float groundMean = 0.f;
   if (TERRAIN) {
     for (int L = 0; L < 4; ++L) groundMean += _groundZ[L];
     groundMean *= 0.25f;
+    // Bound how far any one leg may deviate from the local ground plane. Four
+    // unbounded independent offsets are what tipped the robot last time.
+    for (int L = 0; L < 4; ++L)
+      _groundZ[L] = clampf(_groundZ[L], groundMean - 0.06f, groundMean + 0.06f);
   }
 
   float tg = t - standTime;
@@ -212,9 +228,43 @@ void StaticGaitController::runController() {
     float x, y, z, qDes[3];
 
     if (t < standTime) {
-      // ramp into the crouch-stand at home positions
+      // Stand up by FEEL, one leg at a time. Lowering all four to the same depth
+      // assumes a flat floor: on a rise one leg lands early and levers that
+      // corner up, and past ~35 deg the safety check (correctly) stops the run -
+      // which is exactly how this failed on the farm, before it ever took a step.
+      // Instead each leg presses down until ITS foot stops following the command
+      // (FK says the foot is higher than asked => ground), then holds there. The
+      // body ends up parallel to whatever it is standing on.
       float s = fminf((t - BOOT_S) / (standTime - BOOT_S - 0.5f), 1.f);
-      legIK(leg, x_home, SIDE[leg] * L1, -(0.10f + (H - 0.10f) * s), qDes);
+      float zTarget = -(0.10f + (H - 0.10f) * s);
+      if (TERRAIN) {
+        if (!_standContact[leg]) {
+          // RATE test, not absolute error. The legs lag several cm under load
+          // everywhere, so "actual is below commanded" is true in mid-air too
+          // and an absolute test latches contact instantly - every leg stops
+          // descending and the robot never stands (body stuck at 0.13 m).
+          // Contact is when the command is still going DOWN but the foot is not.
+          float zActual = _legController->datas[leg].p[2];
+          float dCmd = _zStandCmd[leg] - zTarget;          // >0 while descending
+          float dAct = _zStandPrevAct[leg] - zActual;      // >0 if foot descended
+          if (s > 0.25f && dCmd > 1e-5f && dAct < 0.25f * dCmd) {
+            _standStall[leg] += 0.002f;
+            if (_standStall[leg] > 0.08f) {                // held 80 ms
+              _standContact[leg] = true;
+              _standZ[leg] = zActual;                      // where it actually is
+            }
+          } else {
+            _standStall[leg] = 0.f;
+          }
+          _zStandPrevAct[leg] = zActual;
+        }
+        if (_standContact[leg]) {
+          // keep a little push into the ground, but stop chasing the target
+          zTarget = fmaxf(zTarget, _standZ[leg] - 0.02f);
+        }
+        _zStandCmd[leg] = zTarget;
+      }
+      legIK(leg, x_home, SIDE[leg] * L1, zTarget, qDes);
       _legController->commands[leg].qDes = Vec3<float>(qDes[0], qDes[1], qDes[2]);
       _legController->commands[leg].qdDes = Vec3<float>::Zero();
       _legController->commands[leg].tauFeedForward = Vec3<float>::Zero();
@@ -261,14 +311,18 @@ void StaticGaitController::runController() {
       z = -H + (TERRAIN ? (_groundZ[leg] - groundMean) : 0.f) - probe
           + LIFT * sinf((float)M_PI * ss);
       if (TERRAIN && ss > 0.55f) {
-        // knee lagging its command while descending == something is holding the
-        // foot up: that is touchdown. Record where it happened.
-        float kneeErr = fabsf(_legController->datas[leg].q[2] - _qLast[leg]);
-        if (kneeErr > CONTACT_ERR && !_touched[leg]) {
+        // descending: is the foot where we asked, or is the ground in the way?
+        float zActual = _legController->datas[leg].p[2];
+        float dAct = _swPrevAct[leg] - zActual;     // >0 if the foot descended
+        _swPrevAct[leg] = zActual;
+        if (!_touched[leg] && dAct < 0.0002f && (zActual - z) > CONTACT_MARGIN) {
           _touched[leg] = true;
-          _groundZ[leg] = z + groundMean;      // absolute-ish terrain height
+          // remember the terrain height at the point of contact, low-passed so
+          // one noisy touchdown cannot throw the leg off
+          float meas = zActual + groundMean;
+          _groundZ[leg] += 0.35f * (meas - _groundZ[leg]);
         }
-      } else {
+      } else if (ss < 0.3f) {
         _touched[leg] = false;
       }
     } else {
@@ -284,12 +338,50 @@ void StaticGaitController::runController() {
 
     legIK(leg, x, y, z, qDes);
     _qLast[leg] = qDes[2];
+
+    // ---------------- ITERATIVE LEARNING CONTROL ----------------
+    // A gait is the same trajectory over and over, so its tracking error is
+    // mostly REPEATABLE - gravity on the rear legs, unmodelled leg inertia,
+    // the sag under load. A PD controller cannot remove that: it only reacts,
+    // so a steady error is the price of the torque it is producing. ILC stores
+    // a feed-forward torque per (gait-phase bin, joint) and folds in a slice of
+    // last cycle's error each time round, so the repeatable part gets cancelled
+    // by feed-forward and the PD is left to handle only the disturbances.
+    // Published PD-ILC work on the Go1 reports velocity-tracking error dropping
+    // from >20% to <5% this way; the update gains below (lp, ld) are theirs.
+    Vec3<float> ffTau = Vec3<float>::Zero();
+    if (ILC && tg > 0.f) {
+      int bin = (int)(ph * (float)ILC_BINS) % ILC_BINS;
+      if (bin < 0) bin = 0;
+      const float lp = 0.20f, ld = 0.10f;      // ILC learning gains
+      for (int j = 0; j < 3; ++j) {
+        float ePos = qDes[j] - _legController->datas[leg].q[j];
+        float eVel = 0.f - _legController->datas[leg].qd[j];
+        float& cell = _ilc[leg][bin][j];
+        // learn (leaky, so a transient cannot be remembered for ever)
+        cell = 0.999f * cell + lp * KPJ * ePos + ld * KDJ * eVel;
+        cell = clampf(cell, -12.f, 12.f);
+        ffTau[j] = cell;
+      }
+    }
     // terrain memory decays toward the nominal plane so old bumps are forgotten
     if (TERRAIN) _groundZ[leg] *= 0.999f;
     _legController->commands[leg].qDes = Vec3<float>(qDes[0], qDes[1], qDes[2]);
     _legController->commands[leg].qdDes = Vec3<float>::Zero();
-    _legController->commands[leg].tauFeedForward = Vec3<float>::Zero();
+    _legController->commands[leg].tauFeedForward = ffTau;
     _legController->commands[leg].kpJoint = kp;
     _legController->commands[leg].kdJoint = kd;
+  }
+
+  if (ILC && getenv("SG_DBG")) {
+    static int dbg = 0;
+    if ((++dbg % 500) == 0) {
+      float e = 0.f;
+      for (int L = 0; L < 4; ++L)
+        for (int j = 0; j < 3; ++j)
+          e += fabsf(_legController->commands[L].qDes[j] - _legController->datas[L].q[j]);
+      printf("[ilc] mean|q-qDes|=%.4f rad  v_cmd=%.2f\n", e / 12.f, vx_cmd);
+      fflush(stdout);
+    }
   }
 }

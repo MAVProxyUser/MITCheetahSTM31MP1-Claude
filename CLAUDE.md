@@ -350,3 +350,63 @@ force, so it false-triggers and latches wrong heights. Doing it properly needs
 the swing-leg torque jump at touchdown (`LegController` already computes
 `datas[leg].tauEstimate`) and a plane fit across the four contact heights
 instead of four independent per-leg offsets.
+
+## Applying the literature: ILC, contact detection, VHIPM
+
+**Iterative Learning Control** (`SG_ILC=1`, from the Go1 PD-ILC work). A gait
+repeats, so its tracking error is mostly repeatable - gravity on the rear legs,
+leg inertia, sag under load - and a PD controller structurally cannot remove it:
+a steady error is the price of the torque it is producing. ILC keeps a
+feed-forward torque per (leg, gait-phase bin, joint) and folds in a slice of the
+last cycle's error each time round (lp=0.20, ld=0.10, leaky, clamped +-12 Nm).
+**Measured: mean |q - qDes| fell 0.1413 -> 0.0276 rad, a 5x reduction.**
+Ground speed did not change (0.14 m/s either way) - the crawl's speed is limited
+by gait geometry, not by tracking - but the legs now go where they are told,
+which is what terrain following and real hardware need.
+CAVEAT: ILC assumes a REPEATING trajectory. Turning and speed changes make the
+learned table stale, so it should be keyed by command (the source work keeps a
+torque library per commanded velocity) or frozen while the command moves.
+
+**Contact detection.** The sim sends only q and qd - no joint torque - so
+contact is inferred from kinematics: `LegController` runs FK every tick, so
+`datas[leg].p` is where the foot actually is. Two attempts:
+  1. knee angle vs the previous COMMANDED angle - a lagged tracking error, not
+     contact. False-triggered and rolled the robot over.
+  2. absolute foot-position error - also wrong: the legs lag several cm under
+     load *everywhere*, so every leg "finds ground" in mid-air, stops
+     descending, and the robot never stands (body pinned at 0.13 m).
+  3. what it uses now: a RATE test - the command is still descending but the
+     foot is not, held 80 ms. Immune to constant lag.
+Feeding that into a per-leg contact-terminated stand (each leg presses down
+until IT finds the floor, so the body ends up parallel to whatever it stands on)
+is implemented behind `SG_TERRAIN=1`. It improves the stand on the farm mesh
+(body 0.114 -> 0.183) but does NOT yet get the robot walking there.
+
+**VHIPM foot placement** (`TR_VHIPM=1`, from the ETH RL+MBOC reference model).
+`r_ddot = (r - x_cop)(h_ddot + g)/r_z + g`, read backwards, says where the foot
+must go: to command CoM acceleration a, the centre of pressure must sit
+`a * r_z / (h_ddot + g)` from the CoM - plant BEHIND to accelerate, AHEAD to
+brake. Two things stop being free parameters:
+  * the capture-point gain is `sqrt(r_z / (h_ddot+g))` = 0.169 s at a 0.28 m
+    stance, where this gait had a guessed 0.08;
+  * `h_ddot` is measured from the body's vertical acceleration, which is the
+    part a constant-height gait throws away.
+A/B at 1.0 m/s commanded: VHIPM 1.00 m/s vs hand-tuned 1.02 m/s - the derived
+gain reproduces the hand-tuned one, which is a good validation of the model but
+not a speed win on a gait whose ceiling is elsewhere.
+
+**Published Go1 joint gains, for reference** (this port started at kp=120, the
+stiff end, and high P specifically costs compliance on uneven ground):
+GainAdaptor P=28 D=0.7 | PD-ILC kp=90 kd=4 | Bezier+impedance ~1000 N/m at the
+foot (~45 Nm/rad equivalent). Exposed as `SG_KP` / `SG_KD`, default 70.
+
+## Still open
+- The trot's travel direction is inverted: at 1.0 m/s commanded it makes 1.00
+  m/s of ground speed with the *magnitude right and the sign wrong*, and
+  flipping the stance sweep changes the magnitude rather than the sign, so the
+  propulsion is coming from somewhere other than the stance sweep (most likely
+  swing-leg ground contact). The crawl, with identical IK and sweep direction,
+  goes forward.
+- Terrain following works well enough to stand on the farm mesh but not to walk
+  on it; `worlds/go1_farm_flat.sdf` keeps the farm scenery with a flat walkable
+  ground as an interim.

@@ -54,6 +54,7 @@ void TrotController::runController() {
   static float V = -1, T = 0, H = 0, LIFT = 0, KV = 0;
   static float KPR = 0, KDR = 0, KPP = 0, KDP = 0, KPJ = 0, KDJ = 0, YAW = 0, STAND_S = 0;
   static float DUTY = 0, FF = 0, KPC = 0, KDC = 0, WIDTH = 0;
+  static bool VHIPM = false;
   static int CART = 0;
   if (V < 0) {
     V       = getenv("TR_V")        ? atof(getenv("TR_V"))        : 0.6f;
@@ -66,6 +67,7 @@ void TrotController::runController() {
     KPP     = getenv("TR_KP_PITCH") ? atof(getenv("TR_KP_PITCH")) : 0.09f;
     KDP     = getenv("TR_KD_PITCH") ? atof(getenv("TR_KD_PITCH")) : 0.012f;
     KPJ     = getenv("TR_KP_J")     ? atof(getenv("TR_KP_J"))     : 120.f;
+    VHIPM   = getenv("TR_VHIPM") != nullptr;
     // Cartesian (foot-space) impedance. Defaults are the published Go1 values
     // from Bezier-curve + impedance control work (Kxd=1000 I N/m, Bxd=44 I
     // Ns/m). Joint PD at kp=120 Nm/rad is an effective foot stiffness of
@@ -185,6 +187,15 @@ void TrotController::runController() {
     float a = 0.004f;                        // ~0.5 s smoothing at 500 Hz
     v_cmd   += a * (v_tgt - v_cmd);
     yaw_cmd += a * (y_tgt - yaw_cmd);
+  }
+
+  // Body vertical acceleration, for the VHIPM's h_ddot term. A constant-height
+  // gait implicitly assumes h_ddot = 0; measuring it is what makes the model
+  // "variable height" rather than a plain LIPM.
+  if (_stateEstimate) {
+    float vz = _stateEstimate->vWorld[2];
+    _hddot = 0.9f * _hddot + 0.1f * ((vz - _vzPrev) / dt);
+    _vzPrev = vz;
   }
 
   // ---- body state feedback (roll/pitch and their rates) ----
@@ -373,7 +384,33 @@ void TrotController::runController() {
       //     traction. (1-cos(2*pi*s))/2 has zero vertical velocity at BOTH
       //     ends: the foot is set down, not dropped.
       float T_sw = swingFrac * T;
-      float x_td = v_leg * T_st * 0.5f + KV * (vx_act - v);
+
+      // ---------------- VHIPM FOOT PLACEMENT ----------------
+      // Variable-Height Inverted Pendulum (Kang et al., the model their RL
+      // reference generator solves an OCP over):
+      //     r_ddot = (r - x_cop) * (h_ddot + g) / r_z + g
+      // Read backwards it says where the foot has to go: to command a CoM
+      // acceleration a, the centre of pressure must sit OFFSET FROM THE CoM by
+      //     (r - x_cop) = a * r_z / (h_ddot + g)
+      // so accelerating forward means planting BEHIND the CoM, and braking
+      // means planting AHEAD of it. Two things fall out that this gait was
+      // doing by hand-tuned feel:
+      //   * the capture-point gain is not a free parameter - it is
+      //     sqrt(r_z / (h_ddot+g)), 0.169 s at a 0.28 m stance, where this gait
+      //     had a guessed 0.08;
+      //   * r_z is the CoM height above the CONTACT PLANE and h_ddot is real,
+      //     so a gait that lets the body breathe gets the right answer while
+      //     one pinned at constant H does not.
+      float hddot = _hddot;                       // measured body vertical accel
+      float geff = 9.81f + clampf(hddot, -6.f, 6.f);
+      float rz = fmaxf(0.12f, (_stateEstimate ? _stateEstimate->position[2] : H));
+      float tc = sqrtf(rz / geff);                // pendulum time constant
+      // desired CoM acceleration this step, from the velocity error
+      float aDes = clampf(2.0f * (v - vx_act), -4.f, 4.f);
+      float copOffset = aDes * rz / geff;         // CoP behind CoM to accelerate
+      float x_td = v_leg * T_st * 0.5f
+                 + (VHIPM ? (tc * (vx_act - v) - copOffset)
+                          : (KV * (vx_act - v)));
       x_td = clampf(x_td, -0.30f, 0.30f);
       float x0 = _liftoffX[leg];
       float s = sp;
