@@ -562,6 +562,59 @@ The URDF matches Unitree's published spec exactly - abad +-49 deg, thigh
 Every one of them is limited by the same 60-105 ms solve stall, not by gait
 tuning. **Fix the async solve before tuning any of these numbers.**
 
+## Where MIT's locomotion actually stands now
+
+The chain of failures, each found by measurement, in the order they had to be
+fixed. Every one of them was a real bug, and none of them was gait tuning:
+
+1. `locomotionSafe()`'s 0.18 m lateral foot limit (mini-cheetah's abad link)
+   aborted LOCOMOTION into RECOVERY_STAND, which **folds all four legs**. This
+   alone accounts for every earlier "the MPC tumbles at gait start" note.
+2. Gait numbers >= 10 collide with MIT's omni rewrite, so walking/walking2/
+   galloping at 10/11/12 silently ran trotting/bounding/pronking - an entire
+   gait matrix measured the wrong gait. Moved to 20/21/22.
+3. The lateral capture-point term is ~22x too weak upstream (`* dtMPC` on the y
+   term only), so sideways velocity went uncorrected.
+4. Locomotion stepped `_body_height` from BALANCE_STAND's actual 0.21-0.26 m to
+   0.30, and the MPC answered by LAUNCHING the robot (z 0.211 -> 0.342 at
+   0.32 m/s). Now ramped from the height it is actually at.
+5. **The real blocker: the dense MPC solve costs 60-200 ms on this A7** against
+   a 2 ms control period. Inline, it stalled the loop for 30-50 periods at the
+   worst possible moment; with `Kp_stance = 0` (MIT's design - stance support is
+   pure MPC force) the robot free-falls through the stall.
+
+Fixed by running the solve on a worker thread (MIT's own hardware architecture:
+MPC 30-40 Hz, leg control 500 Hz). **Worst control-loop iteration in locomotion:
+5.33 ms, down from 56-105 ms.** Thread priority mattered as much as threading:
+FIFO 49 (inherited) preempts the control loop and changes nothing; SCHED_OTHER
+is starved to one solve per 28 s; FIFO 20 pinned to cpu1 works.
+
+Two configuration wins worth knowing:
+- **`use_jcqp: 1`** - MIT ships two solvers and this port was on qpOASES. JCQP
+  solves the same problem in 82 ms vs 198 ms here. One yaml line, 2.5x.
+- **`use_wbc: 0`** - the WBIC costs ~50 ms per tick on this board (async MPC
+  with WBC: 56 ms/tick; without: 5.7 ms). MIT's non-WBC path is supported.
+
+**Status: gaits enter locomotion cleanly and stay upright, but do not travel.**
+The MPC updates at only ~5-13 Hz (73-200 ms/solve) against MIT's 30-40 Hz, and
+its solutions come back all-zero. The velocity command is verified reaching it
+(`pad=0.300 -> _x_vel_des=0.300`, correct gait id). A static-equilibrium
+bootstrap now holds the robot up until the first solution lands, because with
+Kp_stance = 0 there is otherwise NO support for the 73-240 ms that first solve
+takes - the robot collapsed before its first MPC answer ever arrived, which is
+why later solves saw a robot already on the floor.
+
+**Next, in priority order:**
+1. Find why the solves return zero forces - the bootstrap proves the robot can
+   be held up, so this is now the single thing between here and walking. Print
+   the contact table and `trajAll` going into `update_problem_data_floats`.
+2. Get the solve under ~30 ms so the MPC can run at 30 Hz. Horizon barely moves
+   it (10/6/4 -> 81/56/57 ms), and nor does `nWSR`, so the cost is the dense
+   algebra (`qH = 2*(B_qp^T S B_qp + ...)`, ~4M double MACs at horizon 10).
+   Single-precision, or a smaller state, is the lever - not solver tuning.
+3. Only then tune gaits. Anything measured before the MPC runs at rate is noise:
+   the same gait/config swings between 0 and 3000+ safety trips run to run.
+
 ## Still open
 - The trot's travel direction is inverted: at 1.0 m/s commanded it makes 1.00
   m/s of ground speed with the *magnitude right and the sign wrong*, and

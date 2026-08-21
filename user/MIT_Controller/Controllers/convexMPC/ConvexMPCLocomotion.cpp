@@ -816,6 +816,25 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
       _mpcBusy = true;
       _mpcCv.notify_one();
     }
+    // BOOTSTRAP. The first solve takes 73-240 ms on this board, and until it
+    // lands f_ff is zero - with MIT's Kp_stance = 0 that is zero support, so
+    // the robot collapses before its first MPC solution ever arrives and every
+    // later solve then sees a robot already on the floor (which is why the
+    // solutions came back all-zero). Hold static equilibrium until then:
+    // bodyweight shared over the feet the gait currently calls stance. This is
+    // the same quantity BALANCE_STAND is already holding the robot up with, so
+    // it is continuous across the transition.
+    if (!_mpcHaveSolution.load()) {
+      int nStance = 0;
+      for (int leg = 0; leg < 4; ++leg) if (mpcTable[leg]) nStance++;
+      if (nStance < 1) nStance = 1;
+      const float W = 13.1f * 9.81f;
+      for (int leg = 0; leg < 4; ++leg) {
+        Vec3<float> fw(0.f, 0.f, mpcTable[leg] ? (W / (float)nStance) : 0.f);
+        f_ff[leg]   = -seResult.rBody * fw;
+        Fr_des[leg] = fw;
+      }
+    }
     // publish whatever the worker has finished most recently
     if (_mpcHaveSolution.load()) {
       for (int leg = 0; leg < 4; ++leg) {
