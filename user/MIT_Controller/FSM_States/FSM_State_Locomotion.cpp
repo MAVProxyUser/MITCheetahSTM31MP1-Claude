@@ -224,8 +224,26 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
       return false;
     }
 
-    if(std::fabs(p_leg[1] > 0.18)) {
-      printf("Unsafe locomotion: leg %d's y-position is bad (%.3f m)\n", leg, p_leg[1]);
+    // Lateral foot limit. TWO fixes here:
+    //
+    // 1) GEOMETRY. 0.18 m is mini-cheetah's (abad link 0.062 m). The Go1's abad
+    //    link is 0.08 m, so its feet legitimately stand ~30% wider and a Go1
+    //    trot trips this on the rear legs within ~1 s of gait entry. Tripping
+    //    it is not benign: locomotionSafe() failing sends the FSM to
+    //    RECOVERY_STAND, which FOLDS ALL FOUR LEGS. Every "the MPC tumbles at
+    //    gait start" report in this port was this check firing, not a dynamics
+    //    problem.
+    // 2) UPSTREAM TYPO. `std::fabs(p_leg[1] > 0.18)` takes fabs of a *bool* -
+    //    it is 0 or 1, so the test reduces to `p_leg[1] > 0.18` and the
+    //    negative side is never checked at all. Parenthesis moved.
+#ifdef USE_GO1_MODEL
+    const T max_pleg_y = 0.24;   // 0.18 * (Go1 abad 0.08 / mini-cheetah 0.062)
+#else
+    const T max_pleg_y = 0.18;
+#endif
+    if(std::fabs(p_leg[1]) > max_pleg_y) {
+      printf("Unsafe locomotion: leg %d's y-position is bad (%.3f m, max %.3f)\n",
+             leg, p_leg[1], max_pleg_y);
       return false;
     }
 

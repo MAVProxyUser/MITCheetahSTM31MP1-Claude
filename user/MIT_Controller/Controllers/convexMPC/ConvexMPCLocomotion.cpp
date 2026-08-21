@@ -73,7 +73,11 @@ void ConvexMPCLocomotion::recompute_timing(int iterations_per_mpc) {
 
 void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   if(data._quadruped->_robotType == RobotType::MINI_CHEETAH){
+#ifdef USE_GO1_MODEL
+    _body_height = 0.30;   // Go1 nominal stance (legs 0.426 m vs MC's 0.404)
+#else
     _body_height = 0.29;
+#endif
 #ifdef USE_GO1_MODEL
     // Go1 SITL: allow a crouched gait ($SIM_BODY_H, m) - lower CoM = much
     // larger roll/pitch margins through the UDP loop's extra latency.
@@ -160,6 +164,20 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     gait = &random2;
   else if(gaitNumber == 8)
     gait = &pacing;
+  // MIT defines `walking` and `walking2` but the stock selector stops at 8, so
+  // neither is reachable and anything else silently falls through to `trotting`.
+  // Both matter here:
+  //   10 = walking  - 4-beat, offsets (0,3,5,8), one foot down at a time
+  //   11 = walking2 - diagonal pairs like a trot but 7/10 duty, i.e. a 40%
+  //                   DOUBLE-SUPPORT overlap. A 50%-duty trot is on exactly two
+  //                   feet at every instant and free to roll about that
+  //                   diagonal the whole time; the overlap is what removes that
+  //                   window, and it is the single thing that made this port's
+  //                   own hand-rolled trot stable.
+  else if(gaitNumber == 10)
+    gait = &walking;
+  else if(gaitNumber == 11)
+    gait = &walking2;
   current_gait = gaitNumber;
 
   gait->setIterations(iterationsBetweenMPC, iterationCounter);
@@ -188,7 +206,11 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   }
 
   if(_body_height < 0.02) {
+#ifdef USE_GO1_MODEL
+    _body_height = 0.30;   // Go1 nominal stance (legs 0.426 m vs MC's 0.404)
+#else
     _body_height = 0.29;
+#endif
   }
 
   // integrate position setpoint
@@ -235,7 +257,11 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     for(int i = 0; i < 4; i++)
     {
 
+#ifdef USE_GO1_MODEL
+      footSwingTrajectories[i].setHeight(0.055);
+#else
       footSwingTrajectories[i].setHeight(0.05);
+#endif
       footSwingTrajectories[i].setInitialPosition(pFoot[i]);
       footSwingTrajectories[i].setFinalPosition(pFoot[i]);
 
@@ -270,7 +296,14 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     }
     //if(firstSwing[i]) {
     //footSwingTrajectories[i].setHeight(.05);
+#ifdef USE_GO1_MODEL
+    footSwingTrajectories[i].setHeight(.07);   // Go1 leg is 5% longer; give the
+                                               // swing real clearance - a foot
+                                               // that clips is a trip, and this
+                                               // gait fails in roll.
+#else
     footSwingTrajectories[i].setHeight(.06);
+#endif
 #ifdef USE_GO1_MODEL
     // Place swing feet at the robot's own lateral hip offset (abad link). The
     // stock .065 is mini-cheetah's abad link; Go1's is .08, so .065 narrows the
@@ -706,10 +739,20 @@ void ConvexMPCLocomotion::solveSparseMPC(int *mpcTable, ControlFSMData<float> &d
 
 void ConvexMPCLocomotion::initSparseMPC() {
   Mat3<double> baseInertia;
+#ifdef USE_GO1_MODEL
+  // Match RobotState (the dense-MPC path): Go1 is 13.1 kg, not the 9 kg
+  // mini-cheetah. Unused while cmpc_use_sparse is 0, but a 30% mass error
+  // sitting in the alternate solver is a trap for whoever enables it.
+  baseInertia << 0.102, 0, 0,
+              0, 0.379, 0,
+              0, 0, 0.352;
+  double mass = 13.1;
+#else
   baseInertia << 0.07, 0, 0,
               0, 0.26, 0,
               0, 0, 0.242;
   double mass = 9;
+#endif
   double maxForce = 120;
 
   std::vector<double> dtTraj;

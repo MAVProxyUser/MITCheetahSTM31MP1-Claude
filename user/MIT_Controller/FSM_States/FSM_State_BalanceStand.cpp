@@ -49,7 +49,12 @@ void FSM_State_BalanceStand<T>::onEnter() {
   // Always regulate to the proven-stable stand height. Holding whatever
   // (crouched) height we entered with keeps the knees deeply folded - the
   // marginal impedance regime where the WBC stand slowly rolls over.
+#ifdef USE_GO1_MODEL
+  _ini_body_pos[2] = 0.30;   // match ConvexMPCLocomotion's Go1 stand height, or
+                             // the 1->3->4 staging steps the body on entry
+#else
   _ini_body_pos[2] = 0.29;
+#endif
 #else
   if(_ini_body_pos[2] < 0.2) {
     _ini_body_pos[2] = 0.3;

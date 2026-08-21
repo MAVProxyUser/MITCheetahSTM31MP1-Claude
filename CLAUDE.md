@@ -429,6 +429,49 @@ command fell over twice on this world before completing cleanly. That variance -
 not the world, not the terrain - explains several "the farm is broken" detours
 in the log above. Treat a single failed run as noise and repeat it.
 
+## Fixing MIT's ConvexMPCLocomotion (not reinventing it)
+
+The custom gaits were a detour. MIT already ships trotting/bounding/pronking/
+galloping/walking/pacing/trotRunning; the job is making THEM run on a Go1. What
+was actually wrong, in order of how much it mattered:
+
+1. **`locomotionSafe()` aborts locomotion on mini-cheetah geometry.**
+   `FSM_State_Locomotion.cpp` limits lateral foot position to **0.18 m**, which
+   is mini-cheetah's (abad link 0.062 m). The Go1's abad link is 0.08 m so its
+   feet legitimately stand ~30% wider, the rear legs cross 0.18 m within ~1 s of
+   gait entry, and **failing this check sends the FSM to RECOVERY_STAND, which
+   folds all four legs**. Every "the MPC tumbles at gait start" note in this
+   file was that check firing - not dynamics. Gated to 0.24 m for Go1.
+   The same line also carries an upstream typo: `std::fabs(p_leg[1] > 0.18)`
+   takes `fabs` of a *bool*, so only the positive side was ever tested.
+2. **`walking` and `walking2` were unreachable.** The gait selector stops at 8
+   and everything else falls through to `trotting`, so two of MIT's own gaits
+   could not be selected at all. Now 10 = walking (4-beat), 11 = walking2
+   (diagonal pairs at 7/10 duty, i.e. a 40% double-support overlap - the same
+   property that made this port's hand-rolled trot stable).
+3. Go1 constants gated where they were still mini-cheetah: body height
+   0.29 -> 0.30 (ConvexMPCLocomotion x2, FSM_State_BalanceStand init), swing
+   height .06 -> .07 and .05 -> .055, and the sparse-MPC solver's `mass = 9` /
+   inertia (unused at `cmpc_use_sparse = 0`, but a 30% mass error waiting for
+   whoever enables it).
+
+**What is now proven working** (measured, not assumed):
+- the MPC+WBC machinery itself is fine: `cmpc_gait=4` (standing) runs the full
+  locomotion path with **0 safety trips** and holds 0.330 m;
+- **the state estimator is exonerated** - cheater mode (sim ground truth fed
+  straight to the estimator) still rolls over, so the fault is not estimation;
+- **the MPC commands correct forces** - ~78 N vertical on each stance foot of
+  the diagonal against a 128 N robot, and exactly 0 on the swing pair;
+- **the torques reach the sim** - bridge at 500 cmd/s, knee 6.16 Nm, which is
+  what the stance geometry needs for ~61 N at the foot.
+- `cmpc_gait=10` (walking) at 0.3 m/s commanded: **1 safety trip in 19 s**,
+  body at 0.321 m. Compare thousands of trips for trotting.
+
+**What is still wrong**: `walking` is stable but does not translate, and rolls
+over by 0.5 m/s commanded. With forces, state and transport all verified good,
+what is left is contact timing / phase margin through the SITL loop. Gait period
+was swept (`SIM_MPC_MS` 27/45/60) without fixing it.
+
 ## Still open
 - The trot's travel direction is inverted: at 1.0 m/s commanded it makes 1.00
   m/s of ground speed with the *magnitude right and the sign wrong*, and

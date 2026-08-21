@@ -83,10 +83,13 @@ qdj = [0.0]*12
 truth = {"pos": [0.0,0.0,0.0], "quat": [0.0,0.0,0.0,1.0], "vworld": [0.0,0.0,0.0],
          "t": None}
 cmd = {"q_des":[0.0]*12, "qd_des":[0.0]*12, "kp":[0.0]*12, "kd":[0.0]*12, "tau_ff":[0.0]*12}
+last_cmd_t = [0.0]          # wall time of the most recent controller packet
+CMD_TIMEOUT = float(os.environ.get("BRIDGE_CMD_TIMEOUT", "0.25"))   # s
 peer_ip = [CTRL_IP]
 seq_out = [0]
 cmd_rx  = [0]   # commands received (for heartbeat)
 last_tau = [0.0]*12
+_wd_said = [False]
 
 node = transport.Node()
 
@@ -183,6 +186,7 @@ def udp_rx():
             peer_ip[0] = addr[0]
             print(f"[bridge] controller at {addr[0]}", flush=True)
         cmd_rx[0] += 1
+        last_cmd_t[0] = time.time()
         with lock:
             cmd["q_des"]  = list(vals[2:14])
             cmd["qd_des"] = list(vals[14:26])
@@ -214,6 +218,29 @@ def send_sensor():
         pass   # controller restarting / gone; keep the bridge alive
 
 def control_step():
+    # WATCHDOG. If the controller stops talking (crash, kill, unplugged cable)
+    # the last command must NOT be replayed for ever: a controller killed
+    # mid-swing leaves two diagonal feet commanded into the air and the robot
+    # simply tips over, which is exactly how a completed mission ended with the
+    # dog on its side. Real hardware is worse - stale torques against a fallen
+    # machine cook motors. So: fade the stiffness out and let it settle.
+    if last_cmd_t[0] > 0.0:
+        age = time.time() - last_cmd_t[0]
+        if age > CMD_TIMEOUT:
+            with lock:
+                fade = max(0.0, 1.0 - (age - CMD_TIMEOUT) / 0.5)   # 0.5 s ramp
+                for i in range(12):
+                    cmd["kp"][i] *= fade
+                    cmd["tau_ff"][i] *= fade
+                    cmd["qd_des"][i] = 0.0
+                    cmd["kd"][i] = min(cmd["kd"][i], 0.5) if fade > 0 else 0.4
+            if not _wd_said[0]:
+                _wd_said[0] = True
+                print(f"[bridge] WATCHDOG: no controller command for {age:.2f}s "
+                      f"- fading stiffness to a safe limp", flush=True)
+        elif _wd_said[0]:
+            _wd_said[0] = False
+            print("[bridge] controller is back", flush=True)
     with lock:
         # PD in Cheetah frame, then convert torque back to Go1 frame
         qc  = [SIGN[i]*qj[i] + OFFSET[i] for i in range(12)]
