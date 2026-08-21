@@ -854,6 +854,20 @@ void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in,
   update_solver_settings(_parameters->jcqp_max_iter, _parameters->jcqp_rho,
       _parameters->jcqp_sigma, _parameters->jcqp_alpha,
       _parameters->jcqp_terminate, _parameters->use_jcqp);
+  if (getenv("STM32MP1_MPC_IN")) {
+    static int _ic = 0;
+    if ((++_ic % 10) == 1) {
+      printf("[MPCIN] p=%.2f %.2f %.2f  v=%.2f %.2f %.2f  yaw=%.2f h=%d\n",
+             in.p[0], in.p[1], in.p[2], in.v[0], in.v[1], in.v[2], in.yaw, in.horizon);
+      printf("[MPCIN] table[0..7]=%d%d%d%d %d%d%d%d  traj[0..5]=%.2f %.2f %.2f %.2f %.2f %.2f\n",
+             in.table[0],in.table[1],in.table[2],in.table[3],
+             in.table[4],in.table[5],in.table[6],in.table[7],
+             in.traj[0],in.traj[1],in.traj[2],in.traj[3],in.traj[4],in.traj[5]);
+      printf("[MPCIN] r(foot rel CoM) x=%.2f %.2f %.2f %.2f  z=%.2f %.2f %.2f %.2f\n",
+             in.r[0],in.r[1],in.r[2],in.r[3], in.r[8],in.r[9],in.r[10],in.r[11]);
+      fflush(stdout);
+    }
+  }
   update_problem_data_floats((float*)in.p, (float*)in.v, (float*)in.q, (float*)in.w,
                              (float*)in.r, in.yaw, Q, (float*)in.traj,
                              in.alpha, (int*)in.table);

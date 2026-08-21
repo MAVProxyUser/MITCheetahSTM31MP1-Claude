@@ -383,6 +383,15 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
 
 
 
+  if(getenv("STM32MP1_MPC_MAT")) {
+    static int _mc = 0;
+    if((++_mc % 10) == 1) {
+      printf("[MPCMAT] m=%.2f I=(%.4f %.4f %.4f) |A_qp|=%.3g |B_qp|=%.3g |X_d|=%.3g |U_b|=%.3g\n",
+             rs.m, rs.I_body(0,0), rs.I_body(1,1), rs.I_body(2,2),
+             A_qp.norm(), B_qp.norm(), X_d.norm(), U_b.norm());
+      fflush(stdout);
+    }
+  }
   qH = 2*(B_qp.transpose()*S*B_qp + update->alpha*eye_12h);
   qg = 2*B_qp.transpose()*S*(A_qp*x_0 - X_d);
 

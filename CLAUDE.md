@@ -604,10 +604,39 @@ Kp_stance = 0 there is otherwise NO support for the 73-240 ms that first solve
 takes - the robot collapsed before its first MPC answer ever arrived, which is
 why later solves saw a robot already on the floor.
 
+### The zero-force problem, narrowed (this is where to start)
+
+Everything feeding the QP is verified correct, and BOTH solvers still return an
+all-zero force vector. Measured at the first solve, robot standing at 0.29 m:
+
+```
+[MPCIN]  p=0.14 0.00 0.29   v=0 0 0   yaw=-0.00  h=10
+[MPCIN]  table[0..7]=1001 1101        traj[0..5]=-0.00 -0.00 -0.00 0.14 0.00 0.29
+[MPCIN]  r(foot rel CoM) x=0.17 0.17 -0.20 -0.20   z=-0.29 x4
+[MPCMAT] m=13.10  I=(0.1020 0.3790 0.3520)
+         |A_qp|=11.6  |B_qp|=2.13  |X_d|=1.01  |U_b|=6.32e+11
+```
+State, contact schedule, reference, foot geometry, mass, inertia and the
+prediction matrices are all sane and Go1-correct (`|U_b|` is MIT's BIG_NUMBER on
+the unbounded friction-cone rows, not a bug). `x_0`'s 13th element is -9.8 as it
+should be, so it is not a missing-gravity problem. And it is not the solver:
+- JCQP: 70-100 ms/solve, all-zero forces;
+- qpOASES: 198-218 ms/solve, 16 consecutive solves, all-zero forces.
+It is also not the JCQP tuning, though that WAS separately wrong and is now
+fixed: the yaml shipped `rho 1e-07` (JCQP default 2), `sigma 1e-08` (1e-5),
+`terminate 0.1` (1e-3) - a tolerance so loose the solver can converge at its
+zero initial guess. MIT never tuned them because their default is use_jcqp=0.
+
+So: the QP is well-formed, both solvers agree, and the agreed optimum is zero.
+The next step is to dump `q_soln` directly (rather than the rotated `f_ff`) to
+confirm the solution really is zero rather than the readback being wrong, and
+then to check `S` (the weight matrix) and `qg` - if `S` came out zero the cost
+has no state-tracking term and zero force IS the correct optimum.
+
 **Next, in priority order:**
-1. Find why the solves return zero forces - the bootstrap proves the robot can
-   be held up, so this is now the single thing between here and walking. Print
-   the contact table and `trajAll` going into `update_problem_data_floats`.
+1. Dump `q_soln` and `|S|`/`|qg|` in `solve_mpc` - see above. The bootstrap
+   already proves the robot can be held up, so this is the single remaining
+   thing between here and walking.
 2. Get the solve under ~30 ms so the MPC can run at 30 Hz. Horizon barely moves
    it (10/6/4 -> 81/56/57 ms), and nor does `nWSR`, so the cost is the dense
    algebra (`qH = 2*(B_qp^T S B_qp + ...)`, ~4M double MACs at horizon 10).
