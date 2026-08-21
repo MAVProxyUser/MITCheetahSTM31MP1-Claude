@@ -400,8 +400,17 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
       fflush(stdout);
     }
   }
-  qH = 2*(B_qp.transpose()*S*B_qp + update->alpha*eye_12h);
-  qg = 2*B_qp.transpose()*S*(A_qp*x_0 - X_d);
+  // S is DIAGONAL - it is built as `S.diagonal() = full_weight.replicate(...)`
+  // and nothing else ever writes to it - but it is declared as a dense
+  // 13h x 13h matrix, so `B_qp.transpose()*S*B_qp` was a full dense triple
+  // product: at horizon 10 that is (120x130)(130x130)(130x120), about 3.9M
+  // multiply-adds, and it is the dominant cost of the whole solve on this
+  // board. Telling Eigen it is diagonal turns the first product into a row
+  // scaling (15.6k ops), roughly halving the work, and is numerically
+  // identical.
+  const auto Sd = S.diagonal().asDiagonal();
+  qH = 2*(B_qp.transpose()*Sd*B_qp + update->alpha*eye_12h);
+  qg = 2*B_qp.transpose()*Sd*(A_qp*x_0 - X_d);
   if(getenv("STM32MP1_MPC_MAT")) {
     static int _mc2 = 0;
     if((++_mc2 % 10) == 1) {

@@ -664,6 +664,7 @@ solve rate versus solution quality:
 |---|---|---|---|---|
 | 10 (double) | 349 ms | ~3 Hz | -73 -60 0 -66 N | correct forces, far too slow |
 | 10 (float) | 230 ms | ~4.3 Hz | -66 0 0 -67 N | correct forces, still too slow |
+| 10 (float, rho 0.6, 60 iters) | **92 ms** | **~11 Hz** | **-67 0 0 -68 N** | correct forces, 3.8x faster |
 | 6 | 97 ms | ~10 Hz | -19 x4 (76 N) | fast enough-ish, UNDER-SUPPORTS |
 | 4 | 76 ms | ~13 Hz | -7 x4 (28 N) | badly under-supports |
 
@@ -677,6 +678,44 @@ which propagate through J^T into joint torques and Gazebo rejects them
 ("Invalid joint force value [nan]"). On real hardware a NaN torque is undefined
 behaviour, so the worker drops any non-finite solution and keeps the previous
 one. It fired intermittently at horizon 6.
+
+### Solver tuning: 349 ms -> 92 ms with the SAME answer
+
+JCQP is ADMM, and ADMM convergence is dominated by `rho`. The shipped value was
+`rho 1e-07` (JCQP's own default is 2) with `max_iter 10000`. Sweeping it against
+the known-good answer (-66 N per stance foot of the diagonal, 128 N robot):
+
+| rho | iters | solve | forces | note |
+|---|---|---|---|---|
+| 2 | 200 | 238-265 ms | -69 -66 -66 | MIT-ish default, converged, slow |
+| 2 | 60 | 91 ms | -25 | under-converged |
+| 2 | 25 | 67-77 ms | -11 | badly under-converged |
+| 0.1 | 60 | 97-102 ms | -151 -149 | overshoots |
+| 1.0 | 60 | 92 ms | -46 -46 | undershoots |
+| **0.6** | **60** | **92 ms** | **-67 -68** | **converged, 2.6x faster** |
+
+So `rho 0.6 / max_iter 60` reaches the same solution as `rho 2 / max_iter 200`
+in a third of the time. With single precision on top, the horizon-10 solve went
+349 ms -> 92 ms overall.
+
+Two things that did NOT help, so do not spend time on them again:
+- exploiting that `S` is diagonal (`S.diagonal().asDiagonal()` in the
+  `B^T S B` triple product): 230 -> 223 ms, 3%. The cost is the ADMM
+  iterations, not the matrix setup. The change is kept because it is free and
+  numerically identical, but it is not a lever.
+- `nWSR` on the qpOASES path, and the MPC horizon by itself.
+
+### The next thing to look at
+
+The MPC now commands CORRECT forces at ~11 Hz, and the robot still sits at
+z ~= 0.204 against a `_body_height` target of 0.30, so it stands crouched and
+does not travel (best 0.38-0.67 m in an 18 s run). Commanding exactly bodyweight
+holds a robot wherever it already is - to RISE it needs more, so the question is
+why the MPC is satisfied at 0.204 when its reference says 0.30. Check, in order:
+(a) that `trajAll`'s z entry really is 0.30 and not being overwritten by the
+entry-height ramp, (b) the z weight in `Q` (index 5, value 50) against the
+achieved error, and (c) whether `Fr_des`/`f_ff` is being applied to the legs
+every tick or only on MPC update ticks.
 
 **Next, in priority order:**
 1. **Get the solve from 230 ms to ~30 ms.** Single precision is now DONE (349
