@@ -400,6 +400,59 @@ and the check is not firing. Recorded because it is the factory's answer to a
 check this port has twice had to work around, not because it explains the
 current bug.
 
+## 7c. Pseudocode: `runContactLegControl` (the stance branch)
+
+`0xe3f30`, 656 bytes, `(ControlFSMData<float>&)`. Structurally this is MIT's
+stance branch lifted out of `run()` into its own function.
+
+```c
+void ConvexMPCLocomotion::runContactLegControl(ControlFSMData<float>& data) {
+    for (int leg = 0; leg < 4; leg++) {
+        // this+0x20d8 is a per-leg float array; the leg is processed only when
+        // it is <= 0, i.e. NOT in swing. Same test as MIT's `if (swingState > 0)
+        // ... else ...`, just inverted into an early-continue.
+        if (swingState[leg] > 0.0f) continue;
+
+        // foot position / velocity error, rotated into the body frame by a 3x3
+        // (the fmul/fmadd triplets against s28,s27,s26 / s21,s20,s29 / s31,...
+        // are one matrix-vector product per quantity) - MIT's
+        //     rBody * (pDesFootWorld - position) - getHipLocation(leg)
+        pDesLeg = R_body * (pDesFootWorld[leg] - position) - hipLocation(leg);
+        vDesLeg = R_body * (vDesFootWorld[leg] - vWorld);
+
+        // the MPC's solved force for this foot, read as three consecutive
+        // floats from ControlFSMData +0x440/+0x444/+0x448
+        Vec3 f = mpcForce[leg];
+
+        // PER-LEG SIGN FLIPS - MIT does not do this.
+        //   f[0] is negated for legs 2,3   (cmp leg,#1 ; fcsel ... hi)  -> REAR
+        //   f[1] is negated for legs 0,2   (w7 = leg & ~2 ; fcsel ... ne)
+        // With MIT leg order FR,FL,RR,RL that is "negate x on the rear pair"
+        // and "negate y on the right-hand pair" - a leg-frame convention, where
+        // MIT applies one uniform `-rBody * Fr_des[foot]` to every leg.
+        if (leg >= 2)              f[0] = -f[0];
+        if (leg == 0 || leg == 2)  f[1] = -f[1];
+
+        commands[leg].pDes             = pDesLeg;
+        commands[leg].vDes             = vDesLeg;
+        commands[leg].kpCartesian      = Kp_stance;   // zeros - see 7a
+        commands[leg].kdCartesian      = Kd_stance;
+        commands[leg].forceFeedForward = f;
+    }
+}
+```
+
+**Confidence.** The loop structure, the stance test, the rotation, the force
+source and the sign selection are read directly from the instructions. The exact
+Eigen expressions are inferred from MIT's equivalent rather than fully reduced -
+656 bytes of inlined Eigen would take far longer to decompile than the result is
+worth, given the shape matches MIT's stance branch.
+
+The sign pattern is the one genuinely non-MIT detail, and it is **not ported**:
+it most likely reflects Unitree's leg-frame convention rather than a control
+improvement, and getting a force sign wrong per leg is exactly the kind of change
+that silently destroys a gait. It is recorded here for whoever needs it.
+
 ## 8. Open leads
 
 - `trajPlanner`, `runSwingLegControl`, `runContactLegControl` — not yet reduced
