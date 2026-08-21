@@ -1231,6 +1231,47 @@ and this port's latency is larger than either of theirs - so it is exposed as
 `SIM_MPC_SCHED_LEAD` (default 1 = MIT) rather than silently changed.
 
 
+## Final measured state (Mac SITL, corrected model + RE fixes)
+
+| gait | max speed | 100 m | cruise | notes |
+|---|---|---|---|---|
+| walking2 (21) | 1.0 | 106.8 s | 0.94 | 1.4 fails x3 |
+| trotting (9) | **0.9** | **120.4 s** | 0.83 | 176 m x2 at 0.9; 1.0 fails x2 |
+| pacing (8) | 0.8 | 130.5 s | 0.77 | 1.0 fails x2 |
+| trotRunning (5) | 0.6 | 186.1 s | 0.53 | 0.8 fails x2 |
+| walking (20) | - | never | - | 17.4/17.6 m, endurance-limited |
+| bounding (1) | - | never | - | bimodal at 1.0: ~5 m in 3 of 5 runs |
+| pronking (2) | - | never | - | <0.3 m at every speed |
+| galloping (22) | - | never | - | <0.1 m at every speed |
+
+### METHOD TRAP: a stop-at-first-success ladder is biased DOWNWARD
+
+`dash_sweep.sh` tries speeds high-to-low and stops at the first that completes.
+That is efficient and **wrong for a gait that is bimodal near its limit**: one
+unlucky run permanently records the lower speed. It reported trotting at 0.6
+m/s. Re-checking the speed above found 0.9 holds 176 m twice, with 1.0 failing
+twice - so the ladder had understated trot by **50%**, and its 100 m time by
+51 seconds (171.8 -> 120.4 s).
+
+Re-checks of the other three crossings confirmed the ladder (walking2 1.0,
+pacing 0.8, trotRunning 0.6), so this is not a systematic offset - it is a
+sampling failure that strikes unpredictably. **Always repeat the speed above a
+reported ceiling.**
+
+### Levers tried on pronking/galloping that did NOT work
+- zero-velocity gait hold: fixes ENTRY (0.00 m -> survives to 18 s) but not
+  operation;
+- speed: 0.3 / 0.6 / 1.0 all identical;
+- heavier command smoothing (`SIM_CMD_FILTER` 0.10 vs 0.01): no effect. NOTE this
+  was a proxy - Unitree's 0.998/0.994/0.992 filters live in `trajPlanner` and act
+  on the trajectory reference, not on MIT's operator-command filter, so this
+  rules out the lever tested, not Unitree's actual smoothing;
+- patching the MPC contact table: no effect, and structurally wrong (see above).
+
+Remaining candidate: Unitree's swing/stance split (`runSwingLegControl` /
+`runContactLegControl`) and `trajPlanner` proper, reversed only structurally.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer

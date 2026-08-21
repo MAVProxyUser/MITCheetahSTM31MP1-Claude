@@ -35,22 +35,30 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 
 ## Measured locomotion (Mac SITL, cheater state)
 
-100 m dash, fastest speed each gait completes it:
+100 m dash on flat ground, fastest speed each gait completes it. Ceilings
+verified by repeats at the next speed up, not by a single pass.
 
-| gait | commanded | 100 m time | cruise |
+| gait | max speed | 100 m time | cruise |
 |---|---|---|---|
 | `walking2` (21) | 1.0 m/s | **106.8 s** | 0.94 m/s |
-| `trotting` (9) | 0.6 m/s | **173.2 s** | 0.58 m/s |
-| `walking` (20) | — | did not finish | — |
-| `pacing` (8) | — | did not finish | — |
-| `pronking`/`bounding`/`galloping`/`trotRunning` | — | collapse at gait engagement | — |
+| `trotting` (9) | 0.9 m/s | **120.4 s** | 0.83 m/s |
+| `pacing` (8) | 0.8 m/s | **130.5 s** | 0.77 m/s |
+| `trotRunning` (5) | 0.6 m/s | **186.1 s** | 0.53 m/s |
+| `walking` (20) | — | never crosses (best 17.6 m) | — |
+| `bounding` (1) | — | never crosses (best 5.5 m @ 1.0) | — |
+| `pronking` (2) / `galloping` (22) | — | never cross (< 0.3 m) | — |
 
-Reality check against the real machine: a Go1 Air does 2.5 m/s, a Pro 3.5–3.7,
-an Edu sprints to 4.7. **This stack is at ~0.95 m/s** — about a fifth of the
-sprint and slower than a person walking. The four gaits that could go fast are
-exactly the flight-phase ones, and they do not yet establish support through
-gait entry; Unitree's binary has explicit flight-state/hybrid-mode machinery
-that MIT's (and this port's) `OffsetDurationGait` lacks.
+**Four of MIT's eight gaits run 100 m.** Two of those - pacing and trotRunning -
+were completely dead before the factory-binary comparison (0.1 m and 0.00 m);
+they were recovered by a real defect it exposed, not by tuning. See
+`docs/LEGGED_SPORT_REVERSE.md`.
+
+Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
+sprints to 4.7. **This stack tops out at 0.94 m/s** - about a fifth of the
+sprint, and slower than a person walking. That ceiling has not moved; what
+improved is breadth and robustness (twice as many working gaits, heading held to
+centimetres, 100 m sustained instead of ~20 m). The gaits that could go fast are
+the flight-phase ones, and three of the four still do not hold up.
 
 ## Reverse-engineering the factory controller
 
