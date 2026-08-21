@@ -562,6 +562,91 @@ The URDF matches Unitree's published spec exactly - abad +-49 deg, thigh
 Every one of them is limited by the same 60-105 ms solve stall, not by gait
 tuning. **Fix the async solve before tuning any of these numbers.**
 
+## What the real Go1 runs (dumped from the robot, Aug 2026)
+
+`/home/pi/Unitree_latest/autostart/sportMode/bin/Legged_sport` is a **direct fork
+of MIT Cheetah-Software**. Its build paths are MIT's tree verbatim:
+```
+/home/pi/src_legged_sport/common/src/Controllers/FootSwingTrajectory.cpp
+/home/pi/src_legged_sport/common/include/Dynamics/Quadruped.h
+/home/pi/src_legged_sport/user/MIT_Controller/Controllers/convexMPC/dance.cpp
+/home/pi/src_legged_sport/third-party/{qpOASES,Goldfarb_Optimizer,ParamHandler}
+```
+and it ships `reference_license/Cheetah-Software/LICENSE` (MIT, 2019 MIT
+Biomimetic Robotics Lab) alongside drake, pinocchio, ocs2, towr, rbdl, quad-sdk,
+dwl, xpp, free_gait and kindr. So this port and the factory controller are the
+same codebase, which makes the robot a direct reference.
+
+### The compute gap, measured
+
+| | Go1 (factory) | this port |
+|---|---|---|
+| SoC | Raspberry Pi CM4, BCM2711 | Octavo OSD32MP1 (STM32MP157) |
+| CPU | **4x Cortex-A72 @ 1.5 GHz** (part 0xd08) | **2x Cortex-A7 @ 650 MHz** |
+| kernel | 5.4.81-**rt45** PREEMPT_**RT** | 5.10.10 PREEMPT (not RT) |
+| relative compute | **~11x** | 1x |
+
+(per core: 1.5/0.65 GHz x 4.7/1.9 DMIPS/MHz = 5.7x, times 2x the cores.)
+Unitree also runs a genuinely real-time kernel; this board does not.
+
+**This is the honest reason MIT's gaits do not simply run here.** It is not
+missing constants - those are all fixed now - it is that the factory controller
+has ~11x the compute and a PREEMPT_RT kernel to do the same job.
+
+### Their thread structure (`ps -eLo pid,tid,cls,rtprio,comm`)
+
+```
+FF 95  x2      <- highest: comms / control
+FF 90  x2
+FF 85  x3
+TS     x2      <- SCHED_OTHER, non-RT (background)
+```
+A three-tier RT priority stack plus two non-RT threads, over 4 cores. That
+independently validates the structure this port arrived at the hard way - the
+MPC worker MUST sit below the control loop (here: control/motor at FIFO 49, MPC
+worker at FIFO 20 pinned to cpu1) - but they can afford to spread it over four
+cores where this board has two.
+
+### THE WBC IS NOT OPTIONAL
+
+The binary contains `WBIC`, `LocomotionCtrl`, `BodyOriTask`, `LinkPosTask`,
+`ContactSpec` and Goldfarb_Optimizer - 154 matching symbols. The factory
+controller runs the **full MPC + WBIC stack**. This port currently sets
+`use_wbc: 0` because WBIC costs ~50 ms/tick here, and that is very likely why
+the body parks at 0.204 m against a 0.30 m reference: `BodyPosTask` /
+`BodyOriTask` are exactly what servo body pose, and with `Kp_stance = 0` there
+is nothing else doing it. Re-enabling the WBC - probably decimated to run every
+N ticks rather than every tick - is the next thing to try.
+
+### Gaits they actually ship
+
+Trotting, Bounding, Pronking, Galloping, Standing, Trot Running, **Walking**,
+**Walking2**, Pacing, Jumping, plus their own **JumpingTrot**. They use Walking
+and Walking2 - the two MIT's stock selector makes unreachable through the
+`gaitNumber >= 10` omni rewrite, which this port had to fix to reach them at all.
+
+### Joint limits: the SDK disagrees with the URDF
+
+`unitree_legged_sdk/include/unitree_legged_sdk/go1_const.h`:
+
+| joint | URDF | Unitree SDK (enforced) |
+|---|---|---|
+| hip/abad | +-49 deg | **+-60 deg** |
+| thigh | -39 .. **258** deg | -38 .. **170** deg |
+| calf | -161 .. -51 deg | **-156 .. -48** deg |
+
+The URDF's 258 deg thigh is not reachable in practice. Reach from the SDK's
+-48 deg calf is 0.389 m (this port uses 0.385 from the URDF's -51 deg - close
+enough to leave alone), and the wider +-60 deg abad means the lateral foot
+limit can be more generous than the URDF implies.
+
+### Per-robot drift calibration
+`/var/local/unitree_legged_config.yaml` carries ONLY drift trim, calibrated per
+machine - on the test dog: `walk_x -0.015, walk_yaw +0.002, run_x -0.03,
+run_y +0.023, run_yaw +0.015`. Unitree does not eliminate residual drift, they
+measure it per robot and subtract it. Worth remembering before chasing this
+port's ~1.3 cm/s in-place crawl drift as a bug.
+
 ## Where MIT's locomotion actually stands now
 
 The chain of failures, each found by measurement, in the order they had to be
