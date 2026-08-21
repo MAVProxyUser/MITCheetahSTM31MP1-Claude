@@ -15,17 +15,36 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 option(MINI_CHEETAH_BUILD "use compiler flags for mini cheetah computer" OFF)
 option(STM32MP1_BUILD "cross-compile for the Octavo OSD32MP1 (Cortex-A7 armv7l)" OFF)
+option(STM32MP1_HOST "build the SAME port natively on this machine (Mac-first workflow: iterate the math at native speed against local Gazebo, then cross-compile the identical code for the board)" OFF)
 option(STM32MP1_MIT "also build the MIT_Controller (MPC+WBC) locomotion stack for the port" OFF)
 set(BUILD_TYPE_RELEASE TRUE)
 
 option(NO_SIM "Do not build simulator" OFF)
 
 # The STM32MP1 port has no QT/display and only builds the robot control path.
-if(STM32MP1_BUILD)
+if(STM32MP1_BUILD OR STM32MP1_HOST)
   set(NO_SIM ON)
 endif()
 
-if(STM32MP1_BUILD)
+if(STM32MP1_HOST)
+  # Native build of the port for the development machine. Same code paths as
+  # the cross build (THIS_COM="", lcm shim, USE_GO1_MODEL, Gazebo backend) so
+  # what runs here is what ships to the board - only the ISA differs.
+  set(STM32MP1_BUILD ON)   # downstream CMakeLists key off this
+  SET (THIS_COM "" )
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake
+    ${CMAKE_BINARY_DIR}/Configuration.h)
+  set(STM32MP1_EIGEN_FLAGS "-DEIGEN_MAX_ALIGN_BYTES=0 -DEIGEN_MAX_STATIC_ALIGN_BYTES=0 -DUSE_GO1_MODEL")
+  set(CMAKE_CXX_FLAGS "-O3 -fPIC -g0 ${STM32MP1_EIGEN_FLAGS} -Wall -Wextra \
+  -Wno-unused-parameter -Wno-unused-variable -Wno-sign-compare")
+  set(CMAKE_C_FLAGS "-O3 -fPIC -g0 -std=gnu99 -I.")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third-party/eigen")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/stm32mp1/lcm_shim")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/stm32mp1/lcm_shim/lcm")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/lcm-types/cpp")
+  add_library(lcm INTERFACE)
+  message("**** STM32MP1 HOST (native) build enabled ****")
+elseif(STM32MP1_BUILD)
   # Cross build for the Octavo OSD32MP1 dev board. Cortex-A7 + NEON replaces
   # -march=native; -Werror is dropped (newer cross-gcc emits new warnings on
   # this ~2019 codebase); libstdc++/libgcc are linked statically (see toolchain.cmake).

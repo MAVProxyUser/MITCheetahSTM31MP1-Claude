@@ -33,9 +33,14 @@ void WaypointNav::makeStar(float radius_m, int points, float speed) {
   if (points > MAXWP) points = MAXWP;
   int step = (points % 2 == 1) ? 2 : 1;   // even n has no single-stroke star
   _n = points;
+  // Rotate the whole pattern so the FIRST waypoint sits due NORTH - the dog
+  // spawns facing north, so the mission opens with a straight leg instead of a
+  // ~140 degree pivot-in-place (the pivot is the crawl's least stable move and
+  // has faceplanted live demos). The star's shape is rotation-invariant.
+  float a0 = 2.f * (float)M_PI * (float)(step % points) / (float)points;
   for (int i = 0; i < points; ++i) {
     int v = ((i + 1) * step) % points;    // +1 so we do not start on our own spot
-    float a = 2.f * (float)M_PI * (float)v / (float)points;
+    float a = 2.f * (float)M_PI * (float)v / (float)points - a0;
     _wp[i].north = radius_m * cosf(a);
     _wp[i].east  = radius_m * sinf(a);
     _wp[i].speed = speed;
@@ -160,7 +165,14 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
   // zero: a full stop deadlocks the mission if the achievable yaw rate is lower
   // than the commanded one (observed: 90 s pinned at v=0 with yaw saturated).
   float aerr = fabsf(err);
-  if (aerr > 0.25f) v *= fmaxf(0.22f, 1.f - (aerr - 0.25f) / 0.9f);
+  // Turn-first speed shaping. The 0.22 floor was sized for the statically
+  // stable crawl, which can pivot on the spot quite happily. A DYNAMIC gait
+  // cannot: slowing to 0.13 m/s while commanding a saturated yaw rate is the
+  // worst case for it, because a trot or a walk needs forward momentum to stay
+  // up - measured, the MPC walk fell over at the first star corner doing
+  // exactly that. A higher floor makes the robot ARC through the corner
+  // instead of pivoting in it.
+  if (aerr > 0.25f) v *= fmaxf(turn_speed_floor, 1.f - (aerr - 0.25f) / 0.9f);
   *v_cmd = v;
   *yawrate = wz;
   return true;

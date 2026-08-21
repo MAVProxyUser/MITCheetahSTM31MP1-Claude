@@ -2,12 +2,14 @@
  * @file Stm32mp1HardwareBridge.cpp
  * @brief Headless hardware bridge for the Octavo OSD32MP1 port. See the header.
  */
-#ifdef linux
+// portable: BSD sockets + pthreads (Linux-only pieces are guarded inline)
 
 #include "Stm32mp1HardwareBridge.h"
 
+#ifdef __linux__
 #include <sched.h>
 #include <sys/mman.h>
+#endif
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
@@ -44,10 +46,19 @@ Stm32mp1HardwareBridge::Stm32mp1HardwareBridge(RobotController* controller,
     : _controller(controller), _robotYaml(robot_yaml), _userYaml(user_yaml),
       _backend(backend) {
   _userControlParameters = controller->getUserControlParameters();
+#ifdef __linux__
   _unitreeCfg = unitree_default_config();   // A1, 4 buses; override before run() as needed
+#endif
   // _canImuCfg defaults: can0, node 124, msgs 20500/20501
   memset(&_spiData, 0, sizeof(_spiData));
   memset(&_spiCommand, 0, sizeof(_spiCommand));
+  // Zero the operator command channel. It was left uninitialised, so the
+  // waypoint driver's "wait until the sequencer has ramped the stick to SIM_VX"
+  // gate saw garbage that already exceeded the target and took the stick at
+  // t=0 - before the robot had even stood up, which spun it 170 degrees off
+  // heading. An uninitialised stick is worse than a bug in sim: on hardware it
+  // is a velocity command nobody asked for.
+  memset(&_gamepadCommand, 0, sizeof(_gamepadCommand));
   memset(&_utCmd, 0, sizeof(_utCmd));
   memset(&_utData, 0, sizeof(_utData));
 }
@@ -55,12 +66,16 @@ Stm32mp1HardwareBridge::Stm32mp1HardwareBridge(RobotController* controller,
 void Stm32mp1HardwareBridge::setupScheduler() {
   // Best-effort real-time. On the board run as root for this to take effect;
   // during bring-up we warn and continue rather than abort.
+#ifdef __linux__
   if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1)
     printf("[stm32mp1] mlockall failed (run as root for RT determinism); continuing\n");
   struct sched_param params;
   params.sched_priority = 49;
   if (sched_setscheduler(0, SCHED_FIFO, &params) == -1)
     printf("[stm32mp1] SCHED_FIFO failed (run as root for RT determinism); continuing\n");
+#else
+  printf("[stm32mp1] host build: default scheduling (no mlockall/SCHED_FIFO)\n");
+#endif
 }
 
 void Stm32mp1HardwareBridge::initHardware() {
@@ -72,7 +87,11 @@ void Stm32mp1HardwareBridge::initHardware() {
     return;
   }
   printf("[stm32mp1] init CAN IMU (%s node %d)\n", _canImuCfg.interface, _canImuCfg.imu_node_id);
+#ifdef __linux__
   if (init_can_imu(_canImuCfg, &_vectorNavData) != 0)
+#else
+  printf("[stm32mp1] HARDWARE backend (CAN IMU) is Linux-only\n"); exit(1);
+#endif
     printf("[stm32mp1] CAN IMU init failed; estimator will run on a stale/identity IMU\n");
 
   printf("[stm32mp1] init Unitree RS485 (%d bus(es))\n", _unitreeCfg.num_buses);
@@ -103,7 +122,11 @@ void Stm32mp1HardwareBridge::runMotors() {
           _vectorNavData.accelerometer[1], _vectorNavData.accelerometer[2];
     }
   } else {
+#ifdef __linux__
     unitree_send_receive(&_utCmd, &_utData);
+#else
+    printf("[stm32mp1] HARDWARE backend is Linux-only\n"); exit(1);
+#endif
   }
   memcpy(&_spiData, &_utData, sizeof(_spiData));
 }
@@ -241,4 +264,4 @@ void Stm32mp1HardwareBridge::run() {
   }
 }
 
-#endif  // linux
+  // linux

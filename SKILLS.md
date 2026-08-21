@@ -30,6 +30,64 @@ arm-unknown-linux-gnueabihf-strip mp1-build/robot/stand_sim -o /tmp/stand_sim
 scp /tmp/stand_sim $BOARD:/usr/local/cheetah-mp1/
 ```
 
+## Mac-first workflow (develop here, then cross-compile for the board)
+
+The board is ~11x slower and its eth0 flaps under load, so the math gets banged
+out natively on the Mac first. Same source, same code paths - only the ISA and
+the two Linux-only drivers differ.
+
+```bash
+cmake -B host-build -DSTM32MP1_HOST=ON -DSTM32MP1_MIT=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build host-build -j8 --target mit_ctrl_sim
+cp host-build/user/MIT_Controller/mit_ctrl_sim host-run/
+# run from host-run/ - the RPATH is $ORIGIN (a Linux-ism), so on macOS:
+cd host-run && DYLD_LIBRARY_PATH=. ./mit_ctrl_sim 127.0.0.1 \
+    stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml
+```
+
+**Never build while a measurement is running** - on the board, compiling and
+running are on different machines; here they compete. A `make -j8` during a
+sweep turned a known-good 21.23 m run into 3.54 m (worst control-loop time
+1.0 -> 4.5 ms is the tell).
+
+## Measurement harnesses (Mac)
+
+```bash
+stm32mp1/gazebo/host_sweep.sh <configfile> [secs]   # many env configs, one fresh stack each
+stm32mp1/gazebo/dash_sweep.sh                       # 100 m dash: fastest speed per gait
+stm32mp1/gazebo/refine_maxspeed.sh <results> [secs]  # bisect/push bracketed speed ceilings
+stm32mp1/gazebo/summarize_runs.py <results...>       # consolidate into the result tables
+stm32mp1/gazebo/dash_trace.py <max_s> [target_m]     # 10 Hz pose trace, times the line crossing
+```
+
+Config line format: `<label>  KEY=VAL KEY=VAL ...`; the label must carry the
+speed (`walk2_v10` -> 1.0 m/s) for the scorer to bin it.
+
+## Reverse-engineering `Legged_sport` (see docs/LEGGED_SPORT_REVERSE.md)
+
+```bash
+tools/reversing/extract_consts.py <addr>    # mov/movk + fmov float immediates in a function
+tools/reversing/extract_pool.py   <addr>    # resolve adrp+ldr -> .rodata constant pool
+tools/reversing/find_qweights.py            # locate the MPC cost vector in .rodata
+```
+
+## Key runtime knobs
+
+| env | default | what |
+|---|---|---|
+| `SIM_GAIT` | yaml | gait id: 9 trot, 20 walking, 21 walking2, 8 pacing, 1 bound, 2 pronk, 22 gallop, 5 trotRunning |
+| `SIM_VX` / `SIM_VX_RAMP_S` | - / 3 | commanded speed and ramp. **A 3 s ramp masquerades as a speed ceiling** - use 12 s to measure a gait |
+| `SIM_HEADING_HOLD` | 1 | integrate the yaw reference instead of re-slaving it to the measurement (0 = stock MIT) |
+| `SIM_YAW_ERR_MAX` | 0.40 | how far the heading reference may lead; competes with body height |
+| `SIM_MPC_MS` | 36 | MPC segment ms. **26-30 is the working range**; 36 was a board-compute compromise that capped the walk |
+| `SIM_MPC_ASYNC` | 0 | solve on a worker thread; costs nothing at 26 ms and lets a slow board use a fast segment |
+| `SIM_FALL_EXIT` / `SIM_FALL_DEG` / `SIM_FALL_Z` | 1 / 50 / 0.15 | end a run on tip-over OR collapse |
+| `SIM_WBC_DECIM` | 1 | run WBIC every Nth tick, caching its outputs between |
+| `SIM_CHEATER` | 0 | feed sim ground truth to the estimator |
+| `WP_MISSION` | - | `star:<r>:<n>` / `circle:<r>:<n>` / `outback:<m>` |
+| `WP_YAW_SIGN` / `WP_TURN_FLOOR` / `WP_MAX_YAWRATE` | 1 / 0.65 / 1.2 | nav: measured turn sign, arc-vs-pivot floor, turn authority |
+
+
 ## Run on real hardware (board)
 ```bash
 ssh $BOARD 'cd /usr/local/cheetah-mp1 && sudo ./board_setup.sh'   # bring up can0, list ttySTM*

@@ -55,6 +55,11 @@ class RobotRunner : public PeriodicTask {
   VisualizationData* visualizationData;
   CheetahVisualization* cheetahMainVisualization;
 
+  /*! Read-only access to the fused body state. Used by the Gazebo SITL mains to
+   *  close a waypoint-navigation loop around the controller without reaching
+   *  into the FSM (see mit_sim_main.cpp). */
+  const StateEstimate<float>& getStateEstimate() const { return _stateEstimate; }
+
  private:
   float _ini_yaw;
 

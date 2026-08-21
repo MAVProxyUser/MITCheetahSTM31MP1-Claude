@@ -196,7 +196,16 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
     }
   }
 
-  _yaw_des = data._stateEstimator->getResult().rpy[2] + dt * _yaw_turn_rate;
+  // HEADING REFERENCE - see the integration in run(). Upstream sets
+  //   _yaw_des = rpy[2] + dt*_yaw_turn_rate
+  // here, i.e. it re-slaves the yaw REFERENCE to the yaw MEASUREMENT every
+  // tick, so the heading error handed to the MPC is only ever one timestep of
+  // commanded turn (exactly zero when walking straight) and the robot has NO
+  // heading regulation at all - it keeps whatever direction it drifts into.
+  // Measured on the board: an 11.4 m straight-line trot ended 5 m off course.
+  // Note MIT integrates world_position_desired properly (run(), below), so
+  // position gets a real reference and heading does not; this makes the two
+  // consistent. Kept switchable for A/B against stock.
   _roll_des = 0.;
   _pitch_des = 0.;
 
@@ -209,6 +218,12 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // Command Setup
   _SetupCommand(data);
   gaitNumber = data.userParameters->cmpc_gait;
+  // $SIM_GAIT overrides the yaml so a gait matrix can be swept without editing
+  // (and re-deploying) a config file per run.
+  {
+    static const int gait_env = getenv("SIM_GAIT") ? atoi(getenv("SIM_GAIT")) : -1;
+    if (gait_env >= 0) gaitNumber = gait_env;
+  }
   // 20+ are this port's additions (walking / walking2 / galloping); they must
   // bypass MIT's omni rewrite, which would otherwise turn 20/21/22 into
   // 10/11/12 and then into 0/1/2.
@@ -367,8 +382,37 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
           data._legController->datas[i].p);
   }
 
+  static const bool heading_hold =
+      !getenv("SIM_HEADING_HOLD") || atoi(getenv("SIM_HEADING_HOLD")) != 0;
+
   if(gait != &standing) {
     world_position_desired += dt * Vec3<float>(v_des_world[0], v_des_world[1], 0);
+    if (heading_hold) {
+      _yaw_des += dt * _yaw_turn_rate;   // a REFERENCE, not the measurement
+      // Keep the reference on the same branch as the measurement (rpy wraps at
+      // +-pi; an unwrapped reference would hand the MPC a 2*pi error and spin
+      // the robot), and saturate how much correction it may ask for so a big
+      // disturbance cannot wind up into a violent turn.
+      float e = _yaw_des - seResult.rpy[2];
+      while (e >  (float)M_PI) { _yaw_des -= 2.f*(float)M_PI; e -= 2.f*(float)M_PI; }
+      while (e < -(float)M_PI) { _yaw_des += 2.f*(float)M_PI; e += 2.f*(float)M_PI; }
+      // How far the heading reference may lead the measurement. This is also
+      // the yaw error the MPC sees during a sustained turn, and it COMPETES
+      // WITH HEIGHT: with Kp_stance = 0 every newton of support comes from the
+      // MPC's force solution, so a permanently-saturated yaw error can be paid
+      // for out of body height. Measured: the walk cleared a star corner and
+      // then collapsed level at z=0.091 with no orientation trip.
+      static const float YAW_ERR_MAX =
+          getenv("SIM_YAW_ERR_MAX") ? atof(getenv("SIM_YAW_ERR_MAX")) : 0.40f;
+      if (e >  YAW_ERR_MAX) _yaw_des = seResult.rpy[2] + YAW_ERR_MAX;
+      if (e < -YAW_ERR_MAX) _yaw_des = seResult.rpy[2] - YAW_ERR_MAX;
+    } else {
+      _yaw_des = seResult.rpy[2] + dt * _yaw_turn_rate;   // stock MIT
+    }
+  } else {
+    // Standing: track the measurement so entering locomotion starts from the
+    // heading the robot is actually at (mirrors the stand_traj reset below).
+    _yaw_des = seResult.rpy[2] + dt * _yaw_turn_rate;
   }
 
   // some first time initialization
@@ -377,6 +421,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     world_position_desired[0] = seResult.position[0];
     world_position_desired[1] = seResult.position[1];
     world_position_desired[2] = seResult.rpy[2];
+    _yaw_des = seResult.rpy[2];      // lock the heading reference on entry
 
     for(int i = 0; i < 4; i++)
     {
@@ -1012,6 +1057,7 @@ void ConvexMPCLocomotion::_mpcWorker() {
     // it can never preempt them, but still real-time so it is not starved to
     // death by them - as SCHED_OTHER was: one solve took 359 ms instead of 60,
     // and the run completed a single MPC solve in 28 s.
+#ifdef __linux__
     int prio = getenv("SIM_MPC_PRIO") ? atoi(getenv("SIM_MPC_PRIO")) : 20;
     struct sched_param sp; sp.sched_priority = prio;
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0) {
@@ -1024,6 +1070,12 @@ void ConvexMPCLocomotion::_mpcWorker() {
     cpu_set_t set; CPU_ZERO(&set); CPU_SET(1, &set);
     pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
     fflush(stdout);
+#else
+    // Host (Mac-first) build: no SCHED_FIFO/affinity - the machine is ~30x the
+    // board and the default scheduler is fine for iterating the math.
+    printf("[Convex MPC] worker: host build, default scheduling\n");
+    fflush(stdout);
+#endif
   }
   while (!_mpcQuit.load()) {
     MpcSnapshot in;

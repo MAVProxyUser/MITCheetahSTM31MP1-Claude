@@ -16,9 +16,12 @@ if(STM32MP1_BUILD)
     src/RobotRunner.cpp
     src/JPosInitializer.cpp
     src/Stm32mp1HardwareBridge.cpp
-    src/rt/rt_unitree.cpp
-    src/rt/rt_can_imu.cpp
     src/rt/rt_gazebo.cpp)
+  if(NOT STM32MP1_HOST)
+    # RS485 motors and CAN IMU are Linux-only (termios2/BOTHER, SocketCAN);
+    # the host build talks to Gazebo over UDP and never needs them.
+    list(APPEND STM32MP1_ROBOT_SRC src/rt/rt_unitree.cpp src/rt/rt_can_imu.cpp)
+  endif()
 
   add_library(robot STATIC ${STM32MP1_ROBOT_SRC})
   target_link_libraries(robot biomimetics pthread)

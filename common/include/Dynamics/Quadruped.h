@@ -68,12 +68,6 @@ class Quadruped {
   T _abadLinkLength, _hipLinkLength, _kneeLinkLength, _kneeLinkY_offset, _maxLegLength;
   T _motorKT, _motorR, _batteryV;
   T _motorTauMax;
-  //! Knee motor torque cap. Defaults to _motorTauMax when left at 0, so every
-  //! existing robot is unchanged. Needed for the Go1, whose knee delivers
-  //! 35.55 Nm against 23.70 Nm at hip/abad through the SAME 6.33 gear - the
-  //! mini-cheetah expressed its stronger knee with a bigger gear ratio (9.33
-  //! vs 6.0) instead, so there was no per-joint torque field.
-  T _kneeMotorTauMax = 0;
   T _jointDamping, _jointDryFriction;
   SpatialInertia<T> _abadInertia, _hipInertia, _kneeInertia, _abadRotorInertia,
       _hipRotorInertia, _kneeRotorInertia, _bodyInertia;

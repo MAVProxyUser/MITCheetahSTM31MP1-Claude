@@ -10,8 +10,9 @@
 #ifndef PROJECT_STM32MP1_HARDWAREBRIDGE_H
 #define PROJECT_STM32MP1_HARDWAREBRIDGE_H
 
-#ifdef linux
-
+// Available on every platform: the GAZEBO backend is pure UDP and is exactly
+// what the Mac-first workflow runs natively. Linux-only pieces (RS485 motors,
+// CAN IMU, mlockall/SCHED_FIFO) are guarded inside the .cpp.
 #include <string>
 
 #include "RobotRunner.h"
@@ -41,6 +42,13 @@ class Stm32mp1HardwareBridge {
 
   //! periodic actuator exchange (RS485 motors or Gazebo UDP), public for PeriodicMemberFunction
   void runMotors();
+
+  /*! Operator command channel - the same two sticks a gamepad or the sequencer
+   *  drives. Exposed so a SITL main can close a waypoint loop around the
+   *  controller without reaching into the FSM (see mit_sim_main.cpp). */
+  GamepadCommand& driverCommand() { return _gamepadCommand; }
+  /*! May be null until run() has built it. */
+  RobotRunner* robotRunner() const { return _robotRunner; }
 
  private:
   void setupScheduler();
@@ -72,5 +80,4 @@ class Stm32mp1HardwareBridge {
   spi_data_t          _utData;
 };
 
-#endif  // linux
 #endif  // PROJECT_STM32MP1_HARDWAREBRIDGE_H

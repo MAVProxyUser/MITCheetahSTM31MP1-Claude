@@ -15,7 +15,8 @@
 #ifndef PROJECT_RT_UNITREE_H
 #define PROJECT_RT_UNITREE_H
 
-#ifdef linux
+// (decls portable; impl Linux-only: declarations visible on every platform;
+//  the .cpp is only compiled for Linux targets)
 
 #include <stdint.h>
 #include <spi_command_t.hpp>
@@ -71,5 +72,5 @@ void unitree_close();
 spi_data_t*    get_spi_data();
 spi_command_t* get_spi_command();
 
-#endif  // linux
+  // linux
 #endif  // PROJECT_RT_UNITREE_H

@@ -36,9 +36,14 @@ void RobotState::set(flt* p_, flt* v_, flt* q_, flt* w_, flt* r_,flt yaw_)
 
     Matrix<fpt,3,1> Id;
 #ifdef USE_GO1_MODEL
-    // Go1 whole-body inertia about the CoM (mini-cheetah values scaled by the
-    // 13.1/9 mass ratio; body length is nearly identical, 0.376 vs 0.38 m).
-    Id << 0.102f, 0.379f, 0.352f;
+    // Go1 whole-body inertia about the CoM, recovered from Unitree's own
+    // Legged_sport binary (immediates in RobotState::set, 0xfb9f0). These
+    // REPLACE a guess: this port had scaled mini-cheetah's (.07,.26,.242) by the
+    // 13.1/9 mass ratio to get (0.102,0.379,0.352), which under-estimates roll
+    // by 25% and yaw by 24%. An MPC that thinks the body spins up more easily
+    // than it does under-commands corrective moments on precisely the two axes
+    // this port's gaits fail on - roll collapse and heading drift.
+    Id << 0.13662f, 0.425578f, 0.460359f;
 #else
     Id << .07f, 0.26f, 0.242f;
 #endif

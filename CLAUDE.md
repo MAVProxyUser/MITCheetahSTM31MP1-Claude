@@ -918,6 +918,239 @@ bootstrap, kSeg) is now OPTIONAL (SIM_MPC_ASYNC=1) rather than required.
 With the REAL estimator (no cheater): walks 0.65 m then falls - the LinearKF
 under a trot on this transport is the next frontier.
 
+## Mac-first development (Aug 2026): the same source, built natively
+
+The board is ~11x slower, its eth0 flaps under sustained load, and every
+iteration cost a cross-compile + scp + a ~90 s SITL run. So the port now also
+builds NATIVELY on the development Mac and talks to the local Gazebo over
+loopback UDP - the SAME source, the same `STM32MP1_BUILD` code paths, only a
+different ISA:
+
+```bash
+cmake -B host-build -DSTM32MP1_HOST=ON -DSTM32MP1_MIT=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build host-build -j8 --target mit_ctrl_sim
+# run from host-run/ with DYLD_LIBRARY_PATH=. (the RPATH is $ORIGIN, a Linux-ism)
+```
+
+`STM32MP1_HOST` turns on `STM32MP1_BUILD` (so every downstream gate, the LCM
+shim, `THIS_COM=""`, `USE_GO1_MODEL` and the Eigen alignment defines are
+identical) and only drops the Cortex-A7 arch flags and the two Linux-only
+drivers (`rt_unitree` RS485, `rt_can_imu` SocketCAN). What had to be made
+portable to get there:
+- `Stm32mp1HardwareBridge.{h,cpp}`, `rt_gazebo.{h,cpp}` and the `rt_*` headers
+  were wrapped in `#ifdef linux` as WHOLE FILES; the class and the UDP backend
+  are portable, so the guards moved inward to just `mlockall`/`sched_setscheduler`
+  and the hardware backends;
+- the MPC worker's `cpu_set_t` affinity + `SCHED_FIFO` is now `#ifdef __linux__`.
+
+### THE trap: `PeriodicTask` free-runs on non-Linux
+
+`common/src/Utilities/PeriodicTask.cpp` uses a **timerfd**, and upstream MIT
+guards the timerfd calls with `#ifdef linux` but leaves **no wait at all** in
+the `#else` path. So every "periodic" task busy-loops. Measured on macOS: the
+500 Hz control loop ran at **~1.9 MHz - 3700x real time** (28.3 MILLION log
+lines in a 75 s run), which advances every gait timer, MPC segment counter and
+integrator at nonsense rates; the robot fell over inside a metre and the FSM
+looked like it was ESTOP-ing for no reason. Fixed with a portable
+`std::this_thread::sleep_until` on an ABSOLUTE deadline (a relative sleep
+accumulates the runtime as drift), re-basing rather than spinning to catch up
+when a period is overrun. After the fix: 222 log lines, 500-501 cmd/s at the
+bridge, zero transport stalls.
+
+### What the Mac buys (measured)
+
+| | STM32MP1 board | Mac (native) |
+|---|---|---|
+| worst control-loop iteration | 5.33 ms | **0.69-1.61 ms** |
+| turnaround per data point | cross-compile + scp + run | one process start |
+| transport | eth0 (flaps under load) | loopback, 0 stalls |
+
+Caveats that keep the board authoritative: no `SCHED_FIFO`, so worst-case
+period is 3.0 ms against a 2.0 ms target (mean is exactly right); and Gazebo
+plus the controller share the CPU, so the sim's real-time factor swings
+0.88-1.16. **Tune here, confirm there.**
+
+### First result from the Mac harness: MPC segment time was capping the walk
+
+`stm32mp1/gazebo/host_sweep.sh <configfile> [seconds]` runs many configs back
+to back, headless, one fresh stack each (with the sensor pre-flight check that
+a stale `gz sim` otherwise defeats). Five configs in ~7 minutes found this:
+
+| config | distance | outcome |
+|---|---|---|
+| board best (`SIM_MPC_MS=36`, `WBC_DECIM=2`) | 2.23 m | fell @ 26 s |
+| WBC every tick (`DECIM=1`) | 2.87 m | fell @ 26 s |
+| **`SIM_MPC_MS=30`** | **18.86 m** | **upright to end of run** |
+| `SIM_MPC_MS=26` | 19.83 m | upright to end of run |
+| `SIM_MPC_MS=26`, swing 0.11 | 19.98 m | upright to end of run |
+
+The 36 ms MPC segment was never a gait choice - it was forced on the board
+because the reduced solve costs 32 ms and has to FIT INSIDE the segment to run
+inline. That compromise is itself what capped the trot. With the segment at
+MIT's own ~30 ms the trot stops falling over and the run ends because the clock
+runs out, not because the robot does. **Backport consequence: the board needs
+the solve under ~26 ms to run a 30 ms segment inline, or it must use the async
+path (`SIM_MPC_ASYNC=1`) to decouple segment time from solve time.**
+
+## Heading hold: upstream never had any
+
+`ConvexMPCLocomotion::_SetupCommand` ends with
+
+```cpp
+_yaw_des = data._stateEstimator->getResult().rpy[2] + dt * _yaw_turn_rate;
+```
+
+which re-slaves the yaw REFERENCE to the yaw MEASUREMENT every tick. The
+heading error the MPC ever sees is one timestep of commanded turn - exactly
+zero when walking straight - so there is **no heading regulation at all** and
+the robot keeps whatever direction it drifts into. That is the 11.4 m trot that
+ended 5 m off course, and the same reason the sweep runs above drift 2-4 m east.
+
+MIT integrates `world_position_desired` properly a few hundred lines later, so
+position gets a real reference and heading does not. `_yaw_des` is now
+integrated the same way (`_yaw_des += dt * _yaw_turn_rate`), initialised from
+the measurement on `firstRun` and while the standing gait is active, unwrapped
+onto the same branch as the measurement (rpy wraps at +-pi; an unwrapped
+reference hands the MPC a 2*pi error and spins the robot), and saturated at
+0.40 rad of correction so a disturbance cannot wind up into a violent turn.
+`SIM_HEADING_HOLD=0` restores stock behaviour for A/B.
+
+## Waypoint missions: real legs, no opening pivot
+
+`.30 m isn't a test` - the star mission now runs at **r=5.3 m, i.e. 10.1 m
+(33 ft) chords**, and `makeStar` rotates the whole pattern so **wp00 lies due
+north**, which is the direction the dog spawns facing. The mission therefore
+opens with a straight leg instead of a ~140 degree pivot in place - the crawl's
+least stable move, and the one that faceplanted a live demo. `trail_daemon.py`
+applies the identical rotation so the drawn plan still overlays the path.
+
+Result, GPS-driven, controller on the STM32MP1, farm world, GUI up:
+
+```
+[nav] reached wp00 (N= 5.30 E= 0.00) dist=0.34
+[nav] reached wp01 (N=-4.29 E= 3.12) dist=0.34
+[nav] reached wp02 (N= 1.64 E=-5.04) dist=0.35
+[nav] reached wp03 (N= 1.64 E= 5.04) dist=0.33
+[nav] reached wp04 (N=-4.29 E=-3.12) dist=0.33
+[nav] MISSION COMPLETE
+```
+
+Five 10 m legs, every waypoint captured inside 0.35 m of the point itself.
+
+
+## Waypoint navigation for the MIT stack (not just the crawl)
+
+The crawl drives nav from inside `StaticGaitController` because it owns its
+gait. The MIT stack must not be reached into like that, and does not need to be:
+`ConvexMPCLocomotion` already consumes a velocity and a yaw rate through
+`DesiredStateCommand`, which is exactly the interface an operator's stick uses.
+So `mit_sim_main.cpp`'s `navThread()` writes the SAME two channels the bridge
+sequencer and a gamepad write:
+
+```
+leftStickAnalog[1]  -> _x_vel_des
+rightStickAnalog[0] -> _yaw_turn_rate
+```
+
+Nothing in the FSM, the MPC or the WBC knows navigation exists. The sequencer
+still stands the robot, enters LOCOMOTION, lets the gait engage and ramps
+velocity; nav waits for that ramp and then owns both channels. Because wp00 is
+due north and the dog spawns facing north, the handover happens mid-stride on
+the correct heading.
+
+Sign, derived rather than guessed: MIT's yaw rate is CCW-positive (it integrates
+into `_yaw_des`, a world yaw), nav's is compass-sense (positive toward east =
+clockwise), so `rightStickAnalog[0] = -navW`. `WP_YAW_SIGN` overrides it.
+
+Heading datum: bearing is taken RELATIVE to the yaw at mission start
+(`-(rpy[2] - yaw_ref)`), which works identically whether the estimator zeroes
+its yaw (VectorNav path) or reports true world yaw (cheater path) - the two
+differ by exactly that constant. Verified against Gazebo truth: nav reported
+hdg=170 deg while the world pose said 170.3 deg.
+
+### Two bugs this uncovered
+
+1. **`GamepadCommand` was never zero-initialised.** `Stm32mp1HardwareBridge`
+   memset its motor scratch buffers but not the operator command channel, so it
+   started full of stack garbage. The nav driver's "wait until the sequencer has
+   ramped the stick to `SIM_VX`" gate saw a value that already exceeded the
+   target and took the stick at t=0.0 s - before the robot had stood up - which
+   spun it 170 degrees off heading before the first waypoint. In sim that looks
+   like a nav bug; on hardware it is a velocity command nobody asked for.
+2. **Block-buffered stdout loses the whole log when a run is killed.** The sweep
+   harness ends runs with SIGTERM (timeout, or the fall detector), and the
+   default block buffering on a redirected stdout meant a run could produce a
+   ZERO-BYTE log. `setvbuf(stdout, nullptr, _IOLBF, 0)` in main.
+
+## Fall detector: end failed runs immediately
+
+MIT's `ControlFSM::safetyPreCheck()` E-stops on attitude (0.5 rad -> PASSIVE),
+but the PROCESS keeps running, so a run that ended on its side still burned the
+whole timeout before the harness moved on. `RobotRunner::run()` now carries a
+fall detector next to the NaN guard: sustained roll or pitch beyond
+`SIM_FALL_DEG` (default 50 deg, deliberately well past MIT's own E-stop so it
+only fires on a genuine fall) for `SIM_FALL_HOLD_S` (0.5 s) zeroes the legs,
+flushes one `[FALL]` line and exits. `SIM_FALL_EXIT=0` disables it.
+
+Attitude is the right discriminator, for the same reason `SafetyCheck.hpp` uses
+it: a legged robot takes a real acceleration spike on every footfall, so
+acceleration cannot separate "trotting hard" from "fallen over", whereas a
+working quadruped is never on its side or its face.
+
+
+## Model ground truth from Unitree's own binary (see docs/LEGGED_SPORT_REVERSE.md)
+
+`Legged_sport` ships **unstripped with DWARF**, so its build paths and its
+compiled-in constants are readable. It is a direct MIT Cheetah-Software fork
+(MIT's tree verbatim, 9,739 symbols, MIT licence shipped alongside), which makes
+it an authoritative reference for how MIT's stack should be parameterised for a
+Go1. Several of this port's "Go1 adaptations" turned out to be guesses that the
+binary contradicts. All now corrected:
+
+| what | this port had | Unitree's binary | why it matters |
+|---|---|---|---|
+| `_kneeGearRatio` | 6.33 | **9.4995** | 23.70/6.333 = 35.55/9.4995 = 3.742 Nm - ONE motor drives all 12 joints; the strong knee is GEARING |
+| `_kneeMotorTauMax` | 5.616 (invented) | **does not exist** | the field was a workaround for the wrong gear ratio; REMOVED, `Quadruped.h` back to upstream MIT |
+| `_maxLegLength` | 0.385 | **0.430** | bounds foot placement (swing planner + `SafetyChecker` maxPDes) - 0.385 is a self-imposed 10% shorter stride |
+| `_batteryV` | 21.6 | **24.0** | |
+| MPC inertia | (0.102, 0.379, 0.352) | **(0.13662, 0.425578, 0.460359)** | ours was mini-cheetah scaled by mass ratio: **roll -25%, yaw -24%** |
+| world abad limit | ±1.047 (±60°) | **±0.863938 (±49.5°)** | we used the SDK's permissive SOFTWARE bound as a PHYSICAL stop |
+
+**MIT's cost weights are untouched by Unitree** - `Q = {0.25,0.25,10, 2,2,50,
+0,0,0.3, 0.2,0.2,0.1}` appears verbatim twice in `.rodata`, and `alpha = 4e-5`
+matches. So this port's use of MIT's Q is right, and the "short horizon
+under-supports" behaviour is a genuine property of those weights, not a porting
+error.
+
+### Three joint-limit sets, and we had used the wrong layer
+| source | abad | thigh | calf | what it is |
+|---|---|---|---|---|
+| binary + URDF | ±49.5° | -39.3..257.9° | -161.5..-50.9° | **mechanical** |
+| binary, 2nd set | ±55° | -33..165° | -151..-53° | operational clamp (round degrees) |
+| `go1_const.h` | ±60° | -38..170° | -156..-48° | permissive SDK bound |
+
+The worlds now use the mechanical set. The operational set belongs as a
+controller-side clamp and is **not yet enforced anywhere in this port**.
+
+### What Unitree built that MIT (and we) lack
+- **27 FSM states** vs MIT's 12 (`Dance`, `TwoLegHop`, `TurnOverMove`, `Space`,
+  `WallowStand`, `PreStand`, `StandDown`, `ZeroTorque`, ...).
+- `ConvexMPCLocomotion` split into **`runSwingLegControl` / `runContactLegControl`**,
+  plus `trajPlanner` and **`zeroVelTransitionAmend`**; MIT's `updateMPCIfNeeded`
+  and the whole sparse path are gone (this port dropped sparse too).
+- `OffsetDurationGait` gained **`getFlightState`, `getCurrentHybridMode`,
+  `getItNxtHybMode`, `getContactStateExpected`** - explicit flight-phase and
+  hybrid-mode machinery. This port's bounding/pronking/galloping/trotRunning are
+  exactly the flight-phase gaits, and they collapse at gait ENGAGEMENT with
+  velocity commanded to zero. Strong hint the missing piece is this, not tuning.
+- `zeroVelTransitionAmend(int* mpcTable, ControlFSMData&)` **amends the MPC
+  contact table around zero-velocity transitions**, with a debounce so one tick
+  of zero does not trigger a gait change (pseudocode in the doc; constants
+  0.01 m/s threshold, 0.7 duty divisor, 0.42 offset). MIT has no equivalent -
+  it hands the contact table to the MPC unmodified. Our gaits die at exactly
+  that event.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer

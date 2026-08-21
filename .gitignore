@@ -31,3 +31,7 @@ tags
 
 # STM32MP1 cross build output
 mp1-build/
+
+# Mac-first native build tree + its run dir
+host-build/
+host-run/

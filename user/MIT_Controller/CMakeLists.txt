@@ -28,7 +28,10 @@ if(STM32MP1_BUILD)
   add_executable(mit_ctrl_sim
     ${MIT_SRC}
     MIT_Controller.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/mit_sim_main.cpp)
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/mit_sim_main.cpp
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/WaypointNav.cpp)
+  target_include_directories(mit_ctrl_sim PRIVATE
+    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
   target_link_libraries(mit_ctrl_sim robot biomimetics dynacore_param_handler
     qpOASES Goldfarb_Optimizer osqp WBC_Ctrl VisionMPC pthread)
   set_target_properties(mit_ctrl_sim PROPERTIES

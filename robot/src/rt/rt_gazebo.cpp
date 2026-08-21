@@ -2,7 +2,7 @@
  * @file rt_gazebo.cpp
  * @brief UDP link to a Gazebo simulation. See rt_gazebo.h.
  */
-#ifdef linux
+// portable: BSD sockets + pthreads (Linux-only pieces are guarded inline)
 
 #include "rt/rt_gazebo.h"
 
@@ -163,4 +163,4 @@ void gazebo_get_aux(SimAuxSensors* out) {
   *out = g_aux;
 }
 
-#endif  // linux
+  // linux

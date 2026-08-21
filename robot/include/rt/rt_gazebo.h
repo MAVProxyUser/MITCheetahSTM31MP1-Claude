@@ -15,7 +15,8 @@
 #ifndef PROJECT_RT_GAZEBO_H
 #define PROJECT_RT_GAZEBO_H
 
-#ifdef linux
+// (pure UDP, portable: declarations visible on every platform;
+//  the .cpp is only compiled for Linux targets)
 
 #include <stdint.h>
 #include <spi_command_t.hpp>
@@ -100,5 +101,5 @@ void  gazebo_get_aux(SimAuxSensors* out);
 /*! Latest ground-truth body state from the sim (cheater mode). */
 void  gazebo_get_truth(SimTruth* out);
 
-#endif  // linux
+  // linux
 #endif  // PROJECT_RT_GAZEBO_H

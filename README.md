@@ -28,8 +28,39 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | ✅ compiles + runs on the A7 (keeps up @ 500 Hz), stands the Go1; 🚧 trot needs a Go1-specific model (uses Mini Cheetah's) |
-| OpenPilot waypoint navigation | ⬜ planned (GPS already piped in via `gazebo_get_aux()`) |
+| MIT_Controller (MPC + WBC) locomotion | ✅ **walks** — 100 m continuous under `walking2`; 4 of MIT's 8 gaits functional |
+| OpenPilot waypoint navigation | ✅ **GPS star mission complete under convex MPC** (5 × 10.1 m legs, 85.3 s) |
+| Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
+| Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
+
+## Measured locomotion (Mac SITL, cheater state)
+
+100 m dash, fastest speed each gait completes it:
+
+| gait | commanded | 100 m time | cruise |
+|---|---|---|---|
+| `walking2` (21) | 1.0 m/s | **106.8 s** | 0.94 m/s |
+| `trotting` (9) | 0.6 m/s | **173.2 s** | 0.58 m/s |
+| `walking` (20) | — | did not finish | — |
+| `pacing` (8) | — | did not finish | — |
+| `pronking`/`bounding`/`galloping`/`trotRunning` | — | collapse at gait engagement | — |
+
+Reality check against the real machine: a Go1 Air does 2.5 m/s, a Pro 3.5–3.7,
+an Edu sprints to 4.7. **This stack is at ~0.95 m/s** — about a fifth of the
+sprint and slower than a person walking. The four gaits that could go fast are
+exactly the flight-phase ones, and they do not yet establish support through
+gait entry; Unitree's binary has explicit flight-state/hybrid-mode machinery
+that MIT's (and this port's) `OffsetDurationGait` lacks.
+
+## Reverse-engineering the factory controller
+
+`docs/LEGGED_SPORT_REVERSE.md` documents the analysis of Unitree's shipped
+`Legged_sport`: it is a direct MIT Cheetah-Software fork (MIT's source tree
+verbatim in its DWARF paths, MIT licence shipped alongside), which makes it an
+authoritative reference for parameterising this stack for a Go1. It corrected
+six wrong constants in this port — including a knee gear ratio (9.4995, not
+6.33) that removes a field this port had invented, and an MPC inertia tensor
+that was under-estimating roll and yaw by ~25%.
 
 ## Quick start
 

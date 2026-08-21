@@ -75,6 +75,8 @@ class WaypointNav {
   float confirm_dwell = 0.f;     //!< s to hold below confirm_speed
   float kp_heading    = 2.2f;    //!< yaw rate per rad of heading error
   float max_yawrate   = 0.7f;    //!< rad/s - what the crawl can actually deliver
+  float turn_speed_floor = 0.22f; //!< min speed fraction while turning; raise
+                                  //!< for dynamic gaits so they arc, not pivot
   float slow_radius   = 0.8f;    //!< m; ease off speed inside this
   bool  loop          = false;   //!< repeat the mission forever
 

@@ -114,10 +114,12 @@ def mission_waypoints(spec):
     if kind == "star":
         r, n = float(rest[0]), int(rest[1])
         step = 2 if n % 2 == 1 else 1
+        # rotated so wp00 is due north - MUST match WaypointNav::makeStar
+        a0 = 2 * math.pi * (step % n) / n
         out = []
         for i in range(n):
             v = ((i + 1) * step) % n
-            a = 2 * math.pi * v / n
+            a = 2 * math.pi * v / n - a0
             out.append((r * math.cos(a), r * math.sin(a)))
         return out
     if kind == "circle":

@@ -18,7 +18,8 @@
 #ifndef PROJECT_RT_CAN_IMU_H
 #define PROJECT_RT_CAN_IMU_H
 
-#ifdef linux
+// (decls portable; impl Linux-only: declarations visible on every platform;
+//  the .cpp is only compiled for Linux targets)
 
 #include <stdint.h>
 #include "SimUtilities/IMUTypes.h"   // VectorNavData
@@ -55,5 +56,5 @@ void can_imu_close();
 float can_imu_gyro_hz();
 float can_imu_accel_hz();
 
-#endif  // linux
+  // linux
 #endif  // PROJECT_RT_CAN_IMU_H

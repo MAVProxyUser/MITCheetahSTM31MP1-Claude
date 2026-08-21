@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <cmath>
+#include <cstdlib>
 #include "RobotRunner.h"
 #include "Controllers/ContactEstimator.h"
 #include "Controllers/OrientationEstimator.h"
@@ -120,6 +121,64 @@ void RobotRunner::run() {
       fflush(stdout);
       initializeStateEstimator(_cheaterModeEnabled);
       _stateEstimator->run();
+    }
+  }
+
+  // FALL DETECTOR. MIT's ControlFSM already E-stops on attitude
+  // (safetyPreCheck -> 0.5 rad -> PASSIVE), but the PROCESS keeps running, so a
+  // run that ended on its side still burns the whole timeout before the harness
+  // moves on. Attitude is the right discriminator - a legged robot takes a real
+  // acceleration spike on every footfall, so acceleration cannot separate
+  // "trotting hard" from "fallen over", whereas a working quadruped is never on
+  // its side or its face. Threshold is deliberately well beyond MIT's E-stop so
+  // this only fires on a genuine fall, never on a hard corner.
+  // $SIM_FALL_DEG (default 50), $SIM_FALL_HOLD_S (0.5), $SIM_FALL_EXIT=0 to disable.
+  {
+    static const bool fall_exit =
+        !getenv("SIM_FALL_EXIT") || atoi(getenv("SIM_FALL_EXIT")) != 0;
+    static const float fall_rad =
+        (getenv("SIM_FALL_DEG") ? atof(getenv("SIM_FALL_DEG")) : 50.f) * float(M_PI) / 180.f;
+    static const float fall_hold =
+        getenv("SIM_FALL_HOLD_S") ? atof(getenv("SIM_FALL_HOLD_S")) : 0.5f;
+    static float fallen_for = 0.f;
+    if (fall_exit) {
+      // Attitude catches a TIP-OVER. It does not catch a COLLAPSE: when a gait
+      // fails by splaying its legs the body sinks to the deck while staying
+      // roughly level, so roll and pitch never trip and the run burns its whole
+      // timeout on a robot that is already down (measured: trot@1.0 and both
+      // trotRunning runs "fell" at 24 s and still ran to 42 s). So also test
+      // sustained low body height - armed only after the robot has actually
+      // stood up once, since it starts belly-down on the deck by design.
+      static const float fall_z =
+          getenv("SIM_FALL_Z") ? atof(getenv("SIM_FALL_Z")) : 0.15f;
+      static bool stood = false;
+      const float bodyZ = _stateEstimate.position[2];
+      if (bodyZ > 0.22f) stood = true;
+
+      const float roll  = std::fabs(_stateEstimate.rpy[0]);
+      const float pitch = std::fabs(_stateEstimate.rpy[1]);
+      const bool tipped    = (roll > fall_rad || pitch > fall_rad);
+      const bool collapsed = (stood && std::isfinite(bodyZ) && bodyZ < fall_z);
+      if (tipped || collapsed)
+        fallen_for += controlParameters->controller_dt;
+      else
+        fallen_for = 0.f;
+      if (fallen_for >= fall_hold) {
+        printf("[FALL] %s: roll=%.0f deg pitch=%.0f deg z=%.3f m held %.2f s - "
+               "robot is down, stopping (legs go limp via the bridge watchdog)\n",
+               tipped ? "tipped over" : "collapsed",
+               _stateEstimate.rpy[0] * 57.2958f, _stateEstimate.rpy[1] * 57.2958f,
+               bodyZ, fallen_for);
+        fflush(stdout);
+        for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
+        finalizeStep();
+        // _exit, not exit: this runs on the control thread while the MPC worker
+        // and the UDP threads are still live, and running static destructors
+        // underneath them aborts (SIGABRT) instead of exiting cleanly. Flush
+        // first, since _exit does not.
+        fflush(nullptr);
+        _exit(0);
+      }
     }
   }
 

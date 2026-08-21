@@ -145,6 +145,7 @@ def on_pose(msg):
             truth["pos"] = pos
             truth["quat"] = [p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
             truth["t"] = now
+            _ready["pose"] = True
         return
 
 def on_joint(msg: Model):
@@ -157,6 +158,7 @@ def on_joint(msg: Model):
             # gz JointStatePublisher puts pos/vel in axis1
             qj[i]  = j.axis1.position
             qdj[i] = j.axis1.velocity
+        _ready["joints"] = True
 
 # per-joint force publishers
 force_pub = {jn: node.advertise(FORCE_TOPIC(jn), Double) for jn in JOINTS}
@@ -244,7 +246,16 @@ def send_sensor():
     except OSError:
         pass   # controller restarting / gone; keep the bridge alive
 
+_ready = {"joints": False, "pose": False}
+
 def control_step():
+    # STARTUP GUARD. Until the first joint_state and pose have arrived, qj is
+    # all zeros - running the motor PD against q=0 kicks the robot hard enough
+    # to scoot it half a metre and spike its attitude, which latches MIT's
+    # orientation E-stop before the run even begins (measured: dog displaced
+    # 0.45 m at spawn, "Orientation safety check failed!", ESTOP for ever).
+    if not (_ready["joints"] and _ready["pose"]):
+        return
     # WATCHDOG. If the controller stops talking (crash, kill, unplugged cable)
     # the last command must NOT be replayed for ever: a controller killed
     # mid-swing leaves two diagonal feet commanded into the air and the robot

@@ -8,7 +8,9 @@
 #endif
 
 #include <unistd.h>
+#include <chrono>
 #include <cmath>
+#include <thread>
 
 #include "Utilities/PeriodicTask.h"
 #include "Utilities/Timer.h"
@@ -107,6 +109,16 @@ void PeriodicTask::loopFunction() {
   timerSpec.it_interval.tv_nsec = nanoseconds;
 
   timerfd_settime(timerFd, 0, &timerSpec, nullptr);
+#else
+  // NON-LINUX (Mac-first host build): upstream guards the timerfd calls but
+  // leaves NO wait at all here, so the "periodic" task free-runs. Measured on
+  // macOS: the 500 Hz control loop spun at ~1.9 MHz - 3700x real time - which
+  // advances every gait timer, MPC segment counter and integrator at nonsense
+  // rates and drops the robot on its face within a metre. Sleep to an ABSOLUTE
+  // deadline (not a relative sleep, which accumulates the runtime as drift).
+  const auto periodNs =
+      std::chrono::nanoseconds((long long)((double)_period * 1e9));
+  auto nextWake = std::chrono::steady_clock::now();
 #endif
   unsigned long long missed = 0;
 
@@ -120,6 +132,17 @@ void PeriodicTask::loopFunction() {
 #ifdef linux
     int m = read(timerFd, &missed, sizeof(missed));
     (void)m;
+#else
+    nextWake += periodNs;
+    auto now = std::chrono::steady_clock::now();
+    if (nextWake < now) {
+      // Overran the period. Re-base rather than spinning to "catch up", which
+      // is what timerfd reports as a missed tick.
+      ++missed;
+      nextWake = now;
+    } else {
+      std::this_thread::sleep_until(nextWake);
+    }
 #endif
     _maxPeriod = std::max(_maxPeriod, _lastPeriodTime);
     _maxRuntime = std::max(_maxRuntime, _lastRuntime);

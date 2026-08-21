@@ -21,33 +21,45 @@ Quadruped<T> buildGo1() {
   go1._bodyLength = 0.1881 * 2;       // 0.3762  (FR_hip_joint x)
   go1._bodyWidth = 0.04675 * 2;       // 0.0935  (FR_hip_joint y)
   go1._bodyHeight = 0.114;
-  go1._abadGearRatio = 6.33;
-  go1._hipGearRatio = 6.33;
-  go1._kneeGearRatio = 6.33;
+  // GEAR RATIOS, recovered from Unitree's own Legged_sport binary (the constant
+  // pool of its buildMiniCheetah<float>(), at .rodata 0x2fdc20):
+  //     6.333   6.333   -9.4995
+  // The knee is geared 9.4995, NOT 6.33. This port previously assumed one ratio
+  // for all three joints and then had to invent a second torque cap to explain
+  // the knee's 35.55 Nm; see _motorTauMax below. Unitree's sign on the knee is
+  // negative (joint direction convention); the magnitude is what the actuator
+  // model needs. Mini-cheetah does the same thing with 6/6/9.33.
+  go1._abadGearRatio = 6.333;
+  go1._hipGearRatio = 6.333;
+  go1._kneeGearRatio = 9.4995;
   go1._abadLinkLength = 0.08;         // hip -> thigh lateral offset
   go1._hipLinkLength = 0.213;         // thigh
   go1._kneeLinkY_offset = 0.0;
   go1._kneeLinkLength = 0.213;        // calf
-  // Reach is set by the KNEE LIMIT, not by the link lengths. The Go1 shank is
-  // limited to -161..-51 deg, so the leg can never straighten: at the most
-  // extended knee the hip-to-foot distance is
-  //   sqrt(l2^2 + l3^2 + 2*l2*l3*cos(0.888)) = 0.385 m
-  // (0.426 m would need a straight leg the joint cannot reach). MIT uses this
-  // for the swing planner and for SafetyChecker's maxPDes = L*sin(60deg), so an
-  // optimistic value invites commands the joint physically cannot honour.
-  go1._maxLegLength = 0.385;
+  // Unitree's binary carries 0.430 here (.rodata 0x2fdc40). This port had
+  // derived 0.385 from the URDF knee limit (-51 deg), reasoning that the leg can
+  // never straighten so the reach is sqrt(l2^2+l3^2+2*l2*l3*cos(0.888)). That
+  // is geometrically true but it is NOT what the factory controller uses, and
+  // this value feeds the swing planner and SafetyChecker's
+  // maxPDes = L*sin(60deg) - i.e. it BOUNDS how far the controller may place a
+  // foot. Running 0.385 against a machine whose own firmware allows 0.430 is a
+  // self-imposed 10% shorter stride, on the axis that sets speed.
+  go1._maxLegLength = 0.430;
 
-  // MOTOR-side torque caps. ActuatorModel computes
+  // MOTOR-side torque cap. ActuatorModel computes
   //     tau_joint = gearRatio * clamp(tau_motor, +-_tauMax)
-  // so these are the published JOINT limits divided by the 6.33 gear:
-  //   hip / abad : 23.70 Nm / 6.33 = 3.744
-  //   knee       : 35.55 Nm / 6.33 = 5.616   (Go1 knee is 1.5x, same gear)
-  // Putting the joint figure (23.7) here made the model believe 150 Nm per
-  // joint - 6.3x the real machine - so the WBC planned torques the actuator
-  // could never deliver and Gazebo clamped them at the URDF's 23.7/35.55.
+  // ONE motor type drives all three joints - the Go1's stronger knee comes from
+  // GEARING, not from a bigger actuator:
+  //     23.70 Nm / 6.333  = 3.7424 Nm at the motor
+  //     35.55 Nm / 9.4995 = 3.7423 Nm at the motor
+  // Identical to four decimal places, which is the proof. This port used to set
+  // one gear ratio (6.33) for all three joints and then added a second cap,
+  // _kneeMotorTauMax = 5.616, to recover the knee's torque - a workaround for a
+  // wrong premise ("the Go1 knee is 1.5x at the SAME gear"). MIT's single-value
+  // struct expressed this correctly all along, exactly as it does for
+  // mini-cheetah's 6/6/9.33. The hack is gone; the gear ratio carries it.
   go1._motorTauMax = 3.744f;
-  go1._kneeMotorTauMax = 5.616f;
-  go1._batteryV = 21.6;
+  go1._batteryV = 24.0;   // Unitree binary .rodata 0x2fdc40 (was 21.6 here)
   go1._motorKT = .05;
   go1._motorR = 0.173;
   go1._jointDamping = .01;
