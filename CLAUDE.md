@@ -170,6 +170,28 @@ Starting point was 0.1 m/s. Three fixes took the trot to **~1.1 m/s sustained**
 Plus **stance force feed-forward** (each stance leg gets bodyweight/n through
 J^T), which cut steady-state joint tracking error from 0.25 rad to 0.13.
 
+### Where ~1 m/s comes from (literature vs this port)
+| approach | robot | max speed |
+|---|---|---|
+| PD + ILC (learned feed-forward torque) | Go1 hardware | 0.4 m/s |
+| Bezier curves + Cartesian impedance | Go1 | 1.0 m/s |
+| **this port's hand-rolled trot** | Go1 sim | **~1.1 m/s** |
+| contact-implicit MPC | Go1 | 3.0 m/s |
+| Unitree factory controller (RL) | Go1 | 4.7 m/s |
+
+The split is not position-vs-force control - the ETH RL policy also emits joint
+target positions into a PD controller and still goes fast. The split is whether
+the REFERENCE TRAJECTORY is dynamically consistent:
+  * hand-drawn kinematic foot paths (this port, the Bezier work, PD-ILC) plateau
+    around 1 m/s;
+  * references from an optimal control problem - MIT's SRBM + QP, or ETH's
+    variable-height inverted pendulum, `r_ddot = (r - x_cop)(h_ddot+g)/r_z + g` -
+    reach 3 m/s and beyond.
+Two specific deficiencies of the kinematic plan show up at speed: body height is
+pinned at a constant H (a VHIPM lets it breathe, which is what buys a flight
+phase), and foothold choice never reasons about where the centre of pressure has
+to be for the CoM acceleration the gait is asking for.
+
 **The wall: ~1.1 m/s, and it is structural, not tuning.** Measured cruise speed
 is flat at 0.6-1.1 m/s no matter what is commanded (1.0 / 1.8 / 2.5 / 3.5 all
 land in the same band, and above ~2 m/s commanded it simply falls over). Swept
@@ -181,10 +203,13 @@ Why it caps: this is a POSITION-controlled gait. The only thing that decides
 ground reaction force is joint tracking error, so the controller cannot choose
 how hard each foot pushes, cannot exploit a flight phase, and cannot reject a
 touchdown impulse except by stiffening (which was measured to make it worse).
-Go1's published 2.5-4.7 m/s comes from force control - solving for ground
-reaction forces and commanding them - which is precisely what MIT's convex MPC
-does. **The credible route to real-world speed is finishing the MPC**, not
-tuning this gait further; it is a good 1 m/s waypoint gait and a poor sprinter.
+Cartesian impedance at the published Go1 gains (Kxd=1000 N/m, Bxd=44 Ns/m, via
+`TR_KP_C`/`TR_KD_C`; joint PD at kp=120 Nm/rad is ~2700 N/m at the foot, nearly
+3x stiffer) was also tried: 0.64-0.80 m/s, same band.
+
+**The credible route to real-world speed is a dynamically-consistent reference** -
+finishing MIT's convex MPC, which is already ported here and only tumbles ~1 s
+after gait entry. This trot is a good 1 m/s waypoint gait and a poor sprinter.
 
 ### What made the dynamic trot work at all
 - **Attitude feedback sign.** Extending the leg on the side that is DROPPING

@@ -50,7 +50,8 @@ void TrotController::runController() {
   // ---- knobs (read once) ----
   static float V = -1, T = 0, H = 0, LIFT = 0, KV = 0;
   static float KPR = 0, KDR = 0, KPP = 0, KDP = 0, KPJ = 0, KDJ = 0, YAW = 0, STAND_S = 0;
-  static float DUTY = 0, FF = 0;
+  static float DUTY = 0, FF = 0, KPC = 0, KDC = 0;
+  static int CART = 1;
   if (V < 0) {
     V       = getenv("TR_V")        ? atof(getenv("TR_V"))        : 0.6f;
     T       = getenv("TR_T")        ? atof(getenv("TR_T"))        : 0.40f;
@@ -62,6 +63,14 @@ void TrotController::runController() {
     KPP     = getenv("TR_KP_PITCH") ? atof(getenv("TR_KP_PITCH")) : 0.09f;
     KDP     = getenv("TR_KD_PITCH") ? atof(getenv("TR_KD_PITCH")) : 0.012f;
     KPJ     = getenv("TR_KP_J")     ? atof(getenv("TR_KP_J"))     : 120.f;
+    // Cartesian (foot-space) impedance. Defaults are the published Go1 values
+    // from Bezier-curve + impedance control work (Kxd=1000 I N/m, Bxd=44 I
+    // Ns/m). Joint PD at kp=120 Nm/rad is an effective foot stiffness of
+    // kp/l^2 ~ 2700 N/m - nearly 3x stiffer than that - which is why this gait
+    // bounced (17 cm of body heave) and why stiffening it made things worse.
+    KPC     = getenv("TR_KP_C")     ? atof(getenv("TR_KP_C"))     : 1000.f;
+    KDC     = getenv("TR_KD_C")     ? atof(getenv("TR_KD_C"))     : 44.f;
+    CART    = getenv("TR_JOINTPD") ? 0 : 1;
     FF      = getenv("TR_FF")       ? atof(getenv("TR_FF"))       : 1.0f;
     KDJ     = getenv("TR_KD_J")     ? atof(getenv("TR_KD_J"))     : 3.f;
     YAW     = getenv("TR_YAW")      ? atof(getenv("TR_YAW"))      : 0.f;
@@ -294,6 +303,32 @@ void TrotController::runController() {
     _legController->commands[leg].forceFeedForward = fff;
     _legController->commands[leg].qDes = Vec3<float>(q[0], q[1], q[2]);
     _legController->commands[leg].qdDes = qdDes;
+
+    if (CART) {
+      // Impedance in FOOT space: LegController turns (pDes-p, vDes-v) into a
+      // foot force and maps it through J^T, so the leg is a spring-damper to
+      // the planned foot point rather than three independent joint servos.
+      // Foot velocity comes from differentiating the planned foot position.
+      Vec3<float> pDes(x, y, z);
+      Vec3<float> vDes = Vec3<float>::Zero();
+      if (_pPrevValid[leg]) {
+        vDes[0] = clampf((x - _pPrev[leg][0]) / dt, -12.f, 12.f);
+        vDes[1] = clampf((y - _pPrev[leg][1]) / dt, -12.f, 12.f);
+        vDes[2] = clampf((z - _pPrev[leg][2]) / dt, -12.f, 12.f);
+      }
+      _pPrev[leg][0] = x; _pPrev[leg][1] = y; _pPrev[leg][2] = z;
+      _pPrevValid[leg] = true;
+
+      float ks = swinging ? 0.45f : 1.f;   // softer in swing: touchdown is gentler
+      _legController->commands[leg].pDes = pDes;
+      _legController->commands[leg].vDes = vDes;
+      _legController->commands[leg].kpCartesian = Mat3<float>::Identity() * (KPC * ks);
+      _legController->commands[leg].kdCartesian = Mat3<float>::Identity() * KDC;
+      // joint PD off - the impedance IS the controller now
+      _legController->commands[leg].kpJoint = Mat3<float>::Zero();
+      _legController->commands[leg].kdJoint = Mat3<float>::Identity() * 0.2f;
+      continue;
+    }
     if (getenv("TR_DBG")) {
       _trkErr += fabsf(q[0] - _legController->datas[leg].q[0])
                + fabsf(q[1] - _legController->datas[leg].q[1])

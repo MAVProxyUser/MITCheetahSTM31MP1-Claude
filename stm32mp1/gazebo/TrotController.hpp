@@ -47,6 +47,8 @@ class TrotController : public RobotController {
   bool  _wasStance[4] = {true, true, true, true};
   float _qPrev[4][3] = {{0}};
   bool  _qPrevValid[4] = {false, false, false, false};
+  float _pPrev[4][3] = {{0}};
+  bool  _pPrevValid[4] = {false, false, false, false};
   float _trkErr = 0.f;
   int   _trkN = 0;
 };
