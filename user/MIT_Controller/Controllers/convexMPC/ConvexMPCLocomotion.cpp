@@ -421,10 +421,10 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     //if(firstSwing[i]) {
     //footSwingTrajectories[i].setHeight(.05);
 #ifdef USE_GO1_MODEL
-    footSwingTrajectories[i].setHeight(.07);   // Go1 leg is 5% longer; give the
-                                               // swing real clearance - a foot
-                                               // that clips is a trip, and this
-                                               // gait fails in roll.
+    // Swing clearance, env-tunable: the 2.5 m walk died on a foot scuff (z dip
+    // mid-swing), and clearance is the direct lever on scuffs.
+    static const float _swingH = getenv("SIM_SWING_H") ? atof(getenv("SIM_SWING_H")) : 0.07f;
+    footSwingTrajectories[i].setHeight(_swingH);
 #else
     footSwingTrajectories[i].setHeight(.06);
 #endif

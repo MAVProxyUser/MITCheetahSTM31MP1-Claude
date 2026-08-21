@@ -874,7 +874,56 @@ every tick or only on MPC update ticks.
 3. Only then tune gaits. Anything measured before the MPC runs at rate is noise:
    the same gait/config swings between 0 and 3000+ safety trips run to run.
 
+## THE MIT TROT WALKS (end of the Fable session)
+
+**Final measured result: 11.40 m of continuous ConvexMPC+WBIC trotting** on the
+STM32MP1 (VX=0.4, ~60 s of walking at ~0.19 m/s delivered, curving left without
+a heading hold, transport-VALID, cheater state). Progression within one
+session: could not survive gait engage -> 0.83 m -> 1.37 m -> 2.51 m -> 5.92 m
+-> 11.40 m.
+
+The working configuration:
+```
+SIM_MPC_ASYNC=0          # inline again: the reduced solver fits MIT's segment
+SIM_MPC_HORIZON=10  SIM_MPC_MS=36
+SIM_WBC_DECIM=2          # WBC every other tick, outputs CACHED between runs
+SIM_SWING_H=0.09         # swing clearance: the single biggest distance lever
+SIM_VX_DELAY_S=4  SIM_GAIT_WAIT_MS (default 600)
+yaml: use_wbc 1, use_jcqp 1, jcqp_rho 0.6, jcqp_max_iter 60
+```
+
+The three final killers, in the order they were unmasked (all found via the
+Mac-side bridge dump - board-side printf on the FIFO control thread corrupts
+the very runs it instruments):
+1. **WBC decimation sent zeros.** setupStep() zeroCommand()s EVERY tick, so on
+   WBC-skipped ticks the legs got zero gains/torque - 250 Hz healthy/zero
+   chatter at decim 2, 80% zeros at decim 5. Fixed by caching the WBC outputs
+   and rewriting them on skipped ticks. This alone took the trot from
+   "collapses at engage, always" to walking.
+2. **The board's eth0 PHY flaps** (one 107-minute outage; a re-drop 62 s after
+   recovery). Runs that overlap a flap die exactly like controller bugs (the
+   bridge watchdog folds the robot when commands stop). `run_valid.sh` gates
+   every measurement on carrier-before + dmesg-link-delta-after. HARDWARE
+   ATTENTION NEEDED: cable / port / PSU on the OSD32MP1's ethernet.
+3. **Swing clearance**: the surviving walks died on foot scuffs; 0.07 -> 0.09 m
+   swing height doubled then quadrupled the distance (SIM_SWING_H).
+
+Solver work that made inline viable again (details in earlier sections):
+349 ms -> 32 ms per solve = contact-only reduction (port of MIT's own
+qpOASES-path elimination to the JCQP path) x single precision x rho 0.6/60
+iters. 32 ms fits inside MIT's own 36-45 ms MPC segment, so MIT's synchronous
+semantics are restored and the whole async apparatus (worker, pipeline,
+bootstrap, kSeg) is now OPTIONAL (SIM_MPC_ASYNC=1) rather than required.
+
+With the REAL estimator (no cheater): walks 0.65 m then falls - the LinearKF
+under a trot on this transport is the next frontier.
+
 ## Still open
+- Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
+  the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer
+  (yaw + velocity like the crawl has) gives missions AND heading hold at once.
+- Real-estimator walking: 0.65 m vs cheater's 11.4 m. LinearKF tuning /
+  contact-phase interplay under the trot.
 - The trot's travel direction is inverted: at 1.0 m/s commanded it makes 1.00
   m/s of ground speed with the *magnitude right and the sign wrong*, and
   flipping the stance sweep changes the magnitude rather than the sign, so the
