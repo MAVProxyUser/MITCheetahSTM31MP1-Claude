@@ -135,3 +135,106 @@ Fixes that got the MIT stack (and everything else) healthy — each was load-bea
 trot/walk gaits still tumble within ~1 s of gait start — all four legs fold in the
 first 50 ms (whole-body command transient at gait entry, under investigation).
 The convex-MPC A→B path is deferred; the static crawl carries the mission.
+
+## Gaits, speed limits, and waypoint navigation (Aug 2026, part 2)
+
+### Three gaits, and which to use
+| binary | gait | measured | stability | use |
+|---|---|---|---|---|
+| `static_gait_sim` | statically-stable crawl, one leg at a time, lateral CoM shift | 0.06-0.15 m/s | **rock solid** (10-min runs, full circle missions) | waypoint missions, the mission workhorse |
+| `trot_sim` | dynamic trot, diagonal pairs, Raibert footholds + attitude feedback | ~0.1 m/s sustained; upright to ~0.5 m/s cmd | marginal above 0.5 m/s cmd | speed work in progress |
+| `mit_ctrl_sim` | MIT convex MPC + WBC | BALANCE_STAND only | trot/walk tumble ~1 s after gait start | reference implementation |
+
+**Reality check on speed.** A Go1 does 2.5-3.7 m/s in the real world and 4.7 m/s
+flat out, but that is the *hardware* limit, not this stack's. Two things cap us
+well below that today, and neither is the A7's compute (the control loop runs
+1.4 ms of a 2 ms budget):
+  1. A statically-stable crawl can never be fast - it is a sequence of static
+     poses by definition. 0.1-0.3 m/s is the ceiling for this gait class.
+  2. The dynamic gaits (ours and MIT's) both destabilise well before Go1 speeds
+     through the UDP SITL loop. Real speed needs force control that survives
+     that latency - see below.
+
+### Speed: what was won, and the wall that is left (measured)
+Starting point was 0.1 m/s. Three fixes took the trot to **~1.1 m/s sustained**
+(21.6 m straight, upright, roll 2.5 deg) - a 10x gain, all of them real bugs:
+1. **Swing touchdown scrub.** In the body frame a stance foot moves backward at
+   v, so a swing profile arriving with ZERO body-frame velocity lands moving
+   FORWARD at v over the ground and brakes the robot every step. The swing is
+   now a cubic Hermite whose end slopes equal the stance sweep rate.
+2. **Landing slam.** `LIFT*sin(pi*s)` hits the ground at `pi*LIFT/T_sw` ~ 2 m/s.
+   `LIFT*(1-cos(2*pi*s))/2` has zero vertical velocity at both ends.
+3. **qdDes pinned at zero.** The joint D term then fights every intentional
+   motion - at kd=3 and real swing speeds that is >10 Nm per joint of pure
+   braking. qdDes now comes from differentiating the commanded angles.
+Plus **stance force feed-forward** (each stance leg gets bodyweight/n through
+J^T), which cut steady-state joint tracking error from 0.25 rad to 0.13.
+
+**The wall: ~1.1 m/s, and it is structural, not tuning.** Measured cruise speed
+is flat at 0.6-1.1 m/s no matter what is commanded (1.0 / 1.8 / 2.5 / 3.5 all
+land in the same band, and above ~2 m/s commanded it simply falls over). Swept
+without success: cycle time 0.24-0.52 s, duty 0.54-0.80, body height 0.24-0.28,
+joint kp 60-320, kd 3-14, lift 0.06-0.10, stride/reach out to 0.30 m, and the
+trot / pace / bound / pronk pair patterns (`TR_GAIT`).
+
+Why it caps: this is a POSITION-controlled gait. The only thing that decides
+ground reaction force is joint tracking error, so the controller cannot choose
+how hard each foot pushes, cannot exploit a flight phase, and cannot reject a
+touchdown impulse except by stiffening (which was measured to make it worse).
+Go1's published 2.5-4.7 m/s comes from force control - solving for ground
+reaction forces and commanding them - which is precisely what MIT's convex MPC
+does. **The credible route to real-world speed is finishing the MPC**, not
+tuning this gait further; it is a good 1 m/s waypoint gait and a poor sprinter.
+
+### What made the dynamic trot work at all
+- **Attitude feedback sign.** Extending the leg on the side that is DROPPING
+  means `dz < 0` (foot further below the body), i.e.
+  `dz = (kp*roll + kd*wx)*SIDE + (kp*pitch + kd*wy)*FRONT`. The opposite sign is
+  positive feedback: the robot rolls onto the same side within ~2 s on *every*
+  run - a suspiciously repeatable failure, which is the tell.
+- **Duty factor > 0.5** (`TR_DUTY`, default 0.65). A pure trot (duty 0.5) is
+  always on exactly two feet and free to roll about the support diagonal the
+  whole time. Overlapping the pairs gives an all-four double-support window.
+- **Heading hold** (`yawRef` integrating the commanded yaw rate). Without it the
+  trot spirals and ends up travelling sideways relative to its start heading.
+
+### Waypoint navigation (OpenPilot port)
+`WaypointNav.{hpp,cpp}` ports NinjaPilot's `PathPlanner` arrival logic:
+- **half-plane arrival** - a waypoint counts as reached once you cross the plane
+  through it perpendicular to the inbound leg (within `corridor*accept_radius`),
+  not just inside the acceptance sphere. Without it a vehicle that overshoots by
+  centimetres is commanded back to the point and hooks around it;
+- acceptance radius, plus optional **confirm-arrival** (speed under a threshold
+  held for a dwell) for missions that want a precise stop on a corner;
+- pure-pursuit steering to a yaw rate, easing speed near the point and when
+  badly mis-aimed.
+Position comes from **GPS** (`gazebo_get_aux()` -> equirectangular projection
+about the first fix), which is exactly the path the real dog will use over CAN;
+heading from the state estimator.
+
+Run a mission: `WP_MISSION=circle:<radius>:<points>` or `outback:<metres>`,
+with `WP_ACCEPT` (acceptance radius) and `WP_LOOP`. Verified: 3 m circle,
+8 breadcrumbs, GPS-driven, upright throughout.
+
+**Frame convention (easy to get backwards).** Gazebo world is ENU (x=East,
+y=North). The dog spawns yaw=+90 deg so body-x points north. The estimator zeroes
+its initial yaw, so `rpy[2]` is CCW-from-north and compass bearing (positive
+toward EAST) is its NEGATIVE. The gait's turn command is CCW-positive, so the
+nav's steering output is negated on the way in.
+
+### SITL harness (use these, they are much faster than doing it by hand)
+- `batch_test.sh <configfile>` - many gait configs against ONE gz server, with
+  survival / distance / mean speed / yaw drift scoring per run.
+  **`reset: {model_only: true}` is a NO-OP** (returns `data:true`, moves nothing)
+  and silently invalidates every run after the first; `reset: {all: true}` works
+  but occasionally aborts the server, so the harness verifies the reset actually
+  happened and reloads the world when it did not.
+- `record_video.py <out.mp4> <seconds>` - headless capture from the `chase_cam`
+  sensor mounted on the trunk. The old `/gui/screenshot` polling popped a
+  "Saved image to:" toast per frame and stalled the GUI.
+- Spawn is `z=0.08`, belly on the deck, and every controller boots **limp** for
+  1 s before standing - the real Go1 procedure (lie flat -> power on -> stand ->
+  walk), which also makes each SITL run start from an identical settled pose.
+- The farm world keeps `agriculture_world` **with collision**, so buildings and
+  fences are solid; probe spheres measured the terrain around spawn as flat to
+  ~1 mm over +-6 m, so footing is honest and the feet do not clip.

@@ -2,6 +2,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include "StaticGaitController.hpp"
+#include "WaypointNav.hpp"
+#include "rt/rt_gazebo.h"     // gazebo_get_aux(): GPS, same data the real robot gets over CAN
 
 // Go1 geometry (matches buildGo1 / the URDF)
 static const float L1 = 0.08f;    // abad link (lateral hip offset)
@@ -64,7 +66,77 @@ void StaticGaitController::runController() {
 
   float tg = t - standTime;
   float vscale = (tg > 0) ? fminf(tg / T, 1.f) : 0.f;   // speed ramp, 1st cycle
-  float stride = VX * T;
+
+  // ---- drive command: waypoint mission, operator stick, or the SG_* defaults ----
+  // $WP_MISSION=circle:<radius>:<points>  or  outback:<distance>
+  // Position comes from GPS (what the real dog will have over CAN), heading
+  // from the state estimator.
+  static WaypointNav* nav = nullptr;
+  static bool navTried = false;
+  static float navV = 0.f, navW = 0.f;
+  if (!navTried) {
+    navTried = true;
+    const char* m = getenv("WP_MISSION");
+    if (m) {
+      nav = new WaypointNav();
+      float r = 3.f, d = 5.f; int pts = 8;
+      if (sscanf(m, "star:%f:%d", &r, &pts) >= 1)      nav->makeStar(r, pts, VX);
+      else if (sscanf(m, "circle:%f:%d", &r, &pts) >= 1) nav->makeCircle(r, pts, VX);
+      else if (sscanf(m, "outback:%f", &d) == 1)    nav->makeOutAndBack(d, VX);
+      else                                          nav->makeCircle(3.f, 8, VX);
+      if (getenv("WP_ACCEPT")) nav->accept_radius = atof(getenv("WP_ACCEPT"));
+      if (getenv("WP_LOOP"))   nav->loop = true;
+    }
+  }
+
+  static float vx_cmd = -1.f, turn_cmd = 0.f;
+  if (vx_cmd < 0.f) { vx_cmd = 0.f; }
+  {
+    float vx_tgt = VX, tr_tgt = TURN;
+    if (nav) {
+      SimAuxSensors aux;
+      gazebo_get_aux(&aux);
+      if (!nav->originSet() && aux.gps_lat != 0.0) nav->setOrigin(aux.gps_lat, aux.gps_lon);
+      if (nav->originSet()) {
+        float N, E;
+        nav->toLocal(aux.gps_lat, aux.gps_lon, &N, &E);
+        // Estimator yaw is zeroed at start and the dog spawns facing north, so
+        // heading-from-north (positive toward EAST) is the NEGATIVE of it:
+        // +yaw_est is CCW in ENU, i.e. north -> west.
+        float yaw_est = _stateEstimate ? _stateEstimate->rpy[2] : 0.f;
+        float bearing = -yaw_est;
+        float spd = 0.f;
+        if (_stateEstimate) {
+          float vb0 = _stateEstimate->vBody[0], vb1 = _stateEstimate->vBody[1];
+          spd = sqrtf(vb0 * vb0 + vb1 * vb1);
+        }
+        float nv = 0.f, nw = 0.f;
+        bool running = nav->update(N, E, bearing, spd, 0.002f, &nv, &nw);
+        navV = running ? nv : 0.f;
+        // nav steers in compass sense (+ = toward east); the gait's turn command
+        // is CCW-positive, so it takes the opposite sign.
+        navW = running ? -nw : 0.f;
+        static int navlog = 0;
+        if ((++navlog % 250) == 0) {
+          printf("[nav] wp%d/%d  pos N=%.2f E=%.2f  hdg=%.0f deg  d=%.2f m  v=%.2f w=%.2f\n",
+                 nav->activeIndex(), nav->count(), N, E, bearing * 57.2958f,
+                 nav->lastDistance(), navV, navW);
+          fflush(stdout);
+        }
+      }
+      vx_tgt = navV; tr_tgt = navW;
+    } else if (_driverCommand) {
+      float vx_in = _driverCommand->leftStickAnalog[1];
+      float tr_in = _driverCommand->rightStickAnalog[0];
+      if (fabsf(vx_in) > 1e-4f) vx_tgt = vx_in;
+      if (fabsf(tr_in) > 1e-4f) tr_tgt = tr_in;
+    }
+    float a = 0.004f;                         // ~0.5 s time constant at 500 Hz
+    vx_cmd   += a * (vx_tgt - vx_cmd);
+    turn_cmd += a * (tr_tgt - turn_cmd);
+  }
+  float stride = vx_cmd * T;
+  float TURN_NOW = turn_cmd;
   float ph = (tg > 0) ? fmodf(tg / T, 1.f) : 0.f;       // cycle phase 0..1
   int   seg = (int)(ph * 4.f) & 3;                      // quarter 0..3
   float sp = ph * 4.f - seg;                            // phase in quarter 0..1
@@ -80,12 +152,25 @@ void StaticGaitController::runController() {
                    : leanNow + (leanNext - leanNow) * 0.5f *
                          (1.f - cosf((sp - 0.7f) / 0.3f * (float)M_PI));
 
+  // ---- boot phase: legs limp on the deck (real Go1 power-on procedure) ----
+  const float BOOT_S = 1.0f;
+  if (t < BOOT_S) {
+    for (int leg = 0; leg < 4; ++leg) {
+      _legController->commands[leg].qDes = _legController->datas[leg].q;
+      _legController->commands[leg].qdDes = Vec3<float>::Zero();
+      _legController->commands[leg].tauFeedForward = Vec3<float>::Zero();
+      _legController->commands[leg].kpJoint = Mat3<float>::Zero();
+      _legController->commands[leg].kdJoint = Mat3<float>::Identity() * 0.5f;
+    }
+    return;
+  }
+
   for (int leg = 0; leg < 4; ++leg) {
     float x, y, z, qDes[3];
 
     if (t < standTime) {
       // ramp into the crouch-stand at home positions
-      float s = fminf(t / (standTime - 1.0f), 1.f);
+      float s = fminf((t - BOOT_S) / (standTime - BOOT_S - 0.5f), 1.f);
       legIK(leg, x_home, SIDE[leg] * L1, -(0.10f + (H - 0.10f) * s), qDes);
       _legController->commands[leg].qDes = Vec3<float>(qDes[0], qDes[1], qDes[2]);
       _legController->commands[leg].qdDes = Vec3<float>::Zero();
@@ -95,8 +180,8 @@ void StaticGaitController::runController() {
       continue;
     }
 
-    // per-leg stride (differential for turning: +TURN shortens right strides)
-    float legStride = stride * vscale * (1.f - 0.5f * TURN * SIDE[leg]);
+    // per-leg stride (differential for turning: +turn shortens right strides)
+    float legStride = stride * vscale * (1.f - 0.5f * TURN_NOW * SIDE[leg]);
     y = SIDE[leg] * L1 + lean;
 
     if (leg == swingLeg && sp >= 0.15f && sp <= 0.85f && vscale > 0.02f) {

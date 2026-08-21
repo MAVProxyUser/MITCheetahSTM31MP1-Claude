@@ -39,10 +39,22 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>50 50</size>
+              <size>400 400</size>
             </plane>
           </geometry>
         </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>400 400</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.35 0.42 0.3 1</ambient>
+            <diffuse>0.40 0.48 0.34 1</diffuse>
+          </material>
+        </visual>
       </link>
     </model>
     <model name="go1">
@@ -1848,8 +1860,8 @@
     </scene>
     <!-- OpenPilot farm scenery (Clearpath cpr_agriculture + grass horizon ring),
          reused verbatim so the dog walks the same field the OP quadcopter flew. -->
-    <include><uri>model://grass_horizon</uri></include>
-    <include><uri>model://agriculture_world</uri></include>
+    
+    
 
     <!-- World-fixed MISSION CAMERA: straight down over the mission area, wide
          enough for a 5 m star plus margin. Unlike the trunk-mounted chase_cam

@@ -45,9 +45,16 @@ void FSM_State_BalanceStand<T>::onEnter() {
   
   _ini_body_pos = (this->_data->_stateEstimator->getResult()).position;
 
+#ifdef USE_GO1_MODEL
+  // Always regulate to the proven-stable stand height. Holding whatever
+  // (crouched) height we entered with keeps the knees deeply folded - the
+  // marginal impedance regime where the WBC stand slowly rolls over.
+  _ini_body_pos[2] = 0.29;
+#else
   if(_ini_body_pos[2] < 0.2) {
     _ini_body_pos[2] = 0.3;
   }
+#endif
 
   last_height_command = _ini_body_pos[2];
 

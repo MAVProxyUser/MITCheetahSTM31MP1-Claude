@@ -186,7 +186,7 @@ void Stm32mp1HardwareBridge::run() {
         // from the ~0.20 m stand-up crouch to the 0.29 m locomotion height. Jumping
         // 1 -> 4 directly makes the MPC see a 9 cm height step and command ~2x
         // bodyweight stance forces (a leap) right as the gait starts.
-        if (final_mode == 4) {
+        if (final_mode == 4 && !getenv("SIM_SKIP_BAL")) {
           usleep((t_bal - t_stand) * 1000000);
           _robotParams.control_mode = 3;              // K_BALANCE_STAND
           printf("[sim] control_mode -> BALANCE_STAND\n"); fflush(stdout);

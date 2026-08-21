@@ -240,6 +240,13 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       footSwingTrajectories[i].setFinalPosition(pFoot[i]);
 
     }
+    // Make the FIRST control tick land on an MPC solve boundary.
+    // iterationCounter++ runs before updateMPCIfNeeded, so with a fresh
+    // counter the first solve would otherwise wait iterationsBetweenMPC
+    // ticks (~26 ms) - during which f_ff/Fr_des are ZERO and the stance
+    // legs have only the soft joint PD: the body free-falls at gait entry,
+    // then the catch-up force spike tumbles the robot.
+    iterationCounter = iterationsBetweenMPC - 1;
     firstRun = false;
   }
 

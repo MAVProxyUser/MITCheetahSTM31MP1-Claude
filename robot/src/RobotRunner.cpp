@@ -162,9 +162,10 @@ void RobotRunner::run() {
             for (int leg = 0; leg < 4; ++leg) {
               auto& c = _legController->commands[leg];
               auto& d = _legController->datas[leg];
-              printf("[LEG%d] q=%.2f %.2f %.2f p=%.3f %.3f %.3f "
+              printf("[LEG%d] q=%.2f %.2f %.2f qd=%.1f %.1f %.1f qdDes=%.1f %.1f %.1f "
                      "fff=%.1f %.1f %.1f tff=%.2f %.2f %.2f\n",
-                     leg, d.q[0], d.q[1], d.q[2], d.p[0], d.p[1], d.p[2],
+                     leg, d.q[0], d.q[1], d.q[2], d.qd[0], d.qd[1], d.qd[2],
+                     c.qdDes[0], c.qdDes[1], c.qdDes[2],
                      c.forceFeedForward[0], c.forceFeedForward[1], c.forceFeedForward[2],
                      c.tauFeedForward[0], c.tauFeedForward[1], c.tauFeedForward[2]);
             }
