@@ -8,6 +8,7 @@
 #endif
 #include <pthread.h>
 #include <sched.h>
+#include <cmath>
 #include "ConvexMPCLocomotion.h"
 
 // Per-foot force cap handed to the convex MPC. Mini-cheetah's 120 N suits a
@@ -924,6 +925,21 @@ void ConvexMPCLocomotion::_mpcWorker() {
     }
     Timer _tsolve;
     _runSolve(in, f_local, fr_local);
+    // NaN GUARD. An ill-conditioned or diverging QP can return non-finite
+    // forces; those propagate through J^T into the joint torques and Gazebo
+    // rejects them ("Invalid joint force value [nan]"). On real hardware a NaN
+    // torque command is undefined behaviour, so never publish one - drop the
+    // solution and keep the previous (or the bootstrap) instead.
+    bool finite = true;
+    for (int leg = 0; leg < 4 && finite; ++leg)
+      for (int a = 0; a < 3; ++a)
+        if (!std::isfinite(f_local[leg][a]) || !std::isfinite(fr_local[leg][a])) finite = false;
+    if (!finite) {
+      static int _nanc = 0;
+      if ((++_nanc % 20) == 1)
+        printf("[MPCW] REJECTED non-finite solution (%d so far)\n", _nanc), fflush(stdout);
+      continue;
+    }
     if (getenv("STM32MP1_EST_DBG")) {
       static int _sc = 0;
       if ((++_sc % 10) == 1)

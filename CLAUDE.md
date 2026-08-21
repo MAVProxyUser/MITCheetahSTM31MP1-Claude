@@ -655,10 +655,33 @@ confirm the solution really is zero rather than the readback being wrong, and
 then to check `S` (the weight matrix) and `qg` - if `S` came out zero the cost
 has no state-tracking term and zero force IS the correct optimum.
 
+### The remaining wall, quantified
+
+With the race fixed the MPC produces correct forces, and the limit is now purely
+solve rate versus solution quality:
+
+| horizon | solve time | MPC rate | stance forces | verdict |
+|---|---|---|---|---|
+| 10 | 349 ms | ~3 Hz | -73 -60 0 -66 N | correct forces, far too slow |
+| 6 | 97 ms | ~10 Hz | -19 x4 (76 N) | fast enough-ish, UNDER-SUPPORTS |
+| 4 | 76 ms | ~13 Hz | -7 x4 (28 N) | badly under-supports |
+
+The robot needs 128 N. A short horizon under-actuates because MIT's cost weights
+were tuned against horizon 10, so shortening it is not free - it needs the
+weights re-tuned, or the horizon kept and the solve made ~12x faster.
+MIT runs this at 30-40 Hz.
+
+Also seen and now guarded: the QP occasionally returns **non-finite** forces,
+which propagate through J^T into joint torques and Gazebo rejects them
+("Invalid joint force value [nan]"). On real hardware a NaN torque is undefined
+behaviour, so the worker drops any non-finite solution and keeps the previous
+one. It fired intermittently at horizon 6.
+
 **Next, in priority order:**
-1. Dump `q_soln` and `|S|`/`|qg|` in `solve_mpc` - see above. The bootstrap
-   already proves the robot can be held up, so this is the single remaining
-   thing between here and walking.
+1. Make the horizon-10 solve fast enough, or re-tune the cost weights for a
+   short horizon. JCQP is `QpProblem<double>`; single precision is the obvious
+   first lever on a Cortex-A7 with no DP throughput to spare. Failing that,
+   re-tune `Q` for horizon 4-6 so the shorter horizon still commands bodyweight.
 2. Get the solve under ~30 ms so the MPC can run at 30 Hz. Horizon barely moves
    it (10/6/4 -> 81/56/57 ms), and nor does `nWSR`, so the cost is the dense
    algebra (`qH = 2*(B_qp^T S B_qp + ...)`, ~4M double MACs at horizon 10).
