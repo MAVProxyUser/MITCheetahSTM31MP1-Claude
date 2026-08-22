@@ -1420,6 +1420,44 @@ also tested: 21.25 m alone, 25.61 m with aiding - both inside baseline scatter.
 Neutral at 1.0 m/s.
 
 
+## Contact detection: implemented, tested, REGRESSES the real estimator
+
+MIT's `ContactEstimator` is an admitted pass-through (its own header: "this will
+need to change once we move contact detection to C++") - the KF believes a foot
+is down because the GAIT SCHEDULE says so, and inflates that foot's measurement
+noise 100x (`high_suspect_number`) whenever the schedule calls it swing.
+
+Implemented from kinematics + IMU (`SIM_CONTACT_DETECT=1`): the lowest foot by
+FK is the contact candidate (a RELATIVE test, so it does not depend circularly
+on the body-height estimate), vetoed by a free-fall check on the accelerometer
+(specific force well under 1g means nothing is bearing load).
+
+**Measured on the real estimator, walking2 @1.0 m/s, three repeats each:**
+
+| | samples (m) | 
+|---|---|
+| detection off | 21.34 (+ 5 earlier baselines: 20.68-25.24) |
+| **detection on** | **5.64 / 5.67 / 5.71** |
+
+Reproducible to within 0.07 m across three runs - this is a real, systematic
+regression, not variance.
+
+**Mechanism (why, not just that):** MIT's KF does not use contact as a boolean.
+`phase` feeds a `trust` that ramps over a 0.2 window at each end of stance
+(`PositionVelocityEstimator.cpp`), so the filter fades a foot's measurement in
+and out smoothly rather than switching it on and off. This implementation
+overwrites that graded phase with a two-level signal
+(`std::max(sched, 0.5)` / `std::min(sched, 0.5)`), which throws away exactly the
+ramp information the trust computation depends on. Detection answered "is this
+foot down," which the schedule already answers adequately (no RECOVERY_STAND
+transitions, no evidence of schedule/reality mismatch on the working gaits) -
+the phase within stance was never the problem.
+
+Default OFF (`SIM_CONTACT_DETECT`, opt-in). If revisited: use detection to
+CORRECT the schedule's phase when they disagree, rather than replacing it -
+preserve the ramp, only intervene when the disagreement is real.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer
