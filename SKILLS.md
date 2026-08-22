@@ -36,6 +36,35 @@ odd, and the table was still worthless.
 
 ---
 
+## The fastest known configuration (100 m in 33.2 s at 3.33 m/s)
+
+`trotting` on the real state estimator, Mac SITL, confirmed 3/3 (33.2/33.2/33.3 s),
+zero falls, zero safety trips, body height 0.287 m against a 0.300 m reference:
+
+```bash
+# host-run/solv_oases.yaml is the shipped user-parameters yaml with use_jcqp: 0
+cd host-run && env DYLD_LIBRARY_PATH=. \
+  SIM_ZEROVEL_HOLD_GAIT=1 SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_WBC_DECIM=1 \
+  SIM_MPC_HORIZON=10 SIM_SWING_H=0.11 SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12 \
+  SIM_GAIT=9 SIM_VX=3.0 SIM_MPC_MS=22 \
+  ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml solv_oases.yaml
+```
+
+The two settings that matter, both previously on the "ruled out" list:
+
+- **`use_jcqp: 0`** (qpOASES). JCQP returns ~1/5 of the required ground reaction
+  force under a moving gait, so the robot walks crouched at z=0.13 and sinks.
+  NOT a universal win: `walking2` fails at every speed with it. And qpOASES cost
+  198-218 ms on the board's A7, so the board needs `SIM_MPC_ASYNC=1` or a
+  re-measured reduced solve — do not assume this transfers.
+- **`SIM_MPC_MS` is SPEED-DEPENDENT.** 22 ms at 3.0 m/s; 26 ms (the default) at
+  2.0-2.75. Sharp optimum in both directions — at 3.0, both 18 and 26 fail.
+
+Speeds confirmed by repetition: 3.0 (3/3), 2.75 (2/2), 2.5 (3/3), 2.0 (4/4).
+3.5 m/s is an open wall — ~20 configs tried, best 27.7 m; see `CLAUDE.md`.
+
+---
+
 Board IP and Mac IP move with DHCP — set them once. See `CLAUDE.md` for why/traps.
 
 ```bash

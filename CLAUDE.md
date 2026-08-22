@@ -1746,11 +1746,29 @@ loss (`Orientation safety check failed`), and the gains that govern attitude do
 nothing. So attitude is a symptom of the collapse, not its cause - the same
 mistake shape as blaming the estimator for errors it only shows AFTER the fall.
 
+Segment and horizon were then swept properly at 3.5, and both have interior
+optima that the base config already sits on:
+
+| `SIM_MPC_MS` | 18 | 20 | 22 | **24** | 26 | 28 | 30 | 32 |
+|---|---|---|---|---|---|---|---|---|
+| distance (m) | 12.2 | 15.7 | 25.5 | **27.4** | 24.6 | 23.3 | 20.0 | 19.1 |
+
+| `SIM_MPC_HORIZON` | **10** | 12 | 14 | 16 |
+|---|---|---|---|---|
+| distance (m) | **23.3** | 22.0 | 7.4 | 9.0 |
+
+So ~20 configurations across segment, horizon, orientation gains and swing
+clearance all land at 20-28 m, and the best of them (27.7 m) is the stock
+config. Nothing cheap moves this wall.
+
 **Remaining candidate**: contact timing - whether the swing leg completes its
 trajectory and is actually on the ground when the MPC's contact schedule says it
 is. Force commanded is not force delivered, and a schedule/reality mismatch
 sends the solved force into air. Measure scheduled contact against actual foot
-height before trying anything else.
+height before trying anything else. Note the swing-clearance result is
+consistent with this: raising swing height gives the foot MORE distance to cover
+in the same swing window and makes things monotonically worse (27.7 -> 22.1 ->
+13.8 m), which is what a swing that is already time-starved would do.
 
 ## THE 100 m DASH, REAL ESTIMATOR (the honest table)
 
