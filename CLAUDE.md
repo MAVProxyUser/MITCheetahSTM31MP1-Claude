@@ -1716,6 +1716,46 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## The solver REORDERED the gait hierarchy (it is not a uniform lift)
+
+All eight gaits re-screened at 2.0 m/s on qpOASES, real estimator. 2.0 is the
+qualifying floor - a gait that cannot hold 2.0 is out of the running for
+"fastest" by definition, so nothing below it is worth measuring.
+
+| gait | num | ms22 | ms26 | qualified |
+|---|---|---|---|---|
+| walking | 20 | **46.6 s (2.29 m/s)** | 48.3 s (2.20) | YES |
+| trotting | 9 | **47.2 s (2.24)** | 83.0 m fail | YES |
+| trotRunning | 5 | 48.2 s (2.18) | **44.8 s (2.37)** | YES |
+| bounding | 1 | **99.9 m** (1 m short!) | 17.7 m | no |
+| galloping | 22 | 12.8 m | 6.9 m | no |
+| pronking | 2 | 10.6 m | 5.5 m | no |
+| walking2 | 21 | 5.6 m | 4.6 m | no |
+| pacing | 8 | 0.4 m | 0.2 m | no |
+
+**Two complete reversals against the JCQP table**, which is the point worth
+keeping:
+- `walking` was the SLOWEST gait that crossed (162.4 s at 0.6 m/s). It is now
+  the FASTEST at 2.0 m/s (46.6 s), beating trotting.
+- `walking2` was the BEST gait (121.9 s at 0.8 m/s, the headline of the old
+  table). It now fails at 5.6 m.
+- `pacing` crossed at 0.6 m/s under JCQP and now collapses at 0.4 m.
+
+So the solver did not lift every gait by a constant factor - it changed which
+gaits work at all. Any per-gait conclusion in this file measured under JCQP
+describes the solver's failure mode for that gait, not the gait.
+
+**`trotRunning` is the first flight-adjacent gait to cross on the real
+estimator** (it never did before), and it prefers the 26 ms segment where
+trotting and walking prefer 22 - so segment is gait-dependent as well as
+speed-dependent.
+
+**`bounding` reached 99.9 m of 100** at 2.0/ms22. A flight gait that has never
+travelled in this port's history came one metre short. Parked deliberately: the
+simple gaits get their full dash first, then the flight-gait machinery
+(`getFlightState`, per-leg stance/swing timing, `zeroVelTransitionAmend`) gets
+revisited - all of it was validated only against the broken solver.
+
 ## Speed tiers fail by DIFFERENT mechanisms - do not re-fix a solved one
 
 Each ceiling this port has hit had its own cause. Diagnosing the tier you are
