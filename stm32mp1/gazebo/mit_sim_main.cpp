@@ -15,6 +15,7 @@
 #include "Stm32mp1HardwareBridge.h"
 #include "MIT_Controller.hpp"
 #include "WaypointNav.hpp"
+#include "Planning/BodyPathPlanner.h"
 #include "rt/rt_gazebo.h"      // gazebo_get_aux(): GPS, the same data the real dog gets over CAN
 
 static std::string g_peer;
@@ -72,6 +73,43 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   // from every waypoint. A sign argued from two of three terms is a guess.
   const float yaw_sign = getenv("WP_YAW_SIGN") ? atof(getenv("WP_YAW_SIGN")) : 1.f;
 
+  /*
+   * $WP_PLANNER=1 swaps the pure-pursuit follower for the Apollo-derived
+   * planner: the waypoint polyline is rounded into fillet arcs, curvature gives
+   * v_max(s) = sqrt(a_lat/kappa), and forward/backward accel passes make the
+   * braking start BEFORE the corner instead of during it. The heuristic it
+   * replaces (WP_TURN_FLOOR) completes 2 runs in 3 and fails badly if tuned any
+   * deeper, which is what a hand-picked constant tends to do.
+   */
+  const bool use_planner = getenv("WP_PLANNER") && atoi(getenv("WP_PLANNER")) != 0;
+  planning::BodyPathPlanner planner;
+  if (use_planner) {
+    // The path must START WHERE THE ROBOT IS. Building it from the waypoints
+    // alone begins it at wp00, 10.5 m away, so the follower spent the whole
+    // mission chasing a path it was never on: 75.1 m of path (4 legs) instead
+    // of 93 m (5), and 0 of 5 waypoints. The robot sits at the local-frame
+    // origin when the GPS datum is taken, so (0,0) is the true first point.
+    std::vector<double> wx{0.0}, wy{0.0};
+    for (int i = 0; i < nav.count(); ++i) {
+      wx.push_back(nav.waypoint(i).north);
+      wy.push_back(nav.waypoint(i).east);
+    }
+    planning::BodyLimits lim;
+    lim.v_cruise  = vx;
+    lim.a_lat_max = getenv("WP_ALAT") ? atof(getenv("WP_ALAT")) : 2.5;
+    lim.a_lon_max = getenv("WP_ALON") ? atof(getenv("WP_ALON")) : 1.5;
+    lim.yaw_rate_max = nav.max_yawrate;
+    planner.setLimits(lim);
+    const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
+    planner.plan(wx, wy, 0.10, false, corridor);
+    double kk, vv; planner.tightestCorner(&kk, &vv);
+    printf("[plan] %zu pts, %.1f m, tightest R=%.2f m -> %.2f m/s "
+           "(cruise %.2f, a_lat %.2f, corridor %.2f)\n",
+           planner.path().size(), planner.path().empty() ? 0.0 : planner.path().back().s,
+           kk > 1e-6 ? 1.0/kk : 0.0, vv, lim.v_cruise, lim.a_lat_max, corridor);
+    fflush(stdout);
+  }
+
   // Wait for the sequencer to finish its velocity ramp before taking the stick.
   while (bridge->driverCommand().leftStickAnalog[1] < vx * 0.99f)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -113,7 +151,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     const float spd = sqrtf(est.vBody[0] * est.vBody[0] + est.vBody[1] * est.vBody[1]);
 
     float nv = 0.f, nw = 0.f;
-    const bool running = nav.update(N, E, bearing, spd, dt, &nv, &nw);
+    // NAV owns mission state (arrival tests, waypoint advance, completion); the
+    // planner only supplies the COMMANDS. Letting the planner's end-of-path
+    // decide completion would end the mission wherever the smoothed path ran
+    // out, which is not where the waypoints are.
+    bool running = nav.update(N, E, bearing, spd, dt, &nv, &nw);
+    if (use_planner) {
+      double pv = 0, pw = 0;
+      if (planner.follow(N, E, bearing, &pv, &pw)) { nv = (float)pv; nw = (float)pw; }
+    }
 
     if (nav.activeIndex() != lastIdx) {
       lastIdx = nav.activeIndex();
