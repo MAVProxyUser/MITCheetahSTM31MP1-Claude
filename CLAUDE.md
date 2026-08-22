@@ -1716,6 +1716,46 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## THE REAL CORNER BUG: the braking zone was shorter than the stopping distance
+
+Every mission above 2.0 m/s failed at the FIRST corner, and it was never the
+gait, the friction, or the lookahead. Instrumenting the approach showed the
+robot passing wp0 at 2.58 m/s STILL ACCELERATING, overshooting 5.5 m.
+
+The speed profile's braking zone was shorter than the robot's real stopping
+distance. At a_lon=1.5 the profile begins braking 1.85 m before the corner; the
+body decelerates at a MEASURED 1.2 m/s^2 and needs ~5 m including tracking lag.
+The plan issued a deceleration it had already left too late to achieve - and no
+lookahead can rescue that, because there is nothing earlier in the profile to
+look ahead AT.
+
+**The planning value must be LOWER than the physical one**, so the zone is
+longer than the stop:
+
+| cruise | a_lon | result |
+|---|---|---|
+| 2.5 | 0.6 | FAILED |
+| 2.5 | **0.4** | **46.0 s PASS (2/2)** |
+| 2.5 | 0.3 | 47.6 s PASS |
+| 3.0 | **0.4** | **45.4 s PASS** |
+| 3.0 | 0.3 | 47.2 s PASS |
+
+2.5 and 3.0 had failed EVERY prior attempt - across gait pairings, corner
+budgets, lateral limits and lookahead. This is what unlocked them.
+
+The times are still slower than the 42.2 s baseline at 2.0: on 20 m legs the
+longer braking zone costs more than the faster straights gain. The value is the
+CAPABILITY (missions at 3.0 cruise) not the clock.
+
+### The first corner of this star is a HAIRPIN, and the others are not
+
+Every failure in this project has been at wp 1/5. The robot starts at the star's
+CENTRE, so leg 1 is a radius and leg 2 is a chord: turning from +N at wp0 toward
+wp1 is a 162 deg direction change - an **18 deg interior angle** against 36 deg
+at every other corner. The planner reports it as `tightest R=0.28 m -> 0.83 m/s`.
+That corner is an artefact of where the mission STARTS, not of the star, and it
+sets the speed limit for the whole course.
+
 ## THE STAR IS CORNER-BOUND: what moves it, and what does not
 
 Measured after the planner landed. Baseline is trotting at 2.0 m/s, 44.4 s, 3/3.

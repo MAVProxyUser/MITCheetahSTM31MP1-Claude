@@ -81,10 +81,26 @@ struct BodyLimits {
    * robot can turn at without tripping, and 2.5 leaves margin.
    */
   double a_lat_max = 2.5;
-  //! Longitudinal accel/decel. Gait tolerates ramps far better than steps; the
-  //! velocity ramps in this port use ~0.25-0.5 m/s^2, and the envelope clamp
-  //! decelerates at 2.0, so 1.5 is comfortably inside what is known to work.
-  double a_lon_max = 1.5;
+  /*!
+   * Longitudinal accel/decel used to build the profile - DELIBERATELY BELOW the
+   * achievable rate, and this is the single most important number here.
+   *
+   * The body tracks a commanded deceleration at a MEASURED 1.2 m/s^2. Setting
+   * a_lon to that (or to the old 1.5) makes the profile begin braking
+   * (2.5^2 - 0.83^2)/(2*1.5) = 1.85 m before a corner - but with tracking lag
+   * the robot needs ~5 m to actually shed the speed. The plan then issues a
+   * deceleration it has already left too late to achieve, and the robot enters
+   * the corner at 2.58 m/s where the profile called for 0.83, overshooting the
+   * waypoint by 5.5 m.
+   *
+   * The braking ZONE has to be longer than the real stopping distance, so the
+   * planning value must be lower than the physical one:
+   *     2.5 m/s: a_lon 0.6 FAILED | 0.4 -> 46.0 s PASS 2/2 | 0.3 -> 47.6 s PASS
+   *     3.0 m/s:              0.4 -> 45.4 s PASS | 0.3 -> 47.2 s PASS
+   * 2.5 and 3.0 had failed EVERY prior attempt across gait pairings, corner
+   * budgets, lateral limits and lookahead. This is what unlocked them.
+   */
+  double a_lon_max = 0.4;
   //! Yaw rate ceiling in a pirouette (measured: tracks 100% to 1.5 rad/s, 92% at
   //! 3.0, no falls at any rate at ZERO forward speed).
   double yaw_rate_max = 2.0;
