@@ -788,6 +788,43 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     }
   }
 
+  // [CONTACT] SCHEDULE vs REALITY ($SIM_CONTACT_DBG=1).
+  //
+  // The MPC solves against a CONTACT SCHEDULE. Force it commands for a foot the
+  // schedule calls "stance" goes into the ground only if that foot is actually
+  // ON the ground. If the swing leg cannot complete its trajectory in the time
+  // the gait allows - which gets harder as speed rises and the swing window
+  // shrinks - the schedule runs ahead of reality and the solved force is
+  // commanded into air. Commanded force is not delivered force.
+  //
+  // This is the remaining candidate for the 3.5 m/s wall, where force (2.5x mg),
+  // orientation gains, joint torque (74% of limit), leg reach (0.393 of 0.430)
+  // and swing clearance have all been eliminated by measurement. Supporting
+  // hint: raising swing height makes 3.5 monotonically WORSE (27.7 -> 22.1 ->
+  // 13.8 m), which is what a time-starved swing would do.
+  {
+    static const bool cdbg = getenv("SIM_CONTACT_DBG") && atoi(getenv("SIM_CONTACT_DBG")) != 0;
+    if (cdbg) {
+      static int nc = 0;
+      static long schedStance = 0, airborneWhileStance = 0;
+      static float worstAir = 0.f;
+      for (int leg = 0; leg < 4; ++leg) {
+        if (se_contactState[leg] > 0.f) {           // schedule says this foot is down
+          ++schedStance;
+          const float h = pFoot[leg][2];            // world height of the foot
+          if (h > 0.04f) { ++airborneWhileStance; if (h > worstAir) worstAir = h; }
+        }
+      }
+      if ((nc++ % 50) == 0 && schedStance > 0) {
+        printf("[CONTACT] t=%.2f schedStance=%ld airborneWhileStance=%ld (%.1f%%) "
+               "worstAirGap=%.3f m\n",
+               nc * 0.002f, schedStance, airborneWhileStance,
+               100.0 * (double)airborneWhileStance / (double)schedStance, worstAir);
+        fflush(stdout);
+      }
+    }
+  }
+
   // [MPCZ] VERTICAL FORCE BUDGET ($SIM_MPCZ=1).
   // At 2.0 m/s commanded the robot does not tip - it SINKS (measured: height
   // 0.222 -> 0.139 while body vz oscillation grows to 0.55 m/s, then
