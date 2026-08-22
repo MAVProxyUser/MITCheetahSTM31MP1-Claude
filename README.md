@@ -28,44 +28,61 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | ✅ **walks** — 100 m continuous under `walking2`; 4 of MIT's 8 gaits functional |
-| OpenPilot waypoint navigation | ✅ **GPS star mission complete under convex MPC** (5 × 10.1 m legs, 85.3 s) |
+| MIT_Controller (MPC + WBC) locomotion | ✅ **walks** — 100 m continuous under `walking2` on the real estimator; 4 of MIT's 8 gaits cross 100 m |
+| OpenPilot waypoint navigation | ⚠️ **GPS star mission completes under convex MPC** (5 × 10.1 m legs) — timings were taken in cheater mode; awaiting an honest re-measure |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
 ## Measured locomotion (Mac SITL)
 
-100 m dash on flat ground, fastest speed each gait completes it. Ceilings
-verified by repeats at the next speed up.
+100 m dash on flat ground, fastest speed each gait completes it. Measured on
+the robot's **own state estimate** - `SIM_CHEATER` is absent from the
+environment and the harnesses no longer set it. Gazebo ground truth is used
+only to MEASURE distance; it never enters the control loop.
 
-| gait | max speed | 100 m time | cruise |
-|---|---|---|---|
-| `walking2` (21) | 1.0 m/s | **107.0 s** | 0.94 m/s |
-| `trotting` (9) | 0.9 m/s | **118.5 s** | 0.85 m/s |
-| `pacing` (8) | 0.8 m/s | **130.6 s** | 0.77 m/s |
-| `walking` (20) | 0.8 m/s | **132.0 s** | 0.76 m/s |
-| `trotRunning` (5) | 0.6 m/s | **186.9 s** | 0.53 m/s |
-| `bounding` / `pronking` / `galloping` | — | never cross | — |
+| gait | max speed | 100 m time | cruise | next rung up |
+|---|---|---|---|---|
+| `walking2` (21) | 0.8 m/s | **121.9 s** | 0.83 m/s | 1.0 -> 10.4 m |
+| `walking` (20) | 0.6 m/s | **162.4 s** | 0.61 m/s | 0.8 -> 10.2 m |
+| `pacing` (8) | 0.6 m/s | **183.5 s** | 0.54 m/s | 0.8 -> 5.3 m |
+| `trotting` (9) | 0.6 m/s | **185.8 s** | 0.53 m/s | 0.8 -> 78.7 m* |
+| `trotRunning` (5) | — | never crosses | — | fails 0.8 / 0.6 / 0.4 |
+| `bounding` / `pronking` / `galloping` | — | never cross | — | — |
 
-**Five of MIT's eight gaits run 100 m** (two did before this work).
+\* marginal, under repeat - a stop-at-first-success ladder biases the answer
+downward, and this trap has already understated trot by 50% once.
 
-### The mission, on the REAL state estimator
+**Four of MIT's eight gaits run 100 m on the real estimator.** None did before
+this work: the previous honest baseline was ~21 m (walking2 at 1.0 m/s) and
+35 m at 0.6 m/s.
 
-The GPS star mission - 5 legs of 10.1 m, five 144-degree corners - completes in
-**57.1 s with `SIM_CHEATER=0`**, i.e. GPS -> waypoint nav -> MIT's
-`LinearKFPositionVelocityEstimator` -> convex MPC + WBIC -> legs, with no ground
-truth anywhere. Identical to the cheater-mode time, and down from 85.3 s.
+### Ground truth vs the real estimator: the gap is the whole story
 
-| | before | now |
+The same sweep with sim ground truth fed to the estimator is one to two rungs
+faster on every gait:
+
+| gait | ground truth | real estimator |
 |---|---|---|
-| star mission | 85.3 s, cheater only | **57.1 s, real estimator** |
-| real-estimator distance | 0.65 m | **57.6 m** |
-| gaits running 100 m | 2 | **5** |
+| `trotting` | 1.0 m/s, 106.5 s | 0.6 m/s, 185.8 s |
+| `walking2` | 1.0 m/s, 107.0 s | 0.8 m/s, 121.9 s |
+| `walking` | 0.8 m/s, 130.7 s | 0.6 m/s, 162.4 s |
+| `pacing` | 0.8 m/s, 131.1 s | 0.6 m/s, 183.5 s |
+
+trot is hit hardest: it covers 100 m at 1.0 m/s on ground truth and goes down
+after **4.4 m** at the same command on its own estimate. **The state estimator,
+not compute and not gait tuning, is what caps this port today.**
 
 Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
-sprints to 4.7. **This stack tops out at 0.94 m/s** - about a fifth of the
-sprint. That ceiling has not moved; what improved is breadth, robustness, and
-independence from ground truth.
+sprints to 4.7. **This stack tops out at 0.83 m/s on its own sensors** - about a
+sixth of the sprint.
+
+> **Note on earlier revisions of this file.** Every 100 m time published here
+> before 2026-08-22, and the claim that the GPS star mission ran "with no ground
+> truth anywhere," were produced with cheater mode active. `getenv("SIM_CHEATER")`
+> is non-null for `"0"`, so `SIM_CHEATER=0` still ENABLED it; separately, the
+> sweep harnesses hardcoded `SIM_CHEATER=1` in their env block. Both are fixed.
+> The star-mission time has not yet been re-measured honestly and is withdrawn
+> until it has been.
 
 ## Reverse-engineering the factory controller
 

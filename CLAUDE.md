@@ -1630,6 +1630,57 @@ The lesson is narrower: THIS finding was independently reproduced without it,
 so it does not rest on the detector being correct.
 
 
+## THE 100 m DASH, REAL ESTIMATOR (the honest table)
+
+Measured with `SIM_CHEATER` **absent** from the environment - the harness no
+longer sets it, and the sweep was launched under `env -u SIM_CHEATER`. Gazebo
+truth is used only by `dash_trace.py` to MEASURE distance; it never enters the
+control loop. Corrected model (12.859 kg, real rotor inertia/locations, knee
+gear 9.4995) plus the WBIC damping config (`Kd_body=[40,40,40]`,
+`Kd_ori=[40,40,20]`). Fall detector OFF.
+
+| gait | num | max speed | 100 m | cruise | next rung up |
+|---|---|---|---|---|---|
+| **walking2** | 21 | **0.8** | **121.9 s** | 0.83 | 1.0 -> 10.4 m |
+| walking | 20 | 0.6 | 162.4 s | 0.61 | 0.8 -> 10.2 m |
+| pacing | 8 | 0.6 | 183.5 s | 0.54 | 0.8 -> 5.3 m |
+| trotting | 9 | 0.6 | 185.8 s | 0.53 | **0.8 -> 78.7 m (MARGINAL, repeating)** |
+| trotRunning | 5 | - | never | - | fails 0.8/0.6/0.4 (2.0/3.0/4.7 m) |
+| bounding / pronking / galloping | 1/2/22 | - | never | - | not re-run; never crossed on cheater either |
+
+**Four of five gaits now cross 100 m on the robot's own state estimate.** The
+previously recorded honest baseline never crossed at all (walking2 ~21 m at
+1.0 m/s, 34.95 m at 0.6). That is the real gain from this session's model
+corrections and WBIC damping - not the cheater table's headline times.
+
+### Cheater vs real: the gap is the estimator, and it is large
+
+| gait | cheater ceiling | real ceiling | cheater 100 m | real 100 m |
+|---|---|---|---|---|
+| trotting | 1.0 | 0.6 | 106.5 s | 185.8 s |
+| walking2 | 1.0 | 0.8 | 107.0 s | 121.9 s |
+| walking | 0.8 | 0.6 | 130.7 s | 162.4 s |
+| pacing | 0.8 | 0.6 | 131.1 s | 183.5 s |
+| trotRunning | 0.6 | - | 175.9 s | never |
+
+trot is the worst-hit: it crosses at 1.0 m/s on ground truth and dies at
+**4.4 m** at the same speed on its own estimate. Whatever the WBIC damping fix
+bought at trot@1.0 was bought *against ground-truth state*; it does not survive
+the real LinearKF. walking2 degrades least (one rung), which is consistent with
+it being the yaw-balanced, most forgiving gait.
+
+**So the estimator remains THE wall, and it is now the only thing between this
+port and ~1 m/s.** Every gait's real ceiling is one to two rungs below its
+cheater ceiling, and the failures are not gradual - the robot goes down inside
+5-10 m at one rung above its ceiling, versus completing 100 m at the ceiling.
+
+### Method note
+`dash_sweep.sh` stops at the first speed that completes, which biases the
+answer DOWNWARD for any gait that is bimodal near its limit (this trap has
+already understated trot by 50% once in this file). The rung above every
+reported ceiling is therefore listed explicitly above. Four of them fail
+decisively (4-10 m). trot@0.8's 78.7 m does not, and is being repeated.
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer
