@@ -28,7 +28,7 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m in **40.4 s at 2.65 m/s** under `trotting`, on the real estimator, no falls |
+| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m in **37.5 s at 2.88 m/s** under `trotting`, on the real estimator, no falls |
 | OpenPilot waypoint navigation | ⚠️ **GPS star mission completes under convex MPC** (5 × 10.1 m legs) — timings were taken in cheater mode; awaiting an honest re-measure |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
@@ -43,17 +43,27 @@ control loop; it is used only to MEASURE distance.
 
 | gait | speed | 100 m time | cruise | runs |
 |---|---|---|---|---|
-| **`trotting` (9)** | **2.5 m/s** | **40.4 s** | **2.65 m/s** | crossed, confirmation running |
-| **`trotting` (9)** | **2.0 m/s** | **47.1 s** | **2.24 m/s** | **4/4 crossed — 47.1/47.2/47.1/47.2 s** |
+| **`trotting` (9)** | **2.75 m/s** | **37.5 s** | **2.88 m/s** | **2/2** — 37.6 / 37.5 s |
+| `trotting` (9) | 2.5 m/s | 40.5 s | 2.64 m/s | **3/3** — 40.4 / 40.6 / 40.5 s |
+| `trotting` (9) | 2.0 m/s | 47.1 s | 2.24 m/s | **4/4** — 47.1 / 47.2 / 47.1 / 47.2 s |
+| `trotting` (9) | 3.0 m/s | — | — | **0/4** — 93.4 / 81.0 / 74.0 / 51.7 m |
 
-The four runs at 2.0 m/s agree to **0.1 s (0.2%)**, with **zero safety trips,
-zero falls**, body height held at mean 0.287 m against a 0.300 m reference, and
-a worst control-loop iteration of 1.02 ms against a 2.0 ms budget. `trotting` at
-3.0 m/s reaches 81 m (marginal, under repeat); 3.5 and 4.0 fail at ~24 m.
+Nine crossings, every one reproducing to **~0.1 s**, all with **zero safety
+trips and zero falls**, body height held at mean 0.287 m against a 0.300 m
+reference, worst control-loop iteration 0.7–1.0 ms of a 2.0 ms budget. The
+ceiling is real: 3.0 m/s fails four times for four. 3.5 and 4.0 fail at ~24 m.
 
-**2.65 m/s cruise exceeds the Go1 Air's 2.5 m/s rating** and reaches into Go1
-Pro territory (3.5–3.7 m/s). The previous honest figure for this port was
-0.53 m/s.
+**2.88 m/s cruise is past the Go1 Air's 2.5 m/s rating, inside Go1 Pro territory
+(3.5–3.7 m/s), and 61% of the Edu's 4.7 m/s sprint.** The previous honest figure
+for this port was 0.53 m/s — this is **4.9× faster**.
+
+### The next wall (3.0 m/s) is a different problem
+
+Worth stating so nobody re-fixes the solved one. At 3.0 m/s the MPC commands
+*more* force than required (2.45–2.64 × mg against the 2.00 needed), so the
+force budget is no longer binding. Instead the body oscillates vertically at
+±0.5–0.7 m/s and bounces itself down over 50–95 m. That is a damping / contact
+timing failure, not a solver failure.
 
 ### What changed: the QP solver was never converging
 
@@ -98,10 +108,10 @@ Kept because they are what every earlier claim rests on:
 | `trotting` (9) | 0.6 m/s | 185.8 s | 0.53 m/s |
 | `trotRunning` (5) | — | never crosses | — |
 
-### Ground truth vs the real estimator: the gap is the whole story
+### The estimator was blamed for this, and it was not the cause
 
-The same sweep with sim ground truth fed to the estimator is one to two rungs
-faster on every gait:
+Under the broken solver, feeding the estimator ground truth bought one to two
+speed rungs on every gait, which looked conclusive:
 
 | gait | ground truth | real estimator |
 |---|---|---|
@@ -110,13 +120,23 @@ faster on every gait:
 | `walking` | 0.8 m/s, 130.7 s | 0.6 m/s, 162.4 s |
 | `pacing` | 0.8 m/s, 131.1 s | 0.6 m/s, 183.5 s |
 
-trot is hit hardest: it covers 100 m at 1.0 m/s on ground truth and goes down
-after **4.4 m** at the same command on its own estimate. **The state estimator,
-not compute and not gait tuning, is what caps this port today.**
+**That conclusion was wrong.** `[ESTERR]` (`SIM_ESTERR=1`) logs the estimate
+against truth in the same body frame — truth logged, never fed to the
+controller — and the LinearKF tracks forward velocity to within **0.13 m/s**
+right up to the moment of the fall (true 1.101 vs estimated 1.029 at the worst
+point). The large errors appear only *after* the robot is down and integrating
+phantom motion. Consequence, not cause.
+
+What ground truth was actually doing was masking the force deficit: a robot
+walking crouched at 0.13 m is close enough to failing that any extra error
+tips it over, so removing estimator error postponed the collapse without
+addressing it. With the solver fixed, `trotting` runs at **2.75 m/s on its own
+sensors** — 2.75× faster than it ever managed *with* ground truth under JCQP.
+The estimator was never the wall.
 
 Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
-sprints to 4.7. **This stack now cruises at 2.65 m/s on its own sensors** —
-past the Air's rating, inside Pro territory, and about 56% of the Edu sprint.
+sprints to 4.7. **This stack now cruises at 2.88 m/s on its own sensors** —
+past the Air's rating, inside Pro territory, and 61% of the Edu sprint.
 
 > **Note on earlier revisions of this file.** Every 100 m time published here
 > before 2026-08-22, and the claim that the GPS star mission ran "with no ground
