@@ -11,6 +11,7 @@
 #include <cmath>
 #include <thread>
 #include <chrono>
+#include <unistd.h>   // _exit
 
 #include "Stm32mp1HardwareBridge.h"
 #include "MIT_Controller.hpp"
@@ -173,10 +174,32 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
       bridge->driverCommand().rightStickAnalog[0] = 0.f;
       done = true;
-      // Let the robot come to a stop on its feet before the process ends, so
-      // the run scores as a completed mission rather than as a fall.
-      std::this_thread::sleep_for(std::chrono::seconds(3));
-      exit(0);
+      // Ramp the stick down instead of dropping it to zero. Zeroing from cruise
+      // is a step input: the robot pitches forward and goes down AFTER a
+      // successful mission, which is how every completed star run ended with a
+      // [FALL] line three seconds later.
+      for (int k = 20; k >= 0; --k) {
+        bridge->driverCommand().leftStickAnalog[1] = nv * (float)k / 20.f;
+        std::this_thread::sleep_for(std::chrono::milliseconds(75));
+      }
+      bridge->driverCommand().leftStickAnalog[1] = 0.f;
+      std::this_thread::sleep_for(std::chrono::seconds(2));
+      /*
+       * _exit, NOT exit - THIS WAS THE "Abort trap: 6".
+       *
+       * exit() runs static destructors and atexit handlers, while the 500 Hz
+       * control loop, the motor task and the MPC worker are all still running.
+       * Those threads then touch destroyed objects and the runtime aborts:
+       * "libc++abi: terminating". It only ever fired AFTER a mission completed,
+       * because this is the only exit() in the program - which is exactly the
+       * pattern observed (three sweeps, always on a run that had already
+       * printed MISSION COMPLETE, never on a failure).
+       *
+       * RobotRunner's fall detector already uses _exit() for the same reason.
+       * On hardware this matters far more than in sim: tearing down the process
+       * while motor threads are mid-command is not something to leave to luck.
+       */
+      _exit(0);
     }
 
     bridge->driverCommand().leftStickAnalog[1]  = nv;
