@@ -59,10 +59,18 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   // Dynamic gaits arc through corners; they fall over trying to pivot in them.
   nav.turn_speed_floor = getenv("WP_TURN_FLOOR") ? atof(getenv("WP_TURN_FLOOR")) : 0.65f;
 
-  // MIT's yaw rate is CCW-positive; nav's is compass-sense (positive toward
-  // east, i.e. clockwise), so the command is negated on the way in. Overridable
-  // because a sign like this should be measured, not assumed.
-  const float yaw_sign = getenv("WP_YAW_SIGN") ? atof(getenv("WP_YAW_SIGN")) : -1.f;
+  // YAW SIGN: +1, and this was MEASURED, not reasoned. The old default of -1
+  // captured 1 of 5 waypoints and never finished a mission; +1 captures 5 of 5
+  // and completes the 100 m star in 46.5 s. Same binary, same run, one flag.
+  //
+  // Why -1 looked right and was wrong: the comment here used to say "MIT's yaw
+  // rate is CCW-positive, nav's is compass-sense, so negate". Both halves are
+  // true, but the chain has a THIRD negation in it -
+  // `DesiredStateCommand.cpp` does `joystickRight[0] *= -1` (upstream MIT, and
+  // correct: right stick right should turn the robot right). Two negations
+  // cancel, so negating here inverted the steering and the robot turned away
+  // from every waypoint. A sign argued from two of three terms is a guess.
+  const float yaw_sign = getenv("WP_YAW_SIGN") ? atof(getenv("WP_YAW_SIGN")) : 1.f;
 
   // Wait for the sequencer to finish its velocity ramp before taking the stick.
   while (bridge->driverCommand().leftStickAnalog[1] < vx * 0.99f)

@@ -25,11 +25,34 @@ FSM_State_Locomotion<T>::FSM_State_Locomotion(ControlFSMData<T>* _controlFSMData
   if(_controlFSMData->_quadruped->_robotType == RobotType::MINI_CHEETAH){
     double mpc_ms = 27;
 #ifdef USE_GO1_MODEL
-    // Go1 SITL: $SIM_MPC_MS stretches the gait segment clock (ms). The stock
-    // 27 ms segments give a 260 ms trot cycle tuned for MIT's ~2 ms loop; the
-    // UDP SITL loop is ~8 ms, so a slower cycle (e.g. 40 -> 400 ms) buys the
-    // swing/touchdown dynamics real phase margin.
-    if (const char* e = getenv("SIM_MPC_MS")) {
+    // GAIT SEGMENT (ms). DEFAULT IS 22, NOT MIT's 27, and this is measured:
+    // stance duration x commanded speed is the distance a stance foot must
+    // sweep, against ~0.318 m of horizontal reach, so a faster gait needs a
+    // SHORTER cycle. At 3.0 m/s, 22 ms crosses 100 m in 33.2 s while the old
+    // 26-27 ms fails at 67 m; 18 ms fails too, so the optimum is interior.
+    // 22 also works across 2.0-3.1 m/s, which makes it the right single
+    // default. $CTRL_MPC_MS overrides for experiments.
+    //
+    // The optimum is also GAIT-dependent, so it is selected per gait from
+    // measurement rather than left for a human to remember: trotRunning covers
+    // 100 m in 24.8 s at 26 ms and FAILS at 32 m on 22 ms, while trotting is
+    // the other way round. Keyed off the gait that will actually run ($SIM_GAIT
+    // if set, else the yaml's cmpc_gait) so no environment variable is needed
+    // to get a gait's own best segment.
+    {
+      int g = _controlFSMData->userParameters->cmpc_gait;
+      if (const char* ge = getenv("SIM_GAIT")) { int v = atoi(ge); if (v >= 0) g = v; }
+      switch (g) {
+        case 5:  mpc_ms = 26; break;   // trotRunning - 40% duty, flight phase
+        default: mpc_ms = 22; break;   // trotting / walking and the rest
+      }
+    }
+    // STILL A GAP: it is SPEED-dependent too (trotting wants 26 below ~2.75 m/s
+    // and 22 above), and nothing schedules it against the commanded velocity.
+    // 22 crosses at every trotting speed measured from 2.0 to 3.1, so it is a
+    // safe single value - but a controller that varies its own speed widely
+    // should compute this rather than inherit it.
+    if (const char* e = getenv("CTRL_MPC_MS")) {
       double v = atof(e);
       if (v >= 10 && v <= 80) mpc_ms = v;
     }
@@ -319,9 +342,9 @@ void FSM_State_Locomotion<T>::LocomotionControlStep() {
     // reference). So run it every Nth tick and hold its joint commands in
     // between - the WBC writes qDes/qdDes/kp/kd/tau, all of which the leg
     // controller keeps applying on the ticks it is skipped.
-    // $SIM_WBC_DECIM (default 1 = stock every-tick behaviour).
-    static const int wbc_decim = getenv("SIM_WBC_DECIM")
-                               ? std::max(1, atoi(getenv("SIM_WBC_DECIM"))) : 1;
+    // $CTRL_WBC_DECIM (default 1 = stock every-tick behaviour).
+    static const int wbc_decim = getenv("CTRL_WBC_DECIM")
+                               ? std::max(1, atoi(getenv("CTRL_WBC_DECIM"))) : 1;
     static int wbc_tick = 0;
     // CACHE AND RE-APPLY between WBC runs. The original decimation assumed the
     // leg controller "keeps applying" the WBC's commands on skipped ticks - it

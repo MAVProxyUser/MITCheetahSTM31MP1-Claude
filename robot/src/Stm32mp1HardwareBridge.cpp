@@ -305,9 +305,26 @@ void Stm32mp1HardwareBridge::run() {
         // $SIM_VX target speed, $SIM_VX_RAMP_S ramp duration (default 3 s).
         // $SIM_WZ adds a YAW RATE command on the same schedule, so the robot can
         // be asked to turn while moving (cornering) or to spin in place with
-        // zero forward velocity (a pirouette). MIT's yaw rate is CCW-positive.
-        // Both channels ramp together: a stepped yaw command knocks the gait
-        // over for the same reason a stepped velocity command does.
+        // zero forward velocity (a pirouette). Both channels ramp together: a
+        // stepped yaw command knocks the gait over for the same reason a stepped
+        // velocity command does.
+        //
+        // SIGN, and why this is NEGATED - the full chain, measured end to end:
+        //   SIM_WZ -> rightStickAnalog[0] -> DesiredStateCommand.cpp does
+        //   `joystickRight[0] *= -1` (UPSTREAM MIT, and correct: pushing a
+        //   gamepad's right stick RIGHT should turn the robot RIGHT) ->
+        //   rightAnalogStick[0] -> _yaw_turn_rate, which is CCW-POSITIVE.
+        // So a raw stick value and the yaw rate it produces have OPPOSITE signs.
+        // Passing SIM_WZ straight through meant `SIM_WZ=+1.0` printed as
+        // `wzCmd=-1.000` in the logs and turned the robot clockwise, which cost
+        // a full investigation chasing a "sign bug" that did not exist.
+        // SIM_WZ is therefore defined as a YAW RATE in rad/s, CCW-positive -
+        // the same convention as _yaw_turn_rate and as the [YAW]/[YAWREF] logs -
+        // and it is negated HERE, once, to become a stick deflection.
+        // VERIFIED not a controller bug: with SIM_WZ=1.0 the reference and the
+        // measurement track each other with a CONSTANT 0.21 rad offset through
+        // a full revolution and across the +-pi wrap - a healthy rate loop with
+        // a steady-state offset, not a divergence.
         const bool haveVx = getenv("SIM_VX") && atof(getenv("SIM_VX")) != 0.0;
         const bool haveWz = getenv("SIM_WZ") && atof(getenv("SIM_WZ")) != 0.0;
         if (final_mode == 4 && (haveVx || haveWz)) {
@@ -331,12 +348,12 @@ void Stm32mp1HardwareBridge::run() {
           fflush(stdout);
           const int steps = (int)(ramp_s * 10.f);
           for (int s = 1; s <= steps; ++s) {
-            _gamepadCommand.leftStickAnalog[1]  = vx * s / steps;
-            _gamepadCommand.rightStickAnalog[0] = wz * s / steps;
+            _gamepadCommand.leftStickAnalog[1]  =  vx * s / steps;
+            _gamepadCommand.rightStickAnalog[0] = -wz * s / steps;   // see note
             usleep(100000);
           }
-          _gamepadCommand.leftStickAnalog[1]  = vx;
-          _gamepadCommand.rightStickAnalog[0] = wz;
+          _gamepadCommand.leftStickAnalog[1]  =  vx;
+          _gamepadCommand.rightStickAnalog[0] = -wz;
           printf("[sim] command -> vx=%.2f m/s wz=%.2f rad/s\n", vx, wz); fflush(stdout);
         }
       }

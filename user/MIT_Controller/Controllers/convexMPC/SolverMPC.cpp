@@ -534,7 +534,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
       // and truncated at 60 iterations returns a half-converged wrong answer -
       // measured as weak, lopsided forces and a launch. So warm start ONLY
       // when the contact table is bit-identical to the previous solve
-      // ($SIM_MPC_WARM=0 disables even that).
+      // ($CTRL_MPC_WARM=0 disables even that).
       static u8 prev_gait[4*36];
       static s32 prev_ng = -1;
       s32 ng = 4*setup->horizon;
@@ -543,7 +543,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
         for(s32 g = 0; g < ng; g++) if(prev_gait[g] != update->gait[g]) { same_table = false; break; }
       for(s32 g = 0; g < ng; g++) prev_gait[g] = update->gait[g];
       prev_ng = ng;
-      static const bool warm_ok = !(getenv("SIM_MPC_WARM") && atoi(getenv("SIM_MPC_WARM")) == 0);
+      static const bool warm_ok = !(getenv("CTRL_MPC_WARM") && atoi(getenv("CTRL_MPC_WARM")) == 0);
       if(!fresh && same_table && warm_ok) jc->hotStart();
       jc->runFromDense(update->max_iterations, true, false);
       for(s32 rI = 0; rI < nv; rI++) q_soln[vi[rI]] = jc->getSolution()[rI];
@@ -569,8 +569,8 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
     // every MPC update (a fresh QProblem, no hotstart), which on this Cortex-A7
     // costs 56-85 ms for the 12*horizon variable problem against a 2 ms control
     // period. MIT's x86 UP board did the same solve in 1-2 ms and never noticed.
-    // $SIM_MPC_NWSR trades optimality for latency.
-    static const int _nwsr_env = getenv("SIM_MPC_NWSR") ? atoi(getenv("SIM_MPC_NWSR")) : 100;
+    // $CTRL_MPC_NWSR trades optimality for latency.
+    static const int _nwsr_env = getenv("CTRL_MPC_NWSR") ? atoi(getenv("CTRL_MPC_NWSR")) : 100;
     qpOASES::int_t nWSR = _nwsr_env;
 
 

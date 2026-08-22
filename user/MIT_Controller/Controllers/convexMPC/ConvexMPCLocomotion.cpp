@@ -40,11 +40,11 @@
 
 ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc, MIT_UserParameters* parameters) :
   iterationsBetweenMPC(_iterations_between_mpc),
-  // Horizon is env-tunable ($SIM_MPC_HORIZON) because dense-QP solve cost grows
+  // Horizon is env-tunable ($CTRL_MPC_HORIZON) because dense-QP solve cost grows
   // steeply with it, and this board is 30x slower than the x86 UP board MIT
   // shipped on: the 10-step horizon measures 62-68 ms per solve on the A7
   // against a 2 ms control period.
-  horizonLength(getenv("SIM_MPC_HORIZON") ? atoi(getenv("SIM_MPC_HORIZON")) : 10),
+  horizonLength(getenv("CTRL_MPC_HORIZON") ? atoi(getenv("CTRL_MPC_HORIZON")) : 10),
   dt(_dt),
   trotting(horizonLength, Vec4<int>(0,5,5,0), Vec4<int>(5,5,5,5),"Trotting"),
   bounding(horizonLength, Vec4<int>(5,5,0,0),Vec4<int>(4,4,4,4),"Bounding"),
@@ -67,22 +67,28 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   dtMPC = dt * iterationsBetweenMPC;
   default_iterations_between_mpc = iterationsBetweenMPC;
   printf("[Convex MPC] dt: %.3f iterations: %d, dtMPC: %.3f\n", dt, iterationsBetweenMPC, dtMPC);
-  // $SIM_F_MAX overrides the per-foot force cap. The 175 N default holds MIT's
+  // $CTRL_F_MAX overrides the per-foot force cap. The 175 N default holds MIT's
   // 1.36x-bodyweight ratio, and 250 N was rejected earlier because it made the
   // STAND sit lower - but standing is not what the cap binds on. With two feet
   // down (bounding) a 2-3x bodyweight peak is 128-192 N per foot, and with one
   // (galloping) it is 250-350 N, so 175 N is at or past the limit for exactly
   // the gaits that fail. The knee is good for 240-355 N at the foot.
   {
-    static const float fmax = getenv("SIM_F_MAX") ? atof(getenv("SIM_F_MAX"))
+    static const float fmax = getenv("CTRL_F_MAX") ? atof(getenv("CTRL_F_MAX"))
                                                   : (float)MPC_F_MAX;
     setup_problem(dtMPC, horizonLength, 0.4, fmax);
   }
   //setup_problem(dtMPC, horizonLength, 0.4, 650); // DH
 
   // Start the MPC worker (see the header for why the solve cannot run inline on
-  // this board). SIM_MPC_ASYNC=0 restores the stock inline behaviour for A/B.
-  _mpcAsync = !(getenv("SIM_MPC_ASYNC") && atoi(getenv("SIM_MPC_ASYNC")) == 0);
+  // this board). CTRL_MPC_ASYNC=0 restores the stock inline behaviour for A/B.
+  // DEFAULT IS INLINE (async OFF). Every measured result in this port - the
+  // whole 100 m dash table, the yaw envelope, the star mission - was taken
+  // inline, and the reduced solve fits inside the gait segment, so MIT's own
+  // synchronous semantics hold. The async worker exists for a machine too slow
+  // to solve in-segment; defaulting to it meant the shipped default was the
+  // configuration NOTHING was measured against. $CTRL_MPC_ASYNC=1 re-enables it.
+  _mpcAsync = (getenv("CTRL_MPC_ASYNC") && atoi(getenv("CTRL_MPC_ASYNC")) != 0);
   if (_mpcAsync) {
     _mpcThread = std::thread(&ConvexMPCLocomotion::_mpcWorker, this);
     printf("[Convex MPC] solve runs ASYNC on a worker thread\n");
@@ -138,12 +144,12 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
     _body_height = 0.29;
 #endif
 #ifdef USE_GO1_MODEL
-    // Go1 SITL: allow a crouched gait ($SIM_BODY_H, m) - lower CoM = much
+    // Go1 SITL: allow a crouched gait ($CTRL_BODY_H, m) - lower CoM = much
     // larger roll/pitch margins through the UDP loop's extra latency.
     {
       static float h_env = -1.f;
       if (h_env < 0.f) {
-        const char* e = getenv("SIM_BODY_H");
+        const char* e = getenv("CTRL_BODY_H");
         h_env = e ? atof(e) : 0.f;
       }
       if (h_env > 0.05f) _body_height = h_env;
@@ -182,9 +188,9 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   // which are 250 ms - 1 s constants: 12-50x heavier smoothing of the reference
   // it hands downstream. Worth testing here because the gaits still failing
   // (pronking, galloping) die on the transient at gait engagement, not in
-  // steady state. $SIM_CMD_FILTER overrides; default stays MIT's 0.1.
+  // steady state. $CTRL_CMD_FILTER overrides; default stays MIT's 0.1.
   static const float kCmdFilter =
-      getenv("SIM_CMD_FILTER") ? atof(getenv("SIM_CMD_FILTER")) : 0.1f;
+      getenv("CTRL_CMD_FILTER") ? atof(getenv("CTRL_CMD_FILTER")) : 0.1f;
   float filter(kCmdFilter);
   if(data.controlParameters->use_rc){
     const rc_control_settings* rc_cmd = data._desiredStateCommand->rcCommand;
@@ -263,10 +269,10 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // 0.1-0.3 s after entry, repeatably). MIT's own flow drives LOCOMOTION at
   // gait 4 (standing) first and lets the operator pick a dynamic gait, so do
   // the same: hold `standing` until the async pipeline has produced its first
-  // solution AND a settle window has passed ($SIM_GAIT_WAIT_MS, default 600).
+  // solution AND a settle window has passed ($CTRL_GAIT_WAIT_MS, default 600).
   if (_mpcAsync) {
-    static const int64_t waitMs = getenv("SIM_GAIT_WAIT_MS")
-                                ? atoll(getenv("SIM_GAIT_WAIT_MS")) : 600;
+    static const int64_t waitMs = getenv("CTRL_GAIT_WAIT_MS")
+                                ? atoll(getenv("CTRL_GAIT_WAIT_MS")) : 600;
     bool hold = (!_mpcHaveSolution.load() || (nowMs() - _locoEntryMs) < waitMs);
     if (getenv("STM32MP1_MPC_IN")) {
       static int _wc = 0;
@@ -410,12 +416,27 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   }
 
   static const bool heading_hold =
-      !getenv("SIM_HEADING_HOLD") || atoi(getenv("SIM_HEADING_HOLD")) != 0;
+      !getenv("CTRL_HEADING_HOLD") || atoi(getenv("CTRL_HEADING_HOLD")) != 0;
 
   if(gait != &standing) {
     world_position_desired += dt * Vec3<float>(v_des_world[0], v_des_world[1], 0);
     if (heading_hold) {
       _yaw_des += dt * _yaw_turn_rate;   // a REFERENCE, not the measurement
+      // [YAWREF] ($SIM_YAWREF=1): is the heading REFERENCE moving the same way
+      // the robot actually is? Measured, a positive stick command turns the
+      // robot CLOCKWISE while this line winds _yaw_des COUNTER-clockwise, so
+      // reference and reality would diverge without bound - except the error
+      // clamp below hides it at 0.40 rad. Print both to settle it.
+      {
+        static const bool yref = getenv("SIM_YAWREF") && atoi(getenv("SIM_YAWREF")) != 0;
+        if (yref) {
+          static int nyr = 0;
+          if ((nyr++ % 250) == 0)
+            printf("[YAWREF] wzCmd=%+.3f yawDes=%+.4f yawAct=%+.4f err=%+.4f\n",
+                   _yaw_turn_rate, _yaw_des, seResult.rpy[2],
+                   _yaw_des - seResult.rpy[2]);
+        }
+      }
       // Keep the reference on the same branch as the measurement (rpy wraps at
       // +-pi; an unwrapped reference would hand the MPC a 2*pi error and spin
       // the robot), and saturate how much correction it may ask for so a big
@@ -430,7 +451,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       // for out of body height. Measured: the walk cleared a star corner and
       // then collapsed level at z=0.091 with no orientation trip.
       static const float YAW_ERR_MAX =
-          getenv("SIM_YAW_ERR_MAX") ? atof(getenv("SIM_YAW_ERR_MAX")) : 0.40f;
+          getenv("CTRL_YAW_ERR_MAX") ? atof(getenv("CTRL_YAW_ERR_MAX")) : 0.40f;
       if (e >  YAW_ERR_MAX) _yaw_des = seResult.rpy[2] + YAW_ERR_MAX;
       if (e < -YAW_ERR_MAX) _yaw_des = seResult.rpy[2] - YAW_ERR_MAX;
 
@@ -445,9 +466,9 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       // Feeding a corrective rate -kp*e into the rate channel (tracked at
       // Q[8]=0.3) adds authority WITHOUT needing a big angle error, so the drift
       // is unwound as it forms. Active only while holding heading (no turn
-      // commanded); disabled by SIM_YAW_RATE_KP=0.
+      // commanded); disabled by CTRL_YAW_RATE_KP=0.
       static const float yaw_rate_kp =
-          getenv("SIM_YAW_RATE_KP") ? atof(getenv("SIM_YAW_RATE_KP")) : 1.5f;
+          getenv("CTRL_YAW_RATE_KP") ? atof(getenv("CTRL_YAW_RATE_KP")) : 1.5f;
       if (std::fabs(_yaw_turn_rate) < 0.05f) {
         _yaw_rate_ff = -yaw_rate_kp * e;
         const float ff_max = 0.8f;
@@ -520,7 +541,12 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
 #ifdef USE_GO1_MODEL
     // Swing clearance, env-tunable: the 2.5 m walk died on a foot scuff (z dip
     // mid-swing), and clearance is the direct lever on scuffs.
-    static const float _swingH = getenv("SIM_SWING_H") ? atof(getenv("SIM_SWING_H")) : 0.07f;
+    // DEFAULT 0.11, not 0.07: every 100 m dash result was measured at 0.11, and
+    // clearance is the direct lever on the foot scuffs that killed the early
+    // walks. Raising it further is HARMFUL at speed (at 3.5 m/s: 0.11 -> 27.7 m,
+    // 0.14 -> 22.1 m, 0.17 -> 13.8 m) because a higher swing must be covered in
+    // the same shrinking swing window.
+    static const float _swingH = getenv("CTRL_SWING_H") ? atof(getenv("CTRL_SWING_H")) : 0.11f;
     footSwingTrajectories[i].setHeight(_swingH);
 #else
     footSwingTrajectories[i].setHeight(.06);
@@ -597,9 +623,9 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // at whatever height it happens to be (measured: parked at 0.204 m against a
   // 0.30 m reference and never rising). A small stance stiffness gives the
   // height something to servo against between MPC updates without taking the
-  // force authority away from the MPC. $SIM_KP_STANCE, 0 restores stock.
+  // force authority away from the MPC. $CTRL_KP_STANCE, 0 restores stock.
   {
-    static const float kps = getenv("SIM_KP_STANCE") ? atof(getenv("SIM_KP_STANCE")) : 0.f;
+    static const float kps = getenv("CTRL_KP_STANCE") ? atof(getenv("CTRL_KP_STANCE")) : 0.f;
     Kp_stance = kps * Kp;
   }
 
@@ -983,17 +1009,17 @@ void ConvexMPCLocomotion::run(ControlFSMData<double>& data) {
  * orientation trip.
  *
  * So hold MIT's standing gait until there is actually a velocity to deliver.
- * $SIM_ZEROVEL_HOLD_GAIT=0 restores stock behaviour; $SIM_ZEROVEL_HOLD sets the
+ * $CTRL_ZEROVEL_HOLD_GAIT=0 restores stock behaviour; $CTRL_ZEROVEL_HOLD sets the
  * debounce in control ticks.
  */
 bool ConvexMPCLocomotion::zeroVelHold() {
-  static const bool enabled = !getenv("SIM_ZEROVEL_HOLD_GAIT") ||
-                              atoi(getenv("SIM_ZEROVEL_HOLD_GAIT")) != 0;
+  static const bool enabled = !getenv("CTRL_ZEROVEL_HOLD_GAIT") ||
+                              atoi(getenv("CTRL_ZEROVEL_HOLD_GAIT")) != 0;
   if (!enabled) return false;
 
   const float kZeroVel = 0.01f;      // Unitree's threshold, .rodata 0x2665e0
   static const int kHold =
-      getenv("SIM_ZEROVEL_HOLD") ? atoi(getenv("SIM_ZEROVEL_HOLD")) : 25;
+      getenv("CTRL_ZEROVEL_HOLD") ? atoi(getenv("CTRL_ZEROVEL_HOLD")) : 25;
 
   const bool zeroish =
       std::sqrt(_x_vel_des * _x_vel_des + _y_vel_des * _y_vel_des) < kZeroVel &&
@@ -1173,7 +1199,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
 
   float Q[12] = {0.25, 0.25, 10, 2, 2, 50, 0, 0, 0.3, 0.2, 0.2, 0.1};
 
-  // $SIM_MPC_Q selects an alternate state-cost vector.
+  // $CTRL_MPC_Q selects an alternate state-cost vector.
   //   1 = Unitree's second vector, recovered from Legged_sport .rodata 0x2fe390:
   //       {0.5,0.5,10, 20,20,15, 0.1,0.1,1, 0.5,0.5,0.5}
   //       Ten times MIT's position weight (20 vs 2) and a LOWER z weight (15 vs
@@ -1182,7 +1208,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   //       Unitree ships for some other mode - worth testing against speed,
   //       where holding commanded position matters more than holding height.
   {
-    static const int qsel = getenv("SIM_MPC_Q") ? atoi(getenv("SIM_MPC_Q")) : 0;
+    static const int qsel = getenv("CTRL_MPC_Q") ? atoi(getenv("CTRL_MPC_Q")) : 0;
     if (qsel == 1) {
       const float qU[12] = {0.5f,0.5f,10.f, 20.f,20.f,15.f,
                             0.1f,0.1f,1.f,  0.5f,0.5f,0.5f};
@@ -1193,7 +1219,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   //float Q[12] = {0.25, 0.25, 10, 2, 2, 40, 0, 0, 0.3, 0.2, 0.2, 0.2};
   float yaw = seResult.rpy[2];
   float* weights = Q;
-  static const float alpha_env = getenv("SIM_MPC_ALPHA") ? atof(getenv("SIM_MPC_ALPHA")) : 4e-5f;
+  static const float alpha_env = getenv("CTRL_MPC_ALPHA") ? atof(getenv("CTRL_MPC_ALPHA")) : 4e-5f;
   float alpha = alpha_env; // input-cost weight (MIT default 4e-5); env knob for
                            // short-horizon retunes
   //float alpha = 4e-7; // make setting eventually: DH
@@ -1367,7 +1393,7 @@ void ConvexMPCLocomotion::_mpcWorker() {
     // death by them - as SCHED_OTHER was: one solve took 359 ms instead of 60,
     // and the run completed a single MPC solve in 28 s.
 #ifdef __linux__
-    int prio = getenv("SIM_MPC_PRIO") ? atoi(getenv("SIM_MPC_PRIO")) : 20;
+    int prio = getenv("CTRL_MPC_PRIO") ? atoi(getenv("CTRL_MPC_PRIO")) : 20;
     struct sched_param sp; sp.sched_priority = prio;
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0) {
       sp.sched_priority = 0;

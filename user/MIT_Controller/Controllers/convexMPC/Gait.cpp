@@ -142,7 +142,7 @@ int* OffsetDurationGait::getMpcTable()
     // compensating for solve latency. Made switchable rather than assumed,
     // because on this port the latency is much larger than on either of theirs.
     static const int sched_lead =
-        getenv("SIM_MPC_SCHED_LEAD") ? atoi(getenv("SIM_MPC_SCHED_LEAD")) : 1;
+        getenv("CTRL_MPC_SCHED_LEAD") ? atoi(getenv("CTRL_MPC_SCHED_LEAD")) : 1;
     int iter = (i + _iteration + sched_lead) % _nIterations;
     Array4i progress = iter - _offsets;
     for(int j = 0; j < 4; j++)
