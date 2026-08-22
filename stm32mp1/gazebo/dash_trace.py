@@ -15,6 +15,7 @@ Reports two different numbers on purpose:
          survival, and these two numbers keep that visible.
 """
 import math
+import os
 import sys
 import time
 
@@ -88,3 +89,23 @@ while time.time() - t0 < MAX_S:
 result['maxdist'] = best
 print('RESULT reached={reached} t100={t100:.1f} v_fly={v_fly:.2f} '
       'maxdist={maxdist:.1f} fell={fell}'.format(**result), flush=True)
+
+# HARD EXIT - do not let the interpreter finalize.
+#
+# gz-transport delivers pose messages on ITS OWN C++ thread, which calls back
+# into this interpreter. A normal exit begins finalizing Python while that
+# thread is still live; the next callback tries to attach a thread state to a
+# dying runtime and Python aborts:
+#     Thread 0: exit -> _fwalk -> tryflush              (finalizing)
+#     Thread 3: gz NodeShared::RecvMsgUpdate
+#               -> _transport.cpython-313 -> _PyThreadState_NewBound
+#               -> bind_gilstate_tstate -> _Py_FatalErrorFunc -> abort
+# That is the "Abort trap: 6" that has been killing sweep cells - a crash in
+# the MEASUREMENT tool, distinct from the controller's own exit() bug (which
+# showed as "libc++abi: terminating" instead).
+#
+# The result line is already flushed above, so os._exit is safe here and skips
+# finalization entirely, leaving the callback thread nothing to race with.
+sys.stdout.flush()
+sys.stderr.flush()
+os._exit(0)

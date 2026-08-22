@@ -4,6 +4,7 @@
  * balance control mode.
  */
 
+#include <atomic>
 #include "FSM_State_StandUp.h"
 
 /**
@@ -44,11 +45,25 @@ void FSM_State_StandUp<T>::onEnter() {
 /**
  * Calls the functions to be executed on each control loop iteration.
  */
+/*
+ * TARGET STANCE HEIGHT for this state, settable at runtime.
+ *
+ * FSM_State_StandUp interpolates every foot from wherever it is on entry to
+ * -hMax over ~0.5 s. With hMax small, RE-ENTERING this state is a controlled
+ * LIE DOWN: the same interpolation that stands the robot up, run to a low
+ * target, lowers it under full Cartesian control instead of going limp.
+ * That is what an end-of-mission "sit down" needs, and MIT ships no lay-down
+ * state (PASSIVE just drops the legs, and RECOVERY_STAND only folds when it
+ * decides the robot has fallen).
+ */
+std::atomic<double> g_standUpHeight{0.25};
+void setStandUpHeight(double h) { g_standUpHeight = h; }
+
 template <typename T>
 void FSM_State_StandUp<T>::run() {
 
   if(this->_data->_quadruped->_robotType == RobotType::MINI_CHEETAH) {
-    T hMax = 0.25;
+    T hMax = (T)g_standUpHeight.load();
     T progress = 2 * iter * this->_data->controlParameters->controller_dt;
 
     if (progress > 1.){ progress = 1.; }

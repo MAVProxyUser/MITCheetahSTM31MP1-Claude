@@ -1060,7 +1060,17 @@ ConvexMPCLocomotion::scheduleFor(int gaitNumber, float speedCmd) {
     case 5:                       // trotRunning - 40% duty, flight phase
       p.segMs = 26;  p.vMax = 4.0f;  break;
     case 9:                       // trotting - 50% duty
-      p.segMs = (v >= 2.9f) ? 22 : 26;  p.vMax = 3.1f;  break;
+      // 22 ms at EVERY speed, deliberately NOT speed-scheduled.
+      // A "26 below 2.9, 22 above" rule looked better on paper - 26 gave
+      // marginally quicker times at 2.5-2.75 - but those were FIXED-segment
+      // runs. Scheduling it introduced a segment change at v~2.93, i.e. in the
+      // middle of hard acceleration, and it cost the whole cell: trot at 3.0
+      // went from 33.2/33.2/33.3 s (3/3) to falling at 21 m. 22 ms is measured
+      // good across trotting's entire range (47.0 s at 2.0, 33.2 s at 3.0,
+      // 32.2 s at 3.1), so the switch bought nothing and broke something.
+      // LESSON: a mid-run parameter change is not free. It has to beat the
+      // TRANSIENT it causes, not just the steady-state number it targets.
+      p.segMs = 22;  p.vMax = 3.1f;  break;
     case 20:                      // walking - 4-beat, 50% duty
       p.segMs = 22;  p.vMax = 2.25f;  break;
     case 4:                       // standing - no travel

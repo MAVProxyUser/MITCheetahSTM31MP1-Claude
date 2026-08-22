@@ -19,6 +19,10 @@
 #include "Planning/BodyPathPlanner.h"
 #include "rt/rt_gazebo.h"      // gazebo_get_aux(): GPS, the same data the real dog gets over CAN
 
+//! Defined in FSM_State_StandUp.cpp - lets the mission lower the stance target
+//! so re-entering STAND_UP performs a controlled lie-down.
+void setStandUpHeight(double h);
+
 static std::string g_peer;
 
 /*!
@@ -174,16 +178,59 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
       bridge->driverCommand().rightStickAnalog[0] = 0.f;
       done = true;
-      // Ramp the stick down instead of dropping it to zero. Zeroing from cruise
-      // is a step input: the robot pitches forward and goes down AFTER a
-      // successful mission, which is how every completed star run ended with a
-      // [FALL] line three seconds later.
+      /*
+       * END-OF-MISSION SEQUENCE, and the PASS/FAIL criterion.
+       *
+       * Reaching the last waypoint is not a completed mission - a robot that
+       * arrives and then falls over has not done the job. The mission now ends
+       * the way it began, in reverse: decelerate, settle on its feet, then LIE
+       * DOWN under control. PASS requires all of it; anything else is FAIL.
+       *
+       * This also exercises exactly the transitions the hardware QA ladder
+       * starts with (stand -> lie down -> stand up -> slow walk), so a mission
+       * that passes here has rehearsed the sequence a real dog has to survive.
+       */
+      // 1. decelerate. Zeroing the stick from cruise is a step input - the
+      //    robot pitches forward and goes down, which is why every completed
+      //    star run used to be followed by a [FALL] three seconds later.
       for (int k = 20; k >= 0; --k) {
         bridge->driverCommand().leftStickAnalog[1] = nv * (float)k / 20.f;
+        bridge->driverCommand().rightStickAnalog[0] = 0.f;
         std::this_thread::sleep_for(std::chrono::milliseconds(75));
       }
       bridge->driverCommand().leftStickAnalog[1] = 0.f;
-      std::this_thread::sleep_for(std::chrono::seconds(2));
+
+      // 2. settle on its feet
+      bridge->setControlMode(3);                 // K_BALANCE_STAND
+      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      const auto& s1 = bridge->robotRunner()->getStateEstimate();
+      const float stand_z = s1.position[2];
+      const float stand_roll  = std::fabs(s1.rpy[0]) * 57.2958f;
+      const float stand_pitch = std::fabs(s1.rpy[1]) * 57.2958f;
+
+      // 3. LIE DOWN: re-enter STAND_UP with a low target so the same Cartesian
+      //    interpolation that stands the robot up lowers it instead.
+      setStandUpHeight(0.07);
+      bridge->setControlMode(1);                 // K_STAND_UP
+      std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      const auto& s2 = bridge->robotRunner()->getStateEstimate();
+      const float down_z = s2.position[2];
+      const float down_roll  = std::fabs(s2.rpy[0]) * 57.2958f;
+      const float down_pitch = std::fabs(s2.rpy[1]) * 57.2958f;
+
+      // 4. judge. Upright while standing, actually lower afterwards, and still
+      //    level on the ground - a topple registers as attitude, not height.
+      const bool ok_stand = (stand_z > 0.20f && stand_roll < 15.f && stand_pitch < 15.f);
+      const bool ok_down  = (down_z < stand_z - 0.06f && down_roll < 20.f && down_pitch < 20.f);
+      printf("[mission] settle: z=%.3f roll=%.1f pitch=%.1f -> %s\n",
+             stand_z, stand_roll, stand_pitch, ok_stand ? "ok" : "BAD");
+      printf("[mission] laydown: z=%.3f roll=%.1f pitch=%.1f -> %s\n",
+             down_z, down_roll, down_pitch, ok_down ? "ok" : "BAD");
+      printf("[mission] RESULT: %s  (waypoints %d/%d, settle %s, laydown %s)\n",
+             (ok_stand && ok_down) ? "PASS" : "FAIL",
+             nav.count(), nav.count(), ok_stand ? "ok" : "bad", ok_down ? "ok" : "bad");
+      fflush(stdout);
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
       /*
        * _exit, NOT exit - THIS WAS THE "Abort trap: 6".
        *

@@ -39,6 +39,9 @@ class Stm32mp1HardwareBridge {
 
   //! Configure the Gazebo UDP peer (workstation running the bridge) for GAZEBO backend.
   void setGazebo(const GazeboUdpConfig& cfg) { _gazeboCfg = cfg; }
+  //! Drive the FSM from outside the sequencer - used by the mission's
+  //! end-of-run lie-down. K_BALANCE_STAND / K_STAND_UP / K_PASSIVE.
+  void setControlMode(int m) { _robotParams.control_mode = m; }
 
   //! periodic actuator exchange (RS485 motors or Gazebo UDP), public for PeriodicMemberFunction
   void runMotors();
