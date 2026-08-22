@@ -1716,6 +1716,42 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## THE STAR IS CORNER-BOUND: what moves it, and what does not
+
+Measured after the planner landed. Baseline is trotting at 2.0 m/s, 44.4 s, 3/3.
+
+| change | time | runs | peak roll |
+|---|---|---|---|
+| baseline (a_lat 2.5, accept 1.0) | 44.4 s | 3/3 | 14.0 deg |
+| a_lat 3.0 | 44.4 s | 1/2 | 40.4 on the failure |
+| a_lat 3.5 | 44.5 s | 1/2 | 35.8 |
+| **accept 1.5** | **42.2 s** | **2/2** | 20.8-22.0 |
+| accept 2.0 | 40.3 s | 1/2 | 21.3 |
+| a_lat 3.0 + accept 2.0 | - | 0/2 | |
+
+**More lateral budget buys NOTHING.** Corner speed goes as `sqrt(a_lat * R)`, and
+at R = 0.45 m the corner segment is so short that 40% more budget saves no
+measurable time while driving peak roll from 14 to 40 deg. The binding
+constraint is corner GEOMETRY, not the lateral allowance.
+
+**Wider acceptance works** because it raises R *and* shortens the path - the two
+things that actually matter. 1.5 m is the sweet spot.
+
+**GAIT SWITCHING CANNOT BEAT IT EITHER.** The gait decider (Apollo's task of the
+same name, switching only while slow) was built and measured:
+- trotRunning straights / trotting corners: at 2.0 it correctly DECLINES to
+  switch (planned speed never reaches the threshold, so trotRunning is never
+  worth it) and matches baseline; at 3.0+ trotRunning fails the star regardless.
+- trotting straights / walking corners: fails above 2.0, and at 2.0 again
+  declines to switch and matches baseline (44.6 vs 44.5 s).
+The mechanism is sound; the LEGS ARE TOO SHORT. trotRunning needs ~7 m to reach
+cruise and ~7 m to shed it, against a 20 m leg, and it corners worse. Gait
+switching would pay on long legs, not on this course.
+
+**So the honest statement is that a 100 m star with 20 m legs and 144 deg
+corners is bound at ~42-44 s, and the remaining lever is a MISSION decision
+(how close must it pass each waypoint), not a controller one.**
+
 ## THE STAR TABLE: every gait, ranked - and it does NOT match the dash table
 
 100 m star (5 legs of 20.0 m, r = 10.514 m), real estimator, qpOASES, with the
