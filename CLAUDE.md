@@ -1716,6 +1716,46 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## THE STAR TABLE: every gait, ranked - and it does NOT match the dash table
+
+100 m star (5 legs of 20.0 m, r = 10.514 m), real estimator, qpOASES, with the
+Apollo-derived planner (`WP_PLANNER=1`). "course m/s" is the nominal 100 m of
+waypoint path over the elapsed time; the robot's own path is shorter because the
+planner cuts corners inside the 1.0 m acceptance radius.
+
+| rank | gait | num | cmd m/s | time | course m/s | runs |
+|---|---|---|---|---|---|---|
+| 1 | **trotting** | 9 | 2.0 | **44.4 s** | **2.25** | **3/3** |
+| 2 | trotRunning | 5 | 1.5 | 54.8 s | 1.82 | 1/1 |
+| 3 | walking | 20 | 1.5 | 56.4 s | 1.77 | **3/3** |
+| 4 | bounding | 1 | 1.5 | 57.2 s | 1.75 | 1/3 marginal |
+| 5 | **galloping** | 22 | 0.8 | 103.7 s | 0.96 | 1/1 |
+| - | walking2 / pacing / pronking | 21/8/2 | - | no completion | - | 0 |
+
+**GALLOPING RUNS A WAYPOINT MISSION.** It had never travelled more than ~13 m in
+this port's history. It needed BOTH fixes: the solver, so a 40% duty gait can be
+given the `m*g/duty` it actually needs, and the planner, so it is never asked to
+corner at a speed its flight phase cannot redirect from.
+
+### The dash table and the star table rank gaits DIFFERENTLY
+
+| gait | duty | straight 100 m dash | 100 m star |
+|---|---|---|---|
+| trotRunning | 40% | **4.70 m/s, 24.8 s (1st)** | 1.5 m/s, 54.8 s (2nd) |
+| trotting | 50% | 3.46 m/s, 32.2 s (2nd) | **2.0 m/s, 44.4 s (1st)** |
+| walking | 50% | 2.57 m/s, 42.0 s (3rd) | 1.5 m/s, 56.4 s (3rd) |
+| galloping | 40% | never crosses | 0.8 m/s, 103.7 s |
+
+The fastest gait in a straight line is the WORST at cornering, and the duty
+factor explains both halves. 40% stance means ~20% of every cycle fully
+airborne: a body in flight has no feet to push against, so it cannot redirect
+itself, cannot generate yaw authority and cannot arrest roll. That flight phase
+is exactly what buys top speed on a straight and exactly what costs turning
+authority in a corner. trotting's 50% duty always has a diagonal pair down.
+
+**So straight-line speed does not predict mission speed, and a "fastest gait"
+claim has to say which task it means.**
+
 ## CORNERING: what animals do, and what this port forbids
 
 A dog, horse or cheetah taking a sharp corner does NOT hold speed through it. It

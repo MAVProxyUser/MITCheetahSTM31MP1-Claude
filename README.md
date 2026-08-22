@@ -39,6 +39,40 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 cheater mode is deleted from the codebase, so ground truth cannot reach the
 control loop; it is used only to MEASURE distance.
 
+### The 100 m star mission, every gait ranked
+
+5 legs of 20.0 m (circumradius 10.514 m), real state estimator, with the
+Apollo-derived body planner. "course" is 100 m of waypoint path over elapsed
+time — the robot's own path is shorter, because the planner cuts corners inside
+the 1.0 m acceptance radius.
+
+| rank | gait | commanded | time | course m/s | runs |
+|---|---|---|---|---|---|
+| **1** | **`trotting`** | 2.0 m/s | **44.4 s** | **2.25** | **3/3** |
+| 2 | `trotRunning` | 1.5 m/s | 54.8 s | 1.82 | 1/1 |
+| 3 | `walking` | 1.5 m/s | 56.4 s | 1.77 | **3/3** |
+| 4 | `bounding` | 1.5 m/s | 57.2 s | 1.75 | 1/3, marginal |
+| 5 | **`galloping`** | 0.8 m/s | 103.7 s | 0.96 | 1/1 |
+| — | `walking2`, `pacing`, `pronking` | — | no completion | — | 0 |
+
+**Galloping runs a waypoint mission** — it had never travelled more than ~13 m
+in this port's history. It needed both the solver fix (so a 40% duty gait gets
+the `m·g/duty` it needs) and the planner (so it is never asked to corner at a
+speed its flight phase cannot redirect from).
+
+### Straight-line speed does NOT predict mission speed
+
+| gait | duty | 100 m dash | 100 m star |
+|---|---|---|---|
+| `trotRunning` | 40% | **4.70 m/s — 1st** | 1.5 m/s — 2nd |
+| `trotting` | 50% | 3.46 m/s — 2nd | **2.0 m/s — 1st** |
+| `galloping` | 40% | never crosses | 0.8 m/s |
+
+The fastest gait in a straight line is the worst at cornering. A 40% duty gait
+is fully airborne ~20% of every cycle, and a body in flight has no feet to push
+against — it cannot redirect itself, generate yaw authority, or arrest roll. The
+flight phase that buys top speed is the same thing that costs turning authority.
+
 ### The 100 m dash, every gait, after fixing the solver
 
 Fastest reliable speed for each of MIT's eight gaits, all on the real state
