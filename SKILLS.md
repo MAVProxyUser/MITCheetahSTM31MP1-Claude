@@ -36,9 +36,9 @@ odd, and the table was still worthless.
 
 ---
 
-## The fastest known configuration (100 m in 33.2 s at 3.33 m/s)
+## The fastest known configuration (100 m in 32.2 s at 3.46 m/s)
 
-`trotting` on the real state estimator, Mac SITL, confirmed 3/3 (33.2/33.2/33.3 s),
+`trotting` on the real state estimator, Mac SITL, confirmed 5/5 (32.2/32.2/32.3/32.4/32.7 s),
 zero falls, zero safety trips, body height 0.287 m against a 0.300 m reference:
 
 ```bash
@@ -46,7 +46,7 @@ zero falls, zero safety trips, body height 0.287 m against a 0.300 m reference:
 cd host-run && env DYLD_LIBRARY_PATH=. \
   SIM_ZEROVEL_HOLD_GAIT=1 SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_WBC_DECIM=1 \
   SIM_MPC_HORIZON=10 SIM_SWING_H=0.11 SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12 \
-  SIM_GAIT=9 SIM_VX=3.0 SIM_MPC_MS=22 \
+  SIM_GAIT=9 SIM_VX=3.1 SIM_MPC_MS=22 \
   ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml solv_oases.yaml
 ```
 
@@ -60,8 +60,9 @@ The two settings that matter, both previously on the "ruled out" list:
 - **`SIM_MPC_MS` is SPEED-DEPENDENT.** 22 ms at 3.0 m/s; 26 ms (the default) at
   2.0-2.75. Sharp optimum in both directions — at 3.0, both 18 and 26 fail.
 
-Speeds confirmed by repetition: 3.0 (3/3), 2.75 (2/2), 2.5 (3/3), 2.0 (4/4).
-3.5 m/s is an open wall — ~20 configs tried, best 27.7 m; see `CLAUDE.md`.
+Speeds confirmed by repetition: 3.1 (5/5), 3.0 (3/3), 2.75 (2/2), 2.5 (3/3), 2.0 (4/4).
+Above 3.1 it goes STOCHASTIC: 3.15 crosses 2 of 5, 3.2 fails. Repeat before believing.
+The ceiling is ~3.5 m/s ACHIEVED; commanding above 3.1 overshoots it. See `CLAUDE.md`.
 
 ---
 
