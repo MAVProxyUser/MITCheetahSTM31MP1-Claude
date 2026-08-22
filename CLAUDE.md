@@ -1400,6 +1400,20 @@ captured at first fix, AFTER stand-up had moved the robot, while the estimator's
 origin is the spawn pose. Harm grew as the correction got gentler
 (21 -> 5.8 -> 0.20 m), which is the signature of a BIAS, not noise.
 
+**CORRECTION, checked against Unitree's binary: the covariance cap is NOT a bug.**
+`LinearKFPositionVelocityEstimator<float>::run()` (0x1c11e0, 7864 bytes) contains
+the IDENTICAL structure at 0x1c26a0-0x1c2778: zero the (0,2)/(2,0) 2x16/16x2
+cross-blocks, a threshold check, then `div_assign_op<float,float>` on the (0,0)
+2x2 block against the constant 10.0 - byte-for-byte the same as MIT's
+`_P.block(0,0,2,2) /= 10`. Unitree ships this on hardware that walks at
+2.5-4.7 m/s, so it is not what caps this port's speed, and `SIM_KF_UNCAP` was
+solving a problem that does not exist. Kept as an opt-in flag (default off,
+harmless) but the diagnosis behind it was wrong.
+
+Also confirmed from the same disassembly pass: `high_suspect_number = 100` and
+`foot_process_noise_position = 0.002` are exact matches to this port's values -
+both were guesses that turned out right, now verified rather than assumed.
+
 **With frames aligned it still does not help locomotion, and adds a
 catastrophic tail:**
 
@@ -1456,6 +1470,75 @@ the phase within stance was never the problem.
 Default OFF (`SIM_CONTACT_DETECT`, opt-in). If revisited: use detection to
 CORRECT the schedule's phase when they disagree, rather than replacing it -
 preserve the ramp, only intervene when the disagreement is real.
+
+
+## Foundational audit (per direct instruction): URDF + decompile, block by block
+
+Stopped adding estimator features. Went back to verify every constant against
+ground truth (URDF + Unitree's binary) rather than build on top of an
+unverified foundation. Found three real bugs, all independently confirmed by
+TWO sources agreeing:
+
+### Rotor mass/inertia: copy-pasted from mini-cheetah, never updated
+
+`Go1.h`'s rotor block was byte-identical to `MiniCheetah.h`'s (mass 0.055,
+inertia diag 33/33/63 x1e-6) - a straight copy that nobody had updated for the
+Go1's actual rotors. Corrected from the URDF's `hip_rotor`/`thigh_rotor`/
+`calf_rotor` links (mass 0.089, spin-axis I=111.842e-6, radial I=59.647e-6).
+
+**Independent confirmation**: 59.646999 and 111.842003 appear as immediates in
+Unitree's `buildMiniCheetah<float>()` - found during the FIRST reversing pass
+of this project and not connected to this bug until now. Two unrelated sources
+(URDF, binary) agree to 6 significant figures.
+
+Total robot mass: was 12.45 kg with the wrong rotor mass; is now **12.859 kg**
+against Unitree's own binary constant of **12.840 kg** - 0.15% agreement.
+
+### Rotor locations: two of three were placeholder guesses
+
+`_abadRotorLocation` was a literal copy of `_abadLocation` (impossible - they
+are different joints). `_hipRotorLocation`/`_kneeRotorLocation` followed
+mini-cheetah's pattern (rotor co-located with the joint) rather than the Go1's
+actual near-zero motor-housing offsets. Corrected from URDF joint origins, with
+the sign/frame convention verified against `Quadruped.cpp`'s actual consuming
+code (`withLegSigns`, confirmed leg 0 = FR maps stored (x,y,z) -> physical
+(x,-y,z)) rather than assumed - checked against the three locations that were
+ALREADY correct (`_abadLocation`/`_hipLocation`/`_kneeLocation`) to derive the
+rule before applying it to the three that were wrong.
+
+### Motor electrical params (motorKT, motorR): confirmed NOT load-bearing
+
+Identical to mini-cheetah's. Traced their only consumer
+(`buildActuatorModels()`) and confirmed it is unit-test-only, never called from
+the control loop - so this is unverified but also inert, not a live bug.
+
+## The covariance cap: corrected diagnosis (Unitree ships the identical code)
+
+`LinearKFPositionVelocityEstimator<float>::run()` (0x1c11e0, 7864 bytes)
+disassembled at 0x1c26a0-0x1c2778: zero (0,2)/(2,0) cross-blocks, threshold
+check, `div_assign_op<float,float>` on the (0,0) 2x2 block against 10.0 -
+byte-for-byte MIT's `_P.block(0,0,2,2) /= 10`. Unitree ships this on hardware
+that walks 2.5-4.7 m/s, so it is NOT what caps this port's speed.
+`SIM_KF_UNCAP` was solving a problem that does not exist; the earlier
+diagnosis in this file was wrong and is corrected here.
+
+Also confirmed exact matches from the same pass: `high_suspect_number = 100`,
+`foot_process_noise_position = 0.002`.
+
+## The SITL never tested orientation estimation at all
+
+`VectorNavOrientationEstimator::run()` is a pass-through of
+`vectorNavData->quat`. In the Gazebo SITL that value is `msg.orientation` from
+Gazebo's IMU sensor plugin - and the SDF has no `<orientation>` noise block on
+any world's IMU sensor, so it reports the link's exact simulated pose. **Every
+"real estimator" run measured today had perfect, noise-free orientation.**
+
+This reframes the whole 21 m / 57 m gap: it is not sensor realism, it is the
+LinearKF's position/velocity integration (leg odometry) degrading the estimate
+even under best-case orientation and IMU input. Unitree's real hardware has
+genuine VectorNav noise and still outperforms this by ~5x, which says the gap
+is in the filter's leg-odometry handling itself, not in a lack of simulated
+sensor error.
 
 
 ## Still open

@@ -65,9 +65,16 @@ Quadruped<T> buildGo1() {
   go1._jointDamping = .01;
   go1._jointDryFriction = .2;
 
-  // rotor inertia (approx; Go1 rotors are small, reuse mini-cheetah magnitudes)
+  // Rotor mass/inertia, from the URDF's hip_rotor/thigh_rotor/calf_rotor links
+  // (all three identical: mass 0.089, spin-axis I=111.842e-6, radial I=59.647e-6
+  // kg m^2). This block was previously an unmodified copy of MiniCheetah.h's
+  // rotor (mass 0.055, spin 63e-6, radial 33e-6) - never updated for the Go1,
+  // wrong by 62-81% on every field. Independently confirmed: these exact URDF
+  // values (59.646999, 111.842003) appear as immediates in Unitree's own
+  // buildMiniCheetah<float>() in Legged_sport - found during the initial
+  // reversing pass and not connected to this bug until now.
   Mat3<T> rotorRotationalInertiaZ;
-  rotorRotationalInertiaZ << 33, 0, 0, 0, 33, 0, 0, 0, 63;
+  rotorRotationalInertiaZ << 59.647, 0, 0, 0, 59.647, 0, 0, 0, 111.842;
   rotorRotationalInertiaZ = 1e-6 * rotorRotationalInertiaZ;
   Mat3<T> RY = coordinateRotation<T>(CoordinateAxis::Y, M_PI / 2);
   Mat3<T> RX = coordinateRotation<T>(CoordinateAxis::X, M_PI / 2);
@@ -94,8 +101,8 @@ Quadruped<T> buildGo1() {
   SpatialInertia<T> kneeInertia(0.135862, kneeCOM, kneeRotationalInertia);
 
   Vec3<T> rotorCOM(0, 0, 0);
-  SpatialInertia<T> rotorInertiaX(0.055, rotorCOM, rotorRotationalInertiaX);
-  SpatialInertia<T> rotorInertiaY(0.055, rotorCOM, rotorRotationalInertiaY);
+  SpatialInertia<T> rotorInertiaX(0.089, rotorCOM, rotorRotationalInertiaX);
+  SpatialInertia<T> rotorInertiaY(0.089, rotorCOM, rotorRotationalInertiaY);
 
   Mat3<T> bodyRotationalInertia;
   bodyRotationalInertia << 16813, -230, -295, -230, 63010, -42, -295, -42, 71655;
@@ -111,13 +118,29 @@ Quadruped<T> buildGo1() {
   go1._kneeRotorInertia = rotorInertiaY;
   go1._bodyInertia = bodyInertia;
 
-  // locations (from URDF joint origins)
-  go1._abadRotorLocation = Vec3<T>(0.1881, 0.04675, 0);
+  // Locations, verified against the URDF's joint origins with the ACTUAL
+  // consuming convention checked in Quadruped.cpp - not assumed. `withLegSigns`
+  // (leg 0 = FR) maps stored (x,y,z) -> physical (x,-y,z), confirmed against
+  // _abadLocation/_hipLocation/_kneeLocation which all already matched the
+  // URDF exactly. The three ROTOR locations did not: _abadRotorLocation was a
+  // literal copy of _abadLocation (impossible - different joints), and
+  // _hipRotorLocation/_kneeRotorLocation were mini-cheetah-pattern guesses
+  // (rotor co-located with the FAR joint) rather than the Go1's actual
+  // near-zero motor-housing offsets.
+  //
+  //   joint              URDF FR xyz            wrapped in withLegSigns?
+  //   FR_hip_rotor_joint  (0.11215,-0.04675,0)   yes (like abad)
+  //   FR_thigh_rotor_joint(0.0, 0.00015, 0)      yes (like hip)
+  //   FR_calf_rotor_joint (0.0, 0.03235, 0)      NO  (like knee - raw, no flip;
+  //                                              Quadruped.cpp uses _kneeLocation
+  //                                              and _kneeRotorLocation both
+  //                                              unwrapped)
+  go1._abadRotorLocation = Vec3<T>(0.11215, 0.04675, 0);
   go1._abadLocation = Vec3<T>(go1._bodyLength, go1._bodyWidth, 0) * 0.5;
   go1._hipLocation = Vec3<T>(0, go1._abadLinkLength, 0);
-  go1._hipRotorLocation = Vec3<T>(0, 0.08, 0);
+  go1._hipRotorLocation = Vec3<T>(0, -0.00015, 0);
   go1._kneeLocation = Vec3<T>(0, 0, -go1._hipLinkLength);
-  go1._kneeRotorLocation = Vec3<T>(0, 0, 0);
+  go1._kneeRotorLocation = Vec3<T>(0, 0.03235, 0);
 
   return go1;
 }

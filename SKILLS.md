@@ -106,6 +106,11 @@ FAILURE manufactures a finding that stops the investigation dead.
 Rules that follow:
 - **Parse env VALUES, never test the pointer.** `getenv("X")` is non-null for
   `X=0`. Use `getenv("X") && atoi(getenv("X")) != 0`.
+- **`SIM_CHEATER` is NEVER set to `0`. It is UNSET.** The code now parses the
+  value correctly, but this rule stands regardless of any future code change:
+  do not rely on parsing being correct, rely on the variable being ABSENT for
+  the real estimator. Every "real estimator" claim in this port's history was
+  wrong for exactly the opposite mistake - do not risk it recurring.
 - **A detector must not depend on the quantity most likely to be wrong.** The
   fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
   wide margin below the true operating value (walking ~0.175 -> trip at 0.10,
