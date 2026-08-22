@@ -1716,6 +1716,42 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## Speed tiers fail by DIFFERENT mechanisms - do not re-fix a solved one
+
+Each ceiling this port has hit had its own cause. Diagnosing the tier you are
+actually at matters more than any single lever, because the lever that unlocked
+the previous tier is inert at the next one.
+
+| tier | mechanism | signature | status |
+|---|---|---|---|
+| <=2.75 m/s | force starvation | `Fz/mg = 0.25` vs 2.00 needed; body sinks to z=0.028 flat, `roll=0 pitch=-0` | **FIXED** - qpOASES |
+| 3.0 m/s | vertical oscillation | force fine (2.45-2.64x), body vz +-0.5-0.7 m/s, bounces itself down over 50-95 m | **FIXED** - 22 ms segment |
+| 3.5 m/s | open | orientation safety trips, then sinks; force 2.5x and height 0.285-0.292 until the last 0.3 s | **OPEN** |
+
+### The 3.5 m/s wall: what it is NOT (all measured)
+
+Recorded so none of this gets re-tried. Every row is a real sweep, not an
+argument:
+
+| candidate | result | evidence |
+|---|---|---|
+| force starvation | NO | MPC commands 2.45-2.64x mg against the 2.00 the duty needs |
+| orientation gains | NO | `Kd_ori` 40/60/80 and `Kp_ori` 40/80 -> 27.7 / 27.5 / 26.9 / 27.1 m. Flat within noise - a genuine null, not a weak effect |
+| swing clearance | NO, HARMFUL | `SIM_SWING_H` 0.11 -> 27.7 m, 0.14 -> 22.1 m, 0.17 -> 13.8 m |
+| joint torque limit | NO | peak `abad 10.4 / hip 17.5 / knee 26.4 Nm` against 23.7 / 23.7 / 35.55 - knee at 74% |
+| leg reach limit | NO | max `|p| = 0.393` against `_maxLegLength 0.430`; only 0.5% of samples exceed 0.38 m |
+
+The orientation-gain null is worth dwelling on: the failure PRESENTS as attitude
+loss (`Orientation safety check failed`), and the gains that govern attitude do
+nothing. So attitude is a symptom of the collapse, not its cause - the same
+mistake shape as blaming the estimator for errors it only shows AFTER the fall.
+
+**Remaining candidate**: contact timing - whether the swing leg completes its
+trajectory and is actually on the ground when the MPC's contact schedule says it
+is. Force commanded is not force delivered, and a schedule/reality mismatch
+sends the solved force into air. Measure scheduled contact against actual foot
+height before trying anything else.
+
 ## THE 100 m DASH, REAL ESTIMATOR (the honest table)
 
 Measured with `SIM_CHEATER` **absent** from the environment - the harness no

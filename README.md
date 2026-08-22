@@ -148,8 +148,8 @@ phantom motion. Consequence, not cause.
 What ground truth was actually doing was masking the force deficit: a robot
 walking crouched at 0.13 m is close enough to failing that any extra error
 tips it over, so removing estimator error postponed the collapse without
-addressing it. With the solver fixed, `trotting` runs at **2.75 m/s on its own
-sensors** — 2.75× faster than it ever managed *with* ground truth under JCQP.
+addressing it. With the solver fixed, `trotting` runs at **3.0 m/s on its own
+sensors** — 3× faster than it ever managed *with* ground truth under JCQP.
 The estimator was never the wall.
 
 Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
