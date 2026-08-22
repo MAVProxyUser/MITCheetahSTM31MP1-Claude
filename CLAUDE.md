@@ -1630,6 +1630,83 @@ The lesson is narrower: THIS finding was independently reproduced without it,
 so it does not rest on the detector being correct.
 
 
+## THE ACTUAL SPEED WALL: JCQP never converges, and starved the robot of force
+
+Found by running at the TARGET speed (2.0 m/s) and instrumenting the failure,
+instead of laddering down to whatever worked. Laddering down measures success;
+it never measures the thing that breaks.
+
+### What breaks at 2.0 m/s: the robot sinks, it does not tip
+
+`[FALL] collapsed: roll=0 deg pitch=-0 deg z=0.028` - flat on the floor with the
+body level. Height decays 0.222 -> 0.139 while body vz oscillation grows to
+0.55 m/s. Control loop stays at 1.2-1.4 ms against a 2.0 ms budget throughout,
+so it is not a compute stall.
+
+### The estimator is NOT the cause (it was blamed, wrongly)
+
+`[ESTERR]` ($SIM_ESTERR=1) logs the estimate against ground truth in the SAME
+body frame - truth is logged, never fed to the controller. Through the entire
+ramp to the fall the LinearKF tracks forward velocity to within 0.13 m/s:
+
+| t | true vx | est vx | err |
+|---|---|---|---|
+| 23.1 | 0.266 | 0.245 | -0.021 |
+| 27.5 | 0.916 | 1.041 | +0.125 |
+| 28.3 | 1.101 | 1.029 | -0.072 |
+
+The dramatic errors (dvx > +1.0) appear only AFTER the robot is down, when it
+integrates phantom motion from a fallen machine. Consequence, not cause.
+NOTE `dp` in that log compares different frames (the estimator zeroes initial
+yaw, so its x is forward while Gazebo truth is ENU) and is meaningless; vT/vE
+are both body-frame and are the valid comparison.
+
+### The vertical force budget, measured directly
+
+To HOLD height, a gait with stance duty d must command `m*g/d` while feet are
+down; commanding exactly `m*g` during stance averages `m*g*d` and the body falls
+at `(1-d)*g`. `[MPCZ]` ($SIM_MPCZ=1) prints what the solver actually asked for.
+Same gait, same speed, same everything except the solver:
+
+| solver | 2-foot Fz/mg | 4-foot Fz/mg | mean body z |
+|---|---|---|---|
+| JCQP `rho 0.6 / 60` (what shipped) | 0.25 | 0.45 | 0.128 |
+| JCQP `rho 2.0 / 300` | 0.38 | 0.69 | 0.132 |
+| **qpOASES** | **1.27** | **1.76** | **0.275** |
+| *required* | *2.00* | *1.00* | *0.300* |
+
+**JCQP commands about one fifth of what qpOASES commands on the identical
+problem, and 5x the iterations barely moves it.** This is not solver tuning -
+the ADMM solve does not reach the optimum on this problem at all.
+
+**This retires a question that sat open for the whole project**: "why is the MPC
+satisfied at z=0.204 when its reference says 0.30?" It was never a cost-weight
+mystery, never a `B_qp` z-row bug, and never MIT's `Kp_stance = 0`. The solver
+was returning a fifth of the required force, and every gait number in this file
+before now was measured on top of that.
+
+### How it hid for so long
+
+`use_jcqp: 1` was adopted as a SPEED win on the STM32 (82 ms vs 198 ms), and the
+`rho 0.6 / 60` sweep that blessed it was run against a **STANDING trot**, where
+the QP is easy and it genuinely does converge (-67 N/foot, matching `rho 2/200`).
+Nobody rechecked it under a MOVING gait. The documented warning was even written
+down - "solver tuning is per-gait, and ours is global" - and then not acted on.
+
+On the Mac qpOASES costs 0.6-1.7 ms against a 2.0 ms budget, so the speed
+argument that motivated JCQP does not apply here at all.
+
+**Backport consequence for the board**: qpOASES cost 198-218 ms on the A7 versus
+JCQP's 82 ms, so it cannot run inline against a 26 ms MPC segment there. The
+board needs either the async path (`SIM_MPC_ASYNC=1`) or a re-measured
+contact-reduced qpOASES. Do not assume the Mac result transfers unmeasured.
+
+### Not a universal win - characterise before believing
+
+qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
+which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
+at 0.8). Both are recorded; neither is assumed to generalise.
+
 ## THE 100 m DASH, REAL ESTIMATOR (the honest table)
 
 Measured with `SIM_CHEATER` **absent** from the environment - the harness no
