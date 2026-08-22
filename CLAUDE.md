@@ -1598,6 +1598,30 @@ to be the reference copy; not touched here to avoid a second, unrelated
 change riding along with this one.
 
 
+## Fall detector: re-verified against Gazebo truth, not just our own estimate
+
+Directly requested: pull the fall detector out of the loop (`SIM_FALL_EXIT=0`)
+and re-check today's headline WBIC finding against something the detector
+cannot influence - Gazebo's actual simulated position, read independently of
+this port's own estimator or logging.
+
+| config | detector | distance | source |
+|---|---|---|---|
+| baseline (Kd_body=10, stock) | **OFF** | z collapses to 0.057 at **5.30 m**, stays down for the remaining 70 s of a 100 s run | Gazebo truth |
+| high-Kd (Kd_body=40) | **OFF** | **69.53 m** before going down | Gazebo truth |
+
+**69.53 / 5.30 = 13.1x** - LARGER than the 11.0x measured earlier with the
+detector active (60.03/5.47). The detector was not inflating this result; the
+baseline's 5.3 m failure is confirmed genuine (the robot is simply down and
+stationary for 70 straight seconds, not an early-exit artifact).
+
+This does not mean the detector is trustworthy in general - it separately
+caused a real problem earlier this session (killed valid real-estimator runs
+at a 0.15 m threshold too close to normal standing height, ~0.175-0.197 m).
+The lesson is narrower: THIS finding was independently reproduced without it,
+so it does not rest on the detector being correct.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer
