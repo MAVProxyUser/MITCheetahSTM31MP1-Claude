@@ -19,17 +19,32 @@ tracks structure - what calls what, and what doesn't exist on one side.
 | `RobotRunner::run()` | 500 Hz loop, calls `_stateEstimator->run()`, `setupStep()`, `_robot_ctrl->runController()`, `finalizeStep()` | `RobotRunner::run()` present, `initializeStateEstimator(bool)` present | **1:1** structurally |
 | `ControlFSM::runFSM()` | `safetyPreCheck()` -> current state `run()` -> `checkTransition()` -> `safetyPostCheck()` | Same 4-step symbol present | **1:1** |
 | `MIT_Controller::runController()` | thin wrapper around `ControlFSM::runFSM()` | present | **1:1** |
-| `JPosInitializer` | present, used for crouch bring-up before `ControlFSM` even starts | **NO SYMBOL AT ALL** in the binary | **MISSING (Unitree)** - see below |
+| `JPosInitializer` | present, ONE shared class, used for crouch bring-up before `ControlFSM` even starts | no class of that name, but the CONCEPT exists distributed across ~10 FSM states | **DIVERGES (architecture), CORRECTED** - see below |
 
-**`JPosInitializer` is absent from Unitree's binary entirely.** Not stubbed,
-not renamed under a findable mangled name - no `JPosInitializer` string or
-symbol anywhere. Two explanations, neither confirmed: (a) one of Unitree's 15
-extra FSM states (`PreStand`, `StandDown`, `WallowStand`, `TorsoVertical`)
-performs the same bring-up under a different name/architecture, or (b) the
-real Go1's absolute joint encoders make a "find home by interpolating to a
-known crouch" step unnecessary in a way this port's incremental encoders (or
-this SITL) cannot skip. Not resolved - flagged as a genuine open question
-rather than guessed at.
+**CORRECTION.** An earlier pass of this audit searched only for the literal
+class name `JPosInitializer` and reported it absent - true for that exact
+name, but wrong as a claim that the capability doesn't exist. A
+**case-insensitive** re-check (prompted directly - "grep without case for
+JPOS") found it immediately:
+
+- **`_SetJPosInterPts`** ("Set JPos Interpolation Points") is a METHOD present
+  on roughly ten different FSM state classes: `StandUp`, `PreStand`,
+  `RecoveryStand`, `BackFlip`, `BackFlipWXX`, `StandDown`, `WallowStand`,
+  `TurnOverMove`, `TorsoVertical`, `Offline_Motion`. Unitree does not
+  centralize joint-interpolation bring-up in one shared object the way MIT's
+  `JPosInitializer` (and this port) does - each FSM state that needs it
+  implements its own interpolation, presumably tuned per-state (a back-flip's
+  joint approach is not a stand-up's).
+- **`JPosTask<float>`/`JPosTask<double>`** is a full WBC task class
+  (`_UpdateCommand`, `_UpdateTaskJacobian`, `_UpdateTaskJDotQdot`,
+  `_AdditionalUpdate`) - a joint-position task usable in the WBIC's
+  null-space task hierarchy. Not yet checked whether this port's WBIC wires
+  an equivalent or leaves joint posture unconstrained in null-space.
+
+**Lesson applied to method, not just this entry**: a case-sensitive symbol
+search proves absence of ONE NAME, not absence of a CAPABILITY. Re-auditing
+other "MISSING" claims in this document for the same blind spot is warranted
+before trusting them.
 
 ---
 
