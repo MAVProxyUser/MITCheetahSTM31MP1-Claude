@@ -24,7 +24,11 @@ mkdir -p "$OUT"
 # SIM_ZEROVEL_HOLD_GAIT: hold MIT's standing gait until there is a velocity to
 # deliver. Without it a dynamic gait engages against a zero command and the
 # flight-phase gaits collapse at engagement (measured: 0.00 m).
-COMMON="SIM_ZEROVEL_HOLD_GAIT=1 SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_CHEATER=1 \
+# SIM_CHEATER is DELIBERATELY ABSENT and must stay that way. Setting it at all -
+# to any value, including 0 - is a lie: results measured with sim ground truth
+# fed into the estimator do not describe what the robot can do. Ground truth is
+# for MEASURING (dash_trace.py reads Gazebo pose); it never enters the loop.
+COMMON="SIM_ZEROVEL_HOLD_GAIT=1 SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 \
 SIM_WBC_DECIM=1 SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 \
 SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12"
 

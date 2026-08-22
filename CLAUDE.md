@@ -1233,6 +1233,14 @@ and this port's latency is larger than either of theirs - so it is exposed as
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
 
+> **INVALID - CHEATER NUMBERS. DO NOT QUOTE.** Every row below was produced by
+> `dash_sweep.sh` while its `COMMON=` block hardcoded `SIM_CHEATER=1`, i.e. with
+> Gazebo ground truth fed into the estimator. The retraction further down this
+> file was written and the harness was never checked, so the same contaminated
+> table was re-measured and re-reported afterwards. The flag is now removed from
+> `dash_sweep.sh`, `refine_maxspeed.sh` and `pace_isolate.sh`. Real-estimator
+> replacements go in the section at the end of this file.
+
 | gait | max speed | 100 m | cruise | notes |
 |---|---|---|---|---|
 | walking2 (21) | 1.0 | 106.8 s | 0.94 | 1.4 fails x3 |

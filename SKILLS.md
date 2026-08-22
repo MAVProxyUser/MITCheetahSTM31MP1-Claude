@@ -111,6 +111,18 @@ Rules that follow:
   do not rely on parsing being correct, rely on the variable being ABSENT for
   the real estimator. Every "real estimator" claim in this port's history was
   wrong for exactly the opposite mistake - do not risk it recurring.
+- **Audit the HARNESS env block, not just the source.** A retraction was
+  written into CLAUDE.md saying every dash time was a cheater number - and
+  `dash_sweep.sh` went on setting `SIM_CHEATER=1` in its `COMMON=` line for
+  weeks afterward, producing a fresh "record" table that was read off and
+  reported before anyone opened the script. Fixing the CODE and documenting the
+  LESSON does nothing while the runner still exports the flag. Before believing
+  any sweep result, `grep` the harness for the variables the result depends on,
+  and launch with `env -u` for anything that must be absent.
+- **A result is only as clean as the process that produced it.** Read the
+  invocation before reporting the number, every time - not the number first and
+  the invocation only when something looks odd. Nothing looked odd here; the
+  table was internally consistent, reproducible to ~1%, and entirely invalid.
 - **A detector must not depend on the quantity most likely to be wrong.** The
   fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
   wide margin below the true operating value (walking ~0.175 -> trip at 0.10,

@@ -10,7 +10,8 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COARSE="${1:?usage: refine_maxspeed.sh <coarse-results> [secs]}"
 SECS="${2:-48}"
-COMMON="SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_CHEATER=1 SIM_WBC_DECIM=1 SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 SIM_VX_DELAY_S=4"
+# SIM_CHEATER deliberately absent - never set it, not even to 0. See dash_sweep.sh.
+COMMON="SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_WBC_DECIM=1 SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 SIM_VX_DELAY_S=4"
 
 # NOTE: macOS ships bash 3.2, which has NO associative arrays (`declare -A`).
 # Under `set -u` that fails instantly with "unbound variable". Plain list.

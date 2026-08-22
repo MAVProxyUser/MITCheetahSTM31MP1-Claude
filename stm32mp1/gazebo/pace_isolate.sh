@@ -18,7 +18,8 @@ PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/ga
 export PATH="/opt/homebrew/bin:$PATH"
 OUT=/tmp/pace_iso; mkdir -p $OUT
 
-COMMON="SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_CHEATER=1 SIM_WBC_DECIM=1 \
+# SIM_CHEATER deliberately absent - never set it, not even to 0. See dash_sweep.sh.
+COMMON="SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 SIM_WBC_DECIM=1 \
 SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 SIM_VX_DELAY_S=4 SIM_GAIT=8 SIM_VX=0.6"
 
 run() {  # $1 label  $2 world  $3 extra-env
