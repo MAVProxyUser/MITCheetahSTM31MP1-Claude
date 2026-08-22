@@ -138,9 +138,26 @@ void Stm32mp1HardwareBridge::runMotors() {
         static bool  originSet = false;
         static double lat0 = 0, lon0 = 0, mPerDegLon = 0;
         static float  baro0 = 0;
+        static float  estOffX = 0, estOffY = 0, estOffZ = 0.08f;
         if (!originSet && aux.gps_lat != 0.0) {
           lat0 = aux.gps_lat; lon0 = aux.gps_lon; baro0 = aux.baro_alt;
           mPerDegLon = 111320.0 * std::cos(lat0 * M_PI / 180.0);
+          // FRAME ALIGNMENT. The estimator's position origin is the robot's
+          // pose at spawn; the GPS origin is wherever it happens to be at the
+          // FIRST FIX, which is later - after stand-up has already moved it. If
+          // the two are not aligned, the aiding corrects toward a systematically
+          // wrong reference, and the gentler the gain the more relentlessly it
+          // drags the estimate into that bias. Measured exactly that: aiding off
+          // 20.68 m, low-gain 5.78 m, gentlest (tau=10 s) 0.20 m - harm growing
+          // as the correction got softer, which is the signature of a bias
+          // rather than noise. Record where the estimator thinks it is at the
+          // moment the GPS origin is captured, and carry that as the offset.
+          if (_robotRunner) {
+            const auto& est = _robotRunner->getStateEstimate();
+            estOffX = est.position[0];
+            estOffY = est.position[1];
+            estOffZ = est.position[2];
+          }
           originSet = true;
           printf("[stm32mp1] abs aiding: origin lat=%.7f lon=%.7f baro=%.2f m\n",
                  lat0, lon0, baro0);
@@ -153,8 +170,8 @@ void Stm32mp1HardwareBridge::runMotors() {
           const float east  = (float)((aux.gps_lon - lon0) * mPerDegLon);
           // Baro is referenced to its own value at spawn, plus the height the
           // robot actually starts at (belly on the deck).
-          const float z = (aux.baro_alt - baro0) + 0.08f;
-          _absAiding.position << east, north, z;
+          const float z = (aux.baro_alt - baro0) + estOffZ;
+          _absAiding.position << east + estOffX, north + estOffY, z;
           _absAiding.haveXY = true;
           _absAiding.haveZ  = true;
           // 1-sigma. Baro is ~0.08 m here, far coarser than the 2-5 cm a gait
@@ -218,12 +235,20 @@ void Stm32mp1HardwareBridge::run() {
   _robotRunner->vectorNavData = &_vectorNavData;
   _robotRunner->cheaterState = &_cheaterState;
   if (getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0)
-    _robotRunner->absAiding = &_absAiding;
+  {  _robotRunner->absAiding = &_absAiding;
+     printf("[stm32mp1] absAiding wired: %p\n", (void*)&_absAiding); fflush(stdout); }
   // $SIM_CHEATER=1 (GAZEBO backend): estimator uses sim ground truth instead of
   // the VectorNav orientation + LinearKF -- bisects estimator vs controller bugs.
-  if (_backend == Backend::GAZEBO && getenv("SIM_CHEATER")) {
+  // NOTE the bug this replaces: `getenv("SIM_CHEATER")` is non-null whenever the
+  // variable is SET, so `SIM_CHEATER=0` still switched cheater mode ON. Every
+  // "real estimator" measurement taken against SIM_CHEATER=0 was in fact a
+  // ground-truth run. Parse the VALUE.
+  if (_backend == Backend::GAZEBO && getenv("SIM_CHEATER") &&
+      atoi(getenv("SIM_CHEATER")) != 0) {
     _robotParams.cheater_mode = 1;
     printf("[stm32mp1] CHEATER MODE: estimator fed sim ground truth\n");
+  } else if (_backend == Backend::GAZEBO) {
+    printf("[stm32mp1] REAL ESTIMATOR: VectorNav orientation + LinearKF\n");
   }
   _robotRunner->controlParameters = &_robotParams;
   _robotRunner->visualizationData = &_visualizationData;
@@ -270,7 +295,7 @@ void Stm32mp1HardwareBridge::run() {
         // After the trot stabilizes, RAMP in the forward velocity (a 0 -> vx step
         // through the ~6-10 ms UDP loop knocked the trot over; ramping does not).
         // $SIM_VX target speed, $SIM_VX_RAMP_S ramp duration (default 3 s).
-        if (final_mode == 4 && getenv("SIM_VX")) {
+        if (final_mode == 4 && getenv("SIM_VX") && atof(getenv("SIM_VX")) != 0.0) {
           // Let the gait ENGAGE before asking it to go anywhere. The MPC port
           // holds MIT's standing gait for a short window after LOCOMOTION
           // entry (first async solution + settle), so a velocity ramp that

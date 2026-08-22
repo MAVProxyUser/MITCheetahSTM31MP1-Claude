@@ -30,6 +30,113 @@ arm-unknown-linux-gnueabihf-strip mp1-build/robot/stand_sim -o /tmp/stand_sim
 scp /tmp/stand_sim $BOARD:/usr/local/cheetah-mp1/
 ```
 
+## METHOD: ground truth only, measured on an idle machine
+
+Every real finding in this port came from a measurement. Every wrong turn came
+from reasoning ahead of the data and then looking for confirmation. These rules
+are written from actual mistakes made here, not from principle.
+
+### The only four sources of truth
+1. **The Unitree decompile** (`docs/LEGGED_SPORT_REVERSE.md`) - the factory
+   controller is the same MIT codebase, so its constants and structure are
+   authoritative for a Go1.
+2. **The URDF / SDK headers** - but **assume they may be wrong**. They disagree
+   with each other and with the binary: three different joint-limit sets exist
+   (URDF +-49.5 deg, Legged_sport's operational +-55, `go1_const.h` +-60), and
+   this port had used the most permissive as a PHYSICAL stop.
+3. **MIT's source** - upstream intent, including its bugs and its TODOs
+   (`ContactEstimator` is an admitted pass-through, not a detector).
+4. **Your own instrumentation** - logs, traces, and printed internals.
+
+If a claim cannot be traced to one of those four, it is a hypothesis, and it
+gets labelled as one.
+
+### Rules
+
+**Never reason ahead of the data.** State a falsifiable prediction BEFORE the
+run, then let it stand or die. The cycle-time theory for the ~1 m/s wall
+predicted that a 16 ms segment would clear 1.4 m/s; it failed at the same
+distance as 26 ms, so the theory was dropped. That is the pattern to repeat.
+
+**Verify the knob took effect before interpreting the result.** A change that
+silently does nothing looks exactly like a change that does not help.
+- the MPC contact-table patch fired (`6/10 horizon steps ... forced to stance`)
+  and still did nothing - checking told us the mechanism was wrong, not absent;
+- the GPS aiding "engaged" (origin printed) but its correction was inert,
+  because MIT caps the x,y covariance so the Kalman gain was ~0;
+- `SIM_MPC_MS` was verified as `dtMPC: 0.026 -> 0.020` before its result was
+  believed.
+
+**Measure the quantity the hypothesis is about.** Distance-walked comes from
+Gazebo TRUTH, so it cannot show estimator error: a run scored a clean 83 m while
+the estimate was 4.50 m wrong the whole way. Absolute position is NOT observable
+from leg odometry (relative) + IMU - only GPS closes it.
+
+**Repeat every marginal cell before claiming it.** This port has documented
+run-to-run variance and it caught three claims in one session. Bounding at
+1.0 m/s went "speed-responsive" (1 run) -> "broken" (2 runs) -> bimodal, ~50%
+(4 runs: 5.23 / 0.04 / 0.03 / 5.52).
+
+**A stop-at-first-success ladder is biased DOWNWARD.** It reported trotting at
+0.6 m/s; 0.9 actually holds 176 m. Always re-test the speed ABOVE a reported
+ceiling. And a gait whose viable speed is below your lowest rung reads as
+"never crosses" - `walking` did, until 0.8 was tried.
+
+**Re-measure documented numbers before building on them.** The recorded
+real-estimator figure was 0.65 m and was quoted all day as a caveat; the actual
+value was 57.6 m. Documentation written earlier is a hypothesis about the
+present.
+
+**Default new behaviour OFF until measured.** The flight-phase cost gate shipped
+default-ON and cut solved MPC force from 39-42 N/foot to 6.1 N/foot.
+
+### Your instrument is part of the system: verify it before believing a FAILURE
+
+Four failures in one session came from the measuring apparatus, not the robot.
+A wrong instrument that reports SUCCESS gets caught eventually; one that reports
+FAILURE manufactures a finding that stops the investigation dead.
+
+| what broke | how it lied |
+|---|---|
+| `getenv("SIM_CHEATER")` non-null for `"0"` | `SIM_CHEATER=0` still enabled cheater mode, so every "real estimator" result was a ground-truth run. Identical cheater/real numbers were read as "the estimator is fine" instead of "the flag does nothing". |
+| fall detector threshold 0.15 m | The robot WALKS at ~0.175 estimated and dips to 0.149 on the stand-up transient, so the detector aborted every real-estimator run while Gazebo truth showed 0.197 and still walking. Nearly reported as "walking2 fails on the real estimator". |
+| flight-phase cost gate | Shipped default-ON; cut solved MPC force 39-42 -> 6.1 N/foot. |
+| debug print in the wrong branch | An early `continue` skipped it, so a firing correction reported as "never fires". |
+
+Rules that follow:
+- **Parse env VALUES, never test the pointer.** `getenv("X")` is non-null for
+  `X=0`. Use `getenv("X") && atoi(getenv("X")) != 0`.
+- **A detector must not depend on the quantity most likely to be wrong.** The
+  fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
+  wide margin below the true operating value (walking ~0.175 -> trip at 0.10,
+  not 0.15), and prefer attitude/kinematics over an estimated scalar.
+- **When two configurations give IDENTICAL results, suspect the switch before
+  concluding "no effect."** 57.64 vs 57.66 m and 4.50 vs 4.50 m were both the
+  flag doing nothing.
+- **Before reporting a negative result, disable your own instrumentation and
+  re-run.** `SIM_FALL_EXIT=0` was what revealed the robot had been fine all along.
+
+
+### CPU hygiene: measurements need an idle machine
+On the board, building and running happen on different machines. On the Mac they
+compete, and the SITL is sensitive to it.
+
+- **Never compile, run r2/objdump analysis, or start a second sweep while a
+  measurement is in flight.** A `make -j8` during a sweep turned a known-good
+  21.23 m run into 3.54 m; the tell was the worst control-loop time going
+  1.0 -> 4.5 ms.
+- Check the loop time in every result. If `MAXLOOP` is far above ~2 ms, the run
+  is contaminated and must be discarded, not interpreted.
+- Kill stale `gz sim` with `pkill -9` between runs - a soft kill leaves a zombie
+  holding the sensor systems, which silently produces a dead-sensor world.
+- **Restore any harness edit immediately.** Pointing `host_sweep.sh` at an
+  experimental yaml would have silently contaminated every later run.
+- `pgrep -f "<pattern>"` MATCHES ITS OWN COMMAND LINE - a waiting shell reports
+  the thing it is waiting for as already running. Use
+  `ps -Ao pid,command | grep ... | grep -v "bash -c"`, or check for an output
+  file.
+
+
 ## Mac-first workflow (develop here, then cross-compile for the board)
 
 The board is ~11x slower and its eth0 flaps under load, so the math gets banged

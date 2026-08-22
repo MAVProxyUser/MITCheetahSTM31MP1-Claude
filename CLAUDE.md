@@ -1362,6 +1362,64 @@ comes out ~17% short at those settings. Any future convergence tuning should be
 checked per gait rather than assumed to transfer.
 
 
+## RETRACTION: every "real estimator" result before this was a cheater run
+
+`getenv("SIM_CHEATER")` is non-null whenever the variable is SET, so
+`SIM_CHEATER=0` **still enabled cheater mode**. Everything previously recorded
+here as real-estimator performance was ground truth. Fixed to parse the value.
+
+### The honest real-estimator baseline (walking2, SIM_CHEATER=0)
+
+| config | speed | result |
+|---|---|---|
+| cheater (ground truth) | 1.0 m/s | 57.5 m, upright |
+| **real estimator** | **1.0 m/s** | **~21 m, falls @ 44 s** (5 runs: 20.68/21.35/21.12/25.24/21.30) |
+| **real estimator** | **0.6 m/s** | **34.95 m, upright to end** |
+
+**The estimator caps SPEED, not capability.** Ground truth supports 1.0 m/s; the
+real LinearKF supports ~0.6. Every 100 m dash time in this file is a CHEATER
+number and overstates the robot.
+
+### The fall detector was aborting valid runs
+`SIM_FALL_Z` was 0.15 m, but the robot WALKS at ~0.175 estimated and dips to
+0.149 on the stand-up transient - so the detector killed every real-estimator run
+while Gazebo truth showed 0.197 and still walking. Threshold now 0.10, arms at
+0.25. NOTE it reads the ESTIMATE, so it inherits estimator error; on hardware it
+should key off attitude and kinematics instead.
+
+## GPS/baro aiding: correct diagnosis, wrong layer
+
+Absolute position IS unobservable from MIT's KF - leg odometry is relative, and
+MIT additionally caps the x,y covariance every tick
+(`_P.block(0,0,2,2) /= 10`), so the filter is permanently overconfident about
+the one quantity it never measures. Measured drift: 4.5 m over 83 m.
+
+Aiding was implemented (sequential update, `SIM_ABS_AIDING`, plus `SIM_KF_UNCAP`
+to lift MIT's covariance cap) and a frame bug found and fixed: the GPS origin was
+captured at first fix, AFTER stand-up had moved the robot, while the estimator's
+origin is the spawn pose. Harm grew as the correction got gentler
+(21 -> 5.8 -> 0.20 m), which is the signature of a BIAS, not noise.
+
+**With frames aligned it still does not help locomotion, and adds a
+catastrophic tail:**
+
+| | samples (m) | mean | worst |
+|---|---|---|---|
+| no aiding | 20.68 / 21.35 / 21.12 / 25.24 / 21.30 | 21.9 | 20.68 |
+| GPS aiding | 25.51 / 21.33 / **0.25** / 19.13 | 16.6 | **0.25** |
+
+**Conclusion - position drift does not destabilise walking; CORRECTING it does.**
+The controller needs consistent RELATIVE motion to balance, not absolute
+position. Injecting GPS into the control estimate steps the tracking error and
+the MPC fights it. Fuse GPS in the NAVIGATION layer only - which is what
+`WaypointNav` already does, reading `gazebo_get_aux()` directly. Aiding stays
+OFF by default.
+
+Unitree's alternate Q vector (`.rodata 0x2fe390`, 10x MIT's position weight) was
+also tested: 21.25 m alone, 25.61 m with aiding - both inside baseline scatter.
+Neutral at 1.0 m/s.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer

@@ -171,10 +171,34 @@ void LinearKFPositionVelocityEstimator<T>::run() {
   Eigen::Matrix<T, 18, 18> Pt = _P.transpose();
   _P = (_P + Pt) / T(2);
 
-  if (_P.block(0, 0, 2, 2).determinant() > T(0.000001)) {
-    _P.block(0, 2, 2, 16).setZero();
-    _P.block(2, 0, 16, 2).setZero();
-    _P.block(0, 0, 2, 2) /= T(10);
+  // MIT SUPPRESSES THE x,y POSITION COVARIANCE EVERY TICK.
+  //
+  // This zeroes the cross-covariance between horizontal position and the rest
+  // of the state and then divides the x,y block by 10, so _P(0,0) and _P(1,1)
+  // are driven toward zero no matter what the filter actually knows. The
+  // consequence is that the estimator is PERMANENTLY CONFIDENT about the one
+  // quantity it never observes: absolute position is not measurable from leg
+  // odometry (which is relative) plus IMU, so the true error dead-reckons
+  // upward while the reported covariance stays small.
+  //
+  // Measured here: 4.50 m of position error after 83 m of walking (5.4%), with
+  // _P small throughout - so an absolute-position Kalman update computes
+  // K = P/(P+R) ~ 0 and GPS gets no authority at all.
+  //
+  // $SIM_KF_UNCAP=1 skips the suppression so the covariance can grow to reflect
+  // genuine unobservability, which is what makes GPS aiding work as a real
+  // Kalman update rather than a bolted-on complementary filter. Default keeps
+  // MIT's behaviour so nothing silently changes underneath existing results.
+  {
+    static const bool uncap = getenv("SIM_KF_UNCAP") &&
+                              atoi(getenv("SIM_KF_UNCAP")) != 0;
+    if (!uncap) {
+      if (_P.block(0, 0, 2, 2).determinant() > T(0.000001)) {
+        _P.block(0, 2, 2, 16).setZero();
+        _P.block(2, 0, 16, 2).setZero();
+        _P.block(0, 0, 2, 2) /= T(10);
+      }
+    }
   }
 
   // ---- ABSOLUTE POSITION AIDING (baro / GPS) -------------------------------
@@ -193,6 +217,14 @@ void LinearKFPositionVelocityEstimator<T>::run() {
   //   z = p_abs,  H = [I3 0 0],  K = P H^T (H P H^T + R)^-1
   {
     auto* aid = this->_stateEstimatorData.absAiding;
+    if (getenv("SIM_AID_DBG")) {
+      static int once = 0;
+      if ((once++ % 2000) == 0) {
+        printf("[AID-PTR] estimator sees absAiding=%p haveXY=%d\n",
+               (void*)aid, aid ? (int)aid->haveXY : -1);
+        fflush(stdout);
+      }
+    }
     if (aid && (aid->haveXY || aid->haveZ)) {
       // Per-axis: only correct the axes we actually have a measurement for.
       for (int ax = 0; ax < 3; ++ax) {
@@ -201,17 +233,69 @@ void LinearKFPositionVelocityEstimator<T>::run() {
         const T sig = aid->sigma[ax] > T(1e-4) ? aid->sigma[ax] : T(1e-4);
         const T R_ax = sig * sig;
 
-        // H picks state `ax` (position). S is scalar, so no matrix inverse.
-        const T S_ax = _P(ax, ax) + R_ax;
-        if (!(S_ax > T(1e-12)) || !std::isfinite(S_ax)) continue;
-
-        Eigen::Matrix<T, 18, 1> K = _P.col(ax) / S_ax;
         const T innov = aid->position[ax] - _xhat[ax];
         if (!std::isfinite(innov)) continue;
 
-        _xhat += K * innov;
-        // Joseph-free simple form is adequate here; re-symmetrise below.
-        _P -= K * _P.row(ax);
+        // With $SIM_KF_UNCAP=1 the covariance is allowed to grow honestly, so
+        // a proper Kalman update has real gain and is the correct estimator.
+        // Without it, MIT's suppression makes K ~ 0 and only the time-constant
+        // form below does anything.
+        static const bool kfForm = getenv("SIM_KF_UNCAP") &&
+                                   atoi(getenv("SIM_KF_UNCAP")) != 0;
+        if (kfForm) {
+          const T S_ax = _P(ax, ax) + R_ax;
+          if (S_ax > T(1e-12) && std::isfinite(S_ax)) {
+            Eigen::Matrix<T, 18, 1> K = _P.col(ax) / S_ax;
+            const T inn = aid->position[ax] - _xhat[ax];
+            if (std::isfinite(inn)) {
+              _xhat += K * inn;
+              _P -= K * _P.row(ax);
+              if (getenv("SIM_AID_DBG")) {
+                static int d2 = 0;
+                if (ax == 1 && (d2++ % 500) == 0) {
+                  printf("[AID-KF] axis=%d est=%.2f meas=%.2f innov=%.2f "
+                         "P=%.6f K=%.6f\n", ax, (double)_xhat[ax],
+                         (double)aid->position[ax], (double)inn,
+                         (double)_P(ax, ax), (double)K[ax]);
+                  fflush(stdout);
+                }
+              }
+            }
+          }
+          continue;
+        }
+
+        // A textbook Kalman update here is INERT, and the reason is worth
+        // recording: MIT caps the x,y position covariance every tick -
+        //     if (_P.block(0,0,2,2).determinant() > 1e-6) _P.block(0,0,2,2) /= 10;
+        // - so the filter is permanently overconfident about the one quantity
+        // it never actually observes. Absolute position is NOT observable from
+        // leg odometry (which is relative) plus IMU: the estimate dead-reckons
+        // and its true error grows without bound while _P stays small. With
+        // _P(ax,ax) tiny, K = P/(P+R) ~ 0 and GPS gets no authority at all.
+        // Measured: 4.50 m of drift over 83 m (5.4%), IDENTICAL with the
+        // Kalman-form aiding switched on.
+        //
+        // So drive the correction from a time constant instead of from a
+        // covariance that has been suppressed. tau is how long it takes to wash
+        // out an absolute error; it must be long compared with the gait period
+        // so per-step odometry still dominates the short term.
+        static const T tau = getenv("SIM_AID_TAU") ? (T)atof(getenv("SIM_AID_TAU"))
+                                                   : T(2.0);
+        const T k = T(0.002) / (tau > T(1e-3) ? tau : T(1e-3));   // dt / tau
+        _xhat[ax] += k * innov;
+        if (getenv("SIM_AID_DBG")) {
+          static int dbg = 0;
+          if (ax == 1 && (dbg++ % 500) == 0) {
+            printf("[AID] axis=%d est=%.2f meas=%.2f innov=%.2f k=%.5f\n",
+                   ax, (double)_xhat[ax], (double)aid->position[ax],
+                   (double)innov, (double)k);
+            fflush(stdout);
+          }
+        }
+        // Let the velocity state feel a fraction of it too, so a persistent
+        // offset is corrected rather than fought every tick.
+        _xhat[3 + ax] += T(0.1) * k * innov;
       }
       Eigen::Matrix<T, 18, 18> Pa = _P.transpose();
       _P = (_P + Pa) / T(2);

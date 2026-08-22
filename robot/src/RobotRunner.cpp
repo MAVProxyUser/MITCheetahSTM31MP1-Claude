@@ -60,6 +60,7 @@ void RobotRunner::init() {
       cheaterState, vectorNavData, _legController->datas,
       &_stateEstimate, controlParameters);
   initializeStateEstimator(false);
+  printf("[RobotRunner] absAiding at init = %p\n", (void*)absAiding); fflush(stdout);
   if (absAiding) _stateEstimator->setAbsoluteAiding(absAiding);
 
   memset(&rc_control, 0, sizeof(rc_control_settings));
@@ -150,11 +151,19 @@ void RobotRunner::run() {
       // trotRunning runs "fell" at 24 s and still ran to 42 s). So also test
       // sustained low body height - armed only after the robot has actually
       // stood up once, since it starts belly-down on the deck by design.
+      // 0.15 was FAR too close to the operating height and produced false
+      // positives that aborted valid runs: with the real estimator the robot
+      // WALKS at ~0.175 estimated and dips to 0.149 on the stand-up transient,
+      // so a 0.15 threshold killed every real-estimator run at startup while
+      // the robot was in fact fine (Gazebo truth 0.197, still walking at 45 s).
+      // A collapse puts the belly on the deck at ~0.08-0.10, so 0.10 keeps a
+      // real margin below any walking height. NOTE this reads the ESTIMATE, so
+      // it inherits estimator error - which is exactly how it misfired.
       static const float fall_z =
-          getenv("SIM_FALL_Z") ? atof(getenv("SIM_FALL_Z")) : 0.15f;
+          getenv("SIM_FALL_Z") ? atof(getenv("SIM_FALL_Z")) : 0.10f;
       static bool stood = false;
       const float bodyZ = _stateEstimate.position[2];
-      if (bodyZ > 0.22f) stood = true;
+      if (bodyZ > 0.25f) stood = true;   // clearly standing, not mid-transient
 
       const float roll  = std::fabs(_stateEstimate.rpy[0]);
       const float pitch = std::fabs(_stateEstimate.rpy[1]);
@@ -250,11 +259,17 @@ void RobotRunner::run() {
             for (int leg = 0; leg < 4; ++leg) {
               auto& c = _legController->commands[leg];
               auto& d = _legController->datas[leg];
-              printf("[LEG%d] q=%.2f %.2f %.2f qd=%.1f %.1f %.1f qdDes=%.1f %.1f %.1f "
-                     "fff=%.1f %.1f %.1f tff=%.2f %.2f %.2f\n",
-                     leg, d.q[0], d.q[1], d.q[2], d.qd[0], d.qd[1], d.qd[2],
-                     c.qdDes[0], c.qdDes[1], c.qdDes[2],
-                     c.forceFeedForward[0], c.forceFeedForward[1], c.forceFeedForward[2],
+              // Foot position (FK) vs commanded target, in the leg frame. During
+              // a flight phase every leg is in swing and the swing planner owns
+              // all four, so this is where a flight gait either works or does not.
+              const float reach = std::sqrt(d.p[0]*d.p[0] + d.p[1]*d.p[1] + d.p[2]*d.p[2]);
+              const float reachDes = std::sqrt(c.pDes[0]*c.pDes[0] +
+                                               c.pDes[1]*c.pDes[1] + c.pDes[2]*c.pDes[2]);
+              printf("[LEG%d] q=%.2f %.2f %.2f p=%.3f %.3f %.3f |p|=%.3f "
+                     "pDes=%.3f %.3f %.3f |pDes|=%.3f tff=%.2f %.2f %.2f\n",
+                     leg, d.q[0], d.q[1], d.q[2],
+                     d.p[0], d.p[1], d.p[2], reach,
+                     c.pDes[0], c.pDes[1], c.pDes[2], reachDes,
                      c.tauFeedForward[0], c.tauFeedForward[1], c.tauFeedForward[2]);
             }
             fflush(stdout);

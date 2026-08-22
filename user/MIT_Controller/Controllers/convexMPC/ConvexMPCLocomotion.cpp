@@ -788,6 +788,70 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     }
   }
 
+  // CONTACT DETECTION (opt-in, $SIM_CONTACT_DETECT=1).
+  //
+  // MIT's ContactEstimator is a PASS-THROUGH - its own header says so: "it just
+  // has a pass-through algorithm which passes the phase estimation to the state
+  // estimator. This will need to change once we move contact detection to C++".
+  // So the KF believes a foot is down because the GAIT SCHEDULE says it should
+  // be, never because anything measured it. And the KF acts hard on that belief:
+  // during scheduled swing it inflates that foot's measurement noise by up to
+  // 100x (`high_suspect_number`), i.e. it discards the odometry entirely.
+  //
+  // When schedule and reality disagree, both failure directions are bad: a foot
+  // that is actually loaded gets its good odometry thrown away, and a foot that
+  // is actually airborne gets garbage fused. Measured here: pronking's body
+  // height falls monotonically (0.290 -> 0.140) so the robot NEVER leaves the
+  // ground, while its schedule calls 60% of the cycle flight.
+  //
+  // Detect it instead, from kinematics + IMU:
+  //   * a foot's height below the body is known from FK (`datas[i].p`) rotated
+  //     into the world frame - the LOWEST foot is the contact candidate, which
+  //     is a RELATIVE test and so does not depend on the body-height estimate it
+  //     would otherwise be circular with;
+  //   * in genuine free flight the accelerometer reads ~0 rather than ~1g, so a
+  //     low specific-force magnitude vetoes contact on every foot at once.
+  // Applied to the ESTIMATOR only. The MPC's contact table stays scheduled -
+  // that is a PLAN for the future, and rewriting it was already measured to make
+  // things worse.
+  {
+    static const bool detect = getenv("SIM_CONTACT_DETECT") &&
+                               atoi(getenv("SIM_CONTACT_DETECT")) != 0;
+    if (detect) {
+      const auto& se = data._stateEstimator->getResult();
+      // Foot heights in the world frame, relative to the body.
+      float footZ[4];
+      float lowest = 1e9f;
+      for (int i = 0; i < 4; i++) {
+        Vec3<float> pw = se.rBody.transpose() *
+            (data._quadruped->getHipLocation(i) + data._legController->datas[i].p);
+        footZ[i] = pw[2];
+        if (footZ[i] < lowest) lowest = footZ[i];
+      }
+      // Free-fall veto: specific force well under gravity means nothing is
+      // pushing on the robot, so no foot can be bearing load.
+      float aMag = 0.f;
+      for (int k = 0; k < 3; k++) aMag += se.aBody[k] * se.aBody[k];
+      aMag = std::sqrt(aMag);
+      static const float ff_thresh = getenv("SIM_FREEFALL_G")
+                                   ? atof(getenv("SIM_FREEFALL_G")) : 3.0f;
+      const bool freeFall = (aMag < ff_thresh);
+
+      static const float band = getenv("SIM_CONTACT_BAND")
+                              ? atof(getenv("SIM_CONTACT_BAND")) : 0.02f;
+      Vec4<float> detected;
+      for (int i = 0; i < 4; i++) {
+        const bool down = (!freeFall) && (footZ[i] < lowest + band);
+        // Blend with the schedule rather than replacing it outright: the
+        // schedule carries phase information (how far through stance) that a
+        // binary detector does not, and the KF's trust ramp wants a phase.
+        detected[i] = down ? std::max(se_contactState[i], 0.5f)
+                           : std::min(se_contactState[i], 0.5f);
+      }
+      se_contactState = detected;
+    }
+  }
+
   // se->set_contact_state(se_contactState); todo removed
   data._stateEstimator->setContactPhase(se_contactState);
 
@@ -1039,6 +1103,23 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   //float Q[12] = {0.25, 0.25, 10, 2, 2, 20, 0, 0, 0.3, 0.2, 0.2, 0.2};
 
   float Q[12] = {0.25, 0.25, 10, 2, 2, 50, 0, 0, 0.3, 0.2, 0.2, 0.1};
+
+  // $SIM_MPC_Q selects an alternate state-cost vector.
+  //   1 = Unitree's second vector, recovered from Legged_sport .rodata 0x2fe390:
+  //       {0.5,0.5,10, 20,20,15, 0.1,0.1,1, 0.5,0.5,0.5}
+  //       Ten times MIT's position weight (20 vs 2) and a LOWER z weight (15 vs
+  //       50), with non-zero rate weights. MIT's own vector appears verbatim
+  //       twice in the same binary, so this is a deliberate second tuning that
+  //       Unitree ships for some other mode - worth testing against speed,
+  //       where holding commanded position matters more than holding height.
+  {
+    static const int qsel = getenv("SIM_MPC_Q") ? atoi(getenv("SIM_MPC_Q")) : 0;
+    if (qsel == 1) {
+      const float qU[12] = {0.5f,0.5f,10.f, 20.f,20.f,15.f,
+                            0.1f,0.1f,1.f,  0.5f,0.5f,0.5f};
+      for (int i = 0; i < 12; i++) Q[i] = qU[i];
+    }
+  }
 
   //float Q[12] = {0.25, 0.25, 10, 2, 2, 40, 0, 0, 0.3, 0.2, 0.2, 0.2};
   float yaw = seResult.rpy[2];
