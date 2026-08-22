@@ -42,6 +42,9 @@ class Stm32mp1HardwareBridge {
   //! Drive the FSM from outside the sequencer - used by the mission's
   //! end-of-run lie-down. K_BALANCE_STAND / K_STAND_UP / K_PASSIVE.
   void setControlMode(int m) { _robotParams.control_mode = m; }
+  //! User parameters, so a mission can retune the controller at runtime
+  //! (the gait decider changes cmpc_gait through this).
+  ControlParameters* userParams() { return _userControlParameters; }
 
   //! periodic actuator exchange (RS485 motors or Gazebo UDP), public for PeriodicMemberFunction
   void runMotors();

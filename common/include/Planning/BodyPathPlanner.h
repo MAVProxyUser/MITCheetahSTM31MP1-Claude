@@ -165,6 +165,11 @@ class BodyPathPlanner {
     return true;
   }
 
+  //! Planned speed at the point the follower is currently on. The GAIT DECIDER
+  //! keys off this: high on a straight, low through a corner, and known BEFORE
+  //! the robot gets there.
+  double plannedSpeed() const { return _path.empty() ? 0.0 : _path[_lastIdx].v; }
+
   //! Fraction of the path completed, 0..1 - for progress reporting.
   double progress() const {
     if (_path.size() < 2) return 1.0;

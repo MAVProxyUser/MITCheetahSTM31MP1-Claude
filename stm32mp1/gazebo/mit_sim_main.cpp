@@ -128,6 +128,27 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   printf("[nav] taking the stick at t=%.1fs (mission %s)\n", elapsed(), mission);
   fflush(stdout);
 
+  /*
+   * GAIT DECIDER ($WP_GAIT_DECIDER=1) - Apollo's task of the same name, using
+   * the planner's curvature knowledge: run the FAST gait on straights and the
+   * agile one through corners.
+   *
+   * The rule that makes it safe came from a controlled split, not a guess:
+   *   switch gait, then accelerate             -> CROSSES (2/2)
+   *   switch gait and accelerate together      -> CROSSES (30.3 s at 3.97 m/s)
+   *   switch to a SLOWER-capable gait AT SPEED -> FAILS (2/2, ~35 m)
+   * Only the last is dangerous. So the decider only ever switches while the
+   * robot is ALREADY SLOW - which on a star is exactly the corner, where the
+   * planner has braked for curvature anyway. Both directions then land in the
+   * regime measured to work: drop to trotting while braking in, restore
+   * trotRunning at the apex BEFORE accelerating out.
+   */
+  const bool gait_decider = getenv("WP_GAIT_DECIDER") && atoi(getenv("WP_GAIT_DECIDER")) != 0;
+  const int  gait_fast   = getenv("WP_GAIT_FAST")   ? atoi(getenv("WP_GAIT_FAST"))   : 5;
+  const int  gait_corner = getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : 9;
+  const float decide_v   = getenv("WP_GAIT_SWITCH_V") ? atof(getenv("WP_GAIT_SWITCH_V")) : 1.6f;
+  int cur_gait = gait_corner;
+
   const float dt = 0.02f;      // 50 Hz: the gait's own bandwidth is far below this
   float yaw_ref = NAN;
   int   lastIdx = -1;
@@ -166,6 +187,20 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     if (use_planner) {
       double pv = 0, pw = 0;
       if (planner.follow(N, E, bearing, &pv, &pw)) { nv = (float)pv; nw = (float)pw; }
+    }
+
+    if (gait_decider && use_planner && bridge->userParams()) {
+      const double vplan = planner.plannedSpeed();
+      const int want = (vplan >= 2.2) ? gait_fast : gait_corner;
+      if (want != cur_gait && spd < decide_v) {
+        ControlParameterValue cv; cv.d = (double)want;
+        bridge->userParams()->collection.lookup("cmpc_gait")
+            .set(cv, ControlParameterValueKind::DOUBLE);
+        printf("[gait] %d -> %d at v=%.2f (planned %.2f) t=%.1fs\n",
+               cur_gait, want, spd, vplan, elapsed());
+        fflush(stdout);
+        cur_gait = want;
+      }
     }
 
     if (nav.activeIndex() != lastIdx) {
