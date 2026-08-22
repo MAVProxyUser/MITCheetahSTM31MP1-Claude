@@ -352,6 +352,11 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     gait = &galloping;
   current_gait = gaitNumber;
 
+  // Look up the segment/clearance this gait wants at this speed and apply it
+  // where it cannot cause a discontinuity. Done BEFORE setIterations so a
+  // boundary change takes effect on the cycle that is just starting.
+  applySchedule(gaitNumber, _x_vel_des, gait);
+
   gait->setIterations(iterationsBetweenMPC, iterationCounter);
   jumping.setIterations(iterationsBetweenMPC, iterationCounter);
 
@@ -415,8 +420,14 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
           data._legController->datas[i].p);
   }
 
-  static const bool heading_hold =
-      !getenv("CTRL_HEADING_HOLD") || atoi(getenv("CTRL_HEADING_HOLD")) != 0;
+  // HEADING HOLD IS UNCONDITIONAL. It was an env toggle only because it started
+  // as an A/B experiment, and an experiment scaffold has no business shipping:
+  // there is no situation - sim or hardware - in which a legged robot is better
+  // off with NO heading regulation. Upstream MIT has none (it re-slaves the yaw
+  // reference to the measurement every tick, so the error it sees is always
+  // zero); without this, walking travels 9.3 m before the yaw runs away, and
+  // with it, 93.6 m. Turning it off is not a configuration, it is a defect.
+  static const bool heading_hold = true;
 
   if(gait != &standing) {
     world_position_desired += dt * Vec3<float>(v_des_world[0], v_des_world[1], 0);
@@ -546,8 +557,13 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     // walks. Raising it further is HARMFUL at speed (at 3.5 m/s: 0.11 -> 27.7 m,
     // 0.14 -> 22.1 m, 0.17 -> 13.8 m) because a higher swing must be covered in
     // the same shrinking swing window.
-    static const float _swingH = getenv("CTRL_SWING_H") ? atof(getenv("CTRL_SWING_H")) : 0.11f;
-    footSwingTrajectories[i].setHeight(_swingH);
+    // LATCHED PER LEG AT SWING START. The trajectory is a Bezier evaluated over
+    // the whole swing, so changing its height mid-flight moves the target out
+    // from under a foot that is already travelling. Upstream MIT calls
+    // setHeight() every tick (its own `if(firstSwing[i])` guard is commented
+    // out), which is harmless with a constant but not with a scheduler.
+    if (firstSwing[i]) _swingHLatched[i] = scheduleFor(gaitNumber, _x_vel_des).swingH;
+    footSwingTrajectories[i].setHeight(_swingHLatched[i]);
 #else
     footSwingTrajectories[i].setHeight(.06);
 #endif
@@ -1012,10 +1028,102 @@ void ConvexMPCLocomotion::run(ControlFSMData<double>& data) {
  * $CTRL_ZEROVEL_HOLD_GAIT=0 restores stock behaviour; $CTRL_ZEROVEL_HOLD sets the
  * debounce in control ticks.
  */
+/**
+ * GAIT/SPEED PARAMETER SCHEDULE - the lookup half.
+ *
+ * Every entry below is MEASURED on the 100 m dash (real estimator, qpOASES).
+ * Where a cell was never tested it inherits the nearest measured one and says
+ * so, because an interpolated guess that looks like data is worse than a gap.
+ *
+ * Gait segment (ms) is the sharp parameter: stance duration x commanded speed
+ * is the distance a stance foot must sweep, against ~0.318 m of horizontal
+ * reach, so a faster gait needs a SHORTER cycle - but too short fails too, so
+ * the optimum is interior and must be looked up rather than extrapolated.
+ *
+ *   trotting (9)    22 ms: crosses at 2.0 (47.2 s), 3.0 (33.2 s), 3.1 (32.2 s)
+ *                   26 ms: crosses at 2.0/2.5/2.75, FAILS at 3.0 (67 m)
+ *                   -> 26 below 2.9 (measured best times there), 22 at/above
+ *   trotRunning (5) 26 ms: crosses 2.0 through 4.0 (24.8 s at 4.0)
+ *                   22 ms: crosses to 3.75 but FAILS at 4.0 (32 m)
+ *                   -> 26 everywhere
+ *   walking (20)    22 ms: 46.6 s at 2.0 (26 ms: 48.3 s) -> 22
+ *
+ * Swing clearance is flat at 0.11 for every gait measured: 0.07 scuffs, and
+ * raising it is HARMFUL at speed (3.5 m/s: 0.11 -> 27.7 m, 0.14 -> 22.1 m,
+ * 0.17 -> 13.8 m) because a taller swing must be covered in the same window.
+ */
+ConvexMPCLocomotion::SchedParams
+ConvexMPCLocomotion::scheduleFor(int gaitNumber, float speedCmd) {
+  SchedParams p{22, 0.11f};
+  const float v = std::fabs(speedCmd);
+  switch (gaitNumber) {
+    case 5:                       // trotRunning - 40% duty, flight phase
+      p.segMs = 26;  break;
+    case 9:                       // trotting - 50% duty
+      p.segMs = (v >= 2.9f) ? 22 : 26;  break;
+    case 20:                      // walking - 4-beat, 50% duty
+      p.segMs = 22;  break;
+    default:                      // untested gaits inherit trotting's fast cell
+      p.segMs = 22;  break;
+  }
+  // $CTRL_MPC_MS / $CTRL_SWING_H still override, for experiments only.
+  if (const char* e = getenv("CTRL_MPC_MS"))  { int v2 = atoi(e); if (v2 >= 10 && v2 <= 80) p.segMs = v2; }
+  if (const char* e = getenv("CTRL_SWING_H")) { float h = atof(e); if (h > 0.f && h < 0.3f) p.swingH = h; }
+  return p;
+}
+
+/**
+ * GAIT/SPEED PARAMETER SCHEDULE - the application half.
+ *
+ * Both parameters are applied only where a change cannot produce a
+ * discontinuity, which is what makes a speed or gait transition seamless
+ * rather than a step input into a running gait:
+ *
+ *  - SEGMENT changes the gait clock. `OffsetDurationGait::setIterations` derives
+ *    phase as `(counter % (itersPerMPC * nIterations)) / (itersPerMPC *
+ *    nIterations)`, so changing itersPerMPC mid-cycle teleports the phase and
+ *    every foot with it. It is therefore applied ONLY as the cycle wraps.
+ *  - SWING HEIGHT feeds a Bezier evaluated over the whole swing, so changing it
+ *    mid-flight moves the foot's target under it. It is latched PER LEG at that
+ *    leg's swing start (MIT's own `if(firstSwing[i])` guard around setHeight is
+ *    commented out upstream, which is why this has to be done here).
+ */
+void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* activeGait) {
+  const SchedParams p = scheduleFor(gaitNumber, speedCmd);
+  _segMsPending = p.segMs;
+
+  const int wantIters = std::max(1, (int)std::lround(p.segMs / (1000.f * dt)));
+  if (wantIters != iterationsBetweenMPC) {
+    // Only at a cycle boundary. getCurrentGaitPhase() returns the integer
+    // SEGMENT INDEX within the cycle (not a 0-1 phase), so index 0 is the wrap.
+    const int seg = activeGait ? activeGait->getCurrentGaitPhase() : 0;
+    if (seg == 0) {
+      printf("[SCHED] gait=%d v=%.2f  segment %d -> %d ms (iters %d -> %d)\n",
+             gaitNumber, speedCmd, _segMsCurrent ? _segMsCurrent : p.segMs,
+             p.segMs, iterationsBetweenMPC, wantIters);
+      fflush(stdout);
+      // Write the DEFAULT, not just the live value: run() calls
+      // recompute_timing(default_iterations_between_mpc) every tick, which would
+      // otherwise clobber this on the very next iteration. (Measured: the
+      // schedule logged "iters 11 -> 13" 261 times in one run and nothing ever
+      // changed, because the assignment was overwritten before it could act.)
+      default_iterations_between_mpc = wantIters;
+      iterationsBetweenMPC = wantIters;
+      dtMPC = dt * iterationsBetweenMPC;
+      _segMsCurrent = p.segMs;
+      setup_problem(dtMPC, horizonLength, 0.4, 120);
+    }
+  } else if (_segMsCurrent == 0) {
+    _segMsCurrent = p.segMs;
+  }
+}
+
 bool ConvexMPCLocomotion::zeroVelHold() {
-  static const bool enabled = !getenv("CTRL_ZEROVEL_HOLD_GAIT") ||
-                              atoi(getenv("CTRL_ZEROVEL_HOLD_GAIT")) != 0;
-  if (!enabled) return false;
+  // UNCONDITIONAL, for the same reason as heading hold: there is no operating
+  // condition in which engaging a dynamic gait against a zero velocity command
+  // is preferable. A real operator does exactly this by hand - stand, let the
+  // gait settle, then push the stick - and Unitree's own build raises a
+  // transition request rather than swinging legs at a standstill.
 
   const float kZeroVel = 0.01f;      // Unitree's threshold, .rodata 0x2665e0
   static const int kHold =

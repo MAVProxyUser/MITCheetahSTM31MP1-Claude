@@ -355,6 +355,48 @@ void Stm32mp1HardwareBridge::run() {
           _gamepadCommand.leftStickAnalog[1]  =  vx;
           _gamepadCommand.rightStickAnalog[0] = -wz;
           printf("[sim] command -> vx=%.2f m/s wz=%.2f rad/s\n", vx, wz); fflush(stdout);
+
+          // $SIM_PROFILE: drive SPEED and GAIT changes DURING a run, to test
+          // that the parameter scheduler transitions seamlessly rather than
+          // stepping a running gait. Format "t:vx:gait;t:vx:gait;..." with t in
+          // seconds from the end of the ramp; gait <0 leaves the gait alone.
+          // Speed is ramped between steps (a stepped velocity knocks the gait
+          // over, which would test the step and not the scheduler); the gait
+          // switch itself is instantaneous because that is what an operator or
+          // a planner actually does.
+          // NOTE: do NOT set SIM_GAIT for profile runs - it is read once into a
+          // static and would pin the gait, masking every switch.
+          if (const char* prof = getenv("SIM_PROFILE")) {
+            std::string s(prof);
+            size_t pos = 0;
+            float tPrev = 0.f, vPrev = vx;
+            while (pos < s.size()) {
+              size_t end = s.find(';', pos);
+              if (end == std::string::npos) end = s.size();
+              float tt = 0, vv = 0; int gg = -1;
+              if (sscanf(s.substr(pos, end - pos).c_str(), "%f:%f:%d", &tt, &vv, &gg) >= 2) {
+                float wait = tt - tPrev;
+                if (wait > 0) usleep((useconds_t)(wait * 1e6f));
+                if (gg >= 0 && _userControlParameters) {
+                  ControlParameterValue cv; cv.d = (double)gg;
+                  _userControlParameters->collection.lookup("cmpc_gait")
+                      .set(cv, ControlParameterValueKind::DOUBLE);
+                  printf("[profile] t=%.1fs GAIT -> %d\n", tt, gg);
+                }
+                // ramp the speed over 2 s so the scheduler, not a step, is what
+                // is under test
+                const int st = 20;
+                for (int k = 1; k <= st; ++k) {
+                  _gamepadCommand.leftStickAnalog[1] = vPrev + (vv - vPrev) * k / st;
+                  usleep(100000);
+                }
+                _gamepadCommand.leftStickAnalog[1] = vv;
+                printf("[profile] t=%.1fs vx -> %.2f\n", tt, vv); fflush(stdout);
+                vPrev = vv; tPrev = tt + 2.f;
+              }
+              pos = end + 1;
+            }
+          }
         }
       }
     }).detach();

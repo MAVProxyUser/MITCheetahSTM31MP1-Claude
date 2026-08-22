@@ -141,6 +141,19 @@ private:
   void solveDenseMPC(int *mpcTable, ControlFSMData<float> &data);
   void solveSparseMPC(int *mpcTable, ControlFSMData<float> &data);
   void initSparseMPC();
+  // ---- GAIT/SPEED PARAMETER SCHEDULER ----------------------------------
+  // The best gait segment and swing clearance are NOT constants: they depend on
+  // the gait AND on how fast it is being asked to go. Rather than make a human
+  // set an environment variable per run (and get it wrong when the robot changes
+  // speed mid-mission), the parameters are looked up every tick and applied at
+  // points where they cannot cause a discontinuity.
+  struct SchedParams { int segMs; float swingH; };
+  static SchedParams scheduleFor(int gaitNumber, float speedCmd);
+  void applySchedule(int gaitNumber, float speedCmd, Gait* activeGait);
+  float _swingHLatched[4] = {0.11f, 0.11f, 0.11f, 0.11f};  // per-leg, set at swing start
+  int   _segMsCurrent = 0;        // what is actually in force
+  int   _segMsPending = 0;        // what the schedule wants, applied at a cycle boundary
+
   int iterationsBetweenMPC;
   int horizonLength;
   int default_iterations_between_mpc;
