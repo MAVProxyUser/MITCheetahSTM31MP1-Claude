@@ -1716,6 +1716,61 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## YAW ENVELOPE: pirouettes are SOLID, cornering is roll-limited
+
+Measured with `SIM_WZ` (a yaw-rate command on the same ramp as `SIM_VX`, driving
+the EXISTING right-stick channel -> `_yaw_turn_rate` -> MIT's stance-foot
+rotation about body Z) and `[YAW]` instrumentation ($SIM_YAWDBG=1). trotting,
+qpOASES, real estimator.
+
+### Spinning in place (vx = 0)
+
+| commanded | achieved | tracking | max roll | fell |
+|---|---|---|---|---|
+| 0.5 rad/s | 0.50 | 100% | 0.8 deg | no |
+| 1.0 | 1.00 | 100% | 1.1 deg | no |
+| 1.5 | 1.50 | 100% | 1.5 deg | no |
+| 2.0 | 1.96 | 98% | 1.4 deg | no |
+| 3.0 | 2.77 | 92% | 1.0 deg | no |
+
+**3.0 rad/s is 172 deg/s - a full turn in 2.1 s - with roll under 1.5 deg and
+body height dead steady at 0.266-0.269 m. Nothing falls.** The worry that the
+robot would fall while pirouetting is not supported: spinning in place is the
+most stable thing it does. This ALSO retires the crawl-era failure mode
+documented above ("a hard v=0 pivot deadlocks whenever the achievable yaw rate
+is below the commanded one") - on the MPC the achievable rate is ~100% of
+commanded up to 2 rad/s, so the deadlock condition never arises.
+
+### Cornering (turning while translating) - ROLL is the limit
+
+| vx | wz | tracking | max roll | turn radius |
+|---|---|---|---|---|
+| 1.5 | 0.5 | 99% | 7.3 deg | 3.0 m |
+| 1.5 | 1.0 | 97% | 12.2 deg | 1.5 m |
+| 1.5 | 1.5 | 92% | **19.5 deg** | 1.09 m |
+
+Yaw tracking stays good, but roll climbs steeply with turn rate - the banking
+load. 19.5 deg is already 68% of `SafetyChecker`'s 28.6 deg trip, so **roll, not
+yaw authority, is what bounds cornering**, and a nav clamp should be written
+against roll rather than against yaw rate alone.
+
+### SIGN: positive stick command turns CLOCKWISE (measured)
+
+`wzCmd=+1.000` gives `wzTrue=-1.060`. The estimator agrees with truth
+(`wzEst=-1.033`), and `yawEst + 1.569` equals `yawTrue` mod 2*pi - the constant
+is the spawn yaw (+90 deg, body-x north) that the estimator zeroes out. So
+estimation is fine on this axis; the COMMAND channel is what reads inverted
+against MIT's documented CCW-positive intent.
+
+**This contradicts the justification recorded for the nav mapping.** The note
+above says `rightStickAnalog[0] = -navW` because "MIT's yaw rate is CCW-positive
+and nav's is compass-sense (CW-positive)". Measured, the stick is ALREADY
+CW-positive - the same sense as nav - which would make that negation wrong and
+steer the robot away from each waypoint. The star mission did complete, and
+`WP_YAW_SIGN` exists to flip it, so this is not asserted as a bug: it is a
+DISCREPANCY between the documented reason and the measured channel, and it must
+be settled by a nav test before any pirouette-to-waypoint work is trusted.
+
 ## BEFORE TRUSTING A REAL DOG: sim-fidelity gaps and the QA ladder
 
 **Nothing in this file is hardware-validated.** These are SITL numbers, and at
