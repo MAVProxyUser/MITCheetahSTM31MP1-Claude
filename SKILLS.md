@@ -1,5 +1,41 @@
 # SKILLS.md — STM32MP1 Cheetah port: the commands
 
+---
+
+# 🛑 RULE ZERO: THERE IS NO CHEATER MODE. DO NOT USE `SIM_CHEATER`. EVER.
+
+**Not `SIM_CHEATER=1`. Not `SIM_CHEATER=0`. Not "just to bisect a bug." NEVER.**
+
+The variable no longer does anything — the code path that fed sim ground truth
+into the state estimator has been **DELETED**, not disabled. If you find
+yourself typing `SIM_CHEATER`, stop: you are about to produce a number that
+describes a robot that does not exist.
+
+This rule exists because it was violated three separate ways, each time
+producing confident, internally-consistent, completely invalid results:
+
+1. `getenv("SIM_CHEATER")` is non-null for `"0"`, so `SIM_CHEATER=0` **enabled**
+   cheater mode. Every "real estimator" figure in this project's history was a
+   ground-truth run.
+2. After that was found, documented and retracted in `CLAUDE.md`, the sweep
+   harnesses (`dash_sweep.sh`, `refine_maxspeed.sh`, `pace_isolate.sh`) were
+   still hardcoding `SIM_CHEATER=1` in their `COMMON=` env block — so a fresh
+   100 m dash table was measured, read off and reported as a record without
+   anyone opening the script that produced it.
+3. Fixing the code and writing the lesson down changed nothing, because the
+   thing that actually runs was never audited against the lesson.
+
+Ground truth from Gazebo is legitimate for **MEASURING** — `dash_trace.py` reads
+the sim's pose to compute distance, and instrumentation may log truth alongside
+the estimate to quantify estimator error. Truth must **NEVER** enter the control
+loop. Measuring with truth is science; controlling with truth is fiction.
+
+**Before reporting ANY sweep number: read the harness's env block.** Not the
+number first and the invocation only if something looks odd — nothing looked
+odd, and the table was still worthless.
+
+---
+
 Board IP and Mac IP move with DHCP — set them once. See `CLAUDE.md` for why/traps.
 
 ```bash

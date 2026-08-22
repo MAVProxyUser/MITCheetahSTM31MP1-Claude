@@ -106,9 +106,13 @@ void Stm32mp1HardwareBridge::runMotors() {
   memcpy(&_utCmd, &_spiCommand, sizeof(_utCmd));
   if (_backend == Backend::GAZEBO) {
     gazebo_send_receive(&_utCmd, &_utData);
-    // Cheater mode ($SIM_CHEATER=1): feed the estimator sim ground truth.
+    // GROUND TRUTH, FOR INSTRUMENTATION ONLY. `cheater_mode` is now hard-zero
+    // (see the note in init) and no estimator consumes this struct, so nothing
+    // here reaches the control loop. It exists so [ESTERR] can report how far
+    // the LinearKF is from reality - the estimator gap is this port's measured
+    // speed wall, and you cannot close a gap you refuse to measure.
     // MIT quat order is (w,x,y,z); vBody = rBody * vWorld with rBody = world->body.
-    if (_robotParams.cheater_mode > 0.5) {
+    {
       SimTruth t;
       gazebo_get_truth(&t);
       Quat<double> q;
@@ -237,19 +241,23 @@ void Stm32mp1HardwareBridge::run() {
   if (getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0)
   {  _robotRunner->absAiding = &_absAiding;
      printf("[stm32mp1] absAiding wired: %p\n", (void*)&_absAiding); fflush(stdout); }
-  // $SIM_CHEATER=1 (GAZEBO backend): estimator uses sim ground truth instead of
-  // the VectorNav orientation + LinearKF -- bisects estimator vs controller bugs.
-  // NOTE the bug this replaces: `getenv("SIM_CHEATER")` is non-null whenever the
-  // variable is SET, so `SIM_CHEATER=0` still switched cheater mode ON. Every
-  // "real estimator" measurement taken against SIM_CHEATER=0 was in fact a
-  // ground-truth run. Parse the VALUE.
-  if (_backend == Backend::GAZEBO && getenv("SIM_CHEATER") &&
-      atoi(getenv("SIM_CHEATER")) != 0) {
-    _robotParams.cheater_mode = 1;
-    printf("[stm32mp1] CHEATER MODE: estimator fed sim ground truth\n");
-  } else if (_backend == Backend::GAZEBO) {
-    printf("[stm32mp1] REAL ESTIMATOR: VectorNav orientation + LinearKF\n");
-  }
+  // CHEATER MODE IS DELETED. There is no environment variable, no yaml key and
+  // no code path that can feed sim ground truth into the state estimator. It is
+  // gone deliberately, because merely FIXING it twice did not stop it being used:
+  //   1. getenv("SIM_CHEATER") is non-null for "0", so SIM_CHEATER=0 still
+  //      switched it ON, and every "real estimator" number ever recorded for
+  //      this port was in fact a ground-truth run;
+  //   2. after that was found and retracted in CLAUDE.md, the sweep harnesses
+  //      went on hardcoding SIM_CHEATER=1 in their env block, and a whole 100 m
+  //      dash table was measured and reported off the back of it.
+  // A capability that is only safe when everyone remembers a rule is not safe.
+  // Ground truth is still read for INSTRUMENTATION ONLY (see gazebo_get_truth /
+  // SIM_ESTERR below) so estimator error can be quantified against it. Logging
+  // truth is measurement; feeding truth to the controller is fiction.
+  _robotParams.cheater_mode = 0;
+  if (_backend == Backend::GAZEBO)
+    printf("[stm32mp1] REAL ESTIMATOR: VectorNav orientation + LinearKF"
+           " (cheater mode does not exist)\n");
   _robotRunner->controlParameters = &_robotParams;
   _robotRunner->visualizationData = &_visualizationData;
   _robotRunner->cheetahMainVisualization = &_mainCheetahVisualization;

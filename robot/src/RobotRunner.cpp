@@ -126,6 +126,35 @@ void RobotRunner::run() {
     }
   }
 
+  // [ESTERR] ESTIMATOR ERROR AGAINST GROUND TRUTH ($SIM_ESTERR=1).
+  // The measured wall on this port is the state estimator: every gait loses one
+  // to two speed rungs running on its own estimate versus ground truth, and trot
+  // goes from 100 m at 1.0 m/s to falling at 4.4 m. That gap was previously
+  // "explained" by switching the estimator OFF (cheater mode), which measures
+  // nothing and is now deleted. This measures it instead: truth is LOGGED beside
+  // the estimate, never fed to it, so the number describes the real controller.
+  // Watch dv (forward-velocity error) in the seconds before a fall - the MPC's
+  // Raibert foothold and state cost both consume vBody, so a velocity estimate
+  // that lags is a foothold placed in the wrong place.
+  if (cheaterState) {
+    static const bool esterr = getenv("SIM_ESTERR") && atoi(getenv("SIM_ESTERR")) != 0;
+    if (esterr) {
+      static int n = 0;
+      if ((n++ % 50) == 0) {                       // 10 Hz at a 500 Hz loop
+        const auto& e = _stateEstimate;
+        Vec3<float> pT = cheaterState->position.template cast<float>();
+        Vec3<float> vT = cheaterState->vBody.template cast<float>();
+        printf("[ESTERR] t=%.2f pT=%.3f,%.3f,%.3f pE=%.3f,%.3f,%.3f "
+               "vT=%.3f,%.3f,%.3f vE=%.3f,%.3f,%.3f dvx=%+.3f dp=%.3f\n",
+               n * 0.002f,
+               pT[0], pT[1], pT[2], e.position[0], e.position[1], e.position[2],
+               vT[0], vT[1], vT[2], e.vBody[0], e.vBody[1], e.vBody[2],
+               e.vBody[0] - vT[0], (e.position - pT).norm());
+        fflush(stdout);
+      }
+    }
+  }
+
   // FALL DETECTOR. MIT's ControlFSM already E-stops on attitude
   // (safetyPreCheck -> 0.5 rad -> PASSIVE), but the PROCESS keeps running, so a
   // run that ended on its side still burns the whole timeout before the harness

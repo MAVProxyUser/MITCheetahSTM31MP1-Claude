@@ -41,7 +41,8 @@ struct sim_sensor_packet {
   double   gps_lon;      // deg
   float    gps_alt;      // m
   float    gps_vel[3];   // NED m/s
-  // ground-truth state from the sim (cheater mode / debugging; SIM_CHEATER=1)
+  // ground-truth state from the sim. MEASUREMENT ONLY (distance scoring, [ESTERR]
+  // estimator-error logging). It must never reach the control loop.
   float    truth_pos[3];    // world m
   float    truth_quat[4];   // x, y, z, w (body->world attitude)
   float    truth_vworld[3]; // world m/s
