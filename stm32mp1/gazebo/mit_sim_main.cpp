@@ -22,6 +22,8 @@
 //! Defined in FSM_State_StandUp.cpp - lets the mission lower the stance target
 //! so re-entering STAND_UP performs a controlled lie-down.
 void setStandUpHeight(double h);
+//! Defined in RobotRunner.cpp - Unitree-style damping hold (edampCommand).
+void setEdamp(double d);
 
 static std::string g_peer;
 
@@ -213,6 +215,12 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       setStandUpHeight(0.07);
       bridge->setControlMode(1);                 // K_STAND_UP
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      // 3b. DAMPING HOLD - Unitree's second phase. Their sequence is
+      //     StandDown (interpolate the joints down) then edampCommand, so the
+      //     robot settles compliant rather than holding a pose stiffly or going
+      //     limp. Ported from LegController<T>::edampCommand at 0x1af2c0.
+      setEdamp(8.0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1200));
       const auto& s2 = bridge->robotRunner()->getStateEstimate();
       const float down_z = s2.position[2];
       const float down_roll  = std::fabs(s2.rpy[0]) * 57.2958f;

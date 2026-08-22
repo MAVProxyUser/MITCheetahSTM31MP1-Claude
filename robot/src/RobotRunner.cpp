@@ -5,6 +5,7 @@
  * for mini cheetah and cheetah 3
  */
 
+#include <atomic>
 #include <unistd.h>
 
 #include <cmath>
@@ -411,7 +412,28 @@ void RobotRunner::setupStep() {
 /*!
  * After the user code, send leg commands, update state estimate, and publish debug data
  */
+/*!
+ * DAMPING HOLD ($setEdamp > 0) - Unitree's second laydown phase.
+ *
+ * Their sequence is: FSM_State_StandDown interpolates the joints down, then the
+ * legs are put in damping (edampCommand) so the robot settles compliant instead
+ * of either holding a pose stiffly or going limp. Set non-zero and the control
+ * loop overrides whatever the FSM produced with a pure-damper command, every
+ * tick, until it is cleared.
+ *
+ * NOTE edampCommand is UPSTREAM MIT - Unitree inherited it, they did not write
+ * it. Worth remembering: their binary is a MIT fork, so anything the decompile
+ * turns up probably already exists in this tree. I nearly re-ported it before
+ * checking. (One real difference: MIT's mini-cheetah branch damps kdJoint only,
+ * 12 stores; Unitree's writes 24 - both kdJoint AND kdCartesian.)
+ */
+std::atomic<double> g_edampGain{0.0};
+void setEdamp(double d) { g_edampGain = d; }
+
 void RobotRunner::finalizeStep() {
+  const double ed = g_edampGain.load();
+  if (ed > 0.0) _legController->edampCommand(robotType, (float)ed);
+
   if (robotType == RobotType::MINI_CHEETAH) {
     _legController->updateCommand(spiCommand);
   } else if (robotType == RobotType::CHEETAH_3) {
