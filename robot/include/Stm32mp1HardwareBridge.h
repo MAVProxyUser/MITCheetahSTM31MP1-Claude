@@ -67,6 +67,9 @@ class Stm32mp1HardwareBridge {
   SpiCommand          _spiCommand;
   VectorNavData       _vectorNavData;
   CheaterState<double> _cheaterState;   //!< sim ground truth (SIM_CHEATER=1, GAZEBO backend)
+  //! Absolute position aiding for the KF (baro/GPS). On the real Go1 these
+  //! arrive over CAN; in SITL over UDP. Opt-in via $SIM_ABS_AIDING.
+  AbsolutePositionAiding<float> _absAiding;
   RobotControlParameters _robotParams;
   RobotRunner*        _robotRunner = nullptr;
 

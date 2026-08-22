@@ -67,7 +67,17 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   dtMPC = dt * iterationsBetweenMPC;
   default_iterations_between_mpc = iterationsBetweenMPC;
   printf("[Convex MPC] dt: %.3f iterations: %d, dtMPC: %.3f\n", dt, iterationsBetweenMPC, dtMPC);
-  setup_problem(dtMPC, horizonLength, 0.4, MPC_F_MAX);
+  // $SIM_F_MAX overrides the per-foot force cap. The 175 N default holds MIT's
+  // 1.36x-bodyweight ratio, and 250 N was rejected earlier because it made the
+  // STAND sit lower - but standing is not what the cap binds on. With two feet
+  // down (bounding) a 2-3x bodyweight peak is 128-192 N per foot, and with one
+  // (galloping) it is 250-350 N, so 175 N is at or past the limit for exactly
+  // the gaits that fail. The knee is good for 240-355 N at the foot.
+  {
+    static const float fmax = getenv("SIM_F_MAX") ? atof(getenv("SIM_F_MAX"))
+                                                  : (float)MPC_F_MAX;
+    setup_problem(dtMPC, horizonLength, 0.4, fmax);
+  }
   //setup_problem(dtMPC, horizonLength, 0.4, 650); // DH
 
   // Start the MPC worker (see the header for why the solve cannot run inline on
@@ -423,8 +433,32 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
           getenv("SIM_YAW_ERR_MAX") ? atof(getenv("SIM_YAW_ERR_MAX")) : 0.40f;
       if (e >  YAW_ERR_MAX) _yaw_des = seResult.rpy[2] + YAW_ERR_MAX;
       if (e < -YAW_ERR_MAX) _yaw_des = seResult.rpy[2] - YAW_ERR_MAX;
+
+      // PROPORTIONAL HEADING FEEDBACK ON THE YAW-RATE CHANNEL.
+      // The angle reference above is tracked by the MPC at Q[2]=10, but the yaw
+      // RATE reference (vBody_Ori_des[2]) is just the commanded turn rate - zero
+      // when walking straight - so nothing actively drives yaw BACK. Measured:
+      // the 4-beat `walking` gait lifts one leg at a time, each step kicks yaw,
+      // and with only a saturating angle error to fight it the heading ran away
+      // to 0.51 rad (past the 0.40 clamp) and the robot went down at ~17 m every
+      // run. `walking2` (diagonal pairs) is yaw-balanced and never showed this.
+      // Feeding a corrective rate -kp*e into the rate channel (tracked at
+      // Q[8]=0.3) adds authority WITHOUT needing a big angle error, so the drift
+      // is unwound as it forms. Active only while holding heading (no turn
+      // commanded); disabled by SIM_YAW_RATE_KP=0.
+      static const float yaw_rate_kp =
+          getenv("SIM_YAW_RATE_KP") ? atof(getenv("SIM_YAW_RATE_KP")) : 1.5f;
+      if (std::fabs(_yaw_turn_rate) < 0.05f) {
+        _yaw_rate_ff = -yaw_rate_kp * e;
+        const float ff_max = 0.8f;
+        if (_yaw_rate_ff >  ff_max) _yaw_rate_ff =  ff_max;
+        if (_yaw_rate_ff < -ff_max) _yaw_rate_ff = -ff_max;
+      } else {
+        _yaw_rate_ff = 0.f;
+      }
     } else {
       _yaw_des = seResult.rpy[2] + dt * _yaw_turn_rate;   // stock MIT
+      _yaw_rate_ff = 0.f;
     }
   } else {
     // Standing: track the measurement so entering locomotion starts from the
@@ -439,6 +473,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     world_position_desired[1] = seResult.position[1];
     world_position_desired[2] = seResult.rpy[2];
     _yaw_des = seResult.rpy[2];      // lock the heading reference on entry
+    _yaw_rate_ff = 0.f;
 
     for(int i = 0; i < 4; i++)
     {
@@ -773,7 +808,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
 
   vBody_Ori_des[0] = 0.;
   vBody_Ori_des[1] = 0.;
-  vBody_Ori_des[2] = _yaw_turn_rate;
+  vBody_Ori_des[2] = _yaw_turn_rate + _yaw_rate_ff;   // + heading feedback (see _SetupCommand)
 
   //contact_state = gait->getContactState();
   contact_state = gait->getContactState();
@@ -923,6 +958,66 @@ void ConvexMPCLocomotion::updateMPCIfNeeded(int *mpcTable, ControlFSMData<float>
           trajAll[12*i + 3] = trajAll[12 * (i - 1) + 3] + dtMPC * v_des_world[0];
           trajAll[12*i + 4] = trajAll[12 * (i - 1) + 4] + dtMPC * v_des_world[1];
           trajAll[12*i + 2] = trajAll[12 * (i - 1) + 2] + dtMPC * _yaw_turn_rate;
+        }
+      }
+
+      // BALLISTIC VERTICAL REFERENCE FOR GAITS WITH A FLIGHT PHASE.
+      //
+      // Above, every horizon step gets z = _body_height and vz = 0 - MIT's
+      // stock reference. For a gait that is airborne by design that is
+      // incoherent with the gait's own contact schedule. MIT's `pronking` is
+      // offsets(0,0,0,0)/durations(4,4,4,4): SIX of ten segments with all four
+      // feet off the ground. To stay up for 60% of the cycle the body has to be
+      // LAUNCHED, and a reference that says "hold 0.30 m, zero vertical
+      // velocity" gives the optimiser no reason to ever build vertical
+      // velocity. So the MPC never launches, the schedule lifts the feet
+      // anyway, and the robot falls - which is exactly what pronking and
+      // galloping do here, immediately on engagement, level and sinking.
+      //
+      // Build the reference the schedule actually implies instead: at the last
+      // stance step before a flight of Tf segments, command the takeoff
+      // velocity that returns the body to _body_height, vz = g*Tf*dt/2; during
+      // flight integrate ballistically; during stance hold nominal.
+      // $SIM_BALLISTIC_Z=0 restores stock MIT.
+      {
+        // DEFAULT OFF - measured to give no benefit, and harmful paired with
+        // the flight cost gate (see SolverMPC). Stock MIT already commands
+        // sensible pronking forces (39-42 N/foot); the reference was not the
+        // thing that was broken.
+        static const bool ballistic = getenv("SIM_BALLISTIC_Z") &&
+                                      atoi(getenv("SIM_BALLISTIC_Z")) != 0;
+        if (ballistic) {
+          auto isFlight = [&](int k) {
+            if (k < 0 || k >= horizonLength) return false;
+            const int* c = mpcTable + k * 4;
+            return c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 0;
+          };
+          bool anyFlight = false;
+          for (int i = 0; i < horizonLength && !anyFlight; ++i) anyFlight = isFlight(i);
+
+          if (anyFlight) {
+            float z_ref  = _body_height;
+            float vz_ref = 0.f;
+            for (int i = 0; i < horizonLength; i++) {
+              if (isFlight(i)) {
+                vz_ref -= 9.81f * dtMPC;          // ballistic
+              } else {
+                // stance: we have authority. If flight starts next step, this
+                // is the launch - command the impulse that gets us back.
+                int Tf = 0;
+                for (int k = i + 1; k < horizonLength && isFlight(k); ++k) ++Tf;
+                if (Tf > 0) {
+                  vz_ref = 0.5f * 9.81f * ((float)Tf * dtMPC);
+                } else {
+                  z_ref = _body_height;
+                  vz_ref = 0.f;
+                }
+              }
+              z_ref += vz_ref * dtMPC;
+              trajAll[12*i + 5]  = z_ref;
+              trajAll[12*i + 11] = vz_ref;
+            }
+          }
         }
       }
     }

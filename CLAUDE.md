@@ -1272,6 +1272,96 @@ Remaining candidate: Unitree's swing/stance split (`runSwingLegControl` /
 `runContactLegControl`) and `trajPlanner` proper, reversed only structurally.
 
 
+## The yaw bug: why `walking` "could not be explained"
+
+`walking` was recorded here as endurance-limited for unknown reasons - ~17 m and
+down, every time. That was a stopping decision, not a finding. ONE instrumented
+run settled it: yaw climbed 0.09 -> 0.51 rad over the run and the robot went
+down when it saturated.
+
+**Mechanism.** The MPC is handed a yaw ANGLE reference (`pBody_RPY_des[2]`,
+cost weight 10) but the yaw RATE reference (`vBody_Ori_des[2]`) is just the
+commanded turn rate - exactly ZERO when walking straight. So nothing actively
+unwinds a heading error; only the angle error opposes it, and this port clamps
+that at 0.40 rad. A 4-beat gait kicks yaw on every single-leg step, the error
+saturated the clamp, and the gait lost. `walking2` (diagonal pairs) is
+yaw-balanced and never showed it - same MPC, same weights, opposite outcome.
+
+**Fix.** Proportional heading feedback into the RATE channel,
+`vBody_Ori_des[2] = _yaw_turn_rate + (-kp * yaw_error)`, active only while
+holding heading. Clean gain curve, which is what says the mechanism is right:
+
+| `SIM_YAW_RATE_KP` | distance |
+|---|---|
+| 0 (stock) | 9.3 m, fell |
+| **1.5** | **93.6 m, upright** |
+| 3.0 | 21.4 m, over-correction |
+
+Measured NOT to help trot/pacing (both yaw-balanced), which is the right
+signature for a mechanism-specific fix rather than a general stability nudge.
+
+## THE REAL ESTIMATOR IS NO LONGER THE BLOCKER
+
+Everything measured in this file before today used `SIM_CHEATER=1`. The recorded
+real-estimator figure was **0.65 m**. That number was stale by ~50x and it was
+being trusted instead of re-measured. Current, `SIM_CHEATER=0`:
+
+| gait | speed | distance (84 s) | drift |
+|---|---|---|---|
+| walking2 | 1.0 m/s | **57.64 m** | 0.05 m |
+| pacing | 0.8 m/s | 46.62 m | 0.99 m |
+| trotting | 0.6 m/s | 35.21 m | 0.51 m |
+
+**And the full GPS star mission completes on the real estimator in 57.1 s -
+identical to cheater mode.** GPS -> nav -> real LinearKF -> convex MPC -> legs,
+5 x 10.1 m legs and five 144 degree corners, 0.80 m/s average. Was 85.3 s.
+
+Baro/GPS absolute aiding is implemented (`SIM_ABS_AIDING=1`, opt-in, verified to
+engage) and is a measured NULL on these gaits - 35.21 vs 35.36 m, 57.64 vs
+57.64 m. Correct reason: they never lose contact, so leg odometry never drops
+out and there is no observability hole to fill. Its value is reserved for the
+flight gaits, whose all-swing windows are what blow the covariance up.
+
+## Flight gaits: five approaches, all failed - and what that RULES OUT
+
+pronking and galloping still collapse ~2 s after gait engagement. Recorded so
+nobody repeats them:
+
+1. **Patching the MPC contact table** (force airborne steps to stance) - null.
+   Cannot work: the table only tells the MPC what to solve against, while the
+   gait still swings the legs, so the MPC pushes into feet that are in the air.
+2. **Ballistic vertical reference** (launch velocity from the flight duration) -
+   null. Stock MIT already commands sensible pronking forces; the reference was
+   not what was broken.
+3. **Flight-phase cost gating** (drop z/vz cost on airborne steps) - **HARMFUL**.
+   Cut solved force from 39-42 N/foot to 6.1 N/foot. The cost is what makes the
+   optimiser command force at the CONTACT steps; dropping it on 6 of 10 steps
+   removed most of the objective. Shipped default-ON by mistake, reverted.
+4. **Raising ADMM convergence** (rho 2.0 / 300 iters) - reaches the force
+   (81.7 N/foot vs the 80 the 40% duty needs, where stock plateaus at 66.1) but
+   stalls the control loop to 5.55 ms inline, and still falls.
+5. **Async + converged solve** - loop clean at 1.00 ms, forces available, STILL
+   falls. Also degraded bounding (0.22 m vs its usual ~5 m).
+
+**What this eliminates:** it is not force availability (the solver can find
+them), not compute (async runs clean), not stance stiffness (Unitree's is zero
+too), not the height reference, and not `locomotionSafe` (no RECOVERY_STAND
+transitions in any failing log). The remaining candidate is the swing/foothold
+path during the 60% of the cycle all four legs are airborne - Unitree's
+`runSwingLegControl`, reversed only structurally.
+
+### Arithmetic worth keeping
+Pronking is `durations(4,4,4,4)` of 10 = **40% stance**, so holding height needs
+`m*g/duty` = 128/0.4 = **320 N total, 80 N per foot**. Stock plateaus at 66.1 N
+(83%) and the body sinks at ~g/2 - which matches the measured monotonic descent
+0.290 -> 0.140 exactly. The force cap (175 N/foot) is nowhere near binding.
+
+### Solver tuning is per-gait, and ours is global
+`jcqp_rho 0.6 / 60 iters` was swept against a TROT. Pronking's QP is harder and
+comes out ~17% short at those settings. Any future convergence tuning should be
+checked per gait rather than assumed to transfer.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer

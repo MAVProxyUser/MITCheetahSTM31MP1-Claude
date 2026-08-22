@@ -7,6 +7,8 @@
  *  - foot positions/velocities in body/world frame
  */
 
+#include <cmath>
+
 #include "Controllers/PositionVelocityEstimator.h"
 
 /*!
@@ -173,6 +175,47 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     _P.block(0, 2, 2, 16).setZero();
     _P.block(2, 0, 16, 2).setZero();
     _P.block(0, 0, 2, 2) /= T(10);
+  }
+
+  // ---- ABSOLUTE POSITION AIDING (baro / GPS) -------------------------------
+  // Sequential Kalman update, applied after the leg-odometry update above. Done
+  // sequentially rather than by widening MIT's fixed-size 18x28 C/R matrices:
+  // it is mathematically the same thing for independent measurements, and it
+  // leaves the stock filter untouched when no aiding is present.
+  //
+  // WHY: the update above weights each foot by a contact `trust` that goes to
+  // zero in swing, so an all-swing window leaves p and v with NO measurement -
+  // pure accelerometer double-integration, covariance diverging, estimate going
+  // non-finite (see the NaN guard in RobotRunner). Leg odometry is relative and
+  // vanishes exactly when a flight gait needs it; baro and GPS are absolute and
+  // do not care about contact.
+  //
+  //   z = p_abs,  H = [I3 0 0],  K = P H^T (H P H^T + R)^-1
+  {
+    auto* aid = this->_stateEstimatorData.absAiding;
+    if (aid && (aid->haveXY || aid->haveZ)) {
+      // Per-axis: only correct the axes we actually have a measurement for.
+      for (int ax = 0; ax < 3; ++ax) {
+        const bool have = (ax < 2) ? aid->haveXY : aid->haveZ;
+        if (!have) continue;
+        const T sig = aid->sigma[ax] > T(1e-4) ? aid->sigma[ax] : T(1e-4);
+        const T R_ax = sig * sig;
+
+        // H picks state `ax` (position). S is scalar, so no matrix inverse.
+        const T S_ax = _P(ax, ax) + R_ax;
+        if (!(S_ax > T(1e-12)) || !std::isfinite(S_ax)) continue;
+
+        Eigen::Matrix<T, 18, 1> K = _P.col(ax) / S_ax;
+        const T innov = aid->position[ax] - _xhat[ax];
+        if (!std::isfinite(innov)) continue;
+
+        _xhat += K * innov;
+        // Joseph-free simple form is adequate here; re-symmetrise below.
+        _P -= K * _P.row(ax);
+      }
+      Eigen::Matrix<T, 18, 18> Pa = _P.transpose();
+      _P = (_P + Pa) / T(2);
+    }
   }
 
   this->_stateEstimatorData.result->position = _xhat.block(0, 0, 3, 1);

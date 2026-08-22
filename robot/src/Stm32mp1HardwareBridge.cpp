@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <cmath>
 #include <stdexcept>
 #include <thread>
 
@@ -121,6 +122,51 @@ void Stm32mp1HardwareBridge::runMotors() {
       _cheaterState.acceleration << _vectorNavData.accelerometer[0],
           _vectorNavData.accelerometer[1], _vectorNavData.accelerometer[2];
     }
+    // ---- ABSOLUTE POSITION AIDING (baro / GPS) ---------------------------
+    // MIT's KF fuses IMU with LEG ODOMETRY, which is weighted per foot by a
+    // contact trust that goes to zero in swing - so an all-swing window leaves
+    // position with no measurement at all and the covariance diverges. Baro and
+    // GPS are absolute and contact-independent, so they bound that drift. Same
+    // sensors the real dog gets over CAN; here they come over UDP.
+    // Opt-in ($SIM_ABS_AIDING=1) so existing measurements are unaffected.
+    {
+      static const bool aidOn = getenv("SIM_ABS_AIDING") &&
+                                atoi(getenv("SIM_ABS_AIDING")) != 0;
+      if (aidOn) {
+        SimAuxSensors aux;
+        gazebo_get_aux(&aux);
+        static bool  originSet = false;
+        static double lat0 = 0, lon0 = 0, mPerDegLon = 0;
+        static float  baro0 = 0;
+        if (!originSet && aux.gps_lat != 0.0) {
+          lat0 = aux.gps_lat; lon0 = aux.gps_lon; baro0 = aux.baro_alt;
+          mPerDegLon = 111320.0 * std::cos(lat0 * M_PI / 180.0);
+          originSet = true;
+          printf("[stm32mp1] abs aiding: origin lat=%.7f lon=%.7f baro=%.2f m\n",
+                 lat0, lon0, baro0);
+          fflush(stdout);
+        }
+        if (originSet) {
+          // Equirectangular projection about the origin, same as WaypointNav.
+          // Gazebo world is ENU: x = East, y = North, z = up.
+          const float north = (float)((aux.gps_lat - lat0) * 111320.0);
+          const float east  = (float)((aux.gps_lon - lon0) * mPerDegLon);
+          // Baro is referenced to its own value at spawn, plus the height the
+          // robot actually starts at (belly on the deck).
+          const float z = (aux.baro_alt - baro0) + 0.08f;
+          _absAiding.position << east, north, z;
+          _absAiding.haveXY = true;
+          _absAiding.haveZ  = true;
+          // 1-sigma. Baro is ~0.08 m here, far coarser than the 2-5 cm a gait
+          // moves the body - it bounds drift, it does not track the bounce.
+          const float gps_sig  = getenv("SIM_GPS_SIGMA")
+                               ? atof(getenv("SIM_GPS_SIGMA")) : 0.5f;
+          const float baro_sig = getenv("SIM_BARO_SIGMA")
+                               ? atof(getenv("SIM_BARO_SIGMA")) : 0.10f;
+          _absAiding.sigma << gps_sig, gps_sig, baro_sig;
+        }
+      }
+    }
   } else {
 #ifdef __linux__
     unitree_send_receive(&_utCmd, &_utData);
@@ -171,6 +217,8 @@ void Stm32mp1HardwareBridge::run() {
   _robotRunner->robotType = RobotType::MINI_CHEETAH;   // Unitree legs mapped onto the MC model for now
   _robotRunner->vectorNavData = &_vectorNavData;
   _robotRunner->cheaterState = &_cheaterState;
+  if (getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0)
+    _robotRunner->absAiding = &_absAiding;
   // $SIM_CHEATER=1 (GAZEBO backend): estimator uses sim ground truth instead of
   // the VectorNav orientation + LinearKF -- bisects estimator vs controller bugs.
   if (_backend == Backend::GAZEBO && getenv("SIM_CHEATER")) {

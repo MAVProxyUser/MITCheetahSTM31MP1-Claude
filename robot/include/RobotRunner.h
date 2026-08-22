@@ -60,6 +60,10 @@ class RobotRunner : public PeriodicTask {
    *  into the FSM (see mit_sim_main.cpp). */
   const StateEstimate<float>& getStateEstimate() const { return _stateEstimate; }
 
+  //! Optional absolute position aiding (baro/GPS) for the KF. Set before init()
+  //! or any time after; null = stock MIT behaviour.
+  AbsolutePositionAiding<float>* absAiding = nullptr;
+
  private:
   float _ini_yaw;
 

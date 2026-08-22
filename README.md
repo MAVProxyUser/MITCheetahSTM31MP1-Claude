@@ -33,32 +33,39 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
-## Measured locomotion (Mac SITL, cheater state)
+## Measured locomotion (Mac SITL)
 
 100 m dash on flat ground, fastest speed each gait completes it. Ceilings
-verified by repeats at the next speed up, not by a single pass.
+verified by repeats at the next speed up.
 
 | gait | max speed | 100 m time | cruise |
 |---|---|---|---|
-| `walking2` (21) | 1.0 m/s | **106.8 s** | 0.94 m/s |
-| `trotting` (9) | 0.9 m/s | **120.4 s** | 0.83 m/s |
-| `pacing` (8) | 0.8 m/s | **130.5 s** | 0.77 m/s |
-| `trotRunning` (5) | 0.6 m/s | **186.1 s** | 0.53 m/s |
-| `walking` (20) | — | never crosses (best 17.6 m) | — |
-| `bounding` (1) | — | never crosses (best 5.5 m @ 1.0) | — |
-| `pronking` (2) / `galloping` (22) | — | never cross (< 0.3 m) | — |
+| `walking2` (21) | 1.0 m/s | **107.0 s** | 0.94 m/s |
+| `trotting` (9) | 0.9 m/s | **118.5 s** | 0.85 m/s |
+| `pacing` (8) | 0.8 m/s | **130.6 s** | 0.77 m/s |
+| `walking` (20) | 0.8 m/s | **132.0 s** | 0.76 m/s |
+| `trotRunning` (5) | 0.6 m/s | **186.9 s** | 0.53 m/s |
+| `bounding` / `pronking` / `galloping` | — | never cross | — |
 
-**Four of MIT's eight gaits run 100 m.** Two of those - pacing and trotRunning -
-were completely dead before the factory-binary comparison (0.1 m and 0.00 m);
-they were recovered by a real defect it exposed, not by tuning. See
-`docs/LEGGED_SPORT_REVERSE.md`.
+**Five of MIT's eight gaits run 100 m** (two did before this work).
+
+### The mission, on the REAL state estimator
+
+The GPS star mission - 5 legs of 10.1 m, five 144-degree corners - completes in
+**57.1 s with `SIM_CHEATER=0`**, i.e. GPS -> waypoint nav -> MIT's
+`LinearKFPositionVelocityEstimator` -> convex MPC + WBIC -> legs, with no ground
+truth anywhere. Identical to the cheater-mode time, and down from 85.3 s.
+
+| | before | now |
+|---|---|---|
+| star mission | 85.3 s, cheater only | **57.1 s, real estimator** |
+| real-estimator distance | 0.65 m | **57.6 m** |
+| gaits running 100 m | 2 | **5** |
 
 Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
 sprints to 4.7. **This stack tops out at 0.94 m/s** - about a fifth of the
-sprint, and slower than a person walking. That ceiling has not moved; what
-improved is breadth and robustness (twice as many working gaits, heading held to
-centimetres, 100 m sustained instead of ~20 m). The gaits that could go fast are
-the flight-phase ones, and three of the four still do not hold up.
+sprint. That ceiling has not moved; what improved is breadth, robustness, and
+independence from ground truth.
 
 ## Reverse-engineering the factory controller
 

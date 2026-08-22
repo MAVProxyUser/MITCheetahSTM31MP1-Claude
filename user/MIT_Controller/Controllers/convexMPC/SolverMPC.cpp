@@ -347,6 +347,51 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   full_weight(12) = 0.f;
   S.diagonal() = full_weight.replicate(setup->horizon,1);
 
+  // FLIGHT-PHASE COST GATING.
+  // MIT replicates one weight vector across every horizon step, and the
+  // trajectory hands every step the SAME z reference (_body_height) with vz = 0.
+  // For a gait with a real flight phase that is a contradiction with the gait's
+  // own contact schedule: on an airborne step the robot has NO contacts, so the
+  // friction cone forces every foot force to zero and the height error is
+  // physically uncontrollable - yet z carries Q[5] = 50, the LARGEST weight in
+  // MIT's vector. The optimiser cannot reduce that cost during flight, so it
+  // distorts the forces on the surrounding CONTACT steps trying to, which is a
+  // good description of what pronking and galloping do here (they fail the
+  // moment the gait engages, level, sinking).
+  // You should not put cost on a state you have no authority over. Zero the z
+  // and vz weights on steps where the contact table is all-swing.
+  // $SIM_FLIGHT_COST_GATE=0 restores stock MIT.
+  {
+    // DEFAULT OFF - MEASURED HARMFUL. Removing the z cost on airborne steps
+    // gutted the MPC's incentive to push: solved force fell from 39-42 N per
+    // foot (stock MIT, correctly above the 128 N bodyweight for a pronk) to
+    // 6.1 N per foot. The reasoning was sound - you should not put cost on a
+    // state you cannot control - but the cost is what makes the optimiser
+    // command force at the CONTACT steps, and dropping it on the majority of
+    // the horizon (6 of 10 for pronking) removed most of the objective.
+    static const bool gate = getenv("SIM_FLIGHT_COST_GATE") &&
+                             atoi(getenv("SIM_FLIGHT_COST_GATE")) != 0;
+    if (gate) {
+      int gated = 0;
+      for (s16 i = 0; i < setup->horizon; i++) {
+        const unsigned char* c = update->gait + i * 4;
+        if (c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 0) {
+          S.diagonal()[13 * i + 5]  = 0.f;   // z position
+          S.diagonal()[13 * i + 11] = 0.f;   // z velocity
+          ++gated;
+        }
+      }
+      if (gated && getenv("STM32MP1_MPC_MAT")) {
+        static int ch = 0;
+        if ((ch++ % 200) == 0) {
+          printf("[MPC] flight-cost gate: %d/%d horizon steps airborne, "
+                 "z/vz cost removed\n", gated, setup->horizon);
+          fflush(stdout);
+        }
+      }
+    }
+  }
+
   //trajectory
   for(s16 i = 0; i < setup->horizon; i++)
   {

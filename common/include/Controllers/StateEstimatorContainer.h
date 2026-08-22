@@ -56,6 +56,33 @@ struct StateEstimate {
  * it should be added here. (You should also a setter method to
  * StateEstimatorContainer)
  */
+/*!
+ * ABSOLUTE POSITION AIDING (baro / GPS).
+ *
+ * MIT's LinearKF fuses IMU with LEG ODOMETRY, and leg odometry is a RELATIVE
+ * source that is weighted per foot by a contact `trust` which goes to zero in
+ * swing. During an all-swing window there is therefore NO position measurement
+ * at all: p and v become pure double-integration of the accelerometer, the
+ * covariance grows without bound, and the estimate goes non-finite (this port
+ * carries a NaN guard in RobotRunner for exactly that). It is worst for the
+ * gaits with real flight phases - precisely the ones that need it most.
+ *
+ * Baro and GPS are ABSOLUTE and do not care about contact, so they bound the
+ * drift the leg odometry cannot. On the real Go1 both arrive over CAN; in the
+ * Gazebo SITL they arrive over UDP via gazebo_get_aux(). Same data either way.
+ *
+ * Resolution honesty: baro is ~0.08 m 1-sigma against gait-scale height changes
+ * of 2-5 cm, so this does NOT track the bounce. It BOUNDS the divergence, which
+ * is the failure being fixed.
+ */
+template <typename T>
+struct AbsolutePositionAiding {
+  bool  haveXY = false;          //!< GPS fix projected to the local tangent plane
+  bool  haveZ  = false;          //!< barometric altitude
+  Vec3<T> position = Vec3<T>::Zero();   //!< world frame, metres (x=E, y=N, z=up)
+  Vec3<T> sigma = Vec3<T>::Ones();      //!< 1-sigma measurement noise per axis
+};
+
 template <typename T>
 struct StateEstimatorData {
   StateEstimate<T>* result;  // where to write the output to
@@ -64,6 +91,7 @@ struct StateEstimatorData {
   LegControllerData<T>* legControllerData;
   Vec4<T>* contactPhase;
   RobotControlParameters* parameters;
+  AbsolutePositionAiding<T>* absAiding = nullptr;  //!< optional; null = stock MIT
 };
 
 /*!
@@ -131,6 +159,13 @@ class StateEstimatorContainer {
   /*!
    * Set the contact phase
    */
+  //! Attach absolute position aiding (baro / GPS). Null leaves the filter
+  //! exactly as MIT ships it. See AbsolutePositionAiding for why it exists.
+  void setAbsoluteAiding(AbsolutePositionAiding<T>* aiding) {
+    _data.absAiding = aiding;
+    for (auto est : _estimators) est->setData(_data);
+  }
+
   void setContactPhase(Vec4<T>& phase) { 
     *_data.contactPhase = phase; 
   }

@@ -60,6 +60,7 @@ void RobotRunner::init() {
       cheaterState, vectorNavData, _legController->datas,
       &_stateEstimate, controlParameters);
   initializeStateEstimator(false);
+  if (absAiding) _stateEstimator->setAbsoluteAiding(absAiding);
 
   memset(&rc_control, 0, sizeof(rc_control_settings));
   // Initialize the DesiredStateCommand object
@@ -362,6 +363,9 @@ void RobotRunner::initializeStateEstimator(bool cheaterMode) {
     _stateEstimator->addEstimator<VectorNavOrientationEstimator<float>>();
     _stateEstimator->addEstimator<LinearKFPositionVelocityEstimator<float>>();
   }
+  // Re-attach aiding: addEstimator copies _data into each estimator, so a
+  // rebuild (cheater transition, NaN recovery) would otherwise drop it.
+  if (absAiding) _stateEstimator->setAbsoluteAiding(absAiding);
 }
 
 RobotRunner::~RobotRunner() {

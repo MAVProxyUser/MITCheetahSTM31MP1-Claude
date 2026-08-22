@@ -116,6 +116,7 @@ private:
 
   float _yaw_turn_rate;
   float _yaw_des;
+  float _yaw_rate_ff = 0.f;   //!< proportional heading feedback into the yaw-rate channel
 
   float _roll_des;
   float _pitch_des;
