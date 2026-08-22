@@ -1716,6 +1716,57 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## BEFORE TRUSTING A REAL DOG: sim-fidelity gaps and the QA ladder
+
+**Nothing in this file is hardware-validated.** These are SITL numbers, and at
+4-5 m/s the simulation is flattering. Work this list before any of it is
+believed on a machine that can hurt itself.
+
+### Known places the sim is more generous than reality
+
+| gap | sim | reality | why it matters at speed |
+|---|---|---|---|
+| **foot friction** | **mu = 2.0** | URDF says **0.6**; rubber on concrete ~0.8-1.0 | Set early to stop feet skating inward and collapsing the support polygon. At 4-5 m/s traction does enormous work; this is the single most suspect number behind the top-end results. |
+| **actuator dynamics** | commanded torque applied directly | motor current limit, thermal derating, back-EMF at speed | No torque is ever refused. Peak knee demand measured at 26.4 Nm of a 35.55 Nm limit - fine on paper, but the real limit falls as the motor heats and as joint speed rises. |
+| **joint velocity** | unbounded | finite, and the binding constraint for a fast swing | A swing leg that must return 0.4 m in 0.1 s may simply be unable to on hardware. |
+| **transport** | loopback UDP, 0 stalls | RS485 at 500 Hz + eth0 that has FLAPPED under load | A dropped command window folds the robot; the bridge watchdog exists for this. |
+| **IMU** | Gazebo IMU, and orientation is a NOISE-FREE pass-through | real VectorNav/DroneCAN noise and bias | The estimator has never been tested against realistic orientation error - `VectorNavOrientationEstimator` just forwards the sim's exact pose. |
+| **ground** | perfectly flat speedway | farm mesh spawns on a 7.6 cm rise | Terrain following works well enough to STAND on the mesh, not to walk on it. |
+| **contact** | idealised point contact | compliant foot, slip, debris | |
+
+### The QA ladder (run in this order, stop at the first failure)
+
+Deliberately boring, and all of it BEFORE any commanded navigation:
+
+1. **Stand** - power on limp, stand to 0.30 m, hold 60 s. Watch body height and
+   attitude drift, and RS485 error counters.
+2. **Lie down** - controlled descent to belly, legs limp. This is the recovery
+   path for everything below.
+3. **Stand back up** from the belly - the transition that has to work before any
+   fall is survivable.
+4. **Slow walk** - 0.2-0.3 m/s, straight, a few metres. The statically-stable
+   crawl (`static_gait_sim`) is the safest first mover; it is a sequence of
+   static poses and cannot run away.
+5. Only then: dynamic gaits at low speed, then yaw, then waypoints.
+
+Steps 1-4 need no MPC at all and exercise the parts most likely to be wrong on
+hardware: joint sign conventions, gear ratios, RS485 framing, torque scaling,
+IMU orientation. **Validate those against a machine on a stand, with the legs
+off the ground, before it ever bears weight.**
+
+### The remaining SOLVER work is for the BOARD, not for the gaits
+
+Worth stating precisely, because "fix the solver" now means something narrower:
+- On the Mac the solver IS fixed - qpOASES, 0.6-1.7 ms against a 2.0 ms budget.
+- The gaits that still fail (`galloping`, `pronking`, `bounding`, `walking2`,
+  `pacing`) fail ON qpOASES, with correct forces available. Fixing JCQP will not
+  rescue them; they fail for their own reasons.
+- **JCQP is what the BOARD needs.** qpOASES costs 198-218 ms on the A7 against a
+  26 ms segment, so the STM32 cannot run it inline. Either JCQP has to be made
+  to converge on a moving gait, or the board runs qpOASES on the async path
+  (`SIM_MPC_ASYNC=1`), or the contact-reduced qpOASES has to be re-measured
+  there. Until one of those, **none of tonight's speeds can reach hardware.**
+
 ## The solver REORDERED the gait hierarchy (it is not a uniform lift)
 
 All eight gaits re-screened at 2.0 m/s on qpOASES, real estimator. 2.0 is the
@@ -1732,6 +1783,38 @@ qualifying floor - a gait that cannot hold 2.0 is out of the running for
 | pronking | 2 | 10.6 m | 5.5 m | no |
 | walking2 | 21 | 5.6 m | 4.6 m | no |
 | pacing | 8 | 0.4 m | 0.2 m | no |
+
+### WHY it reordered: the solver fix INVERTED the optimal duty factor
+
+The gait table (`OffsetDurationGait(nSeg, offsets, durations, name)`, 10 segs):
+
+```
+walking  (20): offsets (0,3,5,8)  durations (5,5,5,5)  -> 50% duty, 4-BEAT
+walking2 (21): offsets (0,5,5,0)  durations (7,7,7,7)  -> 70% duty, diagonal pairs
+trotting  (9): offsets (0,5,5,0)  durations (5,5,5,5)  -> 50% duty, diagonal pairs
+trotRunning(5):offsets (0,5,5,0)  durations (4,4,4,4)  -> 40% duty, diagonal + FLIGHT
+galloping(22): offsets (0,2,7,9)  durations (4,4,4,4)  -> 40% duty, asymmetric
+```
+
+So `walking2` is literally **trotting with a 70% stance** - same diagonal-pair
+footfall, much longer contact. And peak force to hold height is `m*g / duty`:
+
+| gait | duty | peak force needed | rank under JCQP | rank on qpOASES |
+|---|---|---|---|---|
+| walking2 | 70% | **1.43x mg** | **1st** (121.9 s) | fails at 5.6 m |
+| trotting | 50% | 2.00x mg | 2nd | 2nd |
+| walking | 50% | 2.00x mg | LAST that crossed | 3rd |
+| trotRunning | 40% | 2.50x mg | never crossed | **1st** |
+
+**Under a solver delivering 0.25-0.45x mg, the only gait that could function was
+the one demanding the LEAST peak force.** walking2 topped the old table because
+it is the CHEAPEST gait, not the best one. With force actually available that
+advantage vanishes, and its long stance becomes a liability: stance duration x
+speed is the distance the foot must sweep, and at 70% duty and 2.0 m/s that is
+~0.308 m against ~0.318 m of horizontal reach - right at the kinematic limit.
+
+Low duty was previously unaffordable and is now optimal. That is the whole
+reordering, and it predicts the new ranking from duty alone.
 
 **Two complete reversals against the JCQP table**, which is the point worth
 keeping:

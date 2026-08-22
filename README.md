@@ -39,24 +39,53 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 cheater mode is deleted from the codebase, so ground truth cannot reach the
 control loop; it is used only to MEASURE distance.
 
-### The dash, after fixing the solver
+### The 100 m dash, every gait, after fixing the solver
 
-| gait | commanded | segment | 100 m time | cruise | runs |
-|---|---|---|---|---|---|
-| **`trotting` (9)** | **3.1 m/s** | **22 ms** | **32.2 s** | **3.46 m/s** | **5/5** — 32.2 / 32.2 / 32.3 / 32.4 / 32.7 s |
-| `trotting` (9) | 3.0 m/s | 22 ms | 33.2 s | 3.33 m/s | **3/3** — 33.2 / 33.2 / 33.3 s |
-| `trotting` (9) | 2.75 m/s | 26 ms | 37.5 s | 2.88 m/s | **2/2** — 37.6 / 37.5 s |
-| `trotting` (9) | 2.5 m/s | 26 ms | 40.5 s | 2.64 m/s | **3/3** — 40.4 / 40.6 / 40.5 s |
-| `trotting` (9) | 2.0 m/s | 26 ms | 47.1 s | 2.24 m/s | **4/4** — 47.1 / 47.2 / 47.1 / 47.2 s |
+Fastest reliable speed for each of MIT's eight gaits, all on the real state
+estimator with qpOASES. 2.0 m/s is the qualifying floor — a gait that cannot
+hold 2.0 is out of the running for "fastest". Every entry is repeated; the
+`runs` column is the count that actually crossed.
 
-**Reliable ceiling: 3.1 m/s commanded, 3.46 m/s achieved, five runs for five.**
-Seventeen crossings in total, each reproducing to ~0.1 s, all with **zero safety
-trips and zero falls**, body height held at mean 0.287 m against a 0.300 m
-reference, worst control-loop iteration 0.7–1.0 ms of a 2.0 ms budget.
+| rank | gait | num | commanded | segment | 100 m | cruise | runs |
+|---|---|---|---|---|---|---|---|
+| **1** | **`trotRunning`** | 5 | **4.0 m/s** | 26 ms | **24.8 s** | **4.70 m/s** | **3/3** |
+| 2 | `trotting` | 9 | 3.1 m/s | 22 ms | 32.2 s | 3.46 m/s | **5/5** |
+| 3 | `walking` | 20 | 2.25 m/s | 22 ms | 42.0 s | 2.57 m/s | **3/3** |
+| — | `bounding` | 1 | — | — | 99.9 m of 100 | — | 0/2 |
+| — | `galloping` | 22 | — | — | fails 12.8 m | — | 0/2 |
+| — | `pronking` | 2 | — | — | fails 10.6 m | — | 0/2 |
+| — | `walking2` | 21 | — | — | fails 5.6 m | — | 0/2 |
+| — | `pacing` | 8 | — | — | fails 0.4 m | — | 0/2 |
 
-**3.46 m/s cruise is well past the Go1 Air's 2.5 m/s rating and 74% of the Edu's
-4.7 m/s sprint.** The port's previous honest figure was 0.53 m/s / 185.8 s —
-this is **5.8× faster**.
+**`trotRunning` wins at 24.8 s / 4.70 m/s**, three runs for three, zero falls.
+`trotting`'s full confirmed ladder: 3.1 (5/5, 32.2 s), 3.0 (3/3, 33.2 s), 2.75
+(2/2, 37.5 s), 2.5 (3/3, 40.5 s), 2.0 (4/4, 47.1 s).
+
+**A flight phase is worth 36%.** The two fastest gaits are `trotRunning`
+(flight phase, 4.70 m/s) and `trotting` (no flight, 3.46 m/s). Trot is capped by
+how far a stance foot can sweep before running out of leg — the same geometry
+that makes the segment speed-dependent — and a flight phase removes that
+constraint. This is measured, not argued.
+
+Above each gait's reliable ceiling the behaviour goes **stochastic**, and single
+crossings there mean nothing: `trotRunning` at 4.5 crossed once at 22.5 s
+(5.29 m/s) then failed twice (94.9 m, 78.3 m) — 2 of 4; `trotting` at 3.15
+crossed once at 31.7 s then failed three times.
+
+> ### Read the top-end numbers with scepticism
+>
+> 4.70 m/s matches the Go1 Edu's rated sprint on a 12.8 kg machine, and the
+> stochastic band above it reached 5.29 m/s. A controller in SITL matching or
+> beating the manufacturer's flat-out figure says more about the simulation than
+> the controller. Two specific reasons:
+> - **foot friction is μ=2.0** in these worlds (set earlier to stop feet
+>   skating); the URDF says **0.6**. At 4–5 m/s traction is doing enormous work.
+> - **no actuator dynamics**: commanded torque is applied directly, with no
+>   motor current limit, no thermal derating, no RS485 latency and unbounded
+>   joint velocity.
+>
+> The defensible claim is narrower and still large: **the controller is no
+> longer what limits this port.** None of these figures are hardware-validated.
 
 ### Above 3.1 the gait goes stochastic (repeat before believing)
 
