@@ -28,7 +28,7 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m in **37.5 s at 2.88 m/s** under `trotting`, on the real estimator, no falls |
+| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m in **33.2 s at 3.33 m/s** under `trotting`, on the real estimator, no falls |
 | OpenPilot waypoint navigation | ⚠️ **GPS star mission completes under convex MPC** (5 × 10.1 m legs) — timings were taken in cheater mode; awaiting an honest re-measure |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
@@ -41,29 +41,47 @@ control loop; it is used only to MEASURE distance.
 
 ### The dash, after fixing the solver
 
-| gait | speed | 100 m time | cruise | runs |
-|---|---|---|---|---|
-| **`trotting` (9)** | **2.75 m/s** | **37.5 s** | **2.88 m/s** | **2/2** — 37.6 / 37.5 s |
-| `trotting` (9) | 2.5 m/s | 40.5 s | 2.64 m/s | **3/3** — 40.4 / 40.6 / 40.5 s |
-| `trotting` (9) | 2.0 m/s | 47.1 s | 2.24 m/s | **4/4** — 47.1 / 47.2 / 47.1 / 47.2 s |
-| `trotting` (9) | 3.0 m/s | — | — | **0/4** — 93.4 / 81.0 / 74.0 / 51.7 m |
+| gait | speed | segment | 100 m time | cruise | runs |
+|---|---|---|---|---|---|
+| **`trotting` (9)** | **3.0 m/s** | **22 ms** | **33.2 s** | **3.33 m/s** | **3/3** — 33.2 / 33.2 / 33.3 s |
+| `trotting` (9) | 2.75 m/s | 26 ms | 37.5 s | 2.88 m/s | **2/2** — 37.6 / 37.5 s |
+| `trotting` (9) | 2.5 m/s | 26 ms | 40.5 s | 2.64 m/s | **3/3** — 40.4 / 40.6 / 40.5 s |
+| `trotting` (9) | 2.0 m/s | 26 ms | 47.1 s | 2.24 m/s | **4/4** — 47.1 / 47.2 / 47.1 / 47.2 s |
+| `trotting` (9) | 3.5 m/s | 18–24 ms | — | — | 0/4 — 12.2–27.4 m |
 
-Nine crossings, every one reproducing to **~0.1 s**, all with **zero safety
+Twelve crossings, every one reproducing to **~0.1 s**, all with **zero safety
 trips and zero falls**, body height held at mean 0.287 m against a 0.300 m
-reference, worst control-loop iteration 0.7–1.0 ms of a 2.0 ms budget. The
-ceiling is real: 3.0 m/s fails four times for four. 3.5 and 4.0 fail at ~24 m.
+reference, worst control-loop iteration 0.7–1.0 ms of a 2.0 ms budget.
 
-**2.88 m/s cruise is past the Go1 Air's 2.5 m/s rating, inside Go1 Pro territory
-(3.5–3.7 m/s), and 61% of the Edu's 4.7 m/s sprint.** The previous honest figure
-for this port was 0.53 m/s — this is **4.9× faster**.
+**3.33 m/s cruise is past the Go1 Air's 2.5 m/s rating, inside Go1 Pro territory
+(3.5–3.7 m/s), and 71% of the Edu's 4.7 m/s sprint.** The previous honest figure
+for this port was 0.53 m/s / 185.8 s — this is **5.6× faster**.
 
-### The next wall (3.0 m/s) is a different problem
+### The gait segment is SPEED-DEPENDENT (and was on the "ruled out" list)
 
-Worth stating so nobody re-fixes the solved one. At 3.0 m/s the MPC commands
-*more* force than required (2.45–2.64 × mg against the 2.00 needed), so the
-force budget is no longer binding. Instead the body oscillates vertically at
-±0.5–0.7 m/s and bounces itself down over 50–95 m. That is a damping / contact
-timing failure, not a solver failure.
+3.0 m/s only works at a 22 ms MPC segment. The shipped 26 ms fails at 67 m:
+
+| segment | cycle | 3.0 m/s result |
+|---|---|---|
+| 18 ms | 0.18 s | fails, 15.6 m |
+| **22 ms** | **0.22 s** | **100 m in 33.2 s** |
+| 26 ms (default) | 0.26 s | fails, 67.3 m |
+| 30 ms | 0.30 s | fails, 24.8 m |
+
+A sharp optimum, and it moves with speed — 2.0–2.75 m/s run best at 26 ms.
+The reason is geometric: stance duration × commanded speed is the distance the
+stance foot must sweep, so a faster gait needs a shorter cycle to keep the
+sweep inside the leg's ~0.318 m horizontal reach. Cycle time was on this
+project's *"swept without success, do not spend time on this again"* list —
+swept while the solver was starving the robot of force.
+
+### Each speed tier fails differently — do not re-fix the solved one
+
+| speed | failure | evidence |
+|---|---|---|
+| ≤2.75 (was) | force starvation | Fz/mg = 0.25 vs 2.00 needed; sank to z=0.028 |
+| 3.0 at 26 ms | vertical oscillation | force adequate (2.45–2.64×), body vz ±0.5–0.7 m/s |
+| **3.5 (now)** | **attitude loss** | `Orientation safety check failed`; force 2.5×, height 0.285–0.292 until the last 0.3 s |
 
 ### What changed: the QP solver was never converging
 
@@ -135,8 +153,8 @@ sensors** — 2.75× faster than it ever managed *with* ground truth under JCQP.
 The estimator was never the wall.
 
 Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
-sprints to 4.7. **This stack now cruises at 2.88 m/s on its own sensors** —
-past the Air's rating, inside Pro territory, and 61% of the Edu sprint.
+sprints to 4.7. **This stack now cruises at 3.33 m/s on its own sensors** —
+past the Air's rating, inside Pro territory, and 71% of the Edu sprint.
 
 > **Note on earlier revisions of this file.** Every 100 m time published here
 > before 2026-08-22, and the claim that the GPS star mission ran "with no ground
