@@ -100,7 +100,20 @@ struct BodyLimits {
    * 2.5 and 3.0 had failed EVERY prior attempt across gait pairings, corner
    * budgets, lateral limits and lookahead. This is what unlocked them.
    */
-  double a_lon_max = 0.4;
+  /*!
+   * Planning deceleration - MEASURED per speed, and deliberately below the
+   * physical 1.2 m/s^2 because the braking ZONE must outrun the real stopping
+   * distance (body tracks at 1.2 m/s^2 with ~1 s of lag).
+   *
+   *   2.0 m/s cruise: 1.5 -> 42.2 s 2/2     0.4 -> 48.0 s 2/2 (over-brakes)
+   *   3.0 m/s cruise: 1.5 -> FAILED every   0.4 -> 45.4 s 3/3
+   *
+   * A single value is wrong at one end or the other, and an elegant "shift the
+   * profile by v*lag" version was tried and did NOT reproduce the 0.4 result -
+   * so this is the measured table rather than the theory that should have
+   * worked. Set by plan() from v_cruise; WP_ALON overrides.
+   */
+  double a_lon_max = 1.5;
   //! Yaw rate ceiling in a pirouette (measured: tracks 100% to 1.5 rad/s, 92% at
   //! 3.0, no falls at any rate at ZERO forward speed).
   double yaw_rate_max = 2.0;
@@ -121,6 +134,8 @@ class BodyPathPlanner {
   explicit BodyPathPlanner(const BodyLimits& lim) : _lim(lim) {}
 
   void setLimits(const BodyLimits& lim) { _lim = lim; }
+  //! Pin a_lon_max, disabling the speed-dependent default (WP_ALON).
+  void setAlonExplicit(double a) { _lim.a_lon_max = a; _alonExplicit = true; }
   const BodyLimits& limits() const { return _lim; }
   const std::vector<PathPoint>& path() const { return _path; }
 
@@ -135,6 +150,10 @@ class BodyPathPlanner {
             double ds = 0.10, bool loop = false, double corridor = 1.0) {
     _path.clear();
     if (wx.size() < 2 || wx.size() != wy.size()) return;
+    // Speed-dependent braking: see a_lon_max. Fast cruise needs a much longer
+    // zone because the lag distance (v * ~1 s) grows with speed while the
+    // corner speed it must reach does not.
+    if (!_alonExplicit) _lim.a_lon_max = (_lim.v_cruise >= 2.2) ? 0.4 : 1.5;
     buildPath(wx, wy, ds, loop, corridor);
     computeGeometry();
     computeSpeedProfile();
@@ -168,14 +187,9 @@ class BodyPathPlanner {
     // looked like a gait-switching problem for hours.
     // Taking the MINIMUM planned speed over the next `lag` seconds of travel
     // makes braking begin early enough to actually be achieved.
-    const double lag_s = _lim.track_lag_s;
-    const double lead_m = std::max(0.5, _path[i].v * lag_s);
-    double vplan = _path[i].v;
-    {
-      const double s0 = _path[i].s;
-      for (size_t k = i; k < _path.size() && _path[k].s - s0 <= lead_m; ++k)
-        if (_path[k].v < vplan) vplan = _path[k].v;
-    }
+    // The profile already carries the lag shift (see computeSpeedProfile), so
+    // the follower simply commands the plan for where it is.
+    const double vplan = _path[i].v;
     const double Ld = std::max(0.35, std::min(1.6, 0.45 * vplan + 0.30));
     size_t j = i;
     while (j + 1 < _path.size() && _path[j].s - _path[i].s < Ld) ++j;
@@ -238,6 +252,7 @@ class BodyPathPlanner {
   BodyLimits _lim;
   std::vector<PathPoint> _path;
   size_t _lastIdx = 0;
+  bool _alonExplicit = false;
 
   /*!
    * Build the path as straight segments joined by FILLET ARCS at each waypoint.
@@ -400,6 +415,7 @@ class BodyPathPlanner {
       const double lim = std::sqrt(_path[i].v * _path[i].v + 2 * _lim.a_lon_max * ds);
       _path[i+1].v = std::min(_path[i+1].v, lim);
     }
+
   }
 
   size_t nearestIndex(double x, double y) const {

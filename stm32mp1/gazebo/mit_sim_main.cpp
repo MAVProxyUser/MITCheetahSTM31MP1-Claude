@@ -104,10 +104,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     planning::BodyLimits lim;
     lim.v_cruise  = vx;
     lim.a_lat_max = getenv("WP_ALAT") ? atof(getenv("WP_ALAT")) : 2.5;
-    lim.a_lon_max = getenv("WP_ALON") ? atof(getenv("WP_ALON")) : 1.5;
+
     lim.yaw_rate_max = nav.max_yawrate;
     lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;
     planner.setLimits(lim);
+    if (getenv("WP_ALON")) planner.setAlonExplicit(atof(getenv("WP_ALON")));
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
     planner.plan(wx, wy, 0.10, false, corridor);
     double kk, vv; planner.tightestCorner(&kk, &vv);
