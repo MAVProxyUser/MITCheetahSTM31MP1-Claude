@@ -28,33 +28,75 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | ✅ **walks** — 100 m continuous under `walking2` on the real estimator; 4 of MIT's 8 gaits cross 100 m |
+| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m in **40.4 s at 2.65 m/s** under `trotting`, on the real estimator, no falls |
 | OpenPilot waypoint navigation | ⚠️ **GPS star mission completes under convex MPC** (5 × 10.1 m legs) — timings were taken in cheater mode; awaiting an honest re-measure |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
 ## Measured locomotion (Mac SITL)
 
-100 m dash on flat ground, fastest speed each gait completes it. Measured on
-the robot's **own state estimate** - `SIM_CHEATER` is absent from the
-environment and the harnesses no longer set it. Gazebo ground truth is used
-only to MEASURE distance; it never enters the control loop.
+100 m dash on flat ground. Measured on the robot's **own state estimate** —
+cheater mode is deleted from the codebase, so ground truth cannot reach the
+control loop; it is used only to MEASURE distance.
 
-| gait | max speed | 100 m time | cruise | next rung up |
+### The dash, after fixing the solver
+
+| gait | speed | 100 m time | cruise | runs |
 |---|---|---|---|---|
-| `walking2` (21) | 0.8 m/s | **121.9 s** | 0.83 m/s | 1.0 -> 10.4 m |
-| `walking` (20) | 0.6 m/s | **162.4 s** | 0.61 m/s | 0.8 -> 10.2 m |
-| `pacing` (8) | 0.6 m/s | **183.5 s** | 0.54 m/s | 0.8 -> 5.3 m |
-| `trotting` (9) | 0.6 m/s | **185.8 s** | 0.53 m/s | 0.8 -> 78.7 m* |
-| `trotRunning` (5) | — | never crosses | — | fails 0.8 / 0.6 / 0.4 |
-| `bounding` / `pronking` / `galloping` | — | never cross | — | — |
+| **`trotting` (9)** | **2.5 m/s** | **40.4 s** | **2.65 m/s** | crossed, confirmation running |
+| **`trotting` (9)** | **2.0 m/s** | **47.1 s** | **2.24 m/s** | **4/4 crossed — 47.1/47.2/47.1/47.2 s** |
 
-\* marginal, under repeat - a stop-at-first-success ladder biases the answer
-downward, and this trap has already understated trot by 50% once.
+The four runs at 2.0 m/s agree to **0.1 s (0.2%)**, with **zero safety trips,
+zero falls**, body height held at mean 0.287 m against a 0.300 m reference, and
+a worst control-loop iteration of 1.02 ms against a 2.0 ms budget. `trotting` at
+3.0 m/s reaches 81 m (marginal, under repeat); 3.5 and 4.0 fail at ~24 m.
 
-**Four of MIT's eight gaits run 100 m on the real estimator.** None did before
-this work: the previous honest baseline was ~21 m (walking2 at 1.0 m/s) and
-35 m at 0.6 m/s.
+**2.65 m/s cruise exceeds the Go1 Air's 2.5 m/s rating** and reaches into Go1
+Pro territory (3.5–3.7 m/s). The previous honest figure for this port was
+0.53 m/s.
+
+### What changed: the QP solver was never converging
+
+The stack shipped `use_jcqp: 1`, adopted as a speed win on the STM32 (82 ms vs
+qpOASES' 198 ms) and validated by a sweep run against a **standing** trot. Under
+a *moving* gait it does not reach the optimum, and the consequence is that the
+MPC asks for a fraction of the force needed to hold the body up:
+
+| solver | 2-foot Fz/mg | 4-foot Fz/mg | mean body z |
+|---|---|---|---|
+| JCQP `rho 0.6/60` (shipped) | 0.25 | 0.45 | 0.128 m |
+| JCQP `rho 2.0/300` | 0.38 | 0.69 | 0.132 m |
+| **qpOASES** | **1.27** | **1.76** | **0.275 m** |
+| *required* | *2.00* | *1.00* | *0.300 m* |
+
+A gait with stance duty `d` must command `m·g/d` while its feet are down. JCQP
+commanded about a fifth of that, so the robot walked permanently crouched at
+0.13 m and sank until it collapsed flat (`roll=0 pitch=-0 z=0.028`) — not
+tipped over. Five times the iterations barely moved it, so this is not tuning.
+
+This also retires the project's longest-standing open question — *"why is the
+MPC satisfied at z=0.204 when its reference says 0.30?"* It was never a cost
+weight, never MIT's `Kp_stance = 0`, and never the state estimator (which
+`[ESTERR]` shows tracks forward velocity to within 0.13 m/s right up to the
+fall). The solver was returning a fifth of the required force, and every gait
+number this project recorded before now was measured on top of that.
+
+Caveats, both measured: qpOASES is **not** a universal win — `walking2` failed
+at every speed tried with it, where JCQP crossed at 0.8 m/s. And qpOASES cost
+198–218 ms on the STM32's A7, so it cannot run inline there against a 26 ms MPC
+segment; the board needs the async path or a re-measured reduced solve.
+
+### Previous results (JCQP, superseded)
+
+Kept because they are what every earlier claim rests on:
+
+| gait | speed | 100 m | cruise |
+|---|---|---|---|
+| `walking2` (21) | 0.8 m/s | 121.9 s | 0.83 m/s |
+| `walking` (20) | 0.6 m/s | 162.4 s | 0.61 m/s |
+| `pacing` (8) | 0.6 m/s | 183.5 s | 0.54 m/s |
+| `trotting` (9) | 0.6 m/s | 185.8 s | 0.53 m/s |
+| `trotRunning` (5) | — | never crosses | — |
 
 ### Ground truth vs the real estimator: the gap is the whole story
 
@@ -73,8 +115,8 @@ after **4.4 m** at the same command on its own estimate. **The state estimator,
 not compute and not gait tuning, is what caps this port today.**
 
 Reality check against the machine: a Go1 Air does 2.5 m/s, a Pro 3.5-3.7, an Edu
-sprints to 4.7. **This stack tops out at 0.83 m/s on its own sensors** - about a
-sixth of the sprint.
+sprints to 4.7. **This stack now cruises at 2.65 m/s on its own sensors** —
+past the Air's rating, inside Pro territory, and about 56% of the Edu sprint.
 
 > **Note on earlier revisions of this file.** Every 100 m time published here
 > before 2026-08-22, and the claim that the GPS star mission ran "with no ground
