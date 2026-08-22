@@ -159,6 +159,26 @@ Rules that follow:
   invocation before reporting the number, every time - not the number first and
   the invocation only when something looks odd. Nothing looked odd here; the
   table was internally consistent, reproducible to ~1%, and entirely invalid.
+- **When a foundational bug turns up, every negative result measured before it
+  is VOID.** `use_jcqp: 1` returned ~1/5 of the required ground reaction force
+  under any moving gait, and this file's "ruled out, do not spend time on these
+  again" list - cycle time, stance stiffness, Q weights, force cap, flight-phase
+  gating - was compiled entirely on top of it. A lever that does nothing while
+  the robot is being handed a fifth of the force it needs has not been tested;
+  it has been masked. Re-run the ruled-out list after any fix to the foundation,
+  and treat the old conclusions as unmeasured rather than as settled.
+- **Diagnose AT the speed that fails, not at the speed that works.** Laddering
+  down to whatever survives measures success and never measures the failure.
+  Running straight at the 2.0 m/s target and instrumenting the collapse found in
+  one run what months of tuning at 0.6-1.0 m/s had not: the robot was not
+  tipping over, it was SINKING (`roll=0 pitch=-0 z=0.028`), which points at a
+  force budget rather than at stability, and from there at the solver.
+- **Measure the quantity the physics requires, not the one that is easy.** To
+  hold height, a gait with stance duty `d` must command `m*g/d` while its feet
+  are down. Printing that ratio ([MPCZ]) turned "the robot falls over" into "the
+  MPC asks for 0.25x bodyweight when it needs 2.00x", which has exactly one
+  plausible cause. Force in newtons alone would not have shown it - the number
+  has to be divided by what the gait actually demands.
 - **A detector must not depend on the quantity most likely to be wrong.** The
   fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
   wide margin below the true operating value (walking ~0.175 -> trip at 0.10,

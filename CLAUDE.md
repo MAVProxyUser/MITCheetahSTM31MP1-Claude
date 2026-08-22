@@ -1332,6 +1332,15 @@ flight gaits, whose all-swing windows are what blow the covariance up.
 
 ## Flight gaits: five approaches, all failed - and what that RULES OUT
 
+> **VOID - RE-TEST BEFORE TRUSTING ANY OF THIS.** Everything below was measured
+> while `use_jcqp: 1` was returning roughly a fifth of the required ground
+> reaction force under any moving gait (see the solver section). Pronking needs
+> 80 N/foot and "stock plateaus at 66.1 N" was read as a gait problem; against a
+> solver that under-commands by 4-8x it is not evidence about the gait at all.
+> A lever that changes nothing while the robot is being handed a fifth of the
+> force it needs has been MASKED, not tested. The flight gaits have not been
+> retried on qpOASES yet.
+
 pronking and galloping still collapse ~2 s after gait engagement. Recorded so
 nobody repeats them:
 
