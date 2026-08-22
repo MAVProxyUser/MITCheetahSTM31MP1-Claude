@@ -208,6 +208,14 @@ Rules that follow:
   MPC asks for 0.25x bodyweight when it needs 2.00x", which has exactly one
   plausible cause. Force in newtons alone would not have shown it - the number
   has to be divided by what the gait actually demands.
+- **When a ladder rung fails, check what the robot was ACHIEVING before you
+  sweep parameters at that rung.** Commanded speed and achieved speed differ
+  here (3.0 commanded cruises at 3.46 m/s), so commanding 3.5 asks for ~3.9 -
+  past the machine's ceiling. Roughly 20 configurations were then swept at that
+  rung, every one of them doomed by the command rather than by the parameter,
+  and the uniformly flat response read exactly like "none of these levers do
+  anything". Walking the command up finely instead found the edge sits between
+  3.15 and 3.2. A target the machine cannot reach makes every lever look inert.
 - **A detector must not depend on the quantity most likely to be wrong.** The
   fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
   wide margin below the true operating value (walking ~0.175 -> trip at 0.10,

@@ -1728,6 +1728,31 @@ the previous tier is inert at the next one.
 | 3.0 m/s | vertical oscillation | force fine (2.45-2.64x), body vz +-0.5-0.7 m/s, bounces itself down over 50-95 m | **FIXED** - 22 ms segment |
 | 3.5 m/s | open | orientation safety trips, then sinks; force 2.5x and height 0.285-0.292 until the last 0.3 s | **OPEN** |
 
+### CORRECTION: "3.5 m/s fails" was the wrong question
+
+Commanded speed and ACHIEVED speed are not the same thing here - the robot
+cruises consistently faster than commanded (3.0 -> 3.46 m/s, 2.0 -> 2.24). The
+achievable ceiling is about **3.5 m/s of actual ground speed**, so commanding
+3.5 asks for roughly 3.9 and is guaranteed to fail.
+
+That invalidates the FRAMING of the sweeps below, though not their data. Every
+one of those ~20 configurations was being asked for ~3.9 m/s - past the
+machine's limit - so none of them could have succeeded, and the flat response
+across all of them measures the overshoot rather than the parameters. Walking
+the command up finely instead finds the edge is between 3.15 and 3.2 commanded:
+
+| commanded | achieved cruise | 100 m | result |
+|---|---|---|---|
+| 3.15 | 3.52 m/s | 31.7 s | crossed |
+| 3.1 | 3.46 m/s | 32.2 s | crossed 3/3 |
+| 3.2 | - | - | fails at 31-38 m |
+| 3.5 | - | - | fails at 20-28 m |
+
+**Lesson**: when a ladder rung fails, check what the robot was actually DOING
+before sweeping parameters at that rung. A command the machine cannot achieve
+makes every parameter look inert, which reads exactly like "this lever does
+nothing" and is how a whole afternoon gets spent proving nulls.
+
 ### The 3.5 m/s wall: what it is NOT (all measured)
 
 Recorded so none of this gets re-tried. Every row is a real sweep, not an
