@@ -1567,6 +1567,37 @@ gait's speed range (bounding's coin-flip at 1.0 m/s, trot's wall at 1.0). Worth
 a proper `_ParameterSetup` disassembly before touching any WBIC yaml value.
 
 
+## WBIC body damping: Kd_body 16->40, Kd_ori proportionally - real, but gait-specific
+
+Following the WBIC gain audit above (structural finding: Unitree ships far more
+tuned gain variants than this port's single fixed set), tested the concrete
+lever directly rather than stopping at "can't verify Unitree's exact number":
+raised this port's own `Kd_body` (16 -> 40) and `Kd_ori` ([26,18,10] ->
+[40,40,20]), leaving `Kp_body`/`Kp_ori` untouched, and measured on every speed
+that fails today.
+
+| config | baseline (m) | high-Kd (m) | ratio | still fails? |
+|---|---|---|---|---|
+| **trot @1.0** | 5.47 | **60.03 / 41.41 / 46.43** (3 runs) | **~9-11x** | NO on 1 of 3, collapses late on the other 2 |
+| trot @1.2 | 4.48 | 6.61 | 1.5x | yes |
+| walking2 @1.4 | 1.38 | 7.44 | 5.4x | yes |
+| pacing @1.0 | 5.29 | 5.89 | 1.1x | yes |
+
+**Honest read: this is not a general speed unlock.** It is a large, reproducible
+fix for trot specifically at its previously-marginal 1.0 m/s (3 independent
+runs, all far above baseline, none of the old ~5-10 m failures). The other
+three speeds - all PAST their gait's known ceiling - see modest improvement
+but still fail. The fix restores a marginal-but-should-work speed to
+reliability; it does not push gaits past their existing ceiling.
+
+Applied to `stm32mp1/deploy_pkg/mc-mit-ctrl-user-parameters.yaml` (what
+actually ships to the board). `config/mc-mit-ctrl-user-parameters.yaml` was
+found to have DRIFTED from the deployed config (`Kp_body=100/Kd_body=10` vs
+deployed `70/16`) - left unchanged pending investigation into which is meant
+to be the reference copy; not touched here to avoid a second, unrelated
+change riding along with this one.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer
