@@ -1734,6 +1734,70 @@ believed on a machine that can hurt itself.
 | **ground** | perfectly flat speedway | farm mesh spawns on a 7.6 cm rise | Terrain following works well enough to STAND on the mesh, not to walk on it. |
 | **contact** | idealised point contact | compliant foot, slip, debris | |
 
+### AUDIT: every SIM_ variable, and which ones are actually a problem
+
+51 of them exist. **`SIM_CHEATER` is the only one that ever fed the controller a
+lie, and it is deleted** (the sole remaining occurrence is inside a comment).
+Nothing else falsifies state. But several are load-bearing behaviour hiding in
+an environment variable, which is its own hazard: an operator who forgets one
+gets a different robot.
+
+**A. Operator / test driver** - replaces a human hand on the gamepad, or the nav
+layer. NOT cheating; on hardware the real gamepad or `WaypointNav` drives the
+identical channel.
+`SIM_VX` `SIM_WZ` `SIM_VX_DELAY_S` `SIM_VX_RAMP_S` `SIM_GAIT` `SIM_MODE`
+`SIM_BAL_S` `SIM_STAND_S` `SIM_LOCO_S` `SIM_SKIP_BAL` `SIM_GAIT_WAIT_MS`
+
+**B. Instrumentation** - print only, zero control effect.
+`SIM_ESTERR` `SIM_MPCZ` `SIM_CONTACT_DBG` `SIM_YAWDBG` `SIM_AID_DBG`
+`STM32MP1_EST_DBG` `STM32MP1_MPC_IN` `STM32MP1_MPC_MAT`
+
+**C. Real tuning that MUST be promoted into config** - these change control
+behaviour and every result in this file depends on them.
+`SIM_MPC_MS` `SIM_SWING_H` `SIM_MPC_HORIZON` `SIM_WBC_DECIM` `SIM_MPC_ASYNC`
+`SIM_BODY_H` `SIM_F_MAX` `SIM_KP_STANCE` `SIM_MPC_Q` `SIM_MPC_ALPHA`
+`SIM_MPC_NWSR` `SIM_MPC_WARM` `SIM_MPC_PRIO` `SIM_MPC_SCHED_LEAD`
+`SIM_CMD_FILTER`
+> `SIM_MPC_MS` is the sharp one: it is **speed- AND gait-dependent** (22 ms for
+> trot at 3.0+, 26 ms below and for trotRunning), a hidden default of 26 silently
+> caps trot at 67 m, and there is currently no scheduling logic - a human picks
+> it per run. This must become a function of commanded speed before anything
+> autonomous uses it.
+
+**D. Behaviour that must become DEFAULT, not a flag** - each fixes a genuine
+upstream gap, and running without them is running a worse robot.
+`SIM_HEADING_HOLD` (MIT has NO heading regulation at all)
+`SIM_YAW_RATE_KP` `SIM_YAW_ERR_MAX` (the fix that took walking 9.3 m -> 93.6 m)
+`SIM_ZEROVEL_HOLD_GAIT` `SIM_ZEROVEL_HOLD` (hold the standing gait until a
+command exists - matches both operator practice and Unitree's own transition
+request)
+
+**E. Test-harness safety that is WRONG on hardware as written** -
+`SIM_FALL_EXIT` `SIM_FALL_DEG` `SIM_FALL_Z` `SIM_FALL_HOLD_S`.
+The detector zeroes the legs and then **exits the process**, which is right for
+a sweep and dangerous on a machine: process exit also stops whatever was feeding
+the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it
+should key off ATTITUDE and kinematics rather than the ESTIMATED height it uses
+now (that threshold already killed a day of valid runs when the estimate drifted
+near it).
+
+**F. Dead experiments - measured null or harmful, default off, should be DELETED**
+`SIM_ABS_AIDING` `SIM_AID_TAU` (GPS/baro aiding: null on working gaits, and adds
+a catastrophic tail - 0.25 m on one run)
+`SIM_KF_UNCAP` (solved a problem that does not exist - Unitree ships the
+identical covariance cap)
+`SIM_CONTACT_DETECT` `SIM_CONTACT_BAND` `SIM_FREEFALL_G` (measured REGRESSION:
+21.3 m -> 5.6 m, destroys the KF's trust ramp)
+`SIM_BALLISTIC_Z` (null) `SIM_FLIGHT_COST_GATE` (harmful: cut force 39-42 ->
+6.1 N/foot) `SIM_GPS_SIGMA` `SIM_BARO_SIGMA` (sim-only sensor noise)
+
+**G. Deleted** - `SIM_CHEATER`.
+
+**The pre-hardware task is therefore**: fold C and D into the yaml, rework E,
+delete F, and leave only A (operator input) and B (debug prints) as environment
+variables. Until then the honest statement is that these results depend on a
+specific env incantation, recorded in `SKILLS.md`, and not on the shipped config.
+
 ### The QA ladder (run in this order, stop at the first failure)
 
 Deliberately boring, and all of it BEFORE any commanded navigation:

@@ -155,6 +155,43 @@ void RobotRunner::run() {
     }
   }
 
+  // [YAW] TURNING PERFORMANCE ($SIM_YAWDBG=1).
+  // Commanded yaw rate vs ACHIEVED yaw rate, plus the attitude the robot holds
+  // while turning. Needed for three things that all live on this axis: the
+  // maximum sustainable yaw rate, cornering (turning while translating), and
+  // spinning in place to face a new waypoint without falling over.
+  // Ground truth is LOGGED for comparison and never fed to the controller.
+  if (cheaterState) {
+    static const bool ydbg = getenv("SIM_YAWDBG") && atoi(getenv("SIM_YAWDBG")) != 0;
+    if (ydbg) {
+      static int ny = 0;
+      static float lastTrueYaw = 0.f; static bool haveLast = false;
+      if ((ny++ % 50) == 0) {                      // 10 Hz at a 500 Hz loop
+        const auto& e = _stateEstimate;
+        // true yaw from the sim quaternion (w,x,y,z)
+        Quat<double> q = cheaterState->orientation;
+        const double sy = 2.0 * (q[0]*q[3] + q[1]*q[2]);
+        const double cy = 1.0 - 2.0 * (q[2]*q[2] + q[3]*q[3]);
+        const float trueYaw = (float)std::atan2(sy, cy);
+        float trueRate = 0.f;
+        if (haveLast) {
+          float d = trueYaw - lastTrueYaw;
+          while (d >  M_PI) d -= 2.f * M_PI;       // unwrap
+          while (d < -M_PI) d += 2.f * M_PI;
+          trueRate = d / 0.1f;                     // 10 Hz sampling
+        }
+        lastTrueYaw = trueYaw; haveLast = true;
+        const float wzCmd = driverCommand ? driverCommand->rightStickAnalog[0] : 0.f;
+        printf("[YAW] t=%.2f wzCmd=%+.3f wzEst=%+.3f wzTrue=%+.3f "
+               "yawEst=%+.3f yawTrue=%+.3f roll=%+.1f pitch=%+.1f z=%.3f\n",
+               ny * 0.002f, wzCmd, e.omegaBody[2], trueRate,
+               e.rpy[2], trueYaw,
+               e.rpy[0] * 57.2958f, e.rpy[1] * 57.2958f, e.position[2]);
+        fflush(stdout);
+      }
+    }
+  }
+
   // FALL DETECTOR. MIT's ControlFSM already E-stops on attitude
   // (safetyPreCheck -> 0.5 rad -> PASSIVE), but the PROCESS keeps running, so a
   // run that ended on its side still burns the whole timeout before the harness

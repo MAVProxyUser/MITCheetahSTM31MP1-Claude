@@ -303,7 +303,14 @@ void Stm32mp1HardwareBridge::run() {
         // After the trot stabilizes, RAMP in the forward velocity (a 0 -> vx step
         // through the ~6-10 ms UDP loop knocked the trot over; ramping does not).
         // $SIM_VX target speed, $SIM_VX_RAMP_S ramp duration (default 3 s).
-        if (final_mode == 4 && getenv("SIM_VX") && atof(getenv("SIM_VX")) != 0.0) {
+        // $SIM_WZ adds a YAW RATE command on the same schedule, so the robot can
+        // be asked to turn while moving (cornering) or to spin in place with
+        // zero forward velocity (a pirouette). MIT's yaw rate is CCW-positive.
+        // Both channels ramp together: a stepped yaw command knocks the gait
+        // over for the same reason a stepped velocity command does.
+        const bool haveVx = getenv("SIM_VX") && atof(getenv("SIM_VX")) != 0.0;
+        const bool haveWz = getenv("SIM_WZ") && atof(getenv("SIM_WZ")) != 0.0;
+        if (final_mode == 4 && (haveVx || haveWz)) {
           // Let the gait ENGAGE before asking it to go anywhere. The MPC port
           // holds MIT's standing gait for a short window after LOCOMOTION
           // entry (first async solution + settle), so a velocity ramp that
@@ -316,17 +323,21 @@ void Stm32mp1HardwareBridge::run() {
           fflush(stdout);
           usleep((useconds_t)(delay_s * 1e6f));
           usleep(3000000);
-          float vx = atof(getenv("SIM_VX"));
+          float vx = haveVx ? atof(getenv("SIM_VX")) : 0.f;
+          float wz = haveWz ? atof(getenv("SIM_WZ")) : 0.f;
           float ramp_s = getenv("SIM_VX_RAMP_S") ? atof(getenv("SIM_VX_RAMP_S")) : 3.f;
-          printf("[sim] ramping forward velocity -> %.2f over %.1f s\n", vx, ramp_s);
+          printf("[sim] ramping vx -> %.2f m/s, wz -> %.2f rad/s over %.1f s\n",
+                 vx, wz, ramp_s);
           fflush(stdout);
           const int steps = (int)(ramp_s * 10.f);
           for (int s = 1; s <= steps; ++s) {
-            _gamepadCommand.leftStickAnalog[1] = vx * s / steps;
+            _gamepadCommand.leftStickAnalog[1]  = vx * s / steps;
+            _gamepadCommand.rightStickAnalog[0] = wz * s / steps;
             usleep(100000);
           }
-          _gamepadCommand.leftStickAnalog[1] = vx;
-          printf("[sim] forward velocity command -> %.2f\n", vx); fflush(stdout);
+          _gamepadCommand.leftStickAnalog[1]  = vx;
+          _gamepadCommand.rightStickAnalog[0] = wz;
+          printf("[sim] command -> vx=%.2f m/s wz=%.2f rad/s\n", vx, wz); fflush(stdout);
         }
       }
     }).detach();
