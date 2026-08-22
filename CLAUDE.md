@@ -1541,6 +1541,32 @@ is in the filter's leg-odometry handling itself, not in a lack of simulated
 sensor error.
 
 
+## WBIC gains: Unitree has far more tuned variants than MIT ships
+
+`LocomotionCtrl<float>::_ParameterSetup` reads gains the same way ours does -
+from a config path, not hardcoded per-call - so the binary cannot be read for
+"the one true gain value" the way a physical constant can. What IS visible and
+verified: the symbol table has `Kp_body`, `Kp_body_stance`, `Kp_body_running`,
+`Kp_body_stairs`, `Kp_ori`, `Kp_ori_stairs`, `Kp_joint`, `Kp_joint_stance`,
+`Kp_joint_swing`, `Kp_joint_swing_running` - MIT/this port ships ONE set
+(`Kp_body`/`Kd_body`/`Kp_ori`/`Kd_ori`/`Kp_joint`/`Kd_joint`) used for every
+gait and every phase. Unitree tunes per-situation.
+
+Raw values were read from `.rodata` and are NOT reported here as verified: a
+first pass misread `Kp_ori` as an 8-float (Kp+Kd) block when it is actually
+4 floats, spilling into the next symbol's memory and producing a nonsense
+number. The variables are not uniformly sized, so pattern-matching the layout
+is unsafe without confirming each one's actual read site in
+`_ParameterSetup`'s disassembly - not done here, flagged as a genuine gap
+rather than a guess.
+
+**What's safe to act on without that work**: the STRUCTURE - Unitree's
+per-gait/per-phase gain switching is real and this port's single fixed gain
+set is a plausible source of the marginal stability seen at the top of every
+gait's speed range (bounding's coin-flip at 1.0 m/s, trot's wall at 1.0). Worth
+a proper `_ParameterSetup` disassembly before touching any WBIC yaml value.
+
+
 ## Still open
 - Heading hold for the MPC trot: 11.4 m drifted 5 m left (no yaw feedback in
   the straight-line sequencer). Wiring WaypointNav into the mit_ctrl sequencer
