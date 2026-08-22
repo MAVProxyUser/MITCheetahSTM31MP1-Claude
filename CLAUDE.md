@@ -1716,6 +1716,50 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## CORNERING: what animals do, and what this port forbids
+
+A dog, horse or cheetah taking a sharp corner does NOT hold speed through it. It
+brakes hard on approach, plants and pivots at low speed, then accelerates out -
+because turning force and propulsion draw on the same friction budget, so a
+tight turn has to be bought with speed. A cheetah drops out of its sprint gait
+entirely to turn.
+
+This port forbids exactly that. `WP_TURN_FLOOR = 0.65` holds the robot at >=65%
+of cruise through every corner, and the comment explains why: *"Dynamic gaits
+arc through corners; they fall over trying to pivot in them."*
+
+**That constraint was measured under the broken solver and is now obsolete.**
+The yaw envelope above says the reverse: pirouetting at 3.0 rad/s with zero
+forward speed is the most stable thing this robot does (roll < 1.5 deg, no falls
+at any rate tried), while the ARC that nav prefers instead is what trips the
+roll limit - 57.5 deg at 3.0 m/s against a 28.6 deg safety trip. The robot is
+being made to do the dangerous thing to avoid the safe one.
+
+### A star mission is corner-limited, not speed-limited
+
+100 m star, 5 legs of 20.0 m (r = 10.514 m; leg = 1.9021*r, mission = 9.5106*r):
+
+| gait | speed | result |
+|---|---|---|
+| trotRunning | 2.0 | COMPLETE 45.4 s, 5/5, peak roll 16.6 deg |
+| trotting | 2.0 | COMPLETE 46.3 s, 5/5, peak roll 11.9 deg |
+| trotting | 2.5 / 3.0 | FAIL at the FIRST corner (1/5) |
+| trotRunning | 3.0 / 4.0 | FAIL at the first corner |
+
+Both completions run ~9.1-9.3 s per 20 m leg - essentially the straight-line
+dash time - so the legs are free and the corners cost everything. Peak roll at
+failure is 27.6-57.5 deg against the 28.6 deg trip: **corner failure IS roll
+failure**. Lengthening the legs would raise the average speed by amortising the
+same five corners over more distance, but it does not raise the cornering limit.
+
+### METHOD ERROR worth keeping: tune at the MARGIN, not past the cliff
+
+The first corner sweep was run at 3.0 m/s - a speed at which the mission ALREADY
+failed at 1/5 before any corner parameter was touched. Every cell failed at 0/5
+and the sweep measured nothing, because a parameter that helps cornering cannot
+rescue a speed the gait cannot hold through a corner at all. Sweep the knob at
+the speed where the thing ALMOST works (here 2.5), not where it is hopeless.
+
 ## YAW ENVELOPE: pirouettes are SOLID, cornering is roll-limited
 
 Measured with `SIM_WZ` (a yaw-rate command on the same ramp as `SIM_VX`, driving
