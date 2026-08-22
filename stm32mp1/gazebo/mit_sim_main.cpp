@@ -106,6 +106,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     lim.a_lat_max = getenv("WP_ALAT") ? atof(getenv("WP_ALAT")) : 2.5;
     lim.a_lon_max = getenv("WP_ALON") ? atof(getenv("WP_ALON")) : 1.5;
     lim.yaw_rate_max = nav.max_yawrate;
+    lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;
     planner.setLimits(lim);
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
     planner.plan(wx, wy, 0.10, false, corridor);
@@ -147,7 +148,26 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   const int  gait_fast   = getenv("WP_GAIT_FAST")   ? atoi(getenv("WP_GAIT_FAST"))   : 5;
   const int  gait_corner = getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : 9;
   const float decide_v   = getenv("WP_GAIT_SWITCH_V") ? atof(getenv("WP_GAIT_SWITCH_V")) : 1.6f;
-  int cur_gait = gait_corner;
+  /*
+   * cur_gait MUST start as the gait the robot is ACTUALLY running, which is
+   * cmpc_gait from the yaml - not gait_corner.
+   *
+   * Initialising it to gait_corner made the decider believe it was already in
+   * the corner gait, so it never switched INTO it: the robot took every corner
+   * in the fast gait and fell in the first one, while the log showed a single
+   * no-op "switch" to the gait it was already in. That bug is why
+   * trotting-straights/walking-corners looked like a dead end - the pairing was
+   * never actually exercised.
+   */
+  int cur_gait = bridge->userParams()
+      ? (int)((MIT_UserParameters*)bridge->userParams())->cmpc_gait
+      : gait_corner;
+  /*
+   * LOOKAHEAD: switch on the curvature AHEAD, not underfoot. An animal changes
+   * gait BEFORE the corner, while it still has time; deciding from the speed at
+   * the current point means the decision arrives once already committed.
+   */
+  const float decide_ahead = getenv("WP_GAIT_LOOKAHEAD") ? atof(getenv("WP_GAIT_LOOKAHEAD")) : 4.0f;
 
   const float dt = 0.02f;      // 50 Hz: the gait's own bandwidth is far below this
   float yaw_ref = NAN;
@@ -190,9 +210,41 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     }
 
     if (gait_decider && use_planner && bridge->userParams()) {
-      const double vplan = planner.plannedSpeed();
+      // Slowest planned speed within decide_ahead metres: if a corner is
+      // coming, commit to the corner gait NOW, while still able to.
+      const double vplan = planner.minPlannedSpeedAhead(decide_ahead);
       const int want = (vplan >= 2.2) ? gait_fast : gait_corner;
-      if (want != cur_gait && spd < decide_v) {
+      /*
+       * THE GATE IS ASYMMETRIC, because the risk is.
+       *
+       *   -> trotRunning (flight gait) at 2.63 m/s : FATAL (fell instantly)
+       *   -> trotRunning at 1.2 m/s                : fine, 2/2
+       *   -> walking  at 2.0 m/s                   : fine, 2/2
+       *   -> trotting at 2.0 m/s                   : fine, 1/1
+       *
+       * Dropping to a MORE STABLE gait is safe at speed; climbing to a flight
+       * gait is not. A symmetric gate blocked the drop until the robot had
+       * already braked to 1.6 m/s - which on this course is the corner apex,
+       * far too late - so it entered every corner still in the fast gait and
+       * fell. Going UP still waits for low speed; going DOWN may happen
+       * whenever the target gait can hold the current speed.
+       */
+      // Dropping to the stable gait is UNGATED. The only measured danger is
+      // climbing to a flight gait at speed; nothing in the data says a
+      // down-switch is unsafe (walking at 2.0: 2/2, trotting at 2.0: 1/1).
+      // Gating the drop by the target gait's COMMAND ceiling was wrong twice
+      // over: trotRunning at 3.0 commanded actually cruises at 3.6 m/s, so a
+      // 3.1 gate blocked the drop entirely and the robot entered every corner
+      // still in the flight gait - the exact failure the decider exists to
+      // prevent.
+      const bool going_down = (want == gait_corner);
+      const bool may_switch = going_down ? true : (spd < decide_v);
+      { static int gdbg = 0;
+        if ((++gdbg % 50) == 0)
+          printf("[gaitdbg] vplan=%.2f want=%d cur=%d spd=%.2f down=%d may=%d\n",
+                 vplan, want, cur_gait, spd, (int)going_down, (int)may_switch),
+          fflush(stdout); }
+      if (want != cur_gait && may_switch) {
         ControlParameterValue cv; cv.d = (double)want;
         bridge->userParams()->collection.lookup("cmpc_gait")
             .set(cv, ControlParameterValueKind::DOUBLE);

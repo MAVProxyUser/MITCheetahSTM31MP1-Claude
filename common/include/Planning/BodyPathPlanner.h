@@ -88,6 +88,11 @@ struct BodyLimits {
   //! Yaw rate ceiling in a pirouette (measured: tracks 100% to 1.5 rad/s, 92% at
   //! 3.0, no falls at any rate at ZERO forward speed).
   double yaw_rate_max = 2.0;
+  //! How long the body takes to actually reach a commanded speed change. The
+  //! follower commands the plan for where the robot will be in this many
+  //! seconds, not where it is - without it, braking is issued too late to be
+  //! achieved and the robot enters corners hot.
+  double track_lag_s = 1.2;
 };
 
 /*!
@@ -137,9 +142,24 @@ class BodyPathPlanner {
     _lastIdx = i;
     if (i + 2 >= _path.size()) { *vx = 0; *yaw_rate = 0; return false; }
 
-    // Lookahead scales with speed: at a crawl you steer to a near point, at
-    // speed you must aim further ahead or the command chatters.
-    const double vplan = _path[i].v;
+    // SPEED LOOKAHEAD - command the plan for where the robot WILL BE.
+    //
+    // Commanding _path[i].v (the plan for where it IS) arrives too late: the
+    // body tracks a commanded deceleration at about 1.2 m/s^2 (measured: 3.18
+    // -> 0.77 m/s in 2.0 s), so at 3 m/s it needs 3-6 m of travel to comply.
+    // The result was entering corners at 3.06 m/s where the profile called for
+    // 0.83 - a 2.3 m/s overshoot that no gait choice can survive, and which
+    // looked like a gait-switching problem for hours.
+    // Taking the MINIMUM planned speed over the next `lag` seconds of travel
+    // makes braking begin early enough to actually be achieved.
+    const double lag_s = _lim.track_lag_s;
+    const double lead_m = std::max(0.5, _path[i].v * lag_s);
+    double vplan = _path[i].v;
+    {
+      const double s0 = _path[i].s;
+      for (size_t k = i; k < _path.size() && _path[k].s - s0 <= lead_m; ++k)
+        if (_path[k].v < vplan) vplan = _path[k].v;
+    }
     const double Ld = std::max(0.35, std::min(1.6, 0.45 * vplan + 0.30));
     size_t j = i;
     while (j + 1 < _path.size() && _path[j].s - _path[i].s < Ld) ++j;
@@ -169,6 +189,19 @@ class BodyPathPlanner {
   //! keys off this: high on a straight, low through a corner, and known BEFORE
   //! the robot gets there.
   double plannedSpeed() const { return _path.empty() ? 0.0 : _path[_lastIdx].v; }
+
+  //! Lowest planned speed within `dist` metres ahead. The gait decider uses
+  //! this rather than the speed underfoot: a corner has to be committed to
+  //! BEFORE it arrives, which is what an animal does and what a
+  //! decide-from-here rule structurally cannot do.
+  double minPlannedSpeedAhead(double dist) const {
+    if (_path.empty()) return 0.0;
+    double v = _path[_lastIdx].v;
+    const double s0 = _path[_lastIdx].s;
+    for (size_t i = _lastIdx; i < _path.size() && _path[i].s - s0 <= dist; ++i)
+      if (_path[i].v < v) v = _path[i].v;
+    return v;
+  }
 
   //! Fraction of the path completed, 0..1 - for progress reporting.
   double progress() const {
