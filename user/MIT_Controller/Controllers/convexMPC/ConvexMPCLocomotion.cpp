@@ -1054,17 +1054,19 @@ void ConvexMPCLocomotion::run(ControlFSMData<double>& data) {
  */
 ConvexMPCLocomotion::SchedParams
 ConvexMPCLocomotion::scheduleFor(int gaitNumber, float speedCmd) {
-  SchedParams p{22, 0.11f};
+  SchedParams p{22, 0.11f, 2.0f};
   const float v = std::fabs(speedCmd);
   switch (gaitNumber) {
     case 5:                       // trotRunning - 40% duty, flight phase
-      p.segMs = 26;  break;
+      p.segMs = 26;  p.vMax = 4.0f;  break;
     case 9:                       // trotting - 50% duty
-      p.segMs = (v >= 2.9f) ? 22 : 26;  break;
+      p.segMs = (v >= 2.9f) ? 22 : 26;  p.vMax = 3.1f;  break;
     case 20:                      // walking - 4-beat, 50% duty
-      p.segMs = 22;  break;
-    default:                      // untested gaits inherit trotting's fast cell
-      p.segMs = 22;  break;
+      p.segMs = 22;  p.vMax = 2.25f;  break;
+    case 4:                       // standing - no travel
+      p.segMs = 22;  p.vMax = 0.5f;  break;
+    default:                      // untested gaits: the conservative envelope
+      p.segMs = 22;  p.vMax = 2.0f;  break;
   }
   // $CTRL_MPC_MS / $CTRL_SWING_H still override, for experiments only.
   if (const char* e = getenv("CTRL_MPC_MS"))  { int v2 = atoi(e); if (v2 >= 10 && v2 <= 80) p.segMs = v2; }
@@ -1092,8 +1094,44 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
   const SchedParams p = scheduleFor(gaitNumber, speedCmd);
   _segMsPending = p.segMs;
 
+  // ---- ENVELOPE CLAMP: never run a gait faster than that gait can hold ----
+  // A gait switch is instantaneous; a speed change is not. Commanding
+  // "switch to walking" while travelling 2.5 m/s ran walking 0.25 m/s past its
+  // own ceiling and put the robot down inside two seconds - measured, with the
+  // fall landing between the [profile] gait switch and the next speed step.
+  // The commander should not have to know each gait's envelope and sequence
+  // deceleration before the switch; the controller refuses to exceed it and
+  // DECELERATES INTO the new gait instead. Rate-limited so the clamp itself is
+  // not a step input (2.0 m/s^2, about the ramp rate the gaits tolerate).
+  if (_x_vel_des > p.vMax) {
+    const float decel = 2.0f * dt;
+    _x_vel_des = std::max(p.vMax, _x_vel_des - decel);
+    static int nclamp = 0;
+    if ((nclamp++ % 250) == 0) {
+      printf("[SCHED] gait=%d ENVELOPE CLAMP: vx %.2f -> %.2f (gait max %.2f)\n",
+             gaitNumber, speedCmd, _x_vel_des, p.vMax);
+      fflush(stdout);
+    }
+  }
+
+  // ---- DO NOT STACK PERTURBATIONS ON A GAIT CHANGE ----
+  // A gait switch already rearranges which feet are down; landing a segment
+  // change on the same tick perturbs the clock at the same moment and the two
+  // compound. Measured: walking -> trotting at 2.0 m/s (both speeds legal for
+  // both gaits) fell immediately, with the [SCHED] segment change 22 -> 26 ms
+  // logged on the same line as the switch and roll reaching -23 deg.
+  // The gait gets a settling window to itself before the clock is touched.
+  static int lastGaitSeen = -1;
+  static int64_t gaitChangedMs = 0;
+  const int64_t nowms = nowMs();
+  if (gaitNumber != lastGaitSeen) {
+    lastGaitSeen = gaitNumber;
+    gaitChangedMs = nowms;
+  }
+  const bool settling = (nowms - gaitChangedMs) < 500;   // ~2 gait cycles
+
   const int wantIters = std::max(1, (int)std::lround(p.segMs / (1000.f * dt)));
-  if (wantIters != iterationsBetweenMPC) {
+  if (wantIters != iterationsBetweenMPC && !settling) {
     // Only at a cycle boundary. getCurrentGaitPhase() returns the integer
     // SEGMENT INDEX within the cycle (not a 0-1 phase), so index 0 is the wrap.
     const int seg = activeGait ? activeGait->getCurrentGaitPhase() : 0;

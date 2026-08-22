@@ -147,7 +147,7 @@ private:
   // set an environment variable per run (and get it wrong when the robot changes
   // speed mid-mission), the parameters are looked up every tick and applied at
   // points where they cannot cause a discontinuity.
-  struct SchedParams { int segMs; float swingH; };
+  struct SchedParams { int segMs; float swingH; float vMax; };
   static SchedParams scheduleFor(int gaitNumber, float speedCmd);
   void applySchedule(int gaitNumber, float speedCmd, Gait* activeGait);
   float _swingHLatched[4] = {0.11f, 0.11f, 0.11f, 0.11f};  // per-leg, set at swing start

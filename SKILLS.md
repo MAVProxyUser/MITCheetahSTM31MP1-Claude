@@ -217,6 +217,21 @@ Rules that follow:
   and the uniformly flat response read exactly like "none of these levers do
   anything". Walking the command up finely instead found the edge sits between
   3.15 and 3.2. A target the machine cannot reach makes every lever look inert.
+- **NEVER run two sweeps at once.** Every harness here starts with
+  `pkill -9 -f "gz sim"` and then brings up its own simulator, so two sweeps
+  running together repeatedly kill each other's world. The symptom does not look
+  like a process collision at all - it looks like a catastrophic controller bug:
+  250 consecutive "STATE ESTIMATE WENT NON-FINITE", `z=nan`, `roll=180`, and a
+  robot that never stood up. A whole corner sweep and the tail of a transition
+  batch were thrown away chasing that before the cause turned out to be a second
+  sweep I had launched myself. Check `ps aux | grep -c "[s]weepname"` before
+  launching, and treat any batch that overlapped another as CONTAMINATED rather
+  than trying to salvage the rows that look plausible.
+- **A waiter that polls for a completion marker must be BOUNDED.** `while ! grep
+  -q DONE; do sleep; done` never terminates if the producer dies - and worse,
+  `while pgrep -f "foo.sh"` matches the waiter's OWN command line, so it waits
+  forever on itself. Two of these sat for seven hours. Use a fixed iteration
+  count (`for i in $(seq 1 60)`) so the wait always ends.
 - **A detector must not depend on the quantity most likely to be wrong.** The
   fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
   wide margin below the true operating value (walking ~0.175 -> trip at 0.10,
