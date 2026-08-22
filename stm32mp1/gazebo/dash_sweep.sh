@@ -16,6 +16,31 @@ RUNDIR=host-run
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
 export PATH="/opt/homebrew/bin:$PATH"
 
+# STALE-BINARY GUARD. This harness runs ./mit_ctrl_sim out of host-run/, which
+# is NOT what `cmake --build` writes - so a rebuild followed by a sweep happily
+# measures the previous binary and reports it as the new one. Same failure class
+# as the SIM_CHEATER trap (RULE ZERO in SKILLS.md): the runner not reflecting the
+# code. Copy the freshly built binary every time, and say which one is running.
+BUILT=host-build/user/MIT_Controller/mit_ctrl_sim
+if [ -f "$BUILT" ]; then
+  if [ "$BUILT" -nt "$RUNDIR/mit_ctrl_sim" ]; then
+    echo "[harness] host-run binary is STALE - copying $(date -r "$BUILT" '+%H:%M:%S') build"
+  fi
+  cp -f "$BUILT" "$RUNDIR/mit_ctrl_sim"
+else
+  echo "[harness] WARNING: $BUILT not found; running whatever is in $RUNDIR" >&2
+fi
+echo "[harness] binary: $(date -r "$RUNDIR/mit_ctrl_sim" '+%Y-%m-%d %H:%M:%S')"
+
+# Which user-parameter yaml to run. The SOLVER lives in here, and the solver
+# turned out to matter more than every gait parameter combined: JCQP at the
+# shipped rho 0.6 / 60 iters commands only ~0.25x bodyweight where the gait
+# needs 2.0x, so the robot walks permanently crouched at z=0.13 and sinks until
+# it collapses. qpOASES on the same problem commands 1.3-1.8x and holds
+# z=0.285 against a 0.300 reference. Keep this switchable and always record it.
+USERYAML="${USERYAML:-mc-mit-ctrl-user-parameters.yaml}"
+echo "[harness] user yaml: $USERYAML"
+
 WORLD="${WORLD:-worlds/go1_speedway.sdf}"   # bare 400x400 ground, no scenery
 TARGET="${TARGET:-100}"
 OUT="${OUT:-/tmp/dash_$(date +%H%M%S)}"
@@ -51,7 +76,7 @@ for entry in $LADDERS; do
 
     ( cd "$RUNDIR" && env DYLD_LIBRARY_PATH=. $COMMON SIM_GAIT=$gnum SIM_VX=$v \
         timeout 260 ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml \
-        mc-mit-ctrl-user-parameters.yaml > "$OUT/$LABEL.ctrl.log" 2>&1 ) &
+        "$USERYAML" > "$OUT/$LABEL.ctrl.log" 2>&1 ) &
     CPID=$!
     sleep 4
     R=$("$PYBIN" "$G/dash_trace.py" 250 "$TARGET" 2>/dev/null | tail -1)

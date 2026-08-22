@@ -788,6 +788,38 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     }
   }
 
+  // [MPCZ] VERTICAL FORCE BUDGET ($SIM_MPCZ=1).
+  // At 2.0 m/s commanded the robot does not tip - it SINKS (measured: height
+  // 0.222 -> 0.139 while body vz oscillation grows to 0.55 m/s, then
+  // "[FALL] collapsed roll=0 pitch=-0 z=0.028"). That is a vertical force
+  // budget failure, so measure the budget directly rather than inferring it.
+  //
+  // To HOLD height a gait with stance duty d must average m*g over the cycle,
+  // i.e. command m*g/d while feet are actually down. Commanding exactly m*g
+  // during stance yields m*g*d on average and the body falls at (1-d)*g. This
+  // prints what the solver actually asked for against that requirement, so
+  // "the MPC under-commands" and "the legs fail to deliver" stop being the
+  // same observation.
+  {
+    static const bool mpcz = getenv("SIM_MPCZ") && atoi(getenv("SIM_MPCZ")) != 0;
+    if (mpcz) {
+      static int nz = 0;
+      if ((nz++ % 50) == 0) {
+        float fzTot = 0.f; int nStance = 0;
+        for (int foot = 0; foot < 4; ++foot) {
+          if (Fr_des[foot][2] > 1.0f) { fzTot += Fr_des[foot][2]; ++nStance; }
+        }
+        const float mg = 12.859f * 9.81f;             // corrected Go1 total mass
+        printf("[MPCZ] t=%.2f z=%.3f zref=%.3f vz=%+.3f nSt=%d Fz=%.1f mg=%.1f "
+               "Fz/mg=%.2f need=%.2f\n",
+               nz * 0.002f, seResult.position[2], _body_height, seResult.vWorld[2],
+               nStance, fzTot, mg, fzTot / mg,
+               nStance > 0 ? 4.0f / (float)nStance : 0.f);
+        fflush(stdout);
+      }
+    }
+  }
+
   // CONTACT DETECTION (opt-in, $SIM_CONTACT_DETECT=1).
   //
   // MIT's ContactEstimator is a PASS-THROUGH - its own header says so: "it just
