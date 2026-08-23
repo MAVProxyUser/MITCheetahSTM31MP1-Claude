@@ -1977,6 +1977,74 @@ self-tracked cruise height. The de-bobbing is not optional: raw dh/dt carries
 +/-0.25 m/s of gait oscillation, which a 0.3 s lead turned into a phantom
 0.08 m departure on a run that passed.
 
+## CAMPAIGN RESULTS: equal valid N, 3 dogs in parallel, everything <= 3.5 m/s
+
+Six reps per arm, arms run SIMULTANEOUSLY so they share machine conditions, and
+a run only counts if it passed its acceptance gate (loop tail <= 5 %, config
+took effect, the dog actually got going). Every headline below was then
+re-confirmed SINGLE-DOG.
+
+### THE WINS
+
+| course | was | now | config |
+|---|---|---|---|
+| star | 39.40 s 6/6 | **38.25 s 6/6** (SD 0.15) | trotRunning 3.5, `WP_ALAT=3.25` |
+| oval | 37.88 s 6/6 | **30.48 s 6/6** (SD 0.13) | trotRunning 3.5, analyzer, `WP_VSUS=2.6` |
+| atom | 58.94 s | **58.97 s 6/6** (SD 0.09) | trotting 2.1, NO analyzer |
+
+Single-dog confirmation: star 38.2/38.3/38.1, oval 30.2/30.5/30.5, atom 58.8.
+
+### THE ANALYZER PAYS ONLY WHERE THE COURSE HAS MIXED REGIMES
+
+| course | regime mix | analyzer value |
+|---|---|---|
+| star | all transient corners | NONE - 39.35 vs 39.40, inside noise |
+| atom | 96 % sustained curve | NONE - bare @1.9 is 63.90, analyzed @2.1+cap1.9 is 63.83 |
+| oval | 72 % straight / 28 % sustained | **-19.5 %** - 30.48 vs 37.88 |
+
+This is the whole thesis, stated honestly. On a UNIFORM course, "cap the
+sustained segments" and "lower the global speed" are the same operation, and a
+hand-picked constant does just as well. The planner earns its keep only where
+the robot should be doing DIFFERENT THINGS IN DIFFERENT PLACES - full speed on
+the oval's straights, governed speed through its two ends. That is why the oval
+had to be built before the idea could be tested at all.
+
+### RETRACTED
+
+**The atom "reliability win" was a speed reduction in disguise.** Reported as
+analyzer 6/6 vs bare 5/6. Then bare @1.9 measured 6/6 at 63.90 s - identical to
+the analyzed 63.83 s - and bare @2.1 measured 6/6 on a re-run where it had
+previously given 5/6. So the comparison rested on ONE failure, and the analyzer
+adds nothing on this course.
+
+**Height pre-load (WP_HBIAS) does not survive.** It helped once, in one
+marginal configuration (trotting 2.5, 4/5 -> 5/5, peak pitch 0.420 -> 0.308).
+Since then: on the star at 3.5 it COSTS 0.88 s for no reliability gain
+(all arms already 6/6), and on the marginal atom config it made things WORSE
+(5/6 against bare's 6/6). Two failures to reproduce. Treat the original result
+as a one-off until something explains it.
+
+### CLIFFS, NOT SLOPES - every limit found this campaign is sharp
+
+    star lateral budget   3.25 -> 6/6 38.25 s | 3.5 -> 5/6 | 4.5 -> 0/6
+    atom sustained cap    1.9  -> 6/6         | 2.2 -> 0/6
+    oval sustained cap    2.6  -> 6/6 30.48 s | 2.8 -> 0/6
+
+Nothing degrades gracefully. The rising standard deviation is the only advance
+warning: on the star it goes 0.07 (a_lat 2.75), 0.08 (3.0), 0.15 (3.25), then
+failures at 3.5. Watch the spread, not the mean.
+
+### UNEXPLAINED: the trotting dash fails in parallel and passes alone
+
+    trotting 3.0, 100 m dash, single dog      33.4 s, reliable (matches table)
+    trotting 3.0, 100 m dash, 3 in parallel   0/6, falls at 17-58 m
+
+Loop health is perfect in both (p50 2.48 ms, 0 % over 4 ms) and RTF is 1.005 on
+every instance, so it is neither scheduler starvation nor desynchronisation.
+trotRunning and walking dashes are FINE in parallel; the star, atom and oval
+missions all reproduce single-dog to within 0.1-0.3 s. CAUSE NOT ISOLATED.
+Until it is, confirm any dash result single-dog.
+
 ## THE MISSION ANALYZER: decide once, up front, with the whole route in view
 
 `common/include/Planning/MissionAnalyzer.h`. Everything about a route that can

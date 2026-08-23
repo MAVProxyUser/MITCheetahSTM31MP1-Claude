@@ -28,8 +28,19 @@ RUN=/tmp/cheetah_inst_$INST; mkdir -p "$RUN"
 
 ( cd "$DIR" && exec gz sim -s -r "$WORLD" > /tmp/gz_$INST.log 2>&1 ) &
 echo $! > "$RUN/gz.pid"
-for i in $(seq 1 25); do sleep 1; kill -0 "$(cat $RUN/gz.pid)" 2>/dev/null || break
-  grep -q "Serving world" /tmp/gz_$INST.log 2>/dev/null && break; done
+# READINESS, not a fixed wait. gz writes nothing to its log here, so the
+# original `grep "Serving world"` never matched and every instance burned the
+# full 25 s timeout - 75 s of dead time per 3-dog batch. Poll for the thing
+# that actually matters instead: the robot's IMU topic being advertised. Then
+# a short settle, because starting a controller the instant the topic appears
+# is how N>=4 got STATE ESTIMATE NON-FINITE.
+ready=0
+for i in $(seq 1 30); do
+  kill -0 "$(cat $RUN/gz.pid)" 2>/dev/null || break
+  if gz topic -l 2>/dev/null | grep -q "^/imu$"; then ready=1; break; fi
+  sleep 1
+done
+[ "$ready" = 1 ] && sleep 2
 if ! kill -0 "$(cat $RUN/gz.pid)" 2>/dev/null; then
   echo "[inst $INST] SERVER FAILED:"; tail -3 /tmp/gz_$INST.log; exit 1
 fi

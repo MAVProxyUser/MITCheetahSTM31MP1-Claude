@@ -57,33 +57,35 @@ cd host-run && env DYLD_LIBRARY_PATH=. \
 
 ### Where this stands
 
-**Gait choice was backwards, and it depends on the course.** trotRunning is
-32/32 on the 100 m star across 2.5-3.3 m/s (40.4 s down to 39.4 s) where
-trotting cannot finish 2.7 at all - but it reverses on the atom, where trotting
-is 7/8 at 2.1 m/s and trotRunning manages 3/8. The star is straights joined by
-instantaneous corners; the atom curves continuously with no recovery. Every
-star result taken before this was measured against the wrong control gait.
+| course | best repeatable | config |
+|---|---|---|
+| 100 m star | **38.25 s**, 6/6, SD 0.15 | trotRunning 3.5 m/s, lateral budget 3.25 |
+| oval (111 m lap) | **30.48 s**, 6/6, SD 0.13 | trotRunning 3.5, analyzer, sustained cap 2.6 |
+| atom (128 m) | **58.97 s**, 6/6, SD 0.09 | trotting 2.1, no analyzer |
+| 100 m dash | 24.8 s @ 4.69 m/s | trotRunning |
 
-**The planner now decides once, up front.**
-[MissionAnalyzer.h](common/include/Planning/MissionAnalyzer.h) turns a waypoint
-list into an annotated mission - regime, gait, height pre-load, and where the
-time is actually lost - which the robot reads at runtime as a lookup instead of
-re-deriving from filtered signals at 50 Hz. The key idea is that a gait
-decision follows from how LONG a turn lasts, not how tight it is: both a star
-vertex and an atom lobe read as "slow ahead" and they want opposite gaits.
-The classifier reproduces all three measured course results from geometry alone.
+All measured with equal valid runs per arm, arms running simultaneously so they
+share machine conditions, and every headline re-confirmed single-dog.
 
-**A reactive height governor was built, measured, and retracted** - 7/10 vs
-5/10, p = 0.65. What survives is the predictive half: pre-loading stance height
-for a corner the planner already knows about cuts peak pitch 0.420 -> 0.308
-with dose, for no time cost.
+**The mission pre-planner
+([MissionAnalyzer.h](common/include/Planning/MissionAnalyzer.h)) pays exactly
+where a course has mixed regimes** - 19.5 % on the oval (72 % straight, 28 %
+sustained curve), and nothing at all on the star (no sustained curves) or the
+atom (96 % sustained). On a uniform course, governing per-segment and lowering
+the global speed are the same operation. The planner earns its keep only when
+the robot should be doing different things in different places.
 
-**Three dogs run in parallel**, verified 12/12 at identical times with zero
-control-loop overruns - 3x throughput on every sweep. Four or more fails for a
-reason not yet isolated.
+**Gait choice depends on the course and was backwards for most of this port's
+history**: trotRunning owns the star (32/32 across 2.5-3.3 m/s) where trotting
+cannot finish 2.7; trotting owns the atom (7/8 at 2.1) where trotRunning
+manages 3/8.
 
-**Open:** the roll-out under sustained turning, and whether the sustained-curve
-speed envelope (measured on a loaded machine, not yet re-confirmed) is real.
+**Three dogs run in parallel** at identical times with zero control-loop
+overruns - 3x throughput. Four or more fails for a reason not yet isolated.
+
+**Open:** the roll-out under sustained turning; achieved vs commanded foot
+force through a corner; why the trotting dash fails in parallel but not alone;
+and nothing has ever run on the STM32.
 
 ## Measured locomotion (Mac SITL)
 

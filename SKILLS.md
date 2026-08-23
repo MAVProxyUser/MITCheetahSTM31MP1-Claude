@@ -261,6 +261,20 @@ Rules that follow:
   non-empty output before any sweep depends on it.
   **An empty log is an infrastructure failure until proven otherwise.** A robot
   that fails always prints something first.
+- **After killing a sweep, WAIT FOR THE MACHINE TO GO CLEAN.** Stragglers live
+  for several seconds and the next sweep's first batch inherits them - a bridge
+  still holding a port, a controller still driving, topics from a dead
+  partition. Measured symptom: three dogs failing identically, one with the
+  estimator diverging 250 times and another stuck at N=0.00 E=0.00 for 170 s.
+  That read exactly like a controller regression and cost a baseline
+  investigation to disprove. `sweep_lock.sh` now refuses to start until
+  `pgrep gz sim|mit_ctrl_sim|bridge` returns nothing.
+- **A transient NON-FINITE is NOT a failed run.** Passing runs routinely blip
+  once or twice at startup and the estimator reinitialises; 12/12 good runs at
+  39.2-39.7 s included several with two NaN events each. A gate that rejects any
+  NaN throws away good data - and if the blip correlates with one arm, it
+  biases the A/B against that arm. Gate on whether the dog GOT GOING, not on
+  whether a warning printed.
 - **YOUR OWN INTERACTIVE COMMANDS ARE A SECOND SWEEP.** The lock stops scripts
   colliding with scripts; it does nothing about an ad-hoc `pkill -9 -f "gz sim"`
   typed while a sweep is running. That killed a whole A/B mid-flight - the log

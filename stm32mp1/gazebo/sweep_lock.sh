@@ -140,4 +140,42 @@ sweep_health_check() {
     SWEEP_SICK_STREAK=0
   fi
 }
+# NO STRAGGLERS. Killing a sweep leaves gz/bridge/controller processes behind
+# for a few seconds, and the next sweep's FIRST batch inherits them: topics from
+# a dead partition, a bridge still holding a port, a controller still driving.
+# Measured symptom - three dogs "failing" identically with the estimator diverging
+# 250 times and one stuck at N=0.00 E=0.00 for 170 s, which read exactly like a
+# controller regression and was nothing of the sort.
+# Count REAL simulation processes. `pgrep -f` matches command lines, and any
+# shell that merely MENTIONS these names - a heredoc writing a harness, a grep,
+# this function's own caller - matches too. That self-match has now bitten three
+# times in three different forms (pkill killing its own shell, a pgrep waiter
+# waiting on itself, and this guard refusing to start because the script being
+# written contained the word). So: match the command line, then keep only PIDs
+# whose EXECUTABLE is actually one of ours, and never count this process tree.
+sweep_sim_pids() {
+  local pid comm
+  for pid in $(pgrep -f 'gz[ ]sim|mit_ctrl[_]sim|cheetah[_]gazebo[_]bridge' 2>/dev/null); do
+    [ "$pid" = "$$" ] && continue
+    [ "$pid" = "$PPID" ] && continue
+    comm=$(ps -o command= -p "$pid" 2>/dev/null)
+    case "$comm" in
+      *bash*-c*|*"pgrep"*|*"grep"*) continue ;;      # a shell talking about them
+      gz\ sim*|*/mit_ctrl_sim*|./mit_ctrl_sim*|*cheetah_gazebo_bridge.py*)
+        echo "$pid" ;;
+    esac
+  done
+}
+sweep_wait_clean() {
+  local n
+  for i in $(seq 1 20); do
+    n=$(sweep_sim_pids | wc -l | tr -d ' ')
+    [ "$n" = "0" ] && { [ "$i" -gt 1 ] && echo "[lock] machine clear after ${i}s"; return 0; }
+    sleep 1
+  done
+  echo "[lock] REFUSING TO START: $n simulation processes still alive." >&2
+  for p in $(sweep_sim_pids); do ps -o pid=,command= -p "$p" 2>/dev/null | cut -c1-90 >&2; done
+  return 1
+}
+sweep_wait_clean || exit 1
 sweep_wait_for_idle || exit 1

@@ -107,6 +107,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
    * deeper, which is what a hand-picked constant tends to do.
    */
   const bool use_planner = getenv("WP_PLANNER") && atoi(getenv("WP_PLANNER")) != 0;
+  const bool  use_analyzer = getenv("WP_ANALYZER") && atoi(getenv("WP_ANALYZER")) != 0;
+  const float analyzer_lead = getenv("WP_ANALYZER_LEAD") ? atof(getenv("WP_ANALYZER_LEAD")) : 4.0f;
+
   planning::BodyPathPlanner planner;
   planning::MissionAnalyzer analyzer;
   if (use_planner) {
@@ -154,11 +157,18 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     pol.gait_sustained= getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : pol.gait_sustained;
     pol.hbias_max     = getenv("WP_HBIAS")      ? atof(getenv("WP_HBIAS"))      : pol.hbias_max;
     pol.v_sustained_max = getenv("WP_VSUS") ? atof(getenv("WP_VSUS")) : pol.v_sustained_max;
+    // ALWAYS analyse (the brief is free and worth having in every log), but
+    // only ACT on it when asked. applyTo() imposes the sustained-curve speed
+    // ceiling, which is a behaviour change - running it unconditionally made
+    // the "bare" arm of an A/B not bare, and would have silently treated the
+    // control group on every atom phase where sustained segments dominate.
     analyzer.analyze(planner, pol);
-    // Two-pass: classify, impose the sustained-curve ceiling, re-plan, then
-    // re-classify so the printed brief is the plan the robot actually flies.
-    analyzer.applyTo(planner, pol);
-    analyzer.analyze(planner, pol);
+    if (use_analyzer) {
+      // Two-pass: classify, impose the ceiling, re-plan, re-classify so the
+      // printed brief is the plan the robot actually flies.
+      analyzer.applyTo(planner, pol);
+      analyzer.analyze(planner, pol);
+    }
     analyzer.print();
 
     double kk, vv; planner.tightestCorner(&kk, &vv);
@@ -226,8 +236,6 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
    * mission. `analyzer_lead` is how far ahead the robot reads - a gait change
    * needs its ~500 ms settling window BEFORE the corner, not in it.
    */
-  const bool  use_analyzer = getenv("WP_ANALYZER") && atoi(getenv("WP_ANALYZER")) != 0;
-  const float analyzer_lead = getenv("WP_ANALYZER_LEAD") ? atof(getenv("WP_ANALYZER_LEAD")) : 4.0f;
   const bool  regime_mode  = getenv("WP_GAIT_REGIME") && atoi(getenv("WP_GAIT_REGIME")) != 0;
   const float regime_kappa = getenv("WP_REGIME_K")   ? atof(getenv("WP_REGIME_K"))   : 0.15f;
   const float regime_len   = getenv("WP_REGIME_LEN") ? atof(getenv("WP_REGIME_LEN")) : 3.0f;

@@ -37,14 +37,27 @@ run_one(){          # instance label env...
       timeout 220 ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml \
       mc-mit-ctrl-user-parameters.yaml > $O/$label.log 2>&1 )
 }
-valid(){            # label -> 0 if the RUN is trustworthy (pass or fail)
+valid(){            # label -> 0 if the RUN is trustworthy (pass OR fail)
+  # A FAILURE is a perfectly good result; what must be rejected is a run the
+  # MACHINE spoiled. Three criteria, and the middle one has a trap in it.
   local f=$O/$1.log
   [ -s "$f" ] || return 1
-  grep -q "\[mission\]\|\[nav\].*mission" "$f" || return 1          # config took effect
-  grep -q "NON-FINITE" "$f" && return 1                              # estimator diverged
+  grep -q "\[mission\]\|\[nav\].*mission" "$f" || return 1     # config took effect
+  # Control loop met its deadlines: every real failure sat at ~14% of intervals
+  # overrunning, every pass at <=3.9%.
   local over=$(grep -o "maxPeriod=[0-9.]*" "$f" | cut -d= -f2 \
                | awk '{n++; if($1>4)o++} END{if(n)printf "%.1f",100*o/n; else print 99}')
-  awk -v x="$over" 'BEGIN{exit !(x<=5.0)}'
+  awk -v x="$over" 'BEGIN{exit !(x<=5.0)}' || return 1
+  # THE DOG ACTUALLY GOT GOING. A transient NON-FINITE at startup that the
+  # estimator reinitialises from is harmless - the first version of this check
+  # rejected ANY NaN and threw away a completed 39.4 s run, the fastest in the
+  # phase, purely because it blipped once before standing. Worse, the blip only
+  # occurred in the analyzer arm, so the gate was silently biased AGAINST the
+  # treatment. What matters is whether the run got off the ground, not whether
+  # the estimator ever printed a warning.
+  grep -q "MISSION COMPLETE t=" "$f" && return 0                  # completed: valid
+  [ "$(grep -c "\[nav\] reached" "$f")" -ge 1 ] && return 0      # real mid-course failure
+  return 1                                                        # never started: instrument
 }
 result(){           # label -> "t|over"
   local f=$O/$1.log
