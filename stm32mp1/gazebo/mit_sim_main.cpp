@@ -109,6 +109,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;
     planner.setLimits(lim);
     if (getenv("WP_ALON")) planner.setAlonExplicit(atof(getenv("WP_ALON")));
+    if (getenv("WP_HAIRPIN")) { auto L = planner.limits(); L.hairpin_rad = atof(getenv("WP_HAIRPIN")); planner.setLimits(L); }
+    if (getenv("WP_VPIVOT"))  { auto L = planner.limits(); L.v_pivot     = atof(getenv("WP_VPIVOT"));  planner.setLimits(L); }
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
     planner.plan(wx, wy, 0.10, false, corridor);
     double kk, vv; planner.tightestCorner(&kk, &vv);

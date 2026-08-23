@@ -53,6 +53,7 @@
 namespace planning {
 
 struct PathPoint {
+  bool   hairpin = false;  //!< part of a turn too sharp to arc - pivot instead
   double x = 0, y = 0;     //!< world position
   double s = 0;            //!< arc length from path start
   double theta = 0;        //!< path heading (tangent)
@@ -117,6 +118,26 @@ struct BodyLimits {
   //! Yaw rate ceiling in a pirouette (measured: tracks 100% to 1.5 rad/s, 92% at
   //! 3.0, no falls at any rate at ZERO forward speed).
   double yaw_rate_max = 2.0;
+  /*!
+   * HAIRPIN THRESHOLD (radians of DIRECTION CHANGE). Above this, a corner is
+   * not arced through - the robot slows to `v_pivot` and TURNS IN PLACE.
+   *
+   * Why a separate mode: arcing costs lateral acceleration a = v*omega, which
+   * is paid in ROLL, and roll is what trips the safety check (measured 27 deg at
+   * 3.0 m/s^2, 52 at 5.0, 72 at 7.5 against a 28.6 deg trip). A pirouette costs
+   * NONE of it - spinning at 3 rad/s with zero forward speed holds roll under
+   * 1.5 deg and has never fallen. So past some angle the cheapest way through is
+   * to stop turning-while-moving and just turn.
+   *
+   * 2.0 rad (115 deg) by default: the star's interior corners are 144 deg of
+   * direction change and its first is 162 deg - all hairpins - while a gentle
+   * course change is not. This is the racing line's "slow in, fast out", and the
+   * same thing a dog does at a hard corner.
+   */
+  double hairpin_rad = 9.9;   // OFF by default: measured to cost time on this course, see below
+  //! Speed carried through a hairpin. Not zero - a stopped robot still has to
+  //! accelerate again - but slow enough that v*omega is negligible.
+  double v_pivot = 0.6;      // 0.35 fails 0/5 - trotting cannot sustain itself that slow
   //! How long the body takes to actually reach a commanded speed change. The
   //! follower commands the plan for where the robot will be in this many
   //! seconds, not where it is - without it, braking is issued too late to be
@@ -331,6 +352,21 @@ class BodyPathPlanner {
         double X, Y; lerp(sx0, sy0, tinx, tiny, (double)t / steps, &X, &Y);
         push(X, Y);
       }
+      // Flag this corner as a hairpin if the DIRECTION CHANGE is too large to
+      // arc through at speed. Recorded on the arc points so the speed profile
+      // can force a pivot there.
+      bool isHairpin = false;
+      if (corner && T > 1e-6) {
+        double jx2 = wx[c] - bx, jy2 = wy[c] - by;
+        const double jl = std::sqrt(jx2*jx2 + jy2*jy2);
+        if (jl > 1e-9) {
+          jx2 /= jl; jy2 /= jl;
+          double cd = ix*jx2 + iy*jy2;            // cos of DIRECTION change
+          cd = std::max(-1.0, std::min(1.0, cd));
+          isHairpin = (std::acos(cd) >= _lim.hairpin_rad);
+        }
+      }
+      const size_t arcStart = _path.size();
       if (T > 1e-6 && R > 1e-6) {
         // arc from tangent-in to tangent-out, swept about the fillet centre
         const double toutx = bx + ox2*T, touty = by + oy2*T;
@@ -353,6 +389,8 @@ class BodyPathPlanner {
             const double aa = a0 + sweep * t / asteps;
             push(cx + R*std::cos(aa), cy + R*std::sin(aa));
           }
+          if (isHairpin)
+            for (size_t q = arcStart; q < _path.size(); ++q) _path[q].hairpin = true;
         }
       }
     }
@@ -401,6 +439,10 @@ class BodyPathPlanner {
       const double k = std::fabs(p.kappa);
       p.v_max = (k > 1e-6) ? std::sqrt(_lim.a_lat_max / k) : _lim.v_cruise;
       p.v_max = std::max(_lim.v_min, std::min(_lim.v_cruise, p.v_max));
+      // A hairpin is taken as a PIVOT, not an arc: force it slow enough that
+      // v*omega - and therefore roll - is negligible, and let the steering do
+      // the work the fillet cannot.
+      if (p.hairpin) p.v_max = std::min(p.v_max, _lim.v_pivot);
       p.v = p.v_max;
     }
     // Backward: v_i^2 <= v_{i+1}^2 + 2*a*ds  (can I still slow down in time?)
