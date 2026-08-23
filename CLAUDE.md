@@ -1716,6 +1716,36 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## THE REPEATABLE 100 m STAR - final measured state
+
+Two configurations, and the choice between them is a real trade, not a ranking.
+
+| | cruise | time | reliability | spread |
+|---|---|---|---|---|
+| **RELIABLE** | **2.0 m/s** | **42.6-42.7 s** | **7/7 (100%)** | 0.1 s |
+| FAST | 2.5 m/s | 41.6-41.8 s | 6/8 (75%) | 0.2 s |
+
+2.5 m/s buys **1.0 second** for a **1-in-4 failure rate**. On a course you intend
+to repeat, that is a bad trade; the 2.0 config has never failed.
+
+Both are precise when they run - a 0.1-0.2 s spread across a 100 m five-corner
+mission - which says the remaining failures are a threshold being crossed, not
+noise accumulating.
+
+### What does NOT improve it (all measured, do not re-try)
+
+| lever | result |
+|---|---|
+| lower lateral budget (a_lat 2.2 / 2.0) | SLOWER (42.1-42.7 s) and no more reliable - 2/4 and 1/2 |
+| hairpin pivot on all corners | 50.0/50.1 s 2/2 - most repeatable measured, 8 s slower |
+| hairpin pivot on corner 1 only | 0/3, always dies at an ARCED corner afterwards |
+| gait switching (either pairing) | declines to switch at 2.0, fails above it |
+| more yaw authority | roll 27 -> 52 -> 72 deg for no time gain |
+
+The failures at 2.5 are CONSISTENTLY at wp 3/5 - a specific corner, not random -
+so the next honest step is to instrument that corner rather than sweep more
+parameters. Six levers have now been swept against it without success.
+
 ## STAR MISSION, CURRENT STATE (speed-dependent braking, acc 1.5)
 
 | cruise | passes | time | verdict |
