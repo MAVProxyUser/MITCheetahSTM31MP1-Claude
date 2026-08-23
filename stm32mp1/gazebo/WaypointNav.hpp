@@ -43,6 +43,16 @@ class WaypointNav {
   void makeOutAndBack(float distance_m, float speed);
   //! N-pointed star (visit every k-th vertex), the OpenPilot demo mission.
   void makeStar(float radius_m, int points, float speed);
+  /*! Atom-logo rosette: ONE closed stroke with `lobes` petals through a common
+   *  nucleus, and curvature that varies smoothly instead of stepping at
+   *  vertices. See the .cpp for the curve and why this is the gentler course.
+   *  @param outer_radius_m  distance from the nucleus to a lobe tip
+   *  @param lobes           petals (6 = the atom logo, 3 = a trefoil)
+   *  @param depth           0..1, how close the stroke comes to the nucleus
+   *  @param spacing_m       waypoint spacing along the arc
+   *  @param speed           cruise for every leg */
+  void makeAtom(float outer_radius_m, int lobes, float depth,
+                float spacing_m, float speed);
   //! Read back a waypoint (for drawing the planned track).
   const NavWaypoint& waypoint(int i) const { return _wp[i]; }
 
@@ -81,7 +91,10 @@ class WaypointNav {
   bool  loop          = false;   //!< repeat the mission forever
 
  private:
-  static const int MAXWP = 64;
+  // Raised from 64 for makeAtom: a smooth curve needs waypoints close
+  // enough that the planner's fillet arcs reproduce it (~1.2 m -> ~106
+  // points for the default rosette). The star missions use 5.
+  static const int MAXWP = 256;
   NavWaypoint _wp[MAXWP];
   int   _n = 0;
   int   _idx = 0;

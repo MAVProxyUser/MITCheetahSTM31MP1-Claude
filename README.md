@@ -55,18 +55,53 @@ cd host-run && env DYLD_LIBRARY_PATH=. \
   ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml
 ```
 
-### The open problem, stated honestly
+### The open problem, and one half of it now closed
 
-Above 2.0 m/s the robot fails by **collapsing** — `roll=0 pitch=0`, flat — not
-by tipping. The only quantity separating a passing run from a failing one is
-body height (0.212–0.239 m passing, 0.185–0.200 failing); commanded force is
-identical in both. Eleven levers aimed at cornering (gait switching, banking,
-crouch, angle grading, hairpin pivots, lateral budget, yaw authority, braking
-rate, acceptance radius, lookahead, MPC segment) all failed to move it, because
-they act on the **plan** and the failure is in force **delivery**.
+Above 2.0 m/s the robot fails in **two different ways**, and separating them
+took building a second course.
 
-Next step is measuring achieved vs commanded foot force through a corner — a
-whole-body-controller question, not a planner one.
+**Failure A - height departure, on straights.** The body cruises at 0.26-0.29 m
+for tens of seconds and then departs, losing 8 cm in about 0.6 s, at which
+point the orientation check trips. Commanded vertical force is identical on
+passing and failing runs (0.85-0.88 x mg), so the deficit is in force
+*delivery*. Six of seven failures in a twelve-run sweep were at |yaw rate|
+<= 0.3 rad/s and full speed - not in corners at all, which is why eleven levers
+aimed at cornering all measured neutral.
+
+This one is addressed. A reactive stance-height governor
+([HeightGovernor.h](common/include/Controllers/HeightGovernor.h)) closes the
+loop on achieved height, triggering on a predicted departure from the robot's
+own cruise height and trading forward speed for vertical force. Interleaved
+A/B on the star at 2.5 m/s:
+
+| arm | passes | time | min height |
+|---|---|---|---|
+| stock | 3/8 | 41.7 s | 0.164-0.243 |
+| governor | **7/7** | 42.0 s | 0.271-0.275 |
+
+0.3 s slower, and the governed runs sit inside a 0.004 m band - it prevents
+departures rather than recovering from them. One gait, one speed, one course;
+not yet validated on hardware.
+
+The design came from a digital reconstruction of a galloping cheetah (Zhang et
+al., *Biomimetic Intelligence and Robotics* 2 (2022) 100033): the animal holds
+stance height as a *regulated variable* while the leg length beneath it varies
+by more than 2x, and keeps the stance leg at minimum manipulability - the
+posture that carries the most force. Stock had no height regulation at all.
+Note the animal's *number* does not transfer (0.55 x leg length is 0.234 m; a
+two-segment Go1 leg cruises at 0.27) - wiring it in as a setpoint made the
+first version crouch the robot and measure worse than stock.
+
+**Failure B - roll-out under sustained yaw.** Visible only on the atom course
+(`WP_MISSION=atom:9.0:6`), a single closed epitrochoid stroke with continuously
+varying curvature and no vertices. At 2.5 m/s it fails with height perfectly
+intact (peak departure +0.021 m against the star's +0.087) after three seconds
+of held 0.9-1.1 rad/s yaw. The governor cannot help and does not pretend to:
+0/3 either way. This is the roll limit, and it is the open half.
+
+The two courses are different instruments. The star's corners are episodic with
+straights to recover on; the atom asks for moderate lateral load continuously
+and never lets up.
 
 ## Measured locomotion (Mac SITL)
 

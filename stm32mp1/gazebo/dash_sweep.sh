@@ -46,16 +46,29 @@ TARGET="${TARGET:-100}"
 OUT="${OUT:-/tmp/dash_$(date +%H%M%S)}"
 mkdir -p "$OUT"
 
-# SIM_ZEROVEL_HOLD_GAIT: hold MIT's standing gait until there is a velocity to
-# deliver. Without it a dynamic gait engages against a zero command and the
-# flight-phase gaits collapse at engagement (measured: 0.00 m).
+# This block used to carry seven more variables - SIM_ZEROVEL_HOLD_GAIT,
+# SIM_HEADING_HOLD, SIM_MPC_ASYNC, SIM_WBC_DECIM, SIM_MPC_HORIZON, SIM_MPC_MS,
+# SIM_SWING_H. Every one of them was DEAD: the SIM_ -> CTRL_ rename moved the
+# getenv() calls and nothing was left reading those names, so the harness had
+# been silently running compiled defaults while appearing to pin a
+# configuration. Audited 2026-08-23 against `grep -rl '"SIM_..."' user/ robot/`.
+#
+# They are deleted rather than renamed, because the defaults ARE the tuned
+# values and are better than what the block asked for:
+#   zero-vel hold, heading hold, inline MPC   - now unconditional in the code
+#   horizon 10, swing height 0.11             - already the defaults
+#   MPC segment 26 ms                         - now PER-GAIT (trotRunning 26,
+#                                               everything else 22), which is
+#                                               the measured answer; a flat 26
+#                                               would be a regression for
+#                                               trotting. $CTRL_MPC_MS still
+#                                               overrides if a sweep needs it.
+#
 # SIM_CHEATER is DELIBERATELY ABSENT and must stay that way. Setting it at all -
 # to any value, including 0 - is a lie: results measured with sim ground truth
 # fed into the estimator do not describe what the robot can do. Ground truth is
 # for MEASURING (dash_trace.py reads Gazebo pose); it never enters the loop.
-COMMON="SIM_ZEROVEL_HOLD_GAIT=1 SIM_HEADING_HOLD=1 SIM_MPC_ASYNC=0 \
-SIM_WBC_DECIM=1 SIM_MPC_HORIZON=10 SIM_MPC_MS=26 SIM_SWING_H=0.11 \
-SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12"
+COMMON="SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=12"
 
 # gait:number:speed-ladder (high to low)
 LADDERS="${LADDERS:-walk2:21:1.8,1.4,1.0 walk:20:1.8,1.4,1.0 trot:9:1.2,0.9,0.6 pace:8:1.0,0.8,0.6 trotrun:5:0.8,0.6,0.4 bound:1:1.4,1.0,0.6 pronk:2:1.0,0.6 gallop:22:1.0,0.6}"

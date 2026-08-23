@@ -275,6 +275,42 @@ class BodyPathPlanner {
     return v;
   }
 
+  /*!
+   * PREDICTIVE half of body-height control (the reactive half is
+   * HeightGovernor). Metres of extra stance height to pre-load for the
+   * hardest corner within `dist` metres ahead.
+   *
+   * This is deliberately the INVERSE of the corner crouch that was measured
+   * here and lost. Crouching into a turn is what the animal appears to do and
+   * what the earlier CTRL_CORNER_CROUCH lever implemented, and it came back
+   * neutral-to-worse - because on this robot the thing that kills a run is a
+   * VERTICAL FORCE DEFICIT, and a corner stacks lateral demand on top of it.
+   * The margin wanted going in is therefore more height, not less. Section 4.7
+   * of Zhang et al. 2022 points the same way: the cheetah's stance leg sits at
+   * its LOWEST manipulability, the posture that "can withstand a greater
+   * force", and it does not give that up when it needs the ground most.
+   *
+   * Pre-loading rather than reacting matters because the height loop is
+   * deliberately slow (it must not resonate with the gait cycle), so margin
+   * asked for at the apex arrives after the apex.
+   *
+   * @param dist  metres to look ahead
+   * @param gain  metres of bias at full lateral budget (0 disables)
+   */
+  double plannedHeightBias(double dist, double gain) const {
+    if (_path.empty() || gain <= 0.0) return 0.0;
+    double a_peak = 0.0;
+    const double s0 = _path[_lastIdx].s;
+    for (size_t i = _lastIdx; i < _path.size() && _path[i].s - s0 <= dist; ++i) {
+      // What the plan will actually pull there, not what the corner could
+      // demand at cruise - the profile has already slowed for it.
+      const double a = _path[i].v * _path[i].v * std::fabs(_path[i].kappa);
+      if (a > a_peak) a_peak = a;
+    }
+    const double f = std::min(1.0, a_peak / std::max(1e-6, _lim.a_lat_max));
+    return gain * f;
+  }
+
   //! Fraction of the path completed, 0..1 - for progress reporting.
   double progress() const {
     if (_path.size() < 2) return 1.0;

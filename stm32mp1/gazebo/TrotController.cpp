@@ -137,6 +137,12 @@ void TrotController::runController() {
       nav = new WaypointNav();
       float r = 5.f, d = 10.f; int pts = 5;
       if (sscanf(m, "star:%f:%d", &r, &pts) >= 1)        nav->makeStar(r, pts, V);
+      else if (sscanf(m, "atom:%f:%d", &r, &pts) >= 1) {
+        if (sscanf(m, "atom:%f:%d", &r, &pts) < 2) pts = 6;
+        nav->makeAtom(r, pts,
+                      getenv("WP_ATOM_DEPTH") ? atof(getenv("WP_ATOM_DEPTH")) : 0.8f,
+                      getenv("WP_ATOM_DS")    ? atof(getenv("WP_ATOM_DS"))    : 1.2f, V);
+      }
       else if (sscanf(m, "circle:%f:%d", &r, &pts) >= 1) nav->makeCircle(r, pts, V);
       else if (sscanf(m, "outback:%f", &d) == 1)         nav->makeOutAndBack(d, V);
       else                                               nav->makeStar(5.f, 5, V);

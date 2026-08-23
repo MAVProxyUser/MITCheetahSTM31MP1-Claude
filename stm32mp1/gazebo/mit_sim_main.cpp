@@ -24,6 +24,8 @@
 void setStandUpHeight(double h);
 //! Defined in RobotRunner.cpp - Unitree-style damping hold (edampCommand).
 void setEdamp(double d);
+//! Situational stance-height bias into the controller's height governor, m.
+void setHeightBias(double b);
 
 static std::string g_peer;
 
@@ -54,6 +56,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   WaypointNav nav;
   float r = 3.f, d = 5.f; int pts = 5;
   if (sscanf(mission, "star:%f:%d", &r, &pts) >= 1)        nav.makeStar(r, pts, vx);
+  else if (sscanf(mission, "atom:%f:%d", &r, &pts) >= 1) {
+    // "atom:<outer radius m>[:<lobes>]" - depth and waypoint spacing are
+    // secondary knobs, so the mission string keeps only the two that change
+    // the character of the course.
+    if (sscanf(mission, "atom:%f:%d", &r, &pts) < 2) pts = 6;   // 6 = the logo
+    nav.makeAtom(r, pts,
+                 getenv("WP_ATOM_DEPTH") ? atof(getenv("WP_ATOM_DEPTH")) : 0.8f,
+                 getenv("WP_ATOM_DS")    ? atof(getenv("WP_ATOM_DS"))    : 1.2f, vx);
+  }
   else if (sscanf(mission, "circle:%f:%d", &r, &pts) >= 1) nav.makeCircle(r, pts, vx);
   else if (sscanf(mission, "outback:%f", &d) == 1)         nav.makeOutAndBack(d, vx);
   else                                                     nav.makeStar(5.3f, 5, vx);
@@ -194,6 +205,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
    */
   const float decide_ahead = getenv("WP_GAIT_LOOKAHEAD") ? atof(getenv("WP_GAIT_LOOKAHEAD")) : 4.0f;
 
+  // Height pre-load for corners - see setHeightBias() below. Off by default so
+  // the governor's own contribution can be measured before this stacks on it.
+  const float hbias_gain  = getenv("WP_HBIAS")       ? atof(getenv("WP_HBIAS"))       : 0.0f;
+  const float hbias_ahead = getenv("WP_HBIAS_AHEAD") ? atof(getenv("WP_HBIAS_AHEAD")) : 5.0f;
+
   const float dt = 0.02f;      // 50 Hz: the gait's own bandwidth is far below this
   float yaw_ref = NAN;
   int   lastIdx = -1;
@@ -233,6 +249,16 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       double pv = 0, pw = 0;
       if (planner.follow(N, E, bearing, &pv, &pw)) { nv = (float)pv; nw = (float)pw; }
     }
+
+    /*
+     * PRE-LOAD STANCE HEIGHT FOR THE CORNER AHEAD. The controller's height
+     * governor regulates height reactively off the robot's own state; this is
+     * the planner telling it, ahead of time, that the ground is about to ask
+     * for more. $WP_HBIAS is metres of extra height at full lateral budget
+     * (0 = planner stays out of it and the governor runs purely reactive).
+     */
+    if (use_planner && hbias_gain > 0.f)
+      setHeightBias(planner.plannedHeightBias(hbias_ahead, hbias_gain));
 
     if (gait_decider && use_planner && bridge->userParams()) {
       // Slowest planned speed within decide_ahead metres: if a corner is

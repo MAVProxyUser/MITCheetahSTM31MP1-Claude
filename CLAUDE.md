@@ -1884,14 +1884,9 @@ Both are kept - they are the right structure, and on a course with varied corner
 angles they should pay. On THIS course they cannot, because the failure is not
 where they act.
 
-### THE OPEN LEAD: failures sink, and the force command is innocent
+### HEIGHT IS THE DISCRIMINATOR - and the failure is a DEPARTURE, not a droop
 
-The 2.5 m/s failures are a COLLAPSE, not a topple - `roll=0 pitch=-0 z=0.058`,
-flat and level, which is the force-starvation signature and NOT the cornering
-signature every lever above was aimed at. That alone explains why six cornering
-levers all did nothing: none of them touch the force budget.
-
-But instrumenting the budget shows the force command is INNOCENT:
+Instrumenting the force budget shows the force command is INNOCENT:
 
 | run | result | min Fz/mg | min body z |
 |---|---|---|---|
@@ -1902,14 +1897,156 @@ But instrumenting the budget shows the force command is INNOCENT:
 | r5 | PASS 41.6 s | 0.88 | 0.239 |
 
 Commanded force is identical across passes and failures. HEIGHT is the
-discriminator: failures dip to 0.185-0.200 where passes hold 0.212-0.239.
+discriminator, and it reproduced independently over twelve later interleaved
+runs at 2.5 (minimum height reached: passes 0.231-0.251, failures
+0.179-0.207).
 
-So the robot sinks lower on failing runs WHILE BEING COMMANDED THE SAME FORCE.
-That is a delivery or transient problem - WBIC tracking, contact timing, a
-corner transient - not a planning one, and it lives in a subsystem none of
-today's work touched. **This is where the next session should start**, and it
-should start by measuring achieved vs commanded foot force through a corner,
-not by sweeping a seventh planner parameter.
+**Three corrections to the earlier reading of this, all from 5 Hz height logs:**
+
+1. **It is not a slow sink.** The robot cruises at 0.26-0.29 for tens of
+   seconds and then DEPARTS, losing 8 cm in about 0.6 s at up to 0.35 m/s:
+
+   ```
+   PASS   0.283 0.277 0.271 0.271 0.272 0.286 0.286 0.277 0.272 0.270 0.287
+   FAIL   0.274 0.268 0.260 0.246 0.228 0.198   <- gone
+   ```
+
+   The earlier "min z" table reports the BOTTOM of that departure, not a
+   height the robot was holding. Anything built to react to a droop reacts to
+   the wrong shape of event.
+
+2. **`roll=0 pitch=0` describes the aftermath, not the event.** What actually
+   trips is `SafetyChecker::checkSafeOrientation` (|roll| or |pitch| >= 0.5
+   rad). The `[FALL]` line is printed 0.5 s later, after the bridge watchdog
+   has already made the legs limp and the body has settled flat. So this is
+   NOT evidence that attitude was fine - attitude is what failed the check.
+   Do not cite the flat-and-level signature as proof of pure force starvation.
+
+3. **The failures are on STRAIGHTS, not in corners.** Last nav line before
+   loss, twelve-run sweep at 2.5:
+
+   | run | waypoint | v | yaw rate | t |
+   |---|---|---|---|---|
+   | on_1 | wp3 | 2.50 | -0.13 | 29.7 s |
+   | on_3 | wp1 | 2.46 | -0.15 | 11.7 s |
+   | on_4 | wp1 | 2.50 | -0.08 | 11.4 s |
+   | on_6 | wp3 | 2.24 | +0.29 | 30.8 s |
+   | off_2 | wp3 | 2.30 | -0.22 | 30.8 s |
+   | off_5 | wp3 | 2.46 | -0.14 | 30.3 s |
+   | off_4 | wp4 | 2.50 | **-1.00** | 41.0 s |
+
+   Six of seven at |yaw rate| <= 0.3 rad/s and full speed. The earlier note
+   that "failures are CONSISTENTLY at wp 3/5 - a specific corner" was wrong:
+   wp3 is right, corner is not. They cluster at the two places the robot first
+   reaches its commanded speed - the top of the initial ramp (~11.5 s) and the
+   wp2->wp3 straight (~30.5 s).
+
+   This is the real reason eleven cornering levers all measured neutral. They
+   were aimed at the wrong part of the course.
+
+### THE REACTIVE HEIGHT GOVERNOR (Zhang et al. 2022)
+
+`common/include/Controllers/HeightGovernor.h`, from "Mechanism analysis of
+cheetah's high-speed locomotion based on digital reconstruction", Biomimetic
+Intelligence and Robotics 2 (2022) 100033.
+
+The paper's finding worth having: the cheetah holds body height at a FIXED
+FRACTION of leg length (0.55 fore, 0.57 hind) while the virtual leg length
+underneath swings by more than 2x within one cycle. Stance height is a
+REGULATED VARIABLE. Section 4.7 adds the mechanism - the stance leg sits at
+its lowest manipulability, the posture that "can withstand a greater force" -
+which is also why crouching into a corner is the wrong instinct for a robot
+whose failure mode is a vertical force deficit.
+
+Stock has no such regulation: a constant 0.30 m reference and an unmeasured,
+load-dependent droop underneath it. The governor closes the loop with two
+levers - trim the reference up, and give up forward speed to buy vertical
+force - both triggered on a predicted departure from the robot's own cruise
+height. `CTRL_HGOV=0` disables it. Planner side: `plannedHeightBias()`
+(`WP_HBIAS`, off by default) pre-loads margin for the corner ahead.
+
+**Two dead versions, both worth not repeating:**
+
+| version | why it failed |
+|---|---|
+| symmetric setpoint at 0.55 x leg | The Go1 cruises ABOVE 0.239, so the loop spent whole runs pushing the reference DOWN to its floor, 2 cm below stock, and started climbing only at 0.198. 1/5 waypoints vs stock's 2/5. The animal's ratio is a FLOOR here, not a target. |
+| one-sided, absolute trigger at 0.239 | Never fired. Over six armed runs the reference moved 6 mm and the derate engaged zero times - so the "no effect" A/B was two identical controllers. Trigger must be departure-from-cruise, not absolute height. |
+
+Third version triggers on `h_pred = h_debobbed + 0.2 * dh/dt` against a
+self-tracked cruise height. The de-bobbing is not optional: raw dh/dt carries
++/-0.25 m/s of gait oscillation, which a 0.3 s lead turned into a phantom
+0.08 m departure on a run that passed.
+
+### THE GOVERNOR WORKS - 7/7 vs 3/8, and it costs 0.3 s
+
+Interleaved A/B, star at 2.5 m/s, trotting, 16 runs:
+
+| arm | passes | time | min height reached |
+|---|---|---|---|
+| stock | **3/8** | 41.7 s | 0.164-0.243 |
+| governor | **7/7** | 42.0 s | 0.271-0.275 |
+
+Fisher exact p = 0.026. The cost is 0.3 s (0.7 %), paid as ~15 % of commanded
+speed surrendered for a fraction of a second at a time (`minScale` 0.83-0.86)
+with the height reference lifted 0.300 -> ~0.345.
+
+The mechanism shows in the spread, not the mean: governed runs land inside a
+0.004 m band across seven runs, so the governor is not recovering departures,
+it is stopping them from starting. Stock scatters over 0.079 m and the low tail
+falls.
+
+Scope: one gait (trotting), one speed, one course. Not yet a claim about 2.8,
+about trotRunning, or about hardware.
+
+### THE ATOM COURSE separates TWO failure modes that looked like one
+
+`WP_MISSION=atom:<outer_r>[:<lobes>]` - `WaypointNav::makeAtom`. One closed
+stroke, no vertices anywhere:
+
+    x(t) = cos t + A cos(kt),  y(t) = sin t - A sin(kt),  k = lobes - 1
+
+an epitrochoid with (k+1)-fold symmetry. The radius sweeps out to a lobe tip,
+back through the nucleus, out to the next, and closes - the atom logo drawn
+without lifting the pen. Speed is never zero so there are no cusps: the dog is
+always turning and never has to stop and pivot. Default `atom:9.0:6`:
+
+    127.6 m closed stroke, 108 waypoints @ 1.20 m
+    turn radius 2.14 - 6.58 m (3.1:1, continuously varying)
+    tightest allows 2.31 m/s at a_lat 2.5; nucleus hole 1.00 m
+
+**Join the curve where the tangent is RADIAL, not at a lobe tip.** At a tip the
+tangent is perpendicular to the radius, so running out from the nucleus meets
+the curve at 90 degrees - a hard corner at the entry of a course whose whole
+point is that it has none. The planner duly reported `tightest R=0.27 m` on a
+curve whose true minimum is 2.14 m and braked to 0.82 m/s for the artefact.
+The fix is the roots of `p x v = 0` with `p . v > 0` (there are `lobes` of them,
+all at 3.67 m for the default), rotated so one lies due north. After it,
+`tightest R=1.89 m -> 2.18 m/s`, which is the real curve.
+
+**And then it measured something the star could not.** At 2.5 m/s the atom
+fails 0/3 - but NOT the way the star fails:
+
+| | star @ 2.5 failure | atom @ 2.5 failure |
+|---|---|---|
+| min height | 0.164-0.243 | **0.273** (governed), 0.169-0.213 (stock) |
+| peak departure | +0.052 to +0.087 | **+0.021** |
+| yaw rate before loss | \|w\| <= 0.3 rad/s | **0.88-1.12 rad/s, held 3 s** |
+| where | straight, full speed | mid-lobe, still turning |
+
+On the governed atom runs height never departs at all, so the governor has
+nothing to detect and cannot help - and indeed governor-on and governor-off
+both go 0/3 at 2.5. This is the ROLL limit, which this port already knew was
+what bounds cornering, arriving in a form the star never produced.
+
+The reason is the course shape. The star's corners are episodic with straights
+to recover on; the atom asks for moderate lateral load CONTINUOUSLY and never
+lets up. So "gentler" is only true of peak demand:
+
+    star   brief 36-degree vertices, near-stop, long recovery straights
+    atom   no corner tighter than R=2.14 m, and no recovery anywhere
+
+Use the star to exercise force delivery on straights, and the atom to exercise
+sustained turning. They are different instruments.
 
 ### What does NOT improve it (all measured, do not re-try)
 
@@ -1920,10 +2057,10 @@ not by sweeping a seventh planner parameter.
 | hairpin pivot on corner 1 only | 0/3, always dies at an ARCED corner afterwards |
 | gait switching (either pairing) | declines to switch at 2.0, fails above it |
 | more yaw authority | roll 27 -> 52 -> 72 deg for no time gain |
+| corner crouch | neutral-to-worse; and section 4.7 above says why |
 
-The failures at 2.5 are CONSISTENTLY at wp 3/5 - a specific corner, not random -
-so the next honest step is to instrument that corner rather than sweep more
-parameters. Six levers have now been swept against it without success.
+Given correction 3, treat every one of these as "aimed at the wrong part of
+the course" rather than as evidence about cornering.
 
 ## STAR MISSION, CURRENT STATE (speed-dependent braking, acc 1.5)
 

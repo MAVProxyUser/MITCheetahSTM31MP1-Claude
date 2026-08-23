@@ -131,6 +131,19 @@ void ConvexMPCLocomotion::initialize(){
   _mpcHaveSolution.store(false);
 }
 
+/*!
+ * Situational height bias from the PLANNER, metres, added to the height
+ * governor's biological target. Positive = ride higher.
+ *
+ * The reactive half of body-height control lives in HeightGovernor and works
+ * off the robot's own state. This is the predictive half's only channel into
+ * it: the planner knows a corner is coming and can pre-load margin before the
+ * lateral demand shows up, which is what an animal reading the ground ahead
+ * does. Same free-function hook pattern as setEdamp()/setStandUpHeight().
+ */
+static std::atomic<double> g_heightBias{0.0};
+void setHeightBias(double b) { g_heightBias.store(b); }
+
 void ConvexMPCLocomotion::recompute_timing(int iterations_per_mpc) {
   iterationsBetweenMPC = iterations_per_mpc;
   dtMPC = dt * iterations_per_mpc;
@@ -179,6 +192,23 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
       if (_height_blend > 1.f) _height_blend = 1.f;
       _body_height = _entry_height + (_body_height - _entry_height) * _height_blend;
     }
+
+    /*
+     * REACTIVE STANCE HEIGHT. Everything above sets an OPEN-LOOP reference and
+     * lets the robot settle wherever the force balance drops it - 0.21-0.24 m
+     * when healthy, 0.19 when it is about to go down. Since achieved height is
+     * the only quantity that separates this port's passes from its falls, close
+     * the loop on it: trim the reference until the MEASURED height sits in the
+     * band a cheetah runs at (0.55-0.57 x leg length, Zhang et al. 2022), and
+     * if the trim saturates while the body is still sinking, buy vertical force
+     * with forward speed. Full rationale and citations in HeightGovernor.h.
+     *
+     * Armed only once the entry ramp has finished - during the ramp the
+     * reference is deliberately not where the robot should be.
+     */
+    _hgov.bias = (float)g_heightBias.load();
+    _hgov.update(z_now, _body_height, dt, _height_blend >= 1.f);
+    _body_height = _hgov.reference();
   }
 
   float x_vel_cmd, y_vel_cmd;
@@ -204,6 +234,13 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
     x_vel_cmd = data._desiredStateCommand->leftAnalogStick[1];
     y_vel_cmd = data._desiredStateCommand->leftAnalogStick[0];
   }
+  /*
+   * The height governor's second lever. Applied to the COMMAND rather than to
+   * the filtered state so the derate arrives through the same first-order lag
+   * as any other command change - scaling _x_vel_des directly would compound
+   * every tick and brake far harder than asked.
+   */
+  x_vel_cmd *= _hgov.speedScale();
   _x_vel_des = _x_vel_des*(1-filter) + x_vel_cmd*filter;
   _y_vel_des = _y_vel_des*(1-filter) + y_vel_cmd*filter;
 
@@ -274,7 +311,16 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
       if (_body_height < 0.20f) _body_height = 0.20f;
     }
   }
-  _pitch_des = 0.;
+  /*
+   * Fore/hind differential. The cheetah does not run level: hindlegs sit at
+   * 0.57 x leg length and forelegs at 0.55, i.e. nose-down by ~1.3 deg over
+   * the Go1's hip separation (Zhang et al. 2022 section 4.3, and section 5.3 -
+   * "designing different control methods for the fore and hindlegs ... are
+   * essential", forelegs carrying weight and cushioning while hindlegs drive).
+   * Off unless $CTRL_HGOV_PITCH is set: it is a small effect and gets its own
+   * A/B rather than a free ride on the height loop's result.
+   */
+  _pitch_des = _hgov.pitchBias();
 
 }
 

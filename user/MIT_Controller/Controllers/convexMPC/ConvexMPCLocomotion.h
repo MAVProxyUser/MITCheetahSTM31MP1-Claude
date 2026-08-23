@@ -11,6 +11,7 @@
 #include <condition_variable>
 #include <atomic>
 #include "Gait.h"
+#include <Controllers/HeightGovernor.h>
 
 #include <cstdio>
 
@@ -137,6 +138,11 @@ private:
   //! equivalent). See the .cpp - the table-patching alternative was measured
   //! and does not work.
   bool zeroVelHold();
+
+  //! Reactive stance-height regulation - see HeightGovernor.h. The planner
+  //! feeds it a situational bias through setHeightBias() (free function,
+  //! same hook pattern as setEdamp()/setStandUpHeight()).
+  HeightGovernor _hgov;
   void updateMPCIfNeeded(int* mpcTable, ControlFSMData<float>& data, bool omniMode);
   void solveDenseMPC(int *mpcTable, ControlFSMData<float> &data);
   void solveSparseMPC(int *mpcTable, ControlFSMData<float> &data);

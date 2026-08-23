@@ -265,6 +265,12 @@ Rules that follow:
   `while pgrep -f "foo.sh"` matches the waiter's OWN command line, so it waits
   forever on itself. Two of these sat for seven hours. Use a fixed iteration
   count (`for i in $(seq 1 60)`) so the wait always ends.
+- **Never launch a sweep as `nohup script.sh &` from a backgrounded shell.** The
+  wrapper exits immediately, the harness reports "completed, exit 0", and the
+  sweep is in fact still running - so the next thing you do starts a SECOND
+  sweep on top of it, which is the two-sweeps-at-once failure above wearing a
+  disguise. Launch the script itself in the background (no `&`, no `nohup`) and
+  wait on its completion marker.
 - **A detector must not depend on the quantity most likely to be wrong.** The
   fall detector reads ESTIMATED height, so it inherits estimator error. Keep a
   wide margin below the true operating value (walking ~0.175 -> trip at 0.10,
@@ -272,6 +278,55 @@ Rules that follow:
 - **When two configurations give IDENTICAL results, suspect the switch before
   concluding "no effect."** 57.64 vs 57.66 m and 4.50 vs 4.50 m were both the
   flag doing nothing.
+- **After renaming an env variable, grep the HARNESSES, not just the source.**
+  The SIM_ -> CTRL_ rename left seven dead variables in `dash_sweep.sh`'s
+  COMMON block. They looked like a pinned configuration and were in fact
+  nothing - every run since had used compiled defaults. This is the
+  SIM_CHEATER trap's mirror image: there the harness silently ADDED something
+  the source did not show, here it silently STOPPED adding something the
+  harness did show. Check with
+  `grep -rl '"SIM_FOO"' user/ robot/ common/` for each name a harness sets;
+  an empty result means the line is decoration.
+- **A course is an INSTRUMENT - pick it for the failure mode you want to see.**
+  The star (polygon: sharp vertices, long recovery straights) and the atom
+  (one closed stroke, continuous moderate curvature, no recovery) fail the
+  robot in completely different ways at the same 2.5 m/s: height departure on
+  a straight vs a roll-out under three seconds of sustained yaw. A fix
+  measured on one says nothing about the other - the height governor goes
+  7/7 on the star and 0/3 on the atom, correctly, because on the atom the
+  height never departs and there is nothing for it to detect.
+- **When entering a closed curve from inside it, join where the tangent is
+  RADIAL.** Joining at a lobe tip puts a 90-degree corner at the entry of an
+  otherwise corner-free course, and the planner reports the artefact as the
+  course's tightest radius (0.27 m measured against a true 2.14 m) and brakes
+  for it. Solve `p x v = 0, p . v > 0` and rotate that point onto the spawn
+  heading.
+- **An A/B where the treatment never FIRES is not a test of the treatment.**
+  The first height-governor A/B came back "no effect" over twelve runs. It had
+  no effect because the trigger threshold sat below the robot's normal
+  operating band, so both arms ran an identical controller: over six armed runs
+  the reference moved 6 mm and the derate never engaged once. Always log a
+  "did it act" quantity (min scale, max reference, a `fired()` flag) alongside
+  the outcome, and check it BEFORE interpreting the outcome. Otherwise
+  "the idea does not help" and "the idea never ran" are indistinguishable.
+- **A reactive controller must be faster than the event it reacts to - so
+  measure the event FIRST.** The collapse here is not a slow droop: the robot
+  cruises for tens of seconds then loses 8 cm in ~0.6 s. A loop built with a
+  150 ms error filter and a 350 ms output slew cannot act inside that, and no
+  amount of gain tuning fixes a reaction chain longer than the event. Log the
+  failure at 5 Hz and read the time course before choosing a single constant.
+- **De-bob before you differentiate.** Any rate taken from the body state
+  contains the gait's own oscillation. Raw dh/dt at 2.5 m/s trotting swings
+  +/-0.25 m/s from the step bob alone, which a 0.3 s lead term turned into a
+  phantom 0.08 m "collapse" on a run that PASSED. Low-pass at roughly one gait
+  period first. This costs lead time and there is no way around it - below the
+  gait period the signal is not there.
+- **Import the PRINCIPLE from biology, not the number.** The cheetah runs at
+  0.55-0.57 x leg length; the Go1's two-segment leg cruises at 0.63. Wiring the
+  animal's ratio in as a setpoint made the controller crouch the robot for
+  entire runs and measured WORSE than stock. What transferred was the paper's
+  actual finding - that stance height is a regulated variable - not its value
+  for a different morphology.
 - **Before reporting a negative result, disable your own instrumentation and
   re-run.** `SIM_FALL_EXIT=0` was what revealed the robot had been fine all along.
 

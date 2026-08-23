@@ -52,6 +52,157 @@ void WaypointNav::makeStar(float radius_m, int points, float speed) {
   fflush(stdout);
 }
 
+/*
+ * ATOM ROSETTE - a course with CURVES instead of corners.
+ *
+ * The pentagram star is a polygon: five 36-degree vertices joined by straight
+ * legs, so curvature is zero almost everywhere and then effectively infinite
+ * for an instant. The planner has to brake to a crawl for each vertex and
+ * accelerate out, and the interesting part of the course is five discrete
+ * events. Everything this port has learned about cornering came from those
+ * five points, which is a narrow diet.
+ *
+ * This mission is the opposite: one continuous closed stroke whose curvature
+ * varies smoothly and never stops changing. The dog is always turning, never
+ * hard, and the radius sweeps a 3:1 range every lobe.
+ *
+ *     x(t) = cos t + A cos(kt)
+ *     y(t) = sin t - A sin(kt)          k = lobes - 1,  t in [0, 2pi)
+ *
+ * This is an epitrochoid-family curve with (k+1)-fold symmetry. With A near 1
+ * the radius sweeps from (1+A) at a lobe tip down to (1-A) at the nucleus, so
+ * the stroke runs out to a tip, back through the middle, out to the next tip,
+ * (k+1) times, and closes - which is exactly the look of the atom logo, drawn
+ * without lifting the pen. A < 1 leaves a small nucleus hole rather than
+ * passing through the exact centre.
+ *
+ * Speed is never zero (|1 - kA| > 0 for the defaults) so there are no cusps:
+ * every point of the path has finite curvature and the dog never has to stop
+ * and pivot. For the default atom:9:6 with A=0.8:
+ *
+ *     length            127.6 m        (comparable to the 100 m star)
+ *     turn radius       2.14 - 6.58 m  (3.1:1, continuously varying)
+ *     tightest allows   2.31 m/s at a_lat 2.5 - no braking zone needed
+ *     nucleus hole      1.00 m
+ *
+ * Compare the star, whose 36-degree vertices force a near-stop. This is the
+ * gentler course by construction.
+ *
+ * WAYPOINT SPACING matters here in a way it does not for a 5-point star. The
+ * planner rounds the waypoint polyline into fillet arcs, and the fillet is
+ * capped at 0.45 x the shorter adjacent leg - so the spacing sets how well the
+ * arcs reproduce the true curve. 1.2 m gives ~32 degrees of turn per step at
+ * the tightest lobe tip, which reproduces the tip radius to within a few
+ * percent. It also has to stay comfortably ABOVE the acceptance radius or nav
+ * chews through waypoints faster than the robot moves, so this sets a matching
+ * accept_radius unless $WP_ACCEPT overrides it.
+ */
+void WaypointNav::makeAtom(float outer_radius_m, int lobes, float depth,
+                           float spacing_m, float speed) {
+  if (lobes < 3) lobes = 3;
+  if (depth < 0.05f) depth = 0.05f;
+  if (depth > 0.98f) depth = 0.98f;      // 1.0 puts the stroke through the
+                                         // exact centre; leave a nucleus
+  if (spacing_m < 0.2f) spacing_m = 0.2f;
+
+  const int   k = lobes - 1;
+  const float A = depth;
+  const float S = outer_radius_m / (1.f + A);
+  auto rx = [&](float t) { return S * (cosf(t) + A * cosf(k * t)); };
+  auto ry = [&](float t) { return S * (sinf(t) - A * sinf(k * t)); };
+  auto vx = [&](float t) { return S * (-sinf(t) - k * A * sinf(k * t)); };
+  auto vy = [&](float t) { return S * ( cosf(t) - k * A * cosf(k * t)); };
+
+  /*
+   * WHERE TO JOIN THE CURVE. The dog starts at the nucleus, so it has to get
+   * out to the stroke somehow, and the obvious choice - start at a lobe tip -
+   * is the worst one: at a tip the tangent is perpendicular to the radius, so
+   * a radial run-out meets the curve at 90 degrees. That put a hard corner at
+   * the entry of a course whose entire point is that it has none, and the
+   * planner duly reported a 0.27 m tightest radius on a curve whose true
+   * minimum is 2.14 m, braking to 0.82 m/s for an artefact of the approach.
+   *
+   * So join where the tangent is RADIAL - where the curve is already heading
+   * straight out from the nucleus. Those points are the roots of p x v = 0
+   * with p . v > 0; there are `lobes` of them, all at the same radius (3.67 m
+   * for the default rosette). Rotating the whole figure to put one of them due
+   * north means the dog runs straight out of the nucleus on its spawn heading
+   * and merges onto the stroke with ZERO turn.
+   */
+  float t0 = 0.f;
+  {
+    const int SCAN = 20000;
+    float prev = rx(0.f) * vy(0.f) - ry(0.f) * vx(0.f);
+    for (int i = 1; i <= SCAN; ++i) {
+      const float t = 2.f * (float)M_PI * (float)i / (float)SCAN;
+      const float cr = rx(t) * vy(t) - ry(t) * vx(t);
+      if ((cr < 0.f) != (prev < 0.f) &&
+          rx(t) * vx(t) + ry(t) * vy(t) > 0.f) { t0 = t; break; }
+      prev = cr;
+    }
+  }
+  // Rotate so the join lies due north (bearing 0), same reasoning as
+  // makeStar's rotation: never open a mission with a pivot in place.
+  const float rot = -atan2f(ry(t0), rx(t0));
+  const float cr_ = cosf(rot), sr_ = sinf(rot);
+  auto px = [&](float t) { return rx(t) * cr_ - ry(t) * sr_; };   // north
+  auto py = [&](float t) { return rx(t) * sr_ + ry(t) * cr_; };   // east
+
+  // Walk the curve finely and drop a waypoint every `spacing_m` of ARC length,
+  // so the tight lobe tips get the same linear resolution as the open sweeps.
+  const int SUB = 40000;
+  const float dt = 2.f * (float)M_PI / (float)SUB;
+  float prevN = px(t0), prevE = py(t0), acc = 0.f, total = 0.f;
+  _n = 0;
+  // wp00 IS the join point, so the opening leg is exactly the tangent the dog
+  // is already running along.
+  _wp[_n].north = prevN; _wp[_n].east = prevE; _wp[_n].speed = speed; ++_n;
+  for (int i = 1; i <= SUB && _n < MAXWP; ++i) {
+    const float t = t0 + dt * (float)i;
+    const float n = px(t), e = py(t);
+    const float d = sqrtf((n - prevN) * (n - prevN) + (e - prevE) * (e - prevE));
+    acc += d; total += d;
+    prevN = n; prevE = e;
+    if (acc >= spacing_m) {
+      acc -= spacing_m;
+      _wp[_n].north = n; _wp[_n].east = e; _wp[_n].speed = speed;
+      ++_n;
+    }
+  }
+  // Close the stroke on the starting tip rather than wherever the sampler ran
+  // out, so the figure is finished.
+  if (_n < MAXWP) {
+    _wp[_n].north = px(t0); _wp[_n].east = py(t0); _wp[_n].speed = speed;
+    ++_n;
+  }
+
+  // Must stay well under the waypoint spacing - see the comment above.
+  accept_radius = 0.45f * spacing_m;
+
+  // Report the curvature extremes, which is what makes this course different
+  // from the star and the number to check before blaming the controller.
+  float rmin = 1e9f, rmax = 0.f;
+  for (int i = 0; i < SUB; ++i) {
+    const float t  = dt * (float)i;
+    const float dx = vx(t), dy = vy(t);
+    const float ax = S * (-cosf(t) - k * k * A * cosf(k * t));
+    const float ay = S * (-sinf(t) + k * k * A * sinf(k * t));
+    const float sp = sqrtf(dx * dx + dy * dy);
+    const float kap = fabsf(dx * ay - dy * ax) / (sp * sp * sp);
+    if (kap > 1e-9f) { const float r = 1.f / kap;
+                       if (r < rmin) rmin = r; if (r > rmax) rmax = r; }
+  }
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] atom mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
+         "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)\n",
+         lobes, outer_radius_m, A, total, _n, spacing_m, accept_radius);
+  printf("[nav]   turn radius %.2f - %.2f m  (a_lat 2.5 allows %.2f - %.2f m/s)"
+         "  nucleus hole %.2f m  join at %.2f m due north\n",
+         rmin, rmax, sqrtf(2.5f * rmin), sqrtf(2.5f * rmax), S * (1.f - A),
+         sqrtf(px(t0) * px(t0) + py(t0) * py(t0)));
+  fflush(stdout);
+}
+
 void WaypointNav::makeOutAndBack(float distance_m, float speed) {
   _n = 2;
   _wp[0] = {distance_m, 0.f, speed};
