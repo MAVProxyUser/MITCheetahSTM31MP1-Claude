@@ -1716,6 +1716,79 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## FINAL STATE: the 100 m star, and the honest hypothesis
+
+### The numbers
+
+| cruise | passes | time | per-leg | course m/s | verdict |
+|---|---|---|---|---|---|
+| **2.0 m/s** | **13/13** | **42.5-42.7 s** | 8.5 s | 2.35 | **the repeatable answer** |
+| 2.5 m/s | ~20/30 (67%) | 41.5-41.8 s | 8.3 s | 2.41 | 1 s faster, fails 1 in 3 |
+| 3.0 m/s | ~4/10 | 40.7-40.8 s | 8.1 s | 2.46 | fastest recorded, unreliable |
+
+100 m dash spot-check on the same build - no regressions:
+
+| gait | commanded | time | cruise |
+|---|---|---|---|
+| trotRunning | 4.0 | 24.8 s | 4.69 m/s |
+| trotting | 3.0 | 33.3 s | 3.32 m/s |
+| walking | 2.25 | 41.6 s | 2.60 m/s |
+| trotting | 2.0 | 47.4 s | 2.23 m/s |
+
+### What is IN the working configuration
+
+Every one measured, none inherited:
+
+| piece | value | why |
+|---|---|---|
+| solver | qpOASES (`use_jcqp: 0`) | JCQP returns ~1/5 the required force under a moving gait |
+| gait | trotting (9) | the all-rounder: only gait that completes this course reliably |
+| MPC segment | 22 ms | speed/gait scheduled; a mid-run switch cost a whole cell once |
+| braking `a_lon` | 1.5 below 2.2 m/s, 0.4 above | the zone must outrun the real stopping distance |
+| yaw clamp | `omega <= a_lat/v` | a constant clamp is wrong at both ends |
+| acceptance | 1.5 m | raises fillet radius AND shortens path |
+| lateral budget | 2.5 m/s^2 | roll 27 deg at 3.0, trip at 28.6 |
+| end of mission | decelerate, settle, lay down, judge PASS/FAIL | arriving is not finishing |
+
+### What is OUT, and measured to be out
+
+| idea | result |
+|---|---|
+| gait switching (2- and 3-tier) | switches correctly; indistinguishable from trotting alone |
+| banking into the turn | 9/13 vs baseline 11/16 - both 69%, NEUTRAL |
+| corner crouch | 0/2, drives min height to 0.187 - actively harmful |
+| angle-graded corner speed | 2-3 s slower, same reliability |
+| hairpin pivot | 50.0 s 2/2 - most repeatable measured, 8 s slower |
+| more/less lateral budget | no gain either direction |
+| more yaw authority | roll 27 -> 72 deg for no time |
+
+### THE HYPOTHESIS
+
+The 2.5 m/s failures are a **collapse**, not a cornering failure: `roll=0
+pitch=0`, flat, and the ONLY quantity that separates a passing run from a
+failing one is body height - 0.212-0.239 when it works, 0.185-0.200 when it
+does not. Commanded force is identical either way (0.85-0.88 x mg).
+
+That is why eleven levers aimed at cornering - gait, bank, crouch, grading,
+pivot, lateral budget, yaw authority, braking rate, acceptance, lookahead,
+segment - all failed to move it. **They act on the plan; the failure is in
+force DELIVERY.** The MPC asks for the right thing and the body still sinks.
+
+**Predicted cause:** the WBIC/leg controller cannot hold the commanded stance
+force through the combined decelerate-and-turn transient, so the body loses a
+few centimetres each corner and, on a bad run, crosses the height at which the
+gait can no longer recover.
+
+**How to test it, and the test that would falsify it:** log ACHIEVED foot force
+(`LegController::datas[].tauEstimate` through the Jacobian) against COMMANDED
+`Fr_des` through a corner. If achieved tracks commanded, this hypothesis is
+WRONG and the sink is coming from the swing/contact schedule instead. If
+achieved falls short exactly where height drops, it is a WBIC tracking problem
+and the fix is in the whole-body controller, not the planner.
+
+Nothing in the planner will fix this. That is the strongest claim this session
+supports, and it is supported by eleven negative results.
+
 ## THE REPEATABLE 100 m STAR - final measured state
 
 Two configurations, and the choice between them is a real trade, not a ranking.

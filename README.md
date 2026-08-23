@@ -33,6 +33,41 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
+## The 100 m star mission — repeatable
+
+5 legs of 20.0 m, five 144° corners, GPS waypoint navigation, real state
+estimator. Ends with a judged PASS: the robot decelerates, settles upright, and
+lies down under damping. Arriving at the last waypoint is not finishing.
+
+| cruise | passes | time | course speed |
+|---|---|---|---|
+| **2.0 m/s** | **13 / 13** | **42.5–42.7 s** | 2.35 m/s |
+| 2.5 m/s | ~67% | 41.5–41.8 s | 2.41 m/s |
+| 3.0 m/s | ~40% | 40.7–40.8 s | 2.46 m/s |
+
+2.5 m/s is one second faster and fails one run in three. **2.0 m/s has never
+failed** — that is the number to quote.
+
+```bash
+cd host-run && env DYLD_LIBRARY_PATH=. \
+  SIM_GAIT=9 SIM_VX=2.0 SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=8 \
+  WP_MISSION=star:10.514:5 WP_ACCEPT=1.5 WP_MAX_YAWRATE=1.2 WP_PLANNER=1 \
+  ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml
+```
+
+### The open problem, stated honestly
+
+Above 2.0 m/s the robot fails by **collapsing** — `roll=0 pitch=0`, flat — not
+by tipping. The only quantity separating a passing run from a failing one is
+body height (0.212–0.239 m passing, 0.185–0.200 failing); commanded force is
+identical in both. Eleven levers aimed at cornering (gait switching, banking,
+crouch, angle grading, hairpin pivots, lateral budget, yaw authority, braking
+rate, acceptance radius, lookahead, MPC segment) all failed to move it, because
+they act on the **plan** and the failure is in force **delivery**.
+
+Next step is measuring achieved vs commanded foot force through a corner — a
+whole-body-controller question, not a planner one.
+
 ## Measured locomotion (Mac SITL)
 
 100 m dash on flat ground. Measured on the robot's **own state estimate** —

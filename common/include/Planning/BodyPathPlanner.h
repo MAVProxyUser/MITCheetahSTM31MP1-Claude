@@ -154,7 +154,7 @@ struct BodyLimits {
   //! 1.4 rad = 80 deg (a real corner), 2.8 rad = 160 deg (a hairpin).
   double turn_soft = 1.4;
   double turn_hard = 2.8;
-  double corner_scale_min = 0.55;
+  double corner_scale_min = 1.0;   // 1.0 = grading OFF. Measured: 0.55 costs 2 s and 0.4 costs 3 s for NO reliability gain on this course. Kept as a knob for courses with genuinely varied corner angles.
   double hairpin_rad = 9.9;   // OFF by default: measured to cost time on this course, see below
   //! Speed carried through a hairpin. Not zero - a stopped robot still has to
   //! accelerate again - but slow enough that v*omega is negligible.

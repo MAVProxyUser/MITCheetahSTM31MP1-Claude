@@ -36,6 +36,27 @@ odd, and the table was still worthless.
 
 ---
 
+## The repeatable 100 m STAR MISSION (42.6 s, 13/13)
+
+```bash
+cd host-run && env DYLD_LIBRARY_PATH=. \
+  SIM_GAIT=9 SIM_VX=2.0 SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=8 \
+  WP_MISSION=star:10.514:5 WP_ACCEPT=1.5 WP_MAX_YAWRATE=1.2 WP_PLANNER=1 \
+  ./mit_ctrl_sim 127.0.0.1 stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml
+```
+
+13/13, 42.5-42.7 s, ends with a judged `[mission] RESULT: PASS` (settles
+upright, then lies down under damping). `SIM_VX=2.5` is 1 s faster and fails
+1 run in 3 - the trade is recorded in `CLAUDE.md`, and 2.0 is the answer for
+anything that has to be repeatable.
+
+Star geometry: `star:<r>:5` gives legs of `1.9021*r` and a course of `9.5106*r`.
+r=10.514 -> 5 legs of 20.0 m -> 100 m.
+
+**NEVER `cp` into host-run/ by hand - use `stm32mp1/gazebo/deploy_host.sh`.**
+Overwriting a Mach-O in place invalidates its signature and macOS SIGKILLs it at
+exec with ZERO output, which reads as the robot failing instantly on every run.
+
 ## The fastest known configuration (100 m in 32.2 s at 3.46 m/s)
 
 `trotting` on the real state estimator, Mac SITL, confirmed 5/5 (32.2/32.2/32.3/32.4/32.7 s),
