@@ -311,6 +311,85 @@ class BodyPathPlanner {
     return gain * f;
   }
 
+  /*!
+   * HOW LONG the curvature lasts, not how tight it is - the quantity a gait
+   * decider actually needs and the one this planner never published.
+   *
+   * The decider has always keyed off `minPlannedSpeedAhead`, i.e. the MAGNITUDE
+   * of the upcoming demand. Magnitude cannot tell these apart:
+   *
+   *   a star vertex      very high kappa, over in a metre or two. The planner
+   *                      brakes hard, the robot powers through, and a flight
+   *                      gait is never actually tested - trotRunning goes
+   *                      32/32 on the star across 2.5-3.3 m/s.
+   *   an atom lobe       moderate kappa held for ten-plus metres, twenty-odd
+   *                      gait cycles with no recovery - and there trotRunning
+   *                      collapses to 3/8 where trotting manages 7/8.
+   *
+   * Both read as "low planned speed ahead". They want opposite gaits. So
+   * measure the RUN LENGTH of continuous curvature instead: a flight gait can
+   * spend a metre or two anywhere, and cannot spend twenty gait cycles in a
+   * turn.
+   *
+   * @param look       metres to search ahead
+   * @param kappa_min  curvature that counts as "turning" (1/R)
+   * @return metres of continuous turning found, starting anywhere in `look`
+   */
+  double curveRunAhead(double look, double kappa_min) const {
+    if (_path.empty()) return 0.0;
+    const double s0 = _path[_lastIdx].s;
+    double best = 0.0, run = 0.0;
+    for (size_t i = _lastIdx; i < _path.size(); ++i) {
+      const double ds = _path[i].s - s0;
+      if (ds > look && run <= 0.0) break;      // nothing open, past the window
+      if (std::fabs(_path[i].kappa) >= kappa_min) {
+        if (i > _lastIdx) run += _path[i].s - _path[i-1].s;
+        if (run > best) best = run;
+      } else {
+        if (ds > look) break;                  // window closed on a straight
+        run = 0.0;
+      }
+    }
+    return best;
+  }
+
+  /*! Regime of the road ahead, for a gait decider.
+   *  0 = straight, 1 = transient corner (brake and power through),
+   *  2 = sustained curve (a flight gait cannot hold it). */
+  int regimeAhead(double look, double kappa_min, double sustained_m) const {
+    const double run = curveRunAhead(look, kappa_min);
+    if (run <= 0.0) return 0;
+    return (run >= sustained_m) ? 2 : 1;
+  }
+
+  /*!
+   * Impose an extra speed ceiling over an arc-length range and rebuild the
+   * profile. Used by MissionAnalyzer to apply a limit that curvature cannot
+   * express.
+   *
+   * MEASURED, and it is the reason this exists: the oval fails at 3.0 m/s at
+   * EVERY radius tried - 3.0, 5.0 and 7.0 m - while the star is 8/8 at 3.3 and
+   * the dash holds 3.0 for 100 m. R=7.0 asks for only 1.29 m/s^2 of lateral
+   * acceleration, so this is not a curvature limit. The robot simply cannot
+   * hold ~3 m/s through CONTINUOUS turning of any tightness, though it takes
+   * transient corners at 3.3 happily. A lateral-acceleration budget cannot
+   * represent that, because the budget is per-point and the constraint is
+   * about duration.
+   */
+  void capSpeedOverRange(double s0, double s1, double v_cap) {
+    if (_path.empty() || v_cap <= 0.0) return;
+    if (_extraCap.size() != _path.size()) _extraCap.assign(_path.size(), 0.0);
+    for (size_t i = 0; i < _path.size(); ++i)
+      if (_path[i].s >= s0 && _path[i].s <= s1)
+        _extraCap[i] = (_extraCap[i] > 0.0) ? std::min(_extraCap[i], v_cap) : v_cap;
+  }
+  //! Rebuild the speed profile after caps have been applied.
+  void recomputeSpeedProfile() { computeSpeedProfile(); }
+
+  //! Arc length the follower is currently at, m - the key into the analysed
+  //! mission (MissionAnalyzer::segmentAt).
+  double currentS() const { return _path.empty() ? 0.0 : _path[_lastIdx].s; }
+
   //! Fraction of the path completed, 0..1 - for progress reporting.
   double progress() const {
     if (_path.size() < 2) return 1.0;
@@ -329,6 +408,9 @@ class BodyPathPlanner {
  private:
   BodyLimits _lim;
   std::vector<PathPoint> _path;
+  //! Extra per-point speed ceiling imposed from outside (MissionAnalyzer).
+  //! Empty = none. Curvature alone cannot express "this turn is sustained".
+  std::vector<double> _extraCap;
   size_t _lastIdx = 0;
   bool _alonExplicit = false;
 
@@ -496,7 +578,9 @@ class BodyPathPlanner {
   void computeSpeedProfile() {
     const size_t n = _path.size();
     if (n == 0) return;
+    size_t _ci = 0;
     for (auto& p : _path) {
+      (void)_ci;
       const double k = std::fabs(p.kappa);
       p.v_max = (k > 1e-6) ? std::sqrt(_lim.a_lat_max / k) : _lim.v_cruise;
       p.v_max = std::max(_lim.v_min, std::min(_lim.v_cruise, p.v_max));
@@ -520,6 +604,11 @@ class BodyPathPlanner {
        *   scale -> corner_scale_min       at and beyond turn_hard (hairpin)
        * and it interpolates in between, so no corner is ever a special case.
        */
+      if (!_extraCap.empty()) {
+        const size_t idx = (size_t)(&p - &_path[0]);
+        if (idx < _extraCap.size() && _extraCap[idx] > 0.0)
+          p.v_max = std::min(p.v_max, _extraCap[idx]);
+      }
       if (p.turn > _lim.turn_soft) {
         const double f = std::min(1.0, (p.turn - _lim.turn_soft) /
                                        std::max(1e-6, _lim.turn_hard - _lim.turn_soft));

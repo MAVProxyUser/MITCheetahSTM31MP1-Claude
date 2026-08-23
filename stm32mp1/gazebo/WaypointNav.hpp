@@ -53,6 +53,10 @@ class WaypointNav {
    *  @param speed           cruise for every leg */
   void makeAtom(float outer_radius_m, int lobes, float depth,
                 float spacing_m, float speed);
+  /*! Stadium: two long straights joined by two constant-radius 180s. The only
+   *  course here with BOTH a flight-gait regime and a sustained-curve regime,
+   *  which is what a gait decider needs to have anything to decide. */
+  void makeOval(float straight_m, float radius_m, float spacing_m, float speed);
   //! Read back a waypoint (for drawing the planned track).
   const NavWaypoint& waypoint(int i) const { return _wp[i]; }
 

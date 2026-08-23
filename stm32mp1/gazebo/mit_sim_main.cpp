@@ -17,6 +17,7 @@
 #include "MIT_Controller.hpp"
 #include "WaypointNav.hpp"
 #include "Planning/BodyPathPlanner.h"
+#include "Planning/MissionAnalyzer.h"
 #include "rt/rt_gazebo.h"      // gazebo_get_aux(): GPS, the same data the real dog gets over CAN
 
 //! Defined in FSM_State_StandUp.cpp - lets the mission lower the stance target
@@ -56,6 +57,12 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   WaypointNav nav;
   float r = 3.f, d = 5.f; int pts = 5;
   if (sscanf(mission, "star:%f:%d", &r, &pts) >= 1)        nav.makeStar(r, pts, vx);
+  else if (sscanf(mission, "oval:%f:%f", &d, &r) >= 1) {
+    // "oval:<straight m>:<radius m>" - see makeOval for why this course exists.
+    if (sscanf(mission, "oval:%f:%f", &d, &r) < 2) r = 3.0f;
+    nav.makeOval(d, r,
+                 getenv("WP_OVAL_DS") ? atof(getenv("WP_OVAL_DS")) : 1.2f, vx);
+  }
   else if (sscanf(mission, "atom:%f:%d", &r, &pts) >= 1) {
     // "atom:<outer radius m>[:<lobes>]" - depth and waypoint spacing are
     // secondary knobs, so the mission string keeps only the two that change
@@ -101,6 +108,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
    */
   const bool use_planner = getenv("WP_PLANNER") && atoi(getenv("WP_PLANNER")) != 0;
   planning::BodyPathPlanner planner;
+  planning::MissionAnalyzer analyzer;
   if (use_planner) {
     // The path must START WHERE THE ROBOT IS. Building it from the waypoints
     // alone begins it at wp00, 10.5 m away, so the follower spent the whole
@@ -128,6 +136,31 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     if (getenv("WP_VPIVOT"))  { auto L = planner.limits(); L.v_pivot     = atof(getenv("WP_VPIVOT"));  planner.setLimits(L); }
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
     planner.plan(wx, wy, 0.10, false, corridor);
+    /*
+     * ANALYSE THE MISSION ONCE, HERE, BEFORE THE DOG MOVES.
+     *
+     * Everything about a route that can be known is known now: the geometry is
+     * fixed, so the curvature, the speed each point allows, which turns last
+     * long enough to need a different gait, and where the time is actually
+     * lost are all computable before the first step. Re-deriving any of it at
+     * 50 Hz from a filtered estimate is strictly worse, and has already
+     * produced a decider that could not tell a star vertex from an atom lobe.
+     */
+    planning::MissionPolicy pol;
+    pol.kappa_min     = getenv("WP_REGIME_K")   ? atof(getenv("WP_REGIME_K"))   : pol.kappa_min;
+    pol.sustained_m   = getenv("WP_REGIME_LEN") ? atof(getenv("WP_REGIME_LEN")) : pol.sustained_m;
+    pol.min_switch_m  = getenv("WP_MIN_SWITCH") ? atof(getenv("WP_MIN_SWITCH")) : pol.min_switch_m;
+    pol.gait_fast     = getenv("WP_GAIT_FAST")   ? atoi(getenv("WP_GAIT_FAST"))   : pol.gait_fast;
+    pol.gait_sustained= getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : pol.gait_sustained;
+    pol.hbias_max     = getenv("WP_HBIAS")      ? atof(getenv("WP_HBIAS"))      : pol.hbias_max;
+    pol.v_sustained_max = getenv("WP_VSUS") ? atof(getenv("WP_VSUS")) : pol.v_sustained_max;
+    analyzer.analyze(planner, pol);
+    // Two-pass: classify, impose the sustained-curve ceiling, re-plan, then
+    // re-classify so the printed brief is the plan the robot actually flies.
+    analyzer.applyTo(planner, pol);
+    analyzer.analyze(planner, pol);
+    analyzer.print();
+
     double kk, vv; planner.tightestCorner(&kk, &vv);
     printf("[plan] %zu pts, %.1f m, tightest R=%.2f m -> %.2f m/s "
            "(cruise %.2f, a_lat %.2f, corridor %.2f)\n",
@@ -182,6 +215,22 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   const int  gait_fast   = getenv("WP_GAIT_FAST")   ? atoi(getenv("WP_GAIT_FAST"))   : 5;
   const int  gait_corner = getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : 9;
   const int  gait_tight  = getenv("WP_GAIT_TIGHT")  ? atoi(getenv("WP_GAIT_TIGHT"))  : 0;  // 0 = unused
+  /*
+   * $WP_GAIT_REGIME=1 switches the decider from "how slow is it ahead" to
+   * "how LONG is the turn ahead" - see BodyPathPlanner::regimeAhead. kappa is
+   * 1/R, so 0.15 is a 6.7 m radius; regime_len is the run length above which a
+   * flight gait is judged unable to hold on.
+   */
+  /*
+   * $WP_ANALYZER=1 hands gait and height-bias decisions to the pre-analysed
+   * mission. `analyzer_lead` is how far ahead the robot reads - a gait change
+   * needs its ~500 ms settling window BEFORE the corner, not in it.
+   */
+  const bool  use_analyzer = getenv("WP_ANALYZER") && atoi(getenv("WP_ANALYZER")) != 0;
+  const float analyzer_lead = getenv("WP_ANALYZER_LEAD") ? atof(getenv("WP_ANALYZER_LEAD")) : 4.0f;
+  const bool  regime_mode  = getenv("WP_GAIT_REGIME") && atoi(getenv("WP_GAIT_REGIME")) != 0;
+  const float regime_kappa = getenv("WP_REGIME_K")   ? atof(getenv("WP_REGIME_K"))   : 0.15f;
+  const float regime_len   = getenv("WP_REGIME_LEN") ? atof(getenv("WP_REGIME_LEN")) : 3.0f;
   const float v_tight    = getenv("WP_V_TIGHT")     ? atof(getenv("WP_V_TIGHT"))     : 1.1f;
   const float decide_v   = getenv("WP_GAIT_SWITCH_V") ? atof(getenv("WP_GAIT_SWITCH_V")) : 1.6f;
   /*
@@ -257,15 +306,49 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
      * for more. $WP_HBIAS is metres of extra height at full lateral budget
      * (0 = planner stays out of it and the governor runs purely reactive).
      */
-    if (use_planner && hbias_gain > 0.f)
+    /*
+     * READ THE ANNOTATED MISSION. A lookup, not a computation: the segment
+     * `lead` metres ahead already carries the gait to be in and the stance
+     * height to have pre-loaded by the time the demand arrives.
+     */
+    const planning::MissionSegment* seg = nullptr;
+    if (use_analyzer && use_planner)
+      seg = analyzer.segmentAhead(planner.currentS(), analyzer_lead);
+    if (seg) setHeightBias(seg->height_bias);
+    else if (use_planner && hbias_gain > 0.f)
       setHeightBias(planner.plannedHeightBias(hbias_ahead, hbias_gain));
 
-    if (gait_decider && use_planner && bridge->userParams()) {
+    if (seg && bridge->userParams() && seg->gait != cur_gait) {
+      ControlParameterValue cv; cv.d = (double)seg->gait;
+      bridge->userParams()->collection.lookup("cmpc_gait")
+          .set(cv, ControlParameterValueKind::DOUBLE);
+      printf("[mission] gait %d -> %d entering %s at s=%.1f (R=%.2f, cost %+.2f s) t=%.1fs\n",
+             cur_gait, seg->gait,
+             seg->regime == 2 ? "SUSTAINED" : (seg->regime == 1 ? "transient" : "straight"),
+             seg->s0, seg->radius_min, seg->time_cost, elapsed());
+      fflush(stdout);
+      cur_gait = seg->gait;
+    }
+
+    if (gait_decider && !use_analyzer && use_planner && bridge->userParams()) {
       // Slowest planned speed within decide_ahead metres: if a corner is
       // coming, commit to the corner gait NOW, while still able to.
       const double vplan = planner.minPlannedSpeedAhead(decide_ahead);
       int want;
-      if      (vplan >= 2.2)                      want = gait_fast;
+      if (regime_mode) {
+        /*
+         * DECIDE ON THE DURATION OF THE TURN, NOT ITS SEVERITY.
+         *
+         * The old rule below keys off planned SPEED, which reads a star vertex
+         * and an atom lobe identically - and they want opposite gaits.
+         * trotRunning is 32/32 on the star (whose corners are over in a metre)
+         * and 3/8 on the atom (whose curvature is held for ten-plus metres).
+         * regimeAhead() separates them by how long the turn lasts.
+         */
+        const int reg = planner.regimeAhead(decide_ahead, regime_kappa, regime_len);
+        want = (reg == 2) ? gait_corner : gait_fast;
+      }
+      else if (vplan >= 2.2)                      want = gait_fast;
       else if (gait_tight > 0 && vplan < v_tight) want = gait_tight;
       else                                        want = gait_corner;
       /*
@@ -434,8 +517,16 @@ int main(int argc, char** argv) {
                                 Stm32mp1HardwareBridge::Backend::GAZEBO);
   GazeboUdpConfig g;
   g.peer_addr   = g_peer.c_str();
-  g.cmd_port    = 9100;
-  g.sensor_port = 9101;
+  /*
+   * PARALLEL INSTANCES. $SIM_INSTANCE shifts this dog's UDP ports so several
+   * can share the Mac: instance 0 keeps 9100/9101, instance 1 gets 9110/9111,
+   * and so on. Gazebo transport is isolated separately with $GZ_PARTITION -
+   * ports alone are not enough, because two servers on the default partition
+   * see each other's topics and the bridges cross-feed.
+   */
+  const int inst = getenv("SIM_INSTANCE") ? atoi(getenv("SIM_INSTANCE")) : 0;
+  g.cmd_port    = 9100 + 10 * inst;
+  g.sensor_port = 9101 + 10 * inst;
   bridge.setGazebo(g);
 
   std::thread(navThread, &bridge).detach();

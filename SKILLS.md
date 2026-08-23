@@ -117,6 +117,17 @@ arm-unknown-linux-gnueabihf-strip mp1-build/robot/stand_sim -o /tmp/stand_sim
 scp /tmp/stand_sim $BOARD:/usr/local/cheetah-mp1/
 ```
 
+## THE GO1'S REAL SPEED ENVELOPE (do not design against the spec sheet)
+
+    practical max   3.5 - 3.7 m/s
+    peak spec       4.7 m/s (17 km/h)
+
+The dash table reaches 4.69 m/s with trotRunning and that number is real, but
+it is the PEAK, held on flat ground in a straight line with a 12 s ramp. Do not
+size a course, a cruise speed, or a lateral budget against it - a mission that
+needs 4.0 m/s sustained is asking for something the robot does not have. Design
+to 3.5 and treat anything above as headroom, not as a target.
+
 ## METHOD: ground truth only, measured on an idle machine
 
 Every real finding in this port came from a measurement. Every wrong turn came
@@ -250,6 +261,22 @@ Rules that follow:
   non-empty output before any sweep depends on it.
   **An empty log is an infrastructure failure until proven otherwise.** A robot
   that fails always prints something first.
+- **YOUR OWN INTERACTIVE COMMANDS ARE A SECOND SWEEP.** The lock stops scripts
+  colliding with scripts; it does nothing about an ad-hoc `pkill -9 -f "gz sim"`
+  typed while a sweep is running. That killed a whole A/B mid-flight - the log
+  filled with `Terminated: 15` and `Killed: 9` and reported `wp=0/93` as data.
+  While a sweep holds the lock, READ ONLY: cat, grep, tail. No pkill, no
+  sim_up.sh, no one-off verification run.
+- **`pkill -f "gz sim"` MATCHES YOUR OWN SHELL.** The pattern is a literal
+  substring of the command line running it, so the killer kills itself - exit
+  144 with no output, before anything is flushed, which looks like the command
+  mysteriously producing nothing. Same self-match trap as `pgrep -f` waiters.
+  Use a bracket to break the literal (`pkill -f 'gz[ ]sim'`) or kill by PID.
+- **A harness "failed with exit code N" does NOT mean the process died.** Both
+  a `nohup ... &` wrapper and a killed parent have reported failure while the
+  sweep carried on running and writing results. Check with
+  `ps -ax -o pid,etime,command | grep <script>` before concluding anything, and
+  certainly before starting a replacement.
 - **The two-sweeps rule is now ENFORCED, because discipline failed twice.**
   `source stm32mp1/gazebo/sweep_lock.sh` at the top of every sweep script; it
   takes an exclusive lock and refuses to start if another sweep holds it. The
@@ -317,6 +344,30 @@ Rules that follow:
   course's tightest radius (0.27 m measured against a true 2.14 m) and brakes
   for it. Solve `p x v = 0, p . v > 0` and rotate that point onto the spawn
   heading.
+- **Health is the TAIL, not the maximum.** `maxPeriod` is a max over ~20,000
+  control ticks, so one scheduling hiccup flags a healthy run and a genuinely
+  starved run looks the same. Measured: p50 never moved (2.47-2.48 ms) across a
+  pass at 0.0% overruns, a pass at 1.3%, and a FAILURE at 10.9%. Report the
+  fraction of intervals over threshold, and p95. Gate at 5%.
+- **A missed control deadline is a physics change, not a slow computer.** The
+  loop targets 2.0 ms and computes forces for that interval; if the scheduler
+  wakes it at 9 ms those forces are applied 4.5x too long and the dog goes over
+  for no reason visible in the result. Name it a deadline miss, measure it per
+  run, and re-run anything that missed - it is an INSTRUMENT failure, not data.
+- **Identical degradation across independent instances means the HOST.** Two
+  dogs in separate engines, separate processes, cannot affect each other. When
+  both failed in the same rep with tails identical to 0.1% (14.1% and 14.1%),
+  the only shared thing is the Mac. That inference is how you tell a machine
+  problem from a robot problem - and a run that samples the top non-simulation
+  process while it runs can name the culprit instead of guessing.
+- **Every arm gets EQUAL, VALID runs.** Not just equal counts - equal counts of
+  runs that passed their acceptance criteria. A run that missed deadlines, or
+  whose config never took effect, is re-run, never dropped, or the arms drift
+  apart while looking matched. `partune.sh` enforces this.
+- **Three dogs in parallel is free; four is not.** Verified 12/12 and 9/9 at
+  identical times and zero overruns. At four, every dog hits STATE ESTIMATE
+  NON-FINITE before standing and the cause is NOT isolated - not RTF, not loop
+  starvation, not sensor wiring, not a startup race, not settling time.
 - **Re-check the BASELINE choice, not just the treatment.** Every star result
   in this project was measured on trotting because an early table said trotting
   was the best all-rounder. It is not: trotRunning goes 32/32 across 2.5-3.3

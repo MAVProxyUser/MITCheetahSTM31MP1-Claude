@@ -203,6 +203,86 @@ void WaypointNav::makeAtom(float outer_radius_m, int lobes, float depth,
   fflush(stdout);
 }
 
+/*
+ * OVAL / STADIUM - the course that makes a gait SWITCH worth making.
+ *
+ * Neither existing course rewards switching, and for opposite reasons:
+ *
+ *   star  long straights joined by five INSTANTANEOUS vertices. The planner
+ *         brakes to a crawl for each one, so a flight gait is never actually
+ *         tested in a corner - trotRunning goes 32/32 across 2.5-3.3 m/s and
+ *         there is nothing to switch away from.
+ *   atom  continuous curvature with no straights and no recovery, so there is
+ *         nothing to switch TO - trotting wins outright (7/8 vs 3/8 at 2.1).
+ *
+ * A decider needs a course with BOTH regimes present and each lasting long
+ * enough to matter. That is a stadium: two long straights joined by two
+ * constant-radius 180-degree ends.
+ *
+ *   `oval:<straight_m>:<radius_m>`, default oval:40:3.0
+ *      straights   2 x 40 m     - long enough for a flight gait to reach speed
+ *      ends        2 x pi*3.0 = 9.4 m each of CONTINUOUS R=3.0 m curvature,
+ *                                about 15 gait cycles at 2.5 m/s, and capped
+ *                                at sqrt(a_lat * R) = 2.74 m/s
+ *      total       98.8 m       - directly comparable to the 100 m star
+ *
+ * The radius is the knob that matters: it sets how hard the sustained regime
+ * is, independently of how long the straights are. Unlike the star's fillet
+ * corners, this curvature is a property of the COURSE, not of how the planner
+ * chose to round a polyline.
+ *
+ * Starts at the origin heading due north along the first straight, so the dog
+ * opens on its spawn heading - same rule as makeStar and makeAtom.
+ */
+void WaypointNav::makeOval(float straight_m, float radius_m,
+                           float spacing_m, float speed) {
+  if (radius_m < 0.5f) radius_m = 0.5f;
+  if (straight_m < 1.f) straight_m = 1.f;
+  if (spacing_m < 0.2f) spacing_m = 0.2f;
+  const float R = radius_m, S = straight_m;
+  const float arc = (float)M_PI * R;
+  const float total = 2.f * S + 2.f * arc;
+
+  _n = 0;
+  auto put = [&](float n, float e) {
+    if (_n >= MAXWP) return;
+    _wp[_n].north = n; _wp[_n].east = e; _wp[_n].speed = speed; ++_n;
+  };
+  // Walk the perimeter at constant arc spacing. North straight, right-hand
+  // 180 at the far end, south straight, right-hand 180 back to the start.
+  for (float d = spacing_m; d <= total && _n < MAXWP; d += spacing_m) {
+    if (d <= S) {                                   // up the near straight
+      put(d, 0.f);
+    } else if (d <= S + arc) {                      // far end, centre (S, R)
+      const float a = (d - S) / R;                  // 0 .. pi
+      put(S + R * sinf(a), R - R * cosf(a));
+    } else if (d <= 2.f * S + arc) {                // down the far straight
+      put(S - (d - S - arc), 2.f * R);
+    } else {                                        // near end, centre (0, R)
+      const float a = (d - 2.f * S - arc) / R;
+      put(-R * sinf(a), R + R * cosf(a));
+    }
+  }
+  // Close the lap - but only if the sampler did not already finish near the
+  // start. A leftover stub leg (0.36 m against a 1.2 m spacing) makes the
+  // planner's fillet clamp T to 0.45 x 0.36 and report a 1.46 m radius on an
+  // arc that is actually 3.0 m, so the two ends of a symmetric course come out
+  // asymmetric and every per-end number after that is wrong.
+  if (_n == 0 ||
+      std::hypot(_wp[_n-1].north, _wp[_n-1].east) > 0.6f * spacing_m)
+    put(0.f, 0.f);
+
+  accept_radius = 0.45f * spacing_m;
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] oval mission: 2 x %.1f m straight + 2 x %.1f m of continuous "
+         "R=%.1f m -> %.1f m lap, %d waypoints @ %.2f m (accept %.2f)\n",
+         S, arc, R, total, _n, spacing_m, accept_radius);
+  printf("[nav]   sustained-curve regime is %.0f%% of the lap and caps at "
+         "%.2f m/s (a_lat 2.5); straights are the other %.0f%%\n",
+         200.f * arc / total, sqrtf(2.5f * R), 200.f * S / total);
+  fflush(stdout);
+}
+
 void WaypointNav::makeOutAndBack(float distance_m, float speed) {
   _n = 2;
   _wp[0] = {distance_m, 0.f, speed};

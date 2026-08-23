@@ -1977,6 +1977,142 @@ self-tracked cruise height. The de-bobbing is not optional: raw dh/dt carries
 +/-0.25 m/s of gait oscillation, which a 0.3 s lead turned into a phantom
 0.08 m departure on a run that passed.
 
+## THE MISSION ANALYZER: decide once, up front, with the whole route in view
+
+`common/include/Planning/MissionAnalyzer.h`. Everything about a route that can
+be known IS known before the dog takes a step - the geometry is fixed, so the
+curvature, the speed each point allows, which turns last long enough to need a
+different gait, and where the time is actually lost are all computable in
+advance. This port kept re-deriving that at 50 Hz, badly, from filtered
+signals, and it produced three of the worst bugs in this file.
+
+`analyze()` cuts the route into SEGMENTS carrying what the robot needs there:
+
+    regime        straight / transient corner / sustained curve
+    radius_min    tightest point
+    v_cap         what the curvature allows
+    gait          which gait, decided from the turn's DURATION
+    height_bias   stance-height margin to pre-load BEFORE it
+    time_cost     seconds this segment loses against free cruising
+    blame_cost    ...charged to the FEATURE that caused it
+
+At runtime the robot does `segmentAhead(s, lead)` - a lookup, not a
+computation. `$WP_ANALYZER=1`.
+
+### DURATION, NOT SEVERITY - the distinction the old decider could not make
+
+The decider always keyed off `minPlannedSpeedAhead`, i.e. the MAGNITUDE of the
+demand. Magnitude cannot separate these, and they want opposite gaits:
+
+    star vertex   very high kappa, over in a metre. Planner brakes, robot
+                  powers through, flight gait never tested - trotRunning is
+                  32/32 on the star across 2.5-3.3 m/s.
+    atom lobe     moderate kappa held for ten-plus metres, twenty gait cycles
+                  with no recovery - trotRunning 3/8 where trotting is 7/8.
+
+Both read as "slow ahead". `curveRunAhead()` measures the RUN LENGTH of
+continuous curvature instead, and `regimeAhead()` classifies it. The rule that
+falls out is physical, not tuned: a flight gait can spend a metre or two in a
+turn and cannot spend twenty gait cycles there.
+
+The classifier reproduces three independently measured results from geometry
+alone, before the dog moves:
+
+    star   9 segments, 0 sustained, 0 gait changes   (matches trotRunning 32/32)
+    atom   1 sustained covering 125 of 130 m -> trotting  (matches 7/8 vs 3/8)
+    oval   2 sustained, 4 changes a lap              (the course built for it)
+
+### BLAME THE CAUSE, NOT THE PLACE
+
+The first cost map reported the star's worst segment as a STRAIGHT at +3.48 s.
+A straight is not slow because it is a straight - it is braking for the corner
+ahead. The map now walks the profile and hands every metre of deficit to the
+turn responsible (decelerating -> the turn ahead, accelerating -> the turn
+behind). The star's costliest feature is then its FIRST CORNER at +4.30 s
+(R=0.28 m), which is actionable in a way the other number never was.
+
+### SUSTAINED TURNING HAS ITS OWN SPEED ENVELOPE
+
+`MissionPolicy::v_sustained_max`, applied two-pass (classify -> cap -> re-plan
+-> re-classify). Measured on the oval: it fails at a 3.0 m/s cruise at EVERY
+radius tried - 3.0, 5.0 and 7.0 m - while the same robot takes the star's
+transient corners at 3.3 (8/8) and runs 100 m straight at 3.0. R=7.0 is only
+1.29 m/s^2 of lateral load, so curvature is not what binds. A per-point
+lateral-acceleration budget cannot express this, because the budget is
+evaluated at a point and the constraint is about duration.
+
+CAVEAT: that measurement was taken at a median-worst loop period of 10.44 ms
+(see the deadline-miss section) and has NOT been re-confirmed on a quiet
+machine. Treat it as a lead, not a result.
+
+## THE OVAL: a course where a gait switch can pay
+
+`WP_MISSION=oval:<straight_m>:<radius_m>` - `WaypointNav::makeOval`. Two long
+straights joined by two constant-radius 180s. Neither existing course rewards
+switching, for opposite reasons: the star's corners are instantaneous (nothing
+to switch away from), the atom is curvature everywhere (nothing to switch to).
+
+    oval:40:5.0   2 x 40 m straight + 2 x 15.7 m of continuous R=5.0
+                  111 m lap, sustained regime 28% of it
+
+Feasibility, measured: 2.0 works at R=3.0 (41.5 s), 2.5 at R=5.0 (37.7 s),
+3.0 fails at EVERY radius. Note R=3.0 at 2.5 gets STUCK - the robot cannot
+track it and circles wide outside the turn.
+
+## MISSED CONTROL DEADLINES: the instrument problem that invalidated a sweep
+
+The control loop targets 2.0 ms. If macOS does not schedule it on time it wakes
+late, and forces computed for 2 ms get applied for 9 - a 4.5x impulse, and the
+dog goes over. Invisible in the result except as an unexplained fall.
+
+`maxPeriod` is the WRONG metric: it is a maximum over ~20,000 ticks, so one
+hiccup flags a healthy run. Measured on three back-to-back single-dog runs:
+
+    p50    p95     over-4ms    result
+    2.48   2.49     0.0 %      PASS 40.3 s
+    2.48   3.01     1.3 %      PASS 40.5 s
+    2.47   8.98    10.9 %      FAIL
+
+The median never moves. The TAIL is what separates them. So health is the
+fraction of intervals that overran, and `sweep_loop_stats` reports p50/p95/over.
+Threshold 5%: every failure across every scale sat at 14%, every pass at <=3.9%.
+
+`sweep_lock.sh` now also refuses to start above a 4.0 load average, pauses a
+sweep after three consecutive sick runs, and samples the top non-simulation
+process so a sick run NAMES its culprit instead of leaving "hiccup" unexplained.
+
+Sweeps taken before this existed, by median-worst period:
+
+    overnight (150 runs)        2.99 ms   healthy
+    trotRunning 32/32 confirm   2.99 ms   healthy
+    oval feasibility           10.44 ms   CONTAMINATED
+    first analyzer tune         5.04 ms   CONTAMINATED
+
+## PARALLEL DOGS: three, verified; four breaks
+
+    3 separate engines   12/12 dogs, 40.4-40.7 s, over4ms 0.0%   (4 reps)
+    3 in one engine       9/9  dogs, 40.4-40.5 s, RTF 1.000      (3 reps)
+    single-dog reference        40.4 s
+
+Three dogs give the same time to a tenth of a second with zero loop overruns.
+3x throughput, nothing degrades.
+
+FOUR OR MORE FAILS in both architectures: every dog hits `STATE ESTIMATE WENT
+NON-FINITE` and falls before standing. What it is NOT: RTF (1.000 at N=4 and 5
+with dogs running), loop starvation (p50 2.87-2.92, over4ms 0%), sensor wiring
+(each bridge correctly on its own /go1_N/imu), a startup race (a readiness gate
+did not fix it), or settling (20 s did not either). CAUSE NOT ISOLATED.
+
+Use `sim_up_n.sh <i>` for separate engines (best evidence) or `sim_up_multi.sh
+<n>` for one engine with N robots. `make_multi_world.py` namespaces every
+sensor topic per model and derives lane spacing FROM THE MISSION - star 36 m,
+atom 33 m, oval 25 m - rather than a constant that is either wasteful or unsafe
+depending on which course you run.
+
+`partune.sh <reps> <label:env...>` runs configs three-at-a-time with equal N
+per arm and re-runs anything that fails its validity gate (loop tail, estimator
+NaN, config actually took effect) rather than dropping it.
+
 ### THE GAIT CHOICE WAS BACKWARDS, AND IT DISSOCIATES BY COURSE
 
 This port has run the star on TROTTING throughout, on the reasoning that it is

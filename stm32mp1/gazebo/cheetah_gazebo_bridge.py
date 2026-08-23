@@ -27,8 +27,12 @@ from gz.msgs10.double_pb2 import Double
 from gz.msgs10.fluid_pressure_pb2 import FluidPressure
 from gz.msgs10.navsat_pb2 import NavSat
 
-WORLD = "go1_world"
-MODEL = "go1"
+WORLD = os.environ.get("SIM_WORLD", "go1_world")
+# $SIM_MODEL selects WHICH dog this bridge drives when several share one
+# physics engine (make_multi_world.py emits go1_0, go1_1, ...). Everything
+# scoped by model name - joint_state, cmd_force, the pose filter - follows from
+# this automatically; only the raw sensor topics needed namespacing in the SDF.
+MODEL = os.environ.get("SIM_MODEL", "go1")
 JOINTS = [f"{leg}_{j}_joint" for leg in ("FR", "FL", "RR", "RL")
           for j in ("hip", "thigh", "calf")]           # flat order
 
@@ -56,14 +60,21 @@ else:
     OFFSET = [0.0] * 12
     print("[bridge] joint convention: identity (Go1 URDF angles)", flush=True)
 
-IMU_TOPIC   = "/imu"
-BARO_TOPIC  = "/air_pressure"
-GPS_TOPIC   = "/navsat"
+# Bare topics when driving the single-dog world; namespaced under the model
+# name when several dogs share one engine.
+_NS         = "" if MODEL == "go1" else "/" + MODEL
+IMU_TOPIC   = _NS + "/imu"
+BARO_TOPIC  = _NS + "/air_pressure"
+GPS_TOPIC   = _NS + "/navsat"
 JOINT_TOPIC = f"/world/{WORLD}/model/{MODEL}/joint_state"
 FORCE_TOPIC = lambda jn: f"/model/{MODEL}/joint/{jn}/cmd_force"
 
-CMD_PORT    = 9100     # bridge receives controller commands here
-SENSOR_PORT = 9101     # controller receives sensor packets here
+# $SIM_INSTANCE shifts the port pair so several dogs can run on one machine:
+# 0 -> 9100/9101, 1 -> 9110/9111, 2 -> 9120/9121. Must match the controller's
+# own SIM_INSTANCE. Gazebo transport needs GZ_PARTITION set to match as well.
+_INST       = int(os.environ.get("SIM_INSTANCE", "0"))
+CMD_PORT    = 9100 + 10 * _INST   # bridge receives controller commands here
+SENSOR_PORT = 9101 + 10 * _INST   # controller receives sensor packets here
 CTRL_IP     = sys.argv[1] if len(sys.argv) > 1 else None   # learned from first cmd if None
 
 SENSOR_MAGIC  = 0x53454E53   # 'SENS'
@@ -299,6 +310,7 @@ def main():
     node.subscribe(NavSat, GPS_TOPIC, on_navsat)
     from gz.msgs10.pose_v_pb2 import Pose_V
     node.subscribe(Pose_V, f"/world/{WORLD}/dynamic_pose/info", on_pose)
+    print(f"[bridge] model={MODEL} world={WORLD}")
     print(f"[bridge] subscribed {IMU_TOPIC} {BARO_TOPIC} {GPS_TOPIC} {JOINT_TOPIC}; {len(JOINTS)} force pubs")
     print(f"[bridge] UDP: recv cmd :{CMD_PORT}, send sensors :{SENSOR_PORT} -> {peer_ip[0] or '(learn)'}")
     period = 1.0/500.0    # 500 Hz
