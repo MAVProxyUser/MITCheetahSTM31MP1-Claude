@@ -28,8 +28,8 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | CAN IMU (DroneCAN) + AHRS | ✅ validated on the live bus (~490 Hz) |
 | `jpos_ctrl` on the board | ✅ runs the control loop on real hardware |
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
-| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m in **32.2 s at 3.46 m/s** under `trotting`, on the real estimator, no falls |
-| OpenPilot waypoint navigation | ⚠️ **GPS star mission completes under convex MPC** (5 × 10.1 m legs) — timings were taken in cheater mode; awaiting an honest re-measure |
+| MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m dash in **24.8 s at 4.70 m/s** under `trotRunning`; 6 of 8 gaits complete a mission |
+| OpenPilot waypoint navigation | ✅ **100 m GPS star, 13/13 at 42.6 s**, judged PASS (settles + lies down) — real estimator, cheater mode deleted |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
