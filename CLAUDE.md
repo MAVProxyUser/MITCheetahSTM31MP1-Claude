@@ -1732,6 +1732,43 @@ Both are precise when they run - a 0.1-0.2 s spread across a 100 m five-corner
 mission - which says the remaining failures are a threshold being crossed, not
 noise accumulating.
 
+### GRADED CORNERING AND A THREE-TIER GAIT: both built, both neutral
+
+Two structural improvements, both correct in principle and neither moving the
+result - which is itself the finding.
+
+**Angle-graded corner speed** replaced the hard pivot/arc switch, because that
+switch was a TRANSITION BUG of exactly the kind gait switching had: pivoting the
+star's true hairpin and arcing the rest failed 0/3, always at an ARCED corner
+AFTER the pivot. Exiting one corner treatment into another is a discontinuity.
+The lateral budget now scales smoothly with turn angle (full below 80 deg,
+scaled by `corner_scale_min` at 160 deg, interpolated between), so no corner is
+a special case. Measured at 2.5 m/s:
+
+| grading | passes | time |
+|---|---|---|
+| 1.0 (none) | 2/3 | 41.6 s |
+| 0.55 | 2/3 | 43.7-43.8 s |
+| 0.4 | - | 44.7 s |
+
+Same reliability, up to 3 s slower. Same verdict as the uniform a_lat reduction,
+and for the same reason: **corner speed is not the limiting factor.**
+
+**Three-tier gait schedule** (trotRunning on straights / trotting in the middle
+/ walking in the tight, leaning on trotting as the all-rounder). Switches fire
+correctly, twice per run:
+
+| | 2.5 m/s | 3.0 m/s |
+|---|---|---|
+| three-tier | 41.5-41.6 s, 2/3 | 40.7 s, 1/2 |
+| trotting only | 41.6-41.8 s, 4/5 | 40.8 s, 1/3 |
+
+Indistinguishable. 40.7 s is the fastest star recorded and it is one run.
+
+Both are kept - they are the right structure, and on a course with varied corner
+angles they should pay. On THIS course they cannot, because the failure is not
+where they act.
+
 ### THE OPEN LEAD: failures sink, and the force command is innocent
 
 The 2.5 m/s failures are a COLLAPSE, not a topple - `roll=0 pitch=-0 z=0.058`,

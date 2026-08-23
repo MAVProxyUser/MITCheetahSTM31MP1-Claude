@@ -109,6 +109,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;
     planner.setLimits(lim);
     if (getenv("WP_ALON")) planner.setAlonExplicit(atof(getenv("WP_ALON")));
+    if (getenv("WP_TURN_SOFT")) { auto L=planner.limits(); L.turn_soft=atof(getenv("WP_TURN_SOFT")); planner.setLimits(L); }
+    if (getenv("WP_TURN_HARD")) { auto L=planner.limits(); L.turn_hard=atof(getenv("WP_TURN_HARD")); planner.setLimits(L); }
+    if (getenv("WP_CSCALE"))    { auto L=planner.limits(); L.corner_scale_min=atof(getenv("WP_CSCALE")); planner.setLimits(L); }
     if (getenv("WP_HAIRPIN")) { auto L = planner.limits(); L.hairpin_rad = atof(getenv("WP_HAIRPIN")); planner.setLimits(L); }
     if (getenv("WP_VPIVOT"))  { auto L = planner.limits(); L.v_pivot     = atof(getenv("WP_VPIVOT"));  planner.setLimits(L); }
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
@@ -148,8 +151,26 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
    * trotRunning at the apex BEFORE accelerating out.
    */
   const bool gait_decider = getenv("WP_GAIT_DECIDER") && atoi(getenv("WP_GAIT_DECIDER")) != 0;
+  /*
+   * THREE TIERS, not a pair. There is no single transition rule and no reason
+   * to force one: the course asks for different things and the gaits answer
+   * differently, so the schedule is graded the same way the corner speed now is.
+   *
+   *   STRAIGHT  trotRunning (5)  40%% duty, flight phase - fastest, worst turner
+   *   MIDDLE    trotting    (9)  50%% duty - the best all-rounder measured, and
+   *                              the one to LEAN ON: it alone completes the star
+   *                              at 2.0-2.5 m/s, 7/7
+   *   TIGHT     walking    (20)  50%% duty 4-beat - slowest, most stable, for
+   *                              the corners neither of the others survives
+   *
+   * Tiers are chosen from the PLANNED speed, which already encodes corner
+   * angle through the angle-graded budget - so gait and speed grade together
+   * instead of one fighting the other.
+   */
   const int  gait_fast   = getenv("WP_GAIT_FAST")   ? atoi(getenv("WP_GAIT_FAST"))   : 5;
   const int  gait_corner = getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : 9;
+  const int  gait_tight  = getenv("WP_GAIT_TIGHT")  ? atoi(getenv("WP_GAIT_TIGHT"))  : 0;  // 0 = unused
+  const float v_tight    = getenv("WP_V_TIGHT")     ? atof(getenv("WP_V_TIGHT"))     : 1.1f;
   const float decide_v   = getenv("WP_GAIT_SWITCH_V") ? atof(getenv("WP_GAIT_SWITCH_V")) : 1.6f;
   /*
    * cur_gait MUST start as the gait the robot is ACTUALLY running, which is
@@ -216,7 +237,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // Slowest planned speed within decide_ahead metres: if a corner is
       // coming, commit to the corner gait NOW, while still able to.
       const double vplan = planner.minPlannedSpeedAhead(decide_ahead);
-      const int want = (vplan >= 2.2) ? gait_fast : gait_corner;
+      int want;
+      if      (vplan >= 2.2)                      want = gait_fast;
+      else if (gait_tight > 0 && vplan < v_tight) want = gait_tight;
+      else                                        want = gait_corner;
       /*
        * THE GATE IS ASYMMETRIC, because the risk is.
        *
@@ -240,7 +264,12 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // 3.1 gate blocked the drop entirely and the robot entered every corner
       // still in the flight gait - the exact failure the decider exists to
       // prevent.
-      const bool going_down = (want == gait_corner);
+      // "Down" means toward the more stable end of the ladder
+      // (trotRunning -> trotting -> walking); only climbing toward a flight
+      // gait is speed-gated, because that is the only direction measured to
+      // fail (fatal at 2.63 m/s, fine at 1.2).
+      auto tierOf = [&](int g){ return g == gait_fast ? 2 : (g == gait_tight ? 0 : 1); };
+      const bool going_down = tierOf(want) < tierOf(cur_gait);
       const bool may_switch = going_down ? true : (spd < decide_v);
       { static int gdbg = 0;
         if ((++gdbg % 50) == 0)

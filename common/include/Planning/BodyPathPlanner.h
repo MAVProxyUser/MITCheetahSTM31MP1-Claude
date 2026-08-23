@@ -53,7 +53,8 @@
 namespace planning {
 
 struct PathPoint {
-  bool   hairpin = false;  //!< part of a turn too sharp to arc - pivot instead
+  double turn = 0.0;       //!< direction change of the corner this point belongs to, rad
+  bool   hairpin = false;  //!< legacy hard-mode flag (kept for the A/B)
   double x = 0, y = 0;     //!< world position
   double s = 0;            //!< arc length from path start
   double theta = 0;        //!< path heading (tangent)
@@ -134,6 +135,12 @@ struct BodyLimits {
    * course change is not. This is the racing line's "slow in, fast out", and the
    * same thing a dog does at a hard corner.
    */
+  //! Corner grading: below turn_soft the full lateral budget is used; at
+  //! turn_hard it is scaled by corner_scale_min; in between it interpolates.
+  //! 1.4 rad = 80 deg (a real corner), 2.8 rad = 160 deg (a hairpin).
+  double turn_soft = 1.4;
+  double turn_hard = 2.8;
+  double corner_scale_min = 0.55;
   double hairpin_rad = 9.9;   // OFF by default: measured to cost time on this course, see below
   //! Speed carried through a hairpin. Not zero - a stopped robot still has to
   //! accelerate again - but slow enough that v*omega is negligible.
@@ -356,6 +363,7 @@ class BodyPathPlanner {
       // arc through at speed. Recorded on the arc points so the speed profile
       // can force a pivot there.
       bool isHairpin = false;
+      double turnAngle = 0.0;
       if (corner && T > 1e-6) {
         double jx2 = wx[c] - bx, jy2 = wy[c] - by;
         const double jl = std::sqrt(jx2*jx2 + jy2*jy2);
@@ -363,7 +371,8 @@ class BodyPathPlanner {
           jx2 /= jl; jy2 /= jl;
           double cd = ix*jx2 + iy*jy2;            // cos of DIRECTION change
           cd = std::max(-1.0, std::min(1.0, cd));
-          isHairpin = (std::acos(cd) >= _lim.hairpin_rad);
+          turnAngle = std::acos(cd);
+          isHairpin = (turnAngle >= _lim.hairpin_rad);
         }
       }
       const size_t arcStart = _path.size();
@@ -389,8 +398,10 @@ class BodyPathPlanner {
             const double aa = a0 + sweep * t / asteps;
             push(cx + R*std::cos(aa), cy + R*std::sin(aa));
           }
-          if (isHairpin)
-            for (size_t q = arcStart; q < _path.size(); ++q) _path[q].hairpin = true;
+          for (size_t q = arcStart; q < _path.size(); ++q) {
+            _path[q].turn = turnAngle;          // continuous, not a mode
+            _path[q].hairpin = isHairpin;
+          }
         }
       }
     }
@@ -442,7 +453,34 @@ class BodyPathPlanner {
       // A hairpin is taken as a PIVOT, not an arc: force it slow enough that
       // v*omega - and therefore roll - is negligible, and let the steering do
       // the work the fillet cannot.
-      if (p.hairpin) p.v_max = std::min(p.v_max, _lim.v_pivot);
+      /*
+       * ANGLE-GRADED CORNER SPEED - continuous, no mode boundary.
+       *
+       * The hard pivot/arc switch was a TRANSITION BUG waiting to happen, and
+       * it happened: pivoting only the star's true hairpin and arcing the rest
+       * failed 0/3, every time at an ARCED corner AFTER the pivot. Exiting one
+       * corner treatment and entering another is a discontinuity, exactly like
+       * a gait switch, and it needs the same care - so the treatment is now a
+       * smooth function of turn angle rather than two modes with a cliff
+       * between them.
+       *
+       * A sharper corner gets a smaller effective lateral budget, so
+       * v = sqrt(a_eff/kappa) falls off gradually as the turn tightens:
+       *   scale = 1                       below turn_soft (gentle - full budget)
+       *   scale -> corner_scale_min       at and beyond turn_hard (hairpin)
+       * and it interpolates in between, so no corner is ever a special case.
+       */
+      if (p.turn > _lim.turn_soft) {
+        const double f = std::min(1.0, (p.turn - _lim.turn_soft) /
+                                       std::max(1e-6, _lim.turn_hard - _lim.turn_soft));
+        const double scale = 1.0 - f * (1.0 - _lim.corner_scale_min);
+        const double k = std::fabs(p.kappa);
+        if (k > 1e-6) {
+          const double vAng = std::sqrt(_lim.a_lat_max * scale / k);
+          p.v_max = std::min(p.v_max, std::max(_lim.v_pivot, vAng));
+        }
+      }
+      if (_lim.hairpin_rad < 9.0 && p.hairpin) p.v_max = std::min(p.v_max, _lim.v_pivot);
       p.v = p.v_max;
     }
     // Backward: v_i^2 <= v_{i+1}^2 + 2*a*ds  (can I still slow down in time?)
