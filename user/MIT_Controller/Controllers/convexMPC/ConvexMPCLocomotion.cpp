@@ -10,6 +10,7 @@
 #include <sched.h>
 #include <cmath>
 #include "ConvexMPCLocomotion.h"
+#include <Controllers/SprawlGuard.h>
 
 // Per-foot force cap handed to the convex MPC. Mini-cheetah's 120 N suits a
 // 9 kg / 88 N robot; the Go1 is 13.1 kg / 128 N and its knee (35.55 Nm over a
@@ -240,7 +241,10 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
    * as any other command change - scaling _x_vel_des directly would compound
    * every tick and brake far harder than asked.
    */
-  x_vel_cmd *= _hgov.speedScale();
+  // Two independent reasons to give up forward speed, and they compose: the
+  // height governor's departure derate, and the sprawl guard asking for less
+  // momentum to catch while it is arresting a roll.
+  x_vel_cmd *= _hgov.speedScale() * sprawlSpeedScaleRef().load();
   _x_vel_des = _x_vel_des*(1-filter) + x_vel_cmd*filter;
   _y_vel_des = _y_vel_des*(1-filter) + y_vel_cmd*filter;
 

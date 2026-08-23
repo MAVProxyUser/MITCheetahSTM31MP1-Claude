@@ -11,6 +11,7 @@
 # what the GAIT can do.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+source stm32mp1/gazebo/sweep_lock.sh || exit 1
 G=stm32mp1/gazebo
 RUNDIR=host-run
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"

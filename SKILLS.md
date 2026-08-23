@@ -250,6 +250,14 @@ Rules that follow:
   non-empty output before any sweep depends on it.
   **An empty log is an infrastructure failure until proven otherwise.** A robot
   that fails always prints something first.
+- **The two-sweeps rule is now ENFORCED, because discipline failed twice.**
+  `source stm32mp1/gazebo/sweep_lock.sh` at the top of every sweep script; it
+  takes an exclusive lock and refuses to start if another sweep holds it. The
+  second collision destroyed an atom ladder (three runs reported 0/143
+  waypoints - the sim was killed under them) AND the fall-signature collection
+  that killed it (runs truncated at 25 samples), and the wreckage was reported
+  as data in both directions. A rule that has to be remembered every time is
+  not a rule, it is a hope.
 - **NEVER run two sweeps at once.** Every harness here starts with
   `pkill -9 -f "gz sim"` and then brings up its own simulator, so two sweeps
   running together repeatedly kill each other's world. The symptom does not look
@@ -287,6 +295,14 @@ Rules that follow:
   harness did show. Check with
   `grep -rl '"SIM_FOO"' user/ robot/ common/` for each name a harness sets;
   an empty result means the line is decoration.
+- **Warning time before a THRESHOLD is not warning time before the POINT OF NO
+  RETURN.** The roll-out signature gives 160-1700 ms between |roll| = 0.30 and
+  the 0.5 rad safety trip, which reads like plenty of time to act. It is not:
+  by 0.30 rad the fall is already committed, and a guard that successfully
+  arrests the roll (measured - it holds the peak within 0.03 rad and recovers
+  in 0.1-0.7 s) still loses the run to pitch instead. Before building an
+  actuator response, check whether the trigger fires while the outcome is still
+  reversible, not merely before the alarm.
 - **A course is an INSTRUMENT - pick it for the failure mode you want to see.**
   The star (polygon: sharp vertices, long recovery straights) and the atom
   (one closed stroke, continuous moderate curvature, no recovery) fail the

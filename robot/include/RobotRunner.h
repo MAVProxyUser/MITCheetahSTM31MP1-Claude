@@ -71,6 +71,10 @@ class RobotRunner : public PeriodicTask {
 
   void setupStep();
   void finalizeStep();
+  //! Print roll/pitch/rates/height for fall-signature analysis ($CTRL_ATT_DBG).
+  void attitudeTrace();
+  //! Last-ditch roll arrest: splay the abad joints ($CTRL_SPRAWL).
+  void sprawlStep();
 
   JPosInitializer<float>* _jpos_initializer;
   Quadruped<float> _quadruped;

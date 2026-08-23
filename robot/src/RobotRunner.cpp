@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdlib>
 #include "RobotRunner.h"
+#include <Controllers/SprawlGuard.h>
 #include "Controllers/ContactEstimator.h"
 #include "Controllers/OrientationEstimator.h"
 #include "Dynamics/Cheetah3.h"
@@ -430,7 +431,87 @@ void RobotRunner::setupStep() {
 std::atomic<double> g_edampGain{0.0};
 void setEdamp(double d) { g_edampGain = d; }
 
+/*!
+ * ATTITUDE TRACE ($CTRL_ATT_DBG = tick decimation) - the raw material for a
+ * fall signature.
+ *
+ * Every failure this port logs ends at `checkSafeOrientation`, |roll| or
+ * |pitch| >= 0.5 rad, and the `[FALL]` line printed afterwards describes the
+ * aftermath (legs already limp, body settled flat) rather than the event. So
+ * nothing in the logs so far says what attitude was doing on the way IN. This
+ * prints it: roll, pitch, their rates, yaw rate, and height, all from the
+ * estimator, so a signature can be built from many falls instead of guessed
+ * from one.
+ */
+void RobotRunner::attitudeTrace() {
+  static int every = -1;
+  if (every < 0) {
+    const char* e = getenv("CTRL_ATT_DBG");
+    every = e ? atoi(e) : 0;
+    if (e && every <= 0) every = 10;
+  }
+  if (every == 0) return;
+  static int n = 0;
+  if (++n % every) return;
+  const auto& r = _stateEstimate;
+  printf("[ATT] t=%.3f roll=%+.4f pitch=%+.4f wx=%+.3f wy=%+.3f wz=%+.3f "
+         "z=%.3f vx=%+.2f vy=%+.2f\n",
+         _iterations * 0.002, r.rpy[0], r.rpy[1],
+         r.omegaBody[0], r.omegaBody[1], r.omegaBody[2],
+         r.position[2], r.vBody[0], r.vBody[1]);
+  fflush(stdout);
+}
+
+/*!
+ * LAST-DITCH ROLL ARREST ($CTRL_SPRAWL=1) - see SprawlGuard.h.
+ *
+ * Sits here rather than in the FSM for the same reason edamp does: it has to
+ * overwrite whatever the controller produced, on every tick, after the fact.
+ * The FSM's own answer to a roll-out is ESTOP, which is not an answer.
+ */
+static SprawlGuard g_sprawl;
+static Vec3<float> g_sprawlLatch[4];
+
+void RobotRunner::sprawlStep() {
+  if (!g_sprawl.update(_stateEstimate.rpy[0], 0.002f)) return;
+
+  if (g_sprawl.needsLatch()) {
+    // Freeze the posture the legs were in when the guard took over. Commanding
+    // qDes = q every tick would be a zero-error PD and hold nothing.
+    for (int leg = 0; leg < 4; ++leg) g_sprawlLatch[leg] = _legController->datas[leg].q;
+    g_sprawl.markLatched();
+  }
+
+  for (int leg = 0; leg < 4; ++leg) {
+    auto& c = _legController->commands[leg];
+    const float ss = Quadruped<float>::getSideSign(leg);
+    if (g_sprawl.mode >= 2) {
+      // Full latch - documented in SprawlGuard.h as the version that arrests
+      // the roll and then pitches the robot over its own planted feet.
+      c.tauFeedForward.setZero();
+      c.forceFeedForward.setZero();
+      c.kpCartesian.setZero();
+      c.kdCartesian.setZero();
+      c.qDes  = g_sprawlLatch[leg];
+      c.qDes[0] = g_sprawl.abadTarget(ss, g_sprawlLatch[leg][0]);
+      c.qdDes.setZero();
+      c.kpJoint = Mat3<float>::Identity() * g_sprawl.kp;
+      c.kdJoint = Mat3<float>::Identity() * g_sprawl.kd;
+    } else {
+      // ABAD ONLY, ADDITIVE. updateCommand() sums joint PD on top of
+      // J^T * footForce, so this lays a lateral splay over a gait that carries
+      // on swinging its legs - the body widens without the feet being planted.
+      c.qDes[0]  = g_sprawl.abadTarget(ss, g_sprawlLatch[leg][0]);
+      c.qdDes[0] = 0.f;
+      c.kpJoint(0, 0) = g_sprawl.kp;
+      c.kdJoint(0, 0) = g_sprawl.kd;
+    }
+  }
+}
+
 void RobotRunner::finalizeStep() {
+  attitudeTrace();
+  sprawlStep();
   const double ed = g_edampGain.load();
   if (ed > 0.0) _legController->edampCommand(robotType, (float)ed);
 
