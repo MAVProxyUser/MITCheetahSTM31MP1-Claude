@@ -1977,6 +1977,86 @@ self-tracked cruise height. The de-bobbing is not optional: raw dh/dt carries
 +/-0.25 m/s of gait oscillation, which a 0.3 s lead turned into a phantom
 0.08 m departure on a run that passed.
 
+### THE GAIT CHOICE WAS BACKWARDS, AND IT DISSOCIATES BY COURSE
+
+This port has run the star on TROTTING throughout, on the reasoning that it is
+"the best all-rounder measured, the one to lean on", and has treated
+trotRunning as the straight-line gait that is fatal in corners. Measured, 8
+runs per arm:
+
+| star @ | trotRunning (5) | trotting (9) |
+|---|---|---|
+| 2.5 | **8/8, 40.4 s** | 7/8, 41.8 s |
+| 2.7 | **8/8, 39.8 s** | 0/5 |
+| 3.0 | **8/8, 39.6 s** | - |
+| 3.3 | **8/8, 39.4 s** | - |
+
+**32/32 across four speeds, and faster at every one.** Trotting cannot complete
+2.7 at all. Every star result in this file before this point is measured
+against the wrong baseline gait.
+
+But it reverses on the atom, and the reversal is the interesting part:
+
+| atom @ | trotRunning | trotting |
+|---|---|---|
+| 2.1 | 3/8 | **7/8, 58.7 s** |
+| 2.3 | 0/8 | **3/8, 54.9 s** |
+
+The two courses want opposite gaits, and the reason is their shape. The star is
+long straights joined by five discrete corners: a flight gait pays off on the
+straights, and the planner brakes so hard for the vertices that the flight
+phase is never tested in them. The atom is continuously curving with no
+straights and no recovery anywhere - and a flight gait cannot sustain that.
+
+So there is no single best gait, which is what the gait DECIDER was built for.
+Note the decider was measured neutral (3/5 vs 3/5) while configured
+fast=trotRunning, corner=trotting - on the STAR, where dropping to trotting is
+dropping into the worse gait. It has never been tested on a course whose shape
+actually rewards the switch.
+
+### THE HEIGHT GOVERNOR IS NEUTRAL - three corrections, ending in a retraction
+
+Reported here in three successive versions as p=0.026, then p=0.10, then not
+significant. The final interleaved measurement, 10 pairs at 2.5 on the star:
+
+| arm | passes |
+|---|---|
+| governor | 7/10 |
+| stock | 5/10 |
+
+Fisher p = 0.65. **The reactive height governor does not improve the star.**
+The 10/10 that produced the earlier claim came from the version whose reference
+trim had no deadband - and that same version was destroying the 100 m dash
+(trotRunning 4.0 fell at 33.9 m against a 24.8 s table). Fixing the dash
+removed the star benefit, which is the honest reading: the benefit was the
+side-effect of a bug.
+
+What DOES work is the predictive half, and it is the half that was built first
+and left switched off:
+
+| WP_HBIAS | passes | mean peak \|pitch\| | time |
+|---|---|---|---|
+| 0 | 4/5 | 0.420 | 41.9 s |
+| 0.02 | 5/5 | 0.332 | 41.8 s |
+| 0.04 | 5/5 | **0.308** | 41.8 s |
+
+A monotonic dose-response on the axis that actually causes the failures
+(failures sit at 0.53-0.65 pitch), for no time. The planner knows the lateral
+demand of every point on the course before the robot moves; pre-loading height
+margin against it beat every reactive scheme tried here. Note it shows nothing
+on trotRunning (8/8 either way) - there is no headroom to recover when the gait
+is already perfect.
+
+### MEASURED AND REJECTED overnight (equal arms, 5 per arm unless noted)
+
+| lever | result |
+|---|---|
+| fore/hind stance differential (Zhang 4.3/5.3) | HARMFUL, dose-response the wrong way: 5/5 -> 3/5 -> 2/5, mean pitch 0.391 -> 0.479 -> 0.529 |
+| two-axis sprawl guard | 0/5 vs 1/5, and makes BOTH axes worse (roll 0.851 vs 0.674, pitch 1.059 vs 0.386). Does not false-fire (5/5 matched control at 2.1); it just does not help |
+| gait decider, re-tested with the governor on | 3/5 vs 3/5 - but see the gait table above, it was switching into the worse gait |
+| governor at 2.7 (trotting) | 0/5 both arms - 2.7 is out of trotting's reach entirely |
+| walking at 2.5 on the star | 0/5 both arms |
+
 ### THE GOVERNOR WORKS - 7/7 vs 3/8, and it costs 0.3 s
 
 Interleaved A/B, star at 2.5 m/s, trotting, 16 runs:

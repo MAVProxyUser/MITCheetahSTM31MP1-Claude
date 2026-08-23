@@ -317,6 +317,13 @@ Rules that follow:
   course's tightest radius (0.27 m measured against a true 2.14 m) and brakes
   for it. Solve `p x v = 0, p . v > 0` and rotate that point onto the spawn
   heading.
+- **Re-check the BASELINE choice, not just the treatment.** Every star result
+  in this project was measured on trotting because an early table said trotting
+  was the best all-rounder. It is not: trotRunning goes 32/32 across 2.5-3.3
+  where trotting cannot finish 2.7 at all. Months of A/Bs were run against the
+  wrong control. When a course, speed or controller changes, the gait ranking
+  can invert - and it does, in both directions (trotting wins on the atom by
+  the same margin trotRunning wins on the star).
 - **Every arm of a comparison gets the SAME number of runs.** Sweeps here have
   mixed 5-run and 3-run arms (atomfall x5 vs atompass x3; sprawl off x4 vs
   false-fire x3). Unequal arms are not comparable, they quietly weight the
