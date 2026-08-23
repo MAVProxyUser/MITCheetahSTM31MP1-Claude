@@ -231,7 +231,49 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   // Note MIT integrates world_position_desired properly (run(), below), so
   // position gets a real reference and heading does not; this makes the two
   // consistent. Kept switchable for A/B against stock.
-  _roll_des = 0.;
+  /*
+   * BANK INTO THE TURN, and CROUCH while doing it - what every running animal
+   * does and what this controller has never done.
+   *
+   * A dog, horse or cheetah entering a turn drops its centre of mass and leans
+   * INTO the corner. That is not style: a turn needs lateral acceleration
+   * a = v*omega, and a body held level must generate it as pure SHEAR at the
+   * feet, which is what this port pays for in roll disturbance and what trips
+   * the SafetyChecker. Leaning puts the ground reaction along the body axis
+   * instead, exactly as a banked track does for a car - the bank angle that
+   * makes the force axial is
+   *       theta = atan(a_lat / g)
+   * so at the 2.5 m/s^2 budget the correct lean is 14.3 deg. Crouching lowers
+   * the moment arm the same disturbance acts through.
+   *
+   * Both are computed from the controller's OWN commands - it already knows v
+   * and omega - so no plumbing from the planner is needed.
+   * $CTRL_BANK scales the lean (0 = off, 1 = full geometric bank).
+   * $CTRL_CORNER_CROUCH is metres of crouch at full lateral load.
+   */
+  {
+    static const float bank_k = getenv("CTRL_BANK") ? atof(getenv("CTRL_BANK")) : 0.f;
+    static const float crouch = getenv("CTRL_CORNER_CROUCH")
+                                ? atof(getenv("CTRL_CORNER_CROUCH")) : 0.f;
+    const float a_lat = _x_vel_des * _yaw_turn_rate;      // signed, body frame
+    if (bank_k > 1e-6f) {
+      // Lean INTO the turn: a left turn (+omega, CCW) banks to the left, which
+      // is NEGATIVE roll in this frame.
+      _roll_des = -bank_k * std::atan2(a_lat, 9.81f);
+      const float lim = 0.35f;                             // ~20 deg ceiling
+      if (_roll_des >  lim) _roll_des =  lim;
+      if (_roll_des < -lim) _roll_des = -lim;
+    } else {
+      _roll_des = 0.;
+    }
+    if (crouch > 1e-6f) {
+      // Drop the CoM in proportion to how hard the turn is, capped so the
+      // stance never gets so low the gait cannot sustain itself.
+      const float f = std::min(1.f, std::fabs(a_lat) / 2.5f);
+      _body_height -= crouch * f;
+      if (_body_height < 0.20f) _body_height = 0.20f;
+    }
+  }
   _pitch_des = 0.;
 
 }

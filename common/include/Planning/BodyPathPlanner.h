@@ -116,6 +116,20 @@ struct BodyLimits {
    * worked. Set by plan() from v_cruise; WP_ALON overrides.
    */
   double a_lon_max = 1.5;
+  /*!
+   * ACCELERATION OUT of a corner, separate from braking INTO it.
+   *
+   * An agility dog does not brake and drive at the same rate: it sheds speed
+   * progressively into the wrap, plants, and then DRIVES OUT hard. A single
+   * a_lon forces the exit to be as lazy as the entry, which on a course with a
+   * corner every 20 m is most of the lap spent accelerating gently.
+   *
+   * Braking must stay conservative because the zone has to outrun the real
+   * stopping distance; acceleration has no such constraint - the measured
+   * capability is ~1.2 m/s^2 and the gait tolerates ramps far better than it
+   * tolerates arriving hot.
+   */
+  double a_accel_max = 0.0;   // 0 = use a_lon_max (symmetric). Set to drive out harder.
   //! Yaw rate ceiling in a pirouette (measured: tracks 100% to 1.5 rad/s, 92% at
   //! 3.0, no falls at any rate at ZERO forward speed).
   double yaw_rate_max = 2.0;
@@ -489,10 +503,13 @@ class BodyPathPlanner {
       const double lim = std::sqrt(_path[i+1].v * _path[i+1].v + 2 * _lim.a_lon_max * ds);
       _path[i].v = std::min(_path[i].v, lim);
     }
-    // Forward: v_{i+1}^2 <= v_i^2 + 2*a*ds  (can I actually get there?)
+    // Forward pass uses the ACCELERATION limit, not the braking one - slow in,
+    // fast out. The backward pass above already guaranteed the robot can shed
+    // the speed; there is no reason to make it regain it just as slowly.
     for (size_t i = 0; i + 1 < n; ++i) {
       const double ds = _path[i + 1].s - _path[i].s;
-      const double lim = std::sqrt(_path[i].v * _path[i].v + 2 * _lim.a_lon_max * ds);
+      const double aacc = (_lim.a_accel_max > 1e-6) ? _lim.a_accel_max : _lim.a_lon_max;
+      const double lim = std::sqrt(_path[i].v * _path[i].v + 2 * aacc * ds);
       _path[i+1].v = std::min(_path[i+1].v, lim);
     }
 

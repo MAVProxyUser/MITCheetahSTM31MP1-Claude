@@ -1732,6 +1732,37 @@ Both are precise when they run - a 0.1-0.2 s spread across a 100 m five-corner
 mission - which says the remaining failures are a threshold being crossed, not
 noise accumulating.
 
+### BANK INTO THE TURN - the first thing to touch the actual failure
+
+Every running animal drops its shoulder and LEANS into a corner. That is not
+style, it is force routing: a turn needs lateral acceleration `a = v*omega`, and
+a body held LEVEL must generate all of it as SHEAR at the feet. Shear at the
+feet is what pushes the body down through its own stance - which is exactly the
+collapse this course fails on. Leaning puts the ground reaction along the body
+axis instead, the same reason a banked track corners faster than a flat one:
+
+    theta = atan(a_lat / g)      -> 14.3 deg at the 2.5 m/s^2 budget
+
+Computed from the controller's OWN commands (it already knows v and omega), so
+no plumbing from the planner. `$CTRL_BANK` scales it, 0 = off, 1 = full bank.
+
+| config | passes | time | min body z |
+|---|---|---|---|
+| level (baseline) | 2/3 | 41.6-41.8 s | 0.195-0.245 |
+| **bank 1.0** | **3/3** | 41.7-41.8 s | **0.221-0.235** |
+| bank + 4 cm crouch | **0/2** | - | **0.187-0.193** |
+
+Banking RAISES the height floor - 0.195 to 0.221 - which is the quantity that
+separates passes from failures. Same speed, better margin. It is the first
+change all session to move the actual failure mode rather than the cornering
+geometry around it.
+
+**And crouching HURTS, which corrects the animal analogy for this machine.**
+Animals lower their CoM into a turn; this robot is ALREADY too low there,
+sinking to 0.19 m, so deliberately adding crouch pushes it straight through the
+failure threshold (0/2, min z 0.187). The lean is what pays. The crouch is what
+the robot is already suffering from involuntarily.
+
 ### GRADED CORNERING AND A THREE-TIER GAIT: both built, both neutral
 
 Two structural improvements, both correct in principle and neither moving the
