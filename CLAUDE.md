@@ -1732,6 +1732,33 @@ Both are precise when they run - a 0.1-0.2 s spread across a 100 m five-corner
 mission - which says the remaining failures are a threshold being crossed, not
 noise accumulating.
 
+### THE OPEN LEAD: failures sink, and the force command is innocent
+
+The 2.5 m/s failures are a COLLAPSE, not a topple - `roll=0 pitch=-0 z=0.058`,
+flat and level, which is the force-starvation signature and NOT the cornering
+signature every lever above was aimed at. That alone explains why six cornering
+levers all did nothing: none of them touch the force budget.
+
+But instrumenting the budget shows the force command is INNOCENT:
+
+| run | result | min Fz/mg | min body z |
+|---|---|---|---|
+| r1 | PASS 41.6 s | 0.86 | 0.212 |
+| r2 | FAIL 4/5 | 0.87 | **0.200** |
+| r3 | FAIL 2/5 | 0.88 | **0.185** |
+| r4 | PASS 41.6 s | 0.85 | 0.224 |
+| r5 | PASS 41.6 s | 0.88 | 0.239 |
+
+Commanded force is identical across passes and failures. HEIGHT is the
+discriminator: failures dip to 0.185-0.200 where passes hold 0.212-0.239.
+
+So the robot sinks lower on failing runs WHILE BEING COMMANDED THE SAME FORCE.
+That is a delivery or transient problem - WBIC tracking, contact timing, a
+corner transient - not a planning one, and it lives in a subsystem none of
+today's work touched. **This is where the next session should start**, and it
+should start by measuring achieved vs commanded foot force through a corner,
+not by sweeping a seventh planner parameter.
+
 ### What does NOT improve it (all measured, do not re-try)
 
 | lever | result |
