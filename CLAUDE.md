@@ -1752,10 +1752,21 @@ no plumbing from the planner. `$CTRL_BANK` scales it, 0 = off, 1 = full bank.
 | **bank 1.0** | **3/3** | 41.7-41.8 s | **0.221-0.235** |
 | bank + 4 cm crouch | **0/2** | - | **0.187-0.193** |
 
-Banking RAISES the height floor - 0.195 to 0.221 - which is the quantity that
-separates passes from failures. Same speed, better margin. It is the first
-change all session to move the actual failure mode rather than the cornering
-geometry around it.
+**RETRACTED ON REPETITION.** That 3/3 was three runs and it did not reproduce:
+a five-run confirmation gave 2/5, with min height 0.200-0.211 rather than
+0.221-0.235. Combined, banking is 5/8 at 2.5 m/s against a baseline of 8/11 -
+no measurable improvement, possibly worse.
+
+At 3.0 m/s it looks better (2/3 vs baseline 1/3) but those samples are far too
+small to separate. An interleaved A/B is running, because every comparison above
+is between BATCHES taken at different times, which cannot distinguish an effect
+from drift.
+
+I claimed "the first change to touch the actual failure mode" from three runs.
+That is the exact error documented four times already in this file, made again -
+and it is worth leaving in rather than editing out, because the pattern is the
+lesson: a promising mechanism plus a small sample produces a confident wrong
+claim every single time.
 
 **And crouching HURTS, which corrects the animal analogy for this machine.**
 Animals lower their CoM into a turn; this robot is ALREADY too low there,
