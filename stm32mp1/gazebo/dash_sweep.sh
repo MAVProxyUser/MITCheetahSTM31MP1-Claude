@@ -23,10 +23,10 @@ export PATH="/opt/homebrew/bin:$PATH"
 # code. Copy the freshly built binary every time, and say which one is running.
 BUILT=host-build/user/MIT_Controller/mit_ctrl_sim
 if [ -f "$BUILT" ]; then
-  if [ "$BUILT" -nt "$RUNDIR/mit_ctrl_sim" ]; then
-    echo "[harness] host-run binary is STALE - copying $(date -r "$BUILT" '+%H:%M:%S') build"
-  fi
-  cp -f "$BUILT" "$RUNDIR/mit_ctrl_sim"
+  # deploy_host.sh, never a bare cp: overwriting a Mach-O in place invalidates
+  # its signature and macOS then SIGKILLs it at exec with zero output, which
+  # looks exactly like the robot failing instantly on every run.
+  bash "$G/deploy_host.sh" || { echo "[harness] deploy failed - refusing to sweep" >&2; exit 1; }
 else
   echo "[harness] WARNING: $BUILT not found; running whatever is in $RUNDIR" >&2
 fi

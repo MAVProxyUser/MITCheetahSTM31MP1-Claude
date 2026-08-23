@@ -217,6 +217,18 @@ Rules that follow:
   and the uniformly flat response read exactly like "none of these levers do
   anything". Walking the command up finely instead found the edge sits between
   3.15 and 3.2. A target the machine cannot reach makes every lever look inert.
+- **NEVER `cp` a binary into `host-run/` by hand - use `deploy_host.sh`.**
+  Overwriting a Mach-O IN PLACE invalidates its code signature; macOS caches the
+  signature against the inode and the loader then **SIGKILLs the binary at exec
+  with exit 137 and ZERO output**. Every mission reports 0/5 with an empty log,
+  which is indistinguishable from the robot dying instantly. It cost a full
+  verification sweep, a single-run bisect, and a "regression" that was diagnosed
+  and REVERTED on the strength of a 0/5 that had never run. The three defences
+  are all required: `rm` the target first (fresh inode), re-sign
+  (`codesign -f -s -`), and PROVE it loads by running it briefly and requiring
+  non-empty output before any sweep depends on it.
+  **An empty log is an infrastructure failure until proven otherwise.** A robot
+  that fails always prints something first.
 - **NEVER run two sweeps at once.** Every harness here starts with
   `pkill -9 -f "gz sim"` and then brings up its own simulator, so two sweeps
   running together repeatedly kill each other's world. The symptom does not look
