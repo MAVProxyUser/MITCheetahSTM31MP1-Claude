@@ -123,10 +123,42 @@ class SprawlGuard {
  public:
   float on_roll   = 0.30f;   //!< rad, arm above this (measured: passes <= 0.255)
   float off_roll  = 0.20f;   //!< rad, disarm below this
+  /*!
+   * PITCH IS THE OTHER DOOR. `checkSafeOrientation` tests roll OR pitch, and
+   * the first version of this guard - which watched roll only - arrested the
+   * roll and then let the robot go over its nose at 1.034 rad. Guarding one
+   * axis of a two-axis test just changes which one kills you.
+   *
+   * Threshold from the same traces. Peak |pitch| reached:
+   *     atom passes   0.098 0.125 0.127
+   *     star passes   0.125 0.137 0.152     (height governor ON)
+   *     atom falls    0.351 0.368 0.413 0.450 0.459
+   * so 0.30 clears the passing population by 2x and sits under every fall.
+   *
+   * CAVEAT worth keeping: star runs with the governor OFF reach 0.275-0.419
+   * pitch and still pass, so this threshold assumes the height governor is
+   * running. With $CTRL_HGOV=0 it will false-fire.
+   */
+  float on_pitch  = 0.30f;
+  float off_pitch = 0.20f;
   float arm_s     = 0.06f;   //!< s the trigger must hold - 3 samples at 50 Hz
   float hold_s    = 0.40f;   //!< s minimum sprawl once armed
-  float splay     = 0.45f;   //!< rad, symmetric outward splay
+  float splay     = 0.45f;   //!< rad, symmetric outward splay (abad, roll axis)
   float splay_dir = 0.30f;   //!< rad, EXTRA on the side being fallen toward
+  /*!
+   * The sagittal equivalent, on the hip joint. From the leg kinematics
+   * `p_x = l3*sin(q1+q2) + l2*sin(q1)`, so a positive hip bias carries the
+   * foot FORWARD. Front feet forward and rear feet back widens the fore-aft
+   * base exactly as the abad splay widens the lateral one.
+   *
+   * Sign is measured, not assumed: on_1 pitched to +1.034 rad and the fall log
+   * read `pitch=46 deg` with the robot over its nose, so POSITIVE PITCH IS
+   * NOSE-DOWN in this frame. A nose-down event therefore wants the front feet
+   * thrown forward to catch it - which is what an animal tripping does, and
+   * what nothing in this stack has ever done.
+   */
+  float reach     = 0.25f;   //!< rad, symmetric fore-aft hip splay
+  float reach_dir = 0.20f;   //!< rad, EXTRA on the end being fallen toward
   float slew      = 12.0f;   //!< rad/s onto the target; not a step
   float kp        = 60.0f;   //!< joint PD - stiffer than the 20 used by the
   float kd        = 2.0f;    //!< jump states, because this is a catch
@@ -168,6 +200,10 @@ class SprawlGuard {
     off_roll  = f("CTRL_SPRAWL_OFF",  off_roll);
     splay     = f("CTRL_SPRAWL_SPLAY",splay);
     splay_dir = f("CTRL_SPRAWL_DIR",  splay_dir);
+    on_pitch  = f("CTRL_SPRAWL_ONP",  on_pitch);
+    off_pitch = f("CTRL_SPRAWL_OFFP", off_pitch);
+    reach     = f("CTRL_SPRAWL_REACH",reach);
+    reach_dir = f("CTRL_SPRAWL_REACHDIR", reach_dir);
     hold_s    = f("CTRL_SPRAWL_HOLD", hold_s);
     slew      = f("CTRL_SPRAWL_SLEW", slew);
     kp        = f("CTRL_SPRAWL_KP",   kp);
@@ -179,33 +215,42 @@ class SprawlGuard {
   }
 
   //! @return true while the guard owns the leg commands.
-  bool update(float roll, float dt) {
+  bool update(float roll, float pitch, float dt) {
     if (!_configured) configureFromEnv();
     if (!enabled) return false;
 
-    const float a = std::fabs(roll);
+    const float a = std::fabs(roll), b = std::fabs(pitch);
+    // Severity per axis, 0 at the disarm level and 1 at the arm level, so the
+    // response is graded rather than all-or-nothing.
+    auto sev = [](float x, float lo, float hi) {
+      return std::max(0.f, std::min(1.f, (x - lo) / std::max(1e-3f, hi - lo)));
+    };
     if (!_armed) {
-      _above = (a >= on_roll) ? _above + dt : 0.f;
+      _above = (a >= on_roll || b >= on_pitch) ? _above + dt : 0.f;
       if (_above >= arm_s) {
         _armed = true; _held = 0.f; _blend = 0.f; _latched = false;
         _fallSide = (roll > 0.f) ? -1.f : 1.f;      // +roll = falling right
+        _noseDown = (pitch > 0.f);                  // +pitch = nose down
         ++_fires;
         if (debug) {
-          printf("[SPRAWL] ARM  roll=%+.3f falling=%s\n",
-                 roll, _fallSide < 0 ? "RIGHT" : "LEFT");
+          printf("[SPRAWL] ARM  roll=%+.3f pitch=%+.3f  falling=%s %s\n",
+                 roll, pitch, _fallSide < 0 ? "RIGHT" : "LEFT",
+                 _noseDown ? "NOSE-DOWN" : "TAIL-DOWN");
           fflush(stdout);
         }
       }
     } else {
       _held += dt;
       _blend = std::min(1.f, _blend + slew * dt);
-      // Do not let go early, and do not let go while still rolled over.
-      if (_held >= hold_s && a < off_roll) {
+      // Do not let go early, and do not let go while either axis is still over.
+      if (_held >= hold_s && a < off_roll && b < off_pitch) {
         _armed = false; _above = 0.f;
-        if (debug) { printf("[SPRAWL] RELEASE roll=%+.3f after %.2f s\n", roll, _held);
-                     fflush(stdout); }
+        if (debug) { printf("[SPRAWL] RELEASE roll=%+.3f pitch=%+.3f after %.2f s\n",
+                            roll, pitch, _held); fflush(stdout); }
       }
     }
+    _sRoll  = sev(a, off_roll,  on_roll);
+    _sPitch = sev(b, off_pitch, on_pitch);
     // Ask for less forward speed while arrested. A catch that has to absorb
     // 2.3 m/s of momentum through braced legs is how mode 2 face-planted.
     sprawlSpeedScaleRef().store(_armed ? (1.f - (1.f - v_cut) * _blend) : 1.f);
@@ -222,9 +267,26 @@ class SprawlGuard {
    *  @param q0_latched the abad angle at the moment of arming */
   float abadTarget(float sideSign, float q0_latched) const {
     const float extra = (sideSign == _fallSide) ? splay_dir : 0.f;
-    const float tgt = sideSign * (splay + extra);
+    const float tgt = sideSign * (splay + extra) * _sRoll;
     return q0_latched + (tgt - q0_latched) * _blend;
   }
+
+  /*! Commanded hip angle - the sagittal half of the sprawl.
+   *  @param leg        0,1 = front; 2,3 = rear
+   *  @param q1_latched the hip angle at the moment of arming */
+  float hipTarget(int leg, float q1_latched) const {
+    const bool front = (leg < 2);
+    // Front feet forward, rear feet back: widen the fore-aft base.
+    const float dir = front ? +1.f : -1.f;
+    // Extra reach to the end the body is falling toward.
+    const float extra = ((front && _noseDown) || (!front && !_noseDown))
+                        ? reach_dir : 0.f;
+    const float tgt = q1_latched + dir * (reach + extra) * _sPitch;
+    return q1_latched + (tgt - q1_latched) * _blend;
+  }
+
+  float rollSeverity() const { return _sRoll; }
+  float pitchSeverity() const { return _sPitch; }
 
   int   fires() const { return _fires; }
   bool  armed() const { return _armed; }
@@ -233,6 +295,8 @@ class SprawlGuard {
   bool  _configured = false;
   bool  _armed = false, _latched = false;
   float _above = 0.f, _held = 0.f, _blend = 0.f, _fallSide = -1.f;
+  float _sRoll = 0.f, _sPitch = 0.f;
+  bool  _noseDown = true;
   int   _fires = 0;
 };
 

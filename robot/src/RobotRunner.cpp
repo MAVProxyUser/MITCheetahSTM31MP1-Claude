@@ -473,7 +473,7 @@ static SprawlGuard g_sprawl;
 static Vec3<float> g_sprawlLatch[4];
 
 void RobotRunner::sprawlStep() {
-  if (!g_sprawl.update(_stateEstimate.rpy[0], 0.002f)) return;
+  if (!g_sprawl.update(_stateEstimate.rpy[0], _stateEstimate.rpy[1], 0.002f)) return;
 
   if (g_sprawl.needsLatch()) {
     // Freeze the posture the legs were in when the guard took over. Commanding
@@ -494,6 +494,7 @@ void RobotRunner::sprawlStep() {
       c.kdCartesian.setZero();
       c.qDes  = g_sprawlLatch[leg];
       c.qDes[0] = g_sprawl.abadTarget(ss, g_sprawlLatch[leg][0]);
+      c.qDes[1] = g_sprawl.hipTarget(leg, g_sprawlLatch[leg][1]);
       c.qdDes.setZero();
       c.kpJoint = Mat3<float>::Identity() * g_sprawl.kp;
       c.kdJoint = Mat3<float>::Identity() * g_sprawl.kd;
@@ -501,10 +502,18 @@ void RobotRunner::sprawlStep() {
       // ABAD ONLY, ADDITIVE. updateCommand() sums joint PD on top of
       // J^T * footForce, so this lays a lateral splay over a gait that carries
       // on swinging its legs - the body widens without the feet being planted.
+      // Lateral splay on abad (roll axis) and fore-aft reach on hip (pitch
+      // axis). Guarding roll alone just moved the failure into pitch.
       c.qDes[0]  = g_sprawl.abadTarget(ss, g_sprawlLatch[leg][0]);
       c.qdDes[0] = 0.f;
       c.kpJoint(0, 0) = g_sprawl.kp;
       c.kdJoint(0, 0) = g_sprawl.kd;
+      if (g_sprawl.pitchSeverity() > 0.f) {
+        c.qDes[1]  = g_sprawl.hipTarget(leg, g_sprawlLatch[leg][1]);
+        c.qdDes[1] = 0.f;
+        c.kpJoint(1, 1) = g_sprawl.kp;
+        c.kdJoint(1, 1) = g_sprawl.kd;
+      }
     }
   }
 }

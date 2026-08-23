@@ -317,6 +317,12 @@ Rules that follow:
   course's tightest radius (0.27 m measured against a true 2.14 m) and brakes
   for it. Solve `p x v = 0, p . v > 0` and rotate that point onto the spawn
   heading.
+- **Every arm of a comparison gets the SAME number of runs.** Sweeps here have
+  mixed 5-run and 3-run arms (atomfall x5 vs atompass x3; sprawl off x4 vs
+  false-fire x3). Unequal arms are not comparable, they quietly weight the
+  better-sampled side, and they are how a 3/8-vs-7/7 headline survived long
+  enough to be reported when the true stock rate was 8/13. Set N once per
+  block and use it for every arm in that block.
 - **An A/B where the treatment never FIRES is not a test of the treatment.**
   The first height-governor A/B came back "no effect" over twelve runs. It had
   no effect because the trigger threshold sat below the robot's normal

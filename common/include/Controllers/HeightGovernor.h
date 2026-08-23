@@ -181,6 +181,7 @@ class HeightGovernor {
                               //!< measured at entry, see the ramp in
                               //!< _SetupCommand.
   float slew     = 0.15f;     //!< m/s. Reference may not step.
+  float ref_rise_max = 0.05f; //!< m above the controller's own nominal
 
   // ---- lever 2: speed derate ----
   // Give up forward speed to buy vertical force. Armed by the same predicted
@@ -194,6 +195,30 @@ class HeightGovernor {
   //     passes    never above 0.009
   float d_soft   = 0.015f;    //!< m of predicted departure before derating
   float d_hard   = 0.040f;    //!< m of predicted departure = full derate
+  /*!
+   * ...AND THOSE CONSTANTS ARE ONLY RIGHT FOR THE GAIT THEY WERE MEASURED ON.
+   *
+   * Trotting at 2.5 m/s bobs about +/-0.010 m, so a 0.015 m departure means
+   * something. trotRunning at 4.0 m/s has a FLIGHT PHASE and swings 0.256 to
+   * 0.313 every stride - and the 0.25 s de-bob filter does not remove an
+   * excursion that large, so `dep` spikes to +0.045 on a perfectly healthy
+   * stride, past d_hard, and the governor full-derates a dash it should not be
+   * touching. Measured: trotRunning at 4.0 m/s, documented at 24.8 s over
+   * 100 m, fell at 33.9 m with scale pinned to 0.68.
+   *
+   * A fixed threshold cannot serve both. So the thresholds scale with the bob
+   * the robot is ACTUALLY producing, tracked live. This is the same move as
+   * referring departure to the robot's own cruise height rather than to an
+   * absolute floor: let the signal calibrate itself instead of encoding one
+   * gait's numbers as universal.
+   *
+   *     trotting @2.5   bob ~0.010 -> thresholds stay 0.015 / 0.040
+   *     trotRunning @4  bob ~0.028 -> thresholds become 0.034 / 0.070,
+   *                                   and dep=0.045 is a 0.31 severity, not 1.0
+   */
+  float bob_soft_k = 1.2f;    //!< d_soft floor as a multiple of measured bob
+  float bob_hard_k = 2.5f;    //!< d_hard floor as a multiple of measured bob
+  float bob_track_tc = 1.5f;  //!< s, how fast the bob estimate adapts
   float derate   = 0.35f;     //!< max fraction of commanded speed surrendered
   float derate_tc = 0.12f;    //!< s. Also inside the event's timescale.
 
@@ -230,9 +255,12 @@ class HeightGovernor {
     relax_tc  = f("CTRL_HGOV_RELAX", relax_tc);
     ref_hi    = f("CTRL_HGOV_HI",    ref_hi);
     slew      = f("CTRL_HGOV_SLEW",  slew);
+    ref_rise_max = f("CTRL_HGOV_RISE", ref_rise_max);
     d_soft    = f("CTRL_HGOV_SOFT",  d_soft);
     d_hard    = f("CTRL_HGOV_HARD",  d_hard);
     derate    = f("CTRL_HGOV_DERATE",derate);
+    bob_soft_k= f("CTRL_HGOV_BOBS",  bob_soft_k);
+    bob_hard_k= f("CTRL_HGOV_BOBH",  bob_hard_k);
     pitch_k   = f("CTRL_HGOV_PITCH", pitch_k);
     // Instrumentation is independent of the levers, so an A/B logs the height
     // stream from BOTH arms. Value is the tick decimation.
@@ -275,6 +303,15 @@ class HeightGovernor {
     if (valid) {
       if (!(_cruise > 0.05f)) { _cruise = h_meas; _hf = h_meas; _hlast = h_meas; }
       _hf += (h_meas - _hf) * std::min(1.f, dt / bob_tc);   // de-bob first
+      // How much of the raw height is the gait's own vertical oscillation?
+      // Tracked live so the thresholds below fit whatever gait is running.
+      // PEAK-HOLD with slow decay, not a mean. A mean over a flight cycle is
+      // nothing like its peak: trotRunning at 4.0 m/s swings 0.256-0.313 and
+      // the mean |h - hf| still read 0.010, so the thresholds never moved and
+      // the governor went on eating the dash. Envelope, not average.
+      const float excursion = std::fabs(h_meas - _hf);
+      if (excursion > _bob) _bob = excursion;
+      else _bob += (excursion - _bob) * std::min(1.f, dt / bob_track_tc);
       const float raw_d = (_hf - _hlast) / std::max(1e-4f, dt);
       _hlast = _hf;
       _dhdt += (raw_d - _dhdt) * std::min(1.f, dt / d_tc);
@@ -301,16 +338,39 @@ class HeightGovernor {
         if (x <= lo) return 0.f;
         return std::min(1.f, (x - lo) / std::max(1e-3f, hi - lo));
       };
-      const float sev = std::max(ramp(_depart, d_soft,   d_hard),
+      // Thresholds never sit below what this gait's own bob produces. Computed
+      // before lever 1 because both levers use the same deadband.
+      const float ds = std::max(d_soft, bob_soft_k * _bob);
+      const float dh = std::max(d_hard, std::max(bob_hard_k * _bob, ds + 0.01f));
+      const float sev = std::max(ramp(_depart, ds,       dh),
                                  ramp(_absSag, abs_soft, abs_hard));
 
-      // ---- lever 1: trim the reference UP only ----
-      if (_depart > 0.f) {
-        _ref += std::min(ki * _depart * dt, slew * dt);
+      // ---- lever 1: trim the reference UP only, and only for a REAL departure ----
+      //
+      // This used to fire on any _depart > 0, and that ratchets. The cruise
+      // tracker is deliberately asymmetric (follows rises in 0.5 s, resists
+      // falls over 6 s) so it sits ABOVE the running mean, which makes _depart
+      // positive most of the time by construction. On the star that was
+      // harmless. On a 100 m dash it walked the reference from 0.300 to 0.350
+      // on departures of +0.007 - and at 4.7 m/s that is what put the robot
+      // down, not the speed derate, which by then had been reduced to 0.95.
+      //
+      // Measured, once the derate had been ruled out:
+      //     trotRunning 4.0  stock 24.7 s / 100 m   governed fell at 36.9 m
+      //     trotting    3.0  stock 33.5 s / 100 m   governed fell at 76.3 m
+      //
+      // Same deadband as the derate, so both levers agree on what counts as a
+      // departure and neither responds to estimator bias.
+      if (_depart > ds) {
+        _ref += std::min(ki * (_depart - ds) * dt, slew * dt);
       } else {
         _ref += (nominal - _ref) * std::min(1.f, dt / relax_tc);
       }
-      _ref = std::max(nominal, std::min(ref_hi, _ref));
+      // Ceiling is relative as well as absolute. Commanding 0.342 m at 4.7 m/s
+      // in a flight gait is a far bigger change from its nominal than the same
+      // number is for trotting, and `ref_hi` alone cannot tell them apart.
+      const float lid = std::min(ref_hi, nominal + ref_rise_max);
+      _ref = std::max(nominal, std::min(lid, _ref));
 
       // ---- lever 2: derate speed ----
       const float want = 1.f - derate * sev;
@@ -319,9 +379,9 @@ class HeightGovernor {
     }
 
     if (dbg_every > 0 && ++_dbg % dbg_every == 0) {
-      printf("[HGOV] h=%.3f hf=%.3f cru=%.3f dh=%+.2f pred=%.3f dep=%+.3f "
+      printf("[HGOV] h=%.3f hf=%.3f cru=%.3f bob=%.3f pred=%.3f dep=%+.3f "
              "ref=%.3f scale=%.2f %s\n",
-             h_meas, _hf, _cruise, _dhdt, _hpred, _depart, _ref, _scale,
+             h_meas, _hf, _cruise, _bob, _hpred, _depart, _ref, _scale,
              armed ? "armed" : "-");
       fflush(stdout);
     }
@@ -346,6 +406,9 @@ class HeightGovernor {
     return pitch_k * std::atan2(dz, kHipSeparation);
   }
 
+  //! Measured amplitude of the gait's own vertical bob, m.
+  float bob() const { return _bob; }
+
   //! Predicted metres below the robot's own cruise height. Positive means it
   //! is on its way down. Exposed so the harness can log it.
   double departure() const { return _depart; }
@@ -356,6 +419,7 @@ class HeightGovernor {
   float _ref    = 0.f;
   float _cruise = 0.f;
   float _hf     = 0.f;
+  float _bob    = 0.f;
   float _hlast  = 0.f;
   float _dhdt   = 0.f;
   float _hpred  = 0.f;
