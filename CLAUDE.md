@@ -1716,6 +1716,19 @@ qpOASES is transformative for `trotting` and appears HARMFUL for `walking2`,
 which failed at every speed tried with it (including 1.0 m/s, where JCQP crossed
 at 0.8). Both are recorded; neither is assumed to generalise.
 
+## STAR MISSION, CURRENT STATE (speed-dependent braking, acc 1.5)
+
+| cruise | passes | time | verdict |
+|---|---|---|---|
+| **2.0 m/s** | **4/4** | 42.2-43.1 s | **the reliable choice** |
+| 2.5 m/s | 2/3 | 41.7-41.9 s | marginal, ~1 s faster |
+| 3.0 m/s | 1/3 | 40.8 s | fastest single run, not reliable |
+
+The fastest RELIABLE mission is ~42.6 s at 2.0 m/s. 40.8 s at 3.0 is a
+one-in-three and should not be quoted as a result. Higher cruise now COMPLETES
+at all - which it never did before the braking fix - but it does not yet
+complete dependably, and the gain over 2.0 is about a second on a 100 m course.
+
 ## THE REAL CORNER BUG: the braking zone was shorter than the stopping distance
 
 Every mission above 2.0 m/s failed at the FIRST corner, and it was never the
