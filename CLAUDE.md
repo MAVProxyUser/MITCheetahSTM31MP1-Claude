@@ -3210,6 +3210,39 @@ change to the planner/follower lineage before trusting its old tuning.
   construction. Measured: oval 4/4 full-sequence PASS - the FIRST
   4-for-4 end-to-end oval in this project's history - star guard 2/2 on
   the same binary.
+### BASELINE, END OF 2026-08-24 (build 308ef89/f51a433, single branch master)
+
+Solo, one dog at a time, dash=100, cameras off, quiet host - the
+CURRENT VALIDATED BASELINE:
+
+| course | full sequence (loop -> lie down -> stand -> 100 m dash -> lie down) |
+|---|---|
+| star @3.5 trotRunning | PASS (and guard PASSes all day on every build) |
+| oval @3.5 trotRunning, VSUS 2.4 | PASS, held gait switch verified firing ("9 -> 5 while standing"); stop at 5/6 (~83%) |
+| atom @2.1 trotting | PASS |
+
+SIMULTANEOUS (all three at once, cameras off): the loops, interludes and
+dash STARTS all work in parallel - but on the current Mac the fleet's
+SPRINT phase is host-stall-limited: in the final quiet-host attempt the
+star and atom completed perfect loops+interludes and then both tripped at
+the SAME wall-second (14:38:09) mid-dash, each with a single ~16 ms
+control-loop stall (vs 2 ms budget; dog1's loop stayed at 2.70 ms max). A
+16 ms stall applies sprint forces 8x too long. Identical simultaneous
+failure across independent processes = the HOST, never the controller
+(the rule earns its keep again). The one fleet arm that ever fails alone
+is the oval's known 1-in-6 stop tip. VERDICT: solo baseline is green;
+3-dog-with-dashes needs either a quieter host, a reboot (operator's
+call), or RTF-tolerant pacing - it is NOT a robot-code defect.
+
+OPERATIONAL TRAP FOUND TODAY, twice: the conductor leaves gz sim ALIVE
+after "done", idling at ~a full core simulating an empty world. That one
+leak (a) kept ambient load at 3.8-4.3 and framed the operator's web
+browsing, (b) poisoned a five-run batch when a new launch stacked a second
+physics engine on it (upside-down dogs, below-floor estimates - looked
+exactly like a code regression). Batches now gate on stragglers+load and
+kill gz after each run; a server-side fix (stop gz on done) is the queued
+proper cure.
+
 - Also open: ONE unexplained mid-dash spin-out on the atom (roll 102 at
   steady-state 2.1, straight line, w=0.00 for 10 s prior) with EVERY
   instrument clean - loop max 3.07 ms / 0 over-4 ms, zero bridge stalls,
