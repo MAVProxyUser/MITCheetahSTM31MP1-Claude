@@ -821,7 +821,29 @@ class Fleet:
                 if len(done) == len(locked):
                     with self.lock:
                         self.phase = "done"
+                        procs = list(self.procs)
+                        self.procs = []
                     self._note("fleet run complete")
+                    # KILL THE SIM ON DONE. Leaving gz alive "for the next
+                    # launch" left it idling at ~a full core simulating an
+                    # empty world - which held ambient load at 3.8-4.3 (and
+                    # got blamed on the operator's web browser), and once
+                    # stacked a SECOND physics engine under a new launch,
+                    # producing upside-down dogs and below-floor estimates
+                    # that read exactly like a code regression. A finished
+                    # run owns nothing; tear it all down.
+                    for p in procs:
+                        try:
+                            p.terminate()
+                        except Exception:  # noqa: BLE001
+                            pass
+                    time.sleep(1)
+                    for p in procs:
+                        try:
+                            p.kill()
+                        except Exception:  # noqa: BLE001
+                            pass
+                    self._note("sim torn down (gz + bridges + controllers)")
                     return
                 time.sleep(1)
         threading.Thread(target=poll, daemon=True).start()
