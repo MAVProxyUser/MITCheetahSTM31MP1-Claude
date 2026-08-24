@@ -124,8 +124,15 @@ DEFAULT_MODEL = "edu"
 RECIPES = {
     "star": dict(gait=5, speed=3.5, extra="WP_ACCEPT=1.5 WP_ALAT=3.25 WP_CORRIDOR_MIN=0.1",
                  note="trotRunning, lateral budget 3.25, graded corridor - UNDER RE-TUNE"),
-    "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.6",
-                 note="trotRunning, analyzer, sustained cap 2.6 - 30.48s @ 6/6"),
+    # VSUS 2.6 was the campaign-era edge and no longer holds on the current
+    # dynamics lineage: a controlled bisect (last night's binary vs HEAD,
+    # semi-interleaved, solo) showed BOTH fall mid-180 at ~50-75% with the
+    # yaw command saturated at the lateral cap - the cell was always
+    # marginal, the old 6/6 belongs to a much older build. 2.4 is the
+    # re-measured envelope: its first run under the operator's own eyes ran
+    # the curves clean AND the full stop/lie-down/stand-up/dash sequence.
+    "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.4",
+                 note="trotRunning, analyzer, sustained cap 2.4 (re-swept 2026-08-24; 2.6 is past the current envelope)"),
     "atom": dict(gait=9, speed=2.1, extra="",
                  note="trotting, bare (analyzer adds nothing here) - 58.97s @ 6/6"),
     "dash": dict(gait=5, speed=3.0, extra="",

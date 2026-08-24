@@ -3165,7 +3165,29 @@ ESTOP lines - runs now end only when the dog really goes over.
    6/6" tuning was measured on an older build lineage; the current stack
    (steering cap, pivot follower, stop braking) has not had its oval VSUS
    re-swept. Re-sweep 2.4/2.5/2.6 with equal N before trusting 2.6 again.
-1a. **IN FLIGHT (2026-08-24 morning): the oval mid-course bisect.** The
+### RESOLVED: the oval mid-course bisect - NOTHING regressed, the envelope moved
+
+The controlled A/B settled it: last night's exact binary (c80f7e8, built
+fresh in a worktree, deployed with the three code-signing defenses) falls
+mid-180 on the SOLO oval at 3-of-4 (wp85/86), statistically identical to
+HEAD (2-of-4, wp45/47) - semi-interleaved blocks, all logs archived. So
+none of today's commits broke the oval: the sustained-turn cell at
+VSUS 2.6 has been ~50% marginal on this whole lineage, and last night's
+"working" loops were two lucky fleet samples. The failing mechanism
+matches the project's documented sustained-turn wall exactly: the yaw
+command pinned at the lateral-budget cap (w = a_lat/v = 0.96) while the
+body rides the 180 a metre and a half wide.
+
+**Fix: the oval recipe's sustained cap is re-swept to WP_VSUS=2.4.** Its
+first run cleared the curves AND ran the complete stop/lie-down/stand-up/
+dash sequence, witnessed live by the operator ("what ever you JUST did
+save it"). Interleaved 2.4-vs-2.6 tally continuing; per-slot `extra`
+overrides (86cd71e) are what made the sweep possible without touching
+RECIPES mid-test. The campaign-era "VSUS 2.6 -> 6/6, 30.48 s" row now
+reads as history, not spec: re-measure a course's envelope after any
+change to the planner/follower lineage before trusting its old tuning.
+
+1a. **superseded - kept for the method** (was: IN FLIGHT bisect note). The
    dash=0 A/B cleared the stop machinery (falls persist without any
    mid-path stop: 2 PASS / 2 mid-course falls). The live suspect is the
    PIVOT follower branch (ab36f0b) firing transiently mid-curve: a tick
