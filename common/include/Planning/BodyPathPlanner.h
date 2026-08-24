@@ -302,7 +302,31 @@ class BodyPathPlanner {
     const double wcap  = std::min(_lim.yaw_rate_max, w_lat);
     w = std::max(-wcap, std::min(wcap, w));
 
-    *vx = vplan;
+    double vcmd = vplan;
+    /*
+     * PIVOT WHEN THE TARGET IS BEHIND THE NOSE. Pure pursuit models an ARC
+     * through the lookahead point, and that model is degenerate once the
+     * point sits behind the body's nose plane (ex < 0) - which is exactly
+     * what happens at a super-acute vertex: the profile brakes correctly
+     * (the star's 162 deg opening corner plans ~0.04 m/s), but the
+     * lookahead's own 0.35 m floor reaches PAST a fillet only ~0.1 m long,
+     * so the steering target lands on the exit leg nearly behind the dog.
+     * Arcing toward a point behind you while still creeping forward traces
+     * a small forward loop around the vertex - the pigtail measured at the
+     * star's top corner (and, smaller, at its 144 deg tips: same geometry,
+     * less acute). The right maneuver here is the one the yaw envelope
+     * says is this robot's most stable: slow to a creep and YAW IN PLACE
+     * toward the exit until the target comes back in front, then let the
+     * profile re-accelerate. This also self-handles a big tracking upset
+     * (body knocked to face away from the path): pivot back onto it at a
+     * creep instead of arcing at cruise.
+     */
+    if (ex < 0.0) {
+      w = (ey >= 0.0) ? _lim.yaw_rate_max : -_lim.yaw_rate_max;
+      vcmd = std::min(vplan, _lim.v_min);
+    }
+
+    *vx = vcmd;
     *yaw_rate = w;
     return true;
   }
