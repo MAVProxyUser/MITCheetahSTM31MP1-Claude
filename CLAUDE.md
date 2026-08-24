@@ -3269,6 +3269,25 @@ exactly like a code regression). Batches now gate on stragglers+load and
 kill gz after each run; a server-side fix (stop gz on done) is the queued
 proper cure.
 
+### EVENING SESSION TALLY (2026-08-24, build f90df0e)
+
+The run-in experiment: REVERTED by its own A/B (0/8 vs the original
+geometry's 5/6 - held-switch and clean loops verified in the failing
+arm, mechanism unidentified, verdict at the knob in WaypointNav.cpp).
+Two real fixes shipped instead, both operator-log-driven:
+- the poller marks a dog done at its JUDGE line, not MISSION COMPLETE
+  (the teardown was killing single-dog runs mid-lie-down and framed two
+  perfect 114.2 s star guards as failures);
+- the stop window's ESTOP suspension opens on the BRAKING APPROACH
+  (the near_stop radius), closing the arrival-wobble race that cut
+  motors mid-stop and left an un-detectable 30-45 deg zombie.
+
+Final-build verification: star PASS/PASS (arrival race closed), oval
+PASS + one known-cell mid-course fall (TM still enabled during the
+window). Standing oval residuals: stop tip ~1-in-5 on the restored
+geometry, sustained-entry ~1-in-5 at VSUS 2.4 - both real, both
+documented, neither a regression.
+
 ### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
 
 Hourly backups on this Mac start around :38. Both same-wall-second
