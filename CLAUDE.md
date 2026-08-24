@@ -3269,6 +3269,21 @@ exactly like a code regression). Batches now gate on stragglers+load and
 kill gz after each run; a server-side fix (stop gz on done) is the queued
 proper cure.
 
+### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
+
+Hourly backups on this Mac start around :38. Both same-wall-second
+multi-dog kills sit inside backup windows - 14:38:09 EXACTLY at the :38
+start, and 16:44:09 six minutes into the 16:38 backup - and the stall
+shape matches perfectly: a backup I/O burst wedges the control loops for
+16-18 ms against a 2 ms budget (a ~9x force impulse), which drops every
+sprinting dog in the same instant with clean logs before and after. The
+conductor now REFUSES to launch while `tmutil status` reports Running=1
+(ddeedc7), with the operator commands in the refusal message; for a
+guaranteed-clean session, `sudo tmutil disable` before testing and
+`sudo tmutil enable` after (the launch gate cannot protect a mission from
+a backup that STARTS mid-run). This very plausibly also explains the item
+below, previously the last instrument-clean mystery.
+
 - Also open: ONE unexplained mid-dash spin-out on the atom (roll 102 at
   steady-state 2.1, straight line, w=0.00 for 10 s prior) with EVERY
   instrument clean - loop max 3.07 ms / 0 over-4 ms, zero bridge stalls,
