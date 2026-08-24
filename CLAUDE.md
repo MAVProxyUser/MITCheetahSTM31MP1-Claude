@@ -3157,15 +3157,16 @@ and one genuine 88-deg tip caught by the debounced detector with zero
 ESTOP lines - runs now end only when the dog really goes over.
 
 **Still open, in priority order:**
-1. **The oval STOP is physically marginal (~1 in 3)** even with both
-   stop-window gates in (tips measured at roll 72 and 88 deg - real,
-   sideways, during the stop maneuver; star and atom stops pass cleanly).
-   Standing suspect: the analyzer switches to the flight-phase gait 3 s
-   before the closure ("trotting -> trotRunning entering straight"), so
-   the stop begins from a barely-engaged trotRunning. Candidate
-   pre-planner refinement: the analyzer should not schedule a gait
-   upgrade on a segment that ends in a STOP - stay on trotting through
-   the closure and let the dash re-select.
+1. **The oval's MID-COURSE entry to its first sustained 180 is marginal**
+   (~1 in 3): identical signature twice in one morning - wp40, v=2.60,
+   w=0.96 (a_lat right at the 2.5 budget), orientation trip or
+   level-sink, both times at the same coordinates. This is SEPARATE from
+   the (now stop-gait-held) closure stop. The campaign-era "VSUS 2.6 ->
+   6/6" tuning was measured on an older build lineage; the current stack
+   (steering cap, pivot follower, stop braking) has not had its oval VSUS
+   re-swept. Re-sweep 2.4/2.5/2.6 with equal N before trusting 2.6 again.
+   (The oval STOP itself: 2/2 passes since the gait-hold below; prior
+   tips at roll 72/88 deg have not recurred - keep counting reps.)
 2. **Spawn pose: the dog's legs are below z=0 pre-stand** (user-observed).
    Spawn is z=0.08 belly-down but joints spawn at q=0, so the legs pierce
    the ground plane until the initial fold - likely also why every run

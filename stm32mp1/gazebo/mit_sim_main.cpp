@@ -151,6 +151,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
 
   planning::BodyPathPlanner planner;
   planning::MissionAnalyzer analyzer;
+  // Stop coordinates, kept for the nav loop's "no gait changes inside a
+  // stop's braking zone" hold (see the gait-change gate below). [0] = the
+  // dash-interlude closure (valid while dash_pending), [1] = the final
+  // waypoint (always a stop - the end-of-mission lie-down).
+  float hold_stop_n[2] = {0, 0}, hold_stop_e[2] = {0, 0};
   if (use_planner) {
     // The path must START WHERE THE ROBOT IS. Building it from the waypoints
     // alone begins it at wp00, 10.5 m away, so the follower spent the whole
@@ -196,10 +201,13 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     if (dash_pending) {
       const auto& stopw = nav.waypoint(dash_wp_index - 1);
       planner.addStopXY(stopw.north, stopw.east);
+      hold_stop_n[0] = stopw.north; hold_stop_e[0] = stopw.east;
       printf("[plan] mid-path stop registered at the loop closure "
              "(wp%02d N=%.2f E=%.2f) for the dash interlude\n",
              dash_wp_index - 1, stopw.north, stopw.east);
     }
+    hold_stop_n[1] = nav.waypoint(nav.count() - 1).north;
+    hold_stop_e[1] = nav.waypoint(nav.count() - 1).east;
     planner.plan(wx, wy, 0.10, false, corridor);
     /*
      * ANALYSE THE MISSION ONCE, HERE, BEFORE THE DOG MOVES.
@@ -424,7 +432,36 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     else if (use_planner && hbias_gain > 0.f)
       setHeightBias(planner.plannedHeightBias(hbias_ahead, hbias_gain));
 
-    if (seg && bridge->userParams() && seg->gait != cur_gait) {
+    /*
+     * NO GAIT CHANGES INSIDE A STOP'S BRAKING ZONE. Measured on the oval:
+     * the analyzer upgrades trotting -> trotRunning entering the closing
+     * straight ~3 s before the loop-closure STOP, so the stop maneuver
+     * begins from a barely-engaged flight-phase gait - and that stop was
+     * the one physically tipping sideways (~1 in 3, roll 72-88 deg) while
+     * the star's and atom's stops (no switch on approach) passed cleanly.
+     * Hold any pending change while within R_HOLD of a stop still ahead;
+     * once the stop is consumed (interlude done -> dash_pending false and
+     * the dog drives away), the held segment gait applies on the next
+     * pass - which is exactly how the dash still gets trotRunning, just
+     * AFTER standing back up instead of right before lying down.
+     */
+    bool near_stop = false;
+    {
+      // Distance alone is ambiguous on a CLOSED course - the dog spawns
+      // next to the closure coordinates, and a bare radius test would
+      // hold the analyzer's very first upgrade at mission start. Require
+      // the mission to be past halfway before a stop can be "ahead".
+      const float R_HOLD = 10.f;
+      const bool second_half = lastIdx > nav.count() / 2;
+      if (dash_pending && second_half &&
+          std::hypot(N - hold_stop_n[0], E - hold_stop_e[0]) < R_HOLD)
+        near_stop = true;
+      if (second_half &&
+          std::hypot(N - hold_stop_n[1], E - hold_stop_e[1]) < R_HOLD)
+        near_stop = true;
+    }
+
+    if (seg && bridge->userParams() && seg->gait != cur_gait && !near_stop) {
       ControlParameterValue cv; cv.d = (double)seg->gait;
       bridge->userParams()->collection.lookup("cmpc_gait")
           .set(cv, ControlParameterValueKind::DOUBLE);
