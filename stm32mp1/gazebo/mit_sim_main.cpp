@@ -599,8 +599,29 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // first SPIKE the command back up to cruise.
       const float v_at_stop = bridge->driverCommand().leftStickAnalog[1];
       for (int k = 15; k >= 0; --k) {
+        /*
+         * STEERED deceleration. Zeroing yaw on the ramp's first tick while
+         * the body still carries a turn's residual yaw/roll is what tipped
+         * the OVAL's stop sideways (roll 53-88 deg, ~50%): its closure sits
+         * 1.2 m off the exit of a continuous R=5 arc, so the dog stops
+         * mid-straightening - where the star gets a 20 m straight run-in
+         * and stops clean. Keep the follower's steering live through the
+         * first 0.5 s of the ramp so the dog straightens onto the exit
+         * heading as it slows; on a straight approach the follower already
+         * outputs w~0 and this is a no-op (star behaviour unchanged, and
+         * guarded by reps regardless).
+         */
+        float w_dec = 0.f;
+        if (use_planner && k > 5) {
+          SimAuxSensors aux2; gazebo_get_aux(&aux2);
+          float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
+          const auto& es2 = bridge->robotRunner()->getStateEstimate();
+          const float b2 = -(es2.rpy[2] - yaw_ref);
+          double pv2 = 0, pw2 = 0;
+          if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
+        }
         bridge->driverCommand().leftStickAnalog[1]  = v_at_stop * (float)k / 15.f;
-        bridge->driverCommand().rightStickAnalog[0] = 0.f;
+        bridge->driverCommand().rightStickAnalog[0] = w_dec;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
@@ -725,8 +746,19 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //    several metres past the stopping point, unsteered, before
       //    slowing down at all.
       for (int k = 15; k >= 0; --k) {
+        // STEERED deceleration - same fix and reasoning as the interlude's
+        // decel above (a dash=0 oval ends right off the arc exit too).
+        float w_dec = 0.f;
+        if (use_planner && k > 5) {
+          SimAuxSensors aux2; gazebo_get_aux(&aux2);
+          float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
+          const auto& es2 = bridge->robotRunner()->getStateEstimate();
+          const float b2 = -(es2.rpy[2] - yaw_ref);
+          double pv2 = 0, pw2 = 0;
+          if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
+        }
         bridge->driverCommand().leftStickAnalog[1] = nv * (float)k / 15.f;
-        bridge->driverCommand().rightStickAnalog[0] = 0.f;
+        bridge->driverCommand().rightStickAnalog[0] = w_dec;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
       bridge->driverCommand().leftStickAnalog[1] = 0.f;
