@@ -2906,3 +2906,134 @@ decisively (4-10 m). trot@0.8's 78.7 m does not, and is being repeated.
 - Terrain following works well enough to stand on the farm mesh but not to walk
   on it; `worlds/go1_farm_flat.sdf` keeps the farm scenery with a flat walkable
   ground as an interim.
+
+## The Conductor (Aug 2026): fleet control panel, cornering fix, dash-as-finish
+
+`stm32mp1/gazebo/conductor/` is a browser panel (`server.py`, aiohttp-free
+stdlib HTTP + polling, `static/*.js`) that orchestrates up to 3 Go1s in Gazebo:
+draft a mission per dog slot (course, gait, speed, dash distance, per-dog
+camera config), launch, watch live telemetry and three body-mounted camera
+feeds per dog (front/nadir/chase), pull raw logs, stop. `GET /docs` is a
+Swagger-style reference for every route (Play button + curl + live response),
+covering `/api/state`, `/api/logs/{i}` (raw `ctrl`/`bridge` log text, not the
+curated event feed `/api/state` carries), `/api/launch`, `/api/stop`,
+`/api/slots/*`, `/api/speed_cap`, `/api/terrain`.
+
+### Cornering: the star's "elephant foot" was a steering-rate bug, not a geometry bug
+
+The angle-graded corridor fix (earlier session) correctly tightened the fillet
+radius at a sharp corner (down to R~0.03 m at the star's tightest vertex) but
+`BodyPathPlanner::computeSpeedProfile()`'s `p.v_max` was capped ONLY by
+traction (`v <= sqrt(a_lat_max/kappa)`) - it never checked whether the body
+could physically STEER that fast. At R~0.03 m, traction allowed 0.31 m/s while
+the body's `yaw_rate_max` (1.2 rad/s) only allows `wz_max/kappa ~= 0.036 m/s` -
+commanding the traction number sent the robot into a turn it could not track,
+and that does not fail safe: it overshoots and loops back around the corner
+before recovering, which is the "elephant foot" shape reported at every corner
+of the star, not just the tightest one.
+
+**Fix**: a second, independent cap, `v_steering = yaw_rate_max / kappa`, with
+`v_max = min(v_traction, v_steering)`. The `v_min` floor previously applied to
+`p.v_max` had to be removed too - it was silently re-flooring the new cap back
+up at exactly the corners it exists to slow down. (The UNRELATED `v_min` floor
+on `_path[0].v`, which exists so `follow()`'s nearest-index lookahead can
+advance off a literal zero, is untouched - different assignment, different
+purpose, do not conflate them again.)
+
+**Verified two ways before trusting it**:
+1. Isolated open-loop yaw-sweep (`SIM_VX=1.0 SIM_WZ=1.2`, no waypoint nav,
+   direct stick commands) - the standard method from earlier sessions, reused
+   per direct instruction rather than re-derived. Yaw tracked ~100% of
+   commanded over a sustained 35 s, roll held 6-9 deg, no falls - so steering
+   authority itself was never the problem, only commanding a curvature the
+   body could not deliver was.
+2. Live full star run (dash=0): clean pentagram, all five corners tight, no
+   loop-back at any vertex, confirmed both in the nav logs and a browser
+   screenshot of the drawn-vs-flown overlay.
+
+### Dash-as-finish: the 100 m dash ends a mission, it does not replace one
+
+Per direct instruction, `dash` is now how a course FINISHES, not a standalone
+mission: complete the full waypoint loop, return to wp0, THEN sprint a
+straight `dash` metres onward. `WaypointNav::appendDash(distance_m, speed)`
+appends two points, not one - first an explicit return-to-wp0 (v1 skipped
+this and extrapolated the dash off the raw final-leg vector instead, which
+shot it out at the star's oblique tip angle when the user first tested it),
+then a point `distance_m` beyond wp0 along the wp[n-1]->wp0 heading.
+`mit_sim_main.cpp` captures `dash_wp_index = loop_wp_count + 1` (one past the
+return point) so the loop-complete interlude fires at the right boundary.
+Verified geometrically correct and reproduced live: full star+dash test just
+run shows a clean return to wp0 (`reached wp05 (N=10.51 E=0.00) dist=1.38`,
+which IS wp0's coordinate) before the interlude fires - the "we never went
+back to wp0" bug reported earlier is fixed.
+
+### The loop-to-dash interlude (stop, lie down, stand back up, dash) - STILL UNRESOLVED
+
+This is the one open item from this session and it should NOT be reported as
+fixed. Three real, independently-verified bugs were found and fixed chasing
+it, and the sequence still falls:
+
+1. **`BALANCE_STAND -> STAND_UP` is not a legal FSM transition.**
+   `FSM_State_BalanceStand::checkTransition()` has no `K_STAND_UP` case, so
+   every lie-down request into that path was silently rejected (100+ "Bad
+   Request" log lines, confirmed by reading the FSM source directly, not
+   inferred from behaviour). Fixed by routing through `K_PASSIVE` first, the
+   FSM's own legal path to `STAND_UP`.
+2. **The `PASSIVE` hop cuts leg torque entirely, and `edamp` was not covering
+   it.** `RobotRunner::finalizeStep()` applies `edampCommand()` AFTER the FSM
+   state's own control output regardless of which state is active - confirmed
+   from the call order in `RobotRunner.cpp` (control at line ~319, edamp at
+   ~524). Fixed: `setEdamp(8.0)` spans the `PASSIVE` hop, `setEdamp(0.0)`
+   before `STAND_UP`'s own interpolation so damping does not fight the
+   position controller.
+3. **The post-arrival deceleration ramp coasted the robot unsteered past the
+   stop point.** Lengthening the ramp (to reduce deceleration rate) made this
+   WORSE, not better - confirmed live: `v=3.50` still logged at `reached
+   wp05`, and the robot visibly overshot ~5 m before slowing. Fixed: short,
+   sharp deceleration (15 steps x 50 ms, ~0.75 s) followed by CLOSED-LOOP
+   verification - poll the real `vBody` magnitude from the state estimate and
+   wait for it to drop under 0.15 m/s (2 s timeout) before touching the FSM at
+   all, rather than trusting a fixed timer.
+
+All three are real, and each was independently confirmed against source or
+log evidence before being called a fix - but the interlude still falls. Most
+recent full-sequence test (star course, dash=30, with the cornering fix
+active): the robot ran a clean loop, returned to wp0 exactly as designed
+(`dist=1.38` at wp05), printed `[nav] loop complete ... stop, lie down, stand
+back up`, and then collapsed within roughly a second - `[FALL] collapsed:
+roll=-3 deg pitch=12 deg z=0.071 m held 0.50 s`. Two things about this
+specific failure are worth recording because they narrow where to look next:
+
+- **The attitude is mild** (3 deg roll, 12 deg pitch) but **height is not**
+  (0.071 m, well below any standing pose) - the same "height collapses before
+  attitude does" signature documented elsewhere in this file for the star at
+  2.5 m/s, not a tip-over signature.
+- **It happens at or before `[GAIT] Transitioning gait from TROT to STAND`**,
+  which fires automatically off the velocity-ramp-to-zero (this is upstream of
+  and separate from the interlude's own explicit
+  PASSIVE -> STAND_UP -> BALANCE_STAND -> LOCOMOTION sequence quoted above) -
+  i.e. the fall may be happening DURING the sharp-decel phase itself, before
+  the interlude's own lie-down code ever runs. This is a different code
+  region than the three fixes above targeted, and it was not diagnosed
+  further this session. **Do not assume the three fixes above are wasted** -
+  each was independently verified against source/log evidence on its own
+  terms - but they were evidently not the only thing wrong, and the failure
+  point moving after each fix (PASSIVE hop -> STAND_UP interpolation ->
+  BALANCE_STAND -> now apparently the TROT->STAND gait switch itself) is
+  consistent with either a fourth distinct bug or genuine marginal
+  instability in this specific stop-and-lie-down maneuver.
+
+**Next step if resumed**: pull the full raw ctrl log via the new
+`GET /api/logs/{i}?kind=ctrl&full=1` route (see below) around the exact tick
+of `[GAIT] Transitioning gait from TROT to STAND` and look at body height/
+velocity/foot contact state tick-by-tick through that transition, rather than
+at the coarse ~1 Hz nav-line resolution used so far.
+
+### New debug route: raw logs over REST
+
+`GET /api/logs/{i}?kind=ctrl|bridge&tail=N|full=1` - the full text
+`mit_ctrl_sim`/the bridge wrote for dog `i`, not the curated one-line-per-event
+feed `/api/state`'s `log` array already carries. Added specifically because
+diagnosing the interlude fall above needed exact tick-level text that the
+curated feed does not carry, and pulling it by hand meant SSH-ing into a
+scratch directory instead of one `curl`.

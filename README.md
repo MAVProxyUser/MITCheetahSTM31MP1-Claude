@@ -30,6 +30,9 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | **Gazebo Go1 SITL** | ✅ **controller on the MP1 stands/squats a simulated Go1 over UDP, with IMU/baro/GPS** |
 | MIT_Controller (MPC + WBC) locomotion | ✅ **runs** — 100 m dash in **24.8 s at 4.70 m/s** under `trotRunning`; 6 of 8 gaits complete a mission |
 | OpenPilot waypoint navigation | ✅ **100 m GPS star, 13/13 at 42.6 s**, judged PASS (settles + lies down) — real estimator, cheater mode deleted |
+| Fleet control panel (`conductor/`) | ✅ browser UI: up to 3 dogs, per-dog camera config, `GET /docs` REST reference for every route |
+| Star cornering (steering-rate cap) | ✅ **fixed and verified** — corner speed now capped by yaw authority, not just traction; no more overshoot/loop-back at tight vertices |
+| Loop-to-dash finish (stop, lie down, stand, sprint) | ❌ **open** — the loop and the dash-out both run clean; the stop/lie-down/stand-up interlude between them still falls on most trials, see `CLAUDE.md` |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 

@@ -611,3 +611,41 @@ python3 stm32mp1/gazebo/record_video.py out.mp4 25 /chase_cam
 ```
 Records the `chase_cam` sensor on the robot's trunk straight into ffmpeg. Needs no
 GUI and does not spam "Saved image to:" toasts the way `/gui/screenshot` polling did.
+
+## The Conductor fleet panel (`stm32mp1/gazebo/conductor/`)
+
+```bash
+cd stm32mp1/gazebo/conductor && python3 server.py            # serves on :8420
+open http://127.0.0.1:8420                                   # panel; /docs is the REST reference
+```
+
+Everything the browser can do has a REST route — `GET /docs` is a live,
+clickable reference (Play + curl + response) for all of them, kept in sync
+with `docs.js`'s `ENDPOINTS` array as the single source of truth. Useful ones
+for debugging without the browser:
+
+```bash
+curl -s http://127.0.0.1:8420/api/state | python3 -m json.tool   # full snapshot: phase, live per-dog, curated log
+curl -s "http://127.0.0.1:8420/api/logs/0?tail=200"               # raw ctrl log text for dog 0, last 200 lines
+curl -s "http://127.0.0.1:8420/api/logs/0?kind=bridge&full=1"     # the bridge's log instead, in full
+```
+
+`/api/state`'s `log` array is a CURATED feed (regex-matched, one line per
+init/stand/gait-change/dash/safety event) — good for watching a run live, not
+for diagnosing an exact-tick failure. `/api/logs/{i}` is the raw thing
+`mit_ctrl_sim` actually printed; reach for it once the curated feed has told
+you roughly WHEN something went wrong and you need to see every line around
+that timestamp.
+
+**Kill stragglers the same way as any other sweep**: `pkill -9 -f
+"server.py|gz sim|mit_ctrl_sim|cheetah_gazebo_bridge"` before relaunching. A
+stale `server.py` serving code from before your last edit is the single most
+common "why didn't my fix take effect" here — it looks exactly like a
+regression.
+
+**Test the FULL sequence, not just the piece you changed.** A fix verified in
+isolation (e.g. an open-loop yaw-sweep for the cornering cap) still needs to
+be re-run through the WHOLE mission end to end before it is trusted — the
+cornering fix above was solid in isolation and in a dash=0 star, but the same
+build's loop-to-dash interlude still fails on the full dash=30 run. Isolating
+a fix is for finding it; the full sequence is for believing it.
