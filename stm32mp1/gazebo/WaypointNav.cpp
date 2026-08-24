@@ -360,9 +360,34 @@ void WaypointNav::appendDash(float distance_m, float speed) {
     // design, still the right one when the loop does not close itself.
     dn /= len; de /= len;
 
+    /*
+     * NEAR-CLOSED course - the oval: its closing arc ends 1.2 m short of
+     * wp00, so the pre-dash STOP used to sit right off the exit of a
+     * continuous R=5 turn, where the dog stops mid-straightening - the
+     * residual sideways-tip cell (measured ~1-in-6 even with steered
+     * deceleration). The star's stop never shows it because the star
+     * arrives down a 20 m straight. Give the oval the SAME end logic:
+     * place the stop a few metres PAST wp00 along the dash heading, so
+     * the dog closes its loop at the arc exit and then gets a genuine
+     * straight run-in - retracing its own opening straight, so the drawn
+     * shape is unchanged - before it is asked to stop. A genuinely open
+     * course (len >= 3, e.g. outback's 100 m gap) keeps run_in = 0 and
+     * its original "return exactly to wp00" semantics.
+     */
+    // MEASURED AND REVERTED same-day: run_in = 6 m took the oval's stop
+    // from 5-of-6 to 0-of-8 - four tips with the pre-stop gait switch
+    // accidentally un-held, then four MORE with the switch verifiably held
+    // and clean 2.99 ms loops. The straight-run-in theory (match the
+    // star's approach) fails its own A/B; stopping right where the arc's
+    // speed cap still binds measures BETTER than stopping after a brief
+    // re-acceleration up the open straight, for a reason not yet
+    // identified. Do not raise this from 0 again without interleaved reps.
+    const float run_in = 0.f;
+    (void)run_in;
+
     const int return_idx = _n;
-    _wp[_n].north = _wp[0].north;
-    _wp[_n].east  = _wp[0].east;
+    _wp[_n].north = _wp[0].north + dn * run_in;
+    _wp[_n].east  = _wp[0].east  + de * run_in;
     _wp[_n].speed = speed;
     ++_n;
 
