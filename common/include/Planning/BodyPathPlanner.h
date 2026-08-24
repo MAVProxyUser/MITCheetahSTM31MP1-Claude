@@ -202,6 +202,36 @@ class BodyPathPlanner {
   const std::vector<PathPoint>& path() const { return _path; }
 
   /*!
+   * STOP POINTS - the profile must brake for a stop the same way it brakes
+   * for a corner.
+   *
+   * The stop sequences (end-of-mission lie-down, and the loop-to-dash
+   * interlude) were built and validated when missions cruised at 2.0 m/s on
+   * trotting; the campaign recipes then moved the loops to trotRunning at
+   * 3.5 and nobody made the STOP speed-aware. Measured consequence, at the
+   * root of every stop-point fall: the dog arrives at the stop waypoint at
+   * v=3.50 - the profile never brakes because there is no corner there -
+   * then the caller's short stick ramp demands ~4.7 m/s^2 against a body
+   * that can do ~1.2, the gait scheduler cuts TROT->STAND on the zeroed
+   * command while the body is still moving fast, the braking pitch trips
+   * the 28.6 deg orientation check within a tick, ESTOP cuts the motors,
+   * and the "fall during lie-down" is really a fall during an unplanned
+   * crash-stop (with a visible unsteered brake-yaw right before it).
+   *
+   * A stop is just a point whose planned speed is v_min: registered before
+   * plan(), applied ahead of the backward pass, which then builds the same
+   * correctly-sized braking zone corners already get (a_lon tuning
+   * included). The forward pass accelerates back out of a mid-path stop
+   * automatically, which is exactly what the dash sprint needs.
+   *
+   * The path END is always a stop (every mission finishes with a
+   * settle-and-lie-down; a looping path never ends), unless disabled via
+   * setEndStop(false) / $WP_END_BRAKE=0 for A/B against old behaviour.
+   */
+  void addStopXY(double x, double y) { _stopsXY.emplace_back(x, y); }
+  void setEndStop(bool on) { _endStop = on; }
+
+  /*!
    * Build a smooth path through waypoints and its speed profile.
    *
    * @param wx,wy   waypoints in world coordinates (>= 2 points)
@@ -433,6 +463,10 @@ class BodyPathPlanner {
   std::vector<double> _extraCap;
   size_t _lastIdx = 0;
   bool _alonExplicit = false;
+  //! Mid-path stop points (world x,y) - see addStopXY. Resolved to the
+  //! nearest path index at profile time, so they survive a re-plan.
+  std::vector<std::pair<double, double>> _stopsXY;
+  bool _endStop = true;
 
   /*!
    * Build the path as straight segments joined by FILLET ARCS at each waypoint.
@@ -691,6 +725,29 @@ class BodyPathPlanner {
       }
       if (_lim.hairpin_rad < 9.0 && p.hairpin) p.v_max = std::min(p.v_max, _lim.v_pivot);
       p.v = p.v_max;
+    }
+    /*
+     * STOP POINTS (see addStopXY's comment): force v down to v_min at the
+     * path's end and at every registered mid-path stop BEFORE the backward
+     * pass, so the pass builds a real braking zone into each one - the same
+     * machinery, and the same already-tuned a_lon, that corners get. v_min
+     * rather than a literal 0 for the same reason as _path[0] below: the
+     * arrival test needs the dog to actually creep across the waypoint's
+     * half-plane, and follow() reads .v with no lookahead - an exact 0 at
+     * the nearest point would park it just short of the line forever.
+     * Mid-path stops resolve to the nearest path point; the fillet means
+     * the path passes within ~corridor of the waypoint itself, which only
+     * makes the braking end a metre early - harmless.
+     */
+    if (_endStop && n >= 2) _path[n - 1].v = std::min(_path[n - 1].v, _lim.v_min);
+    for (const auto& st : _stopsXY) {
+      size_t best = 0; double bd = 1e18;
+      for (size_t i = 0; i < n; ++i) {
+        const double dx = _path[i].x - st.first, dy = _path[i].y - st.second;
+        const double d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = i; }
+      }
+      _path[best].v = std::min(_path[best].v, _lim.v_min);
     }
     // Backward: v_i^2 <= v_{i+1}^2 + 2*a*ds  (can I still slow down in time?)
     for (size_t i = n - 1; i-- > 0; ) {

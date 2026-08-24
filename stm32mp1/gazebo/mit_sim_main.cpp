@@ -87,18 +87,18 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   // sprint - the same lie-down/stand-up the QA ladder already rehearses at
   // the true end of every mission (see the END-OF-MISSION SEQUENCE below),
   // just run once more in the middle instead of only at the finish.
-  // loop_wp_count marks the boundary: appendDash() now inserts TWO
-  // waypoints (an explicit return to wp00, THEN the dash point), so the
-  // interlude should fire once the RETURN leg is complete and the dash
-  // point becomes active - one PAST loop_wp_count, not at it - so the dog
-  // has genuinely closed the shape before it stops and lies down.
+  // The dash target is always the LAST waypoint appendDash produced -
+  // one point on an already-closed course (star/oval/atom all close their
+  // own stroke now), two (return-to-wp00, then the sprint) on an open one.
+  // The interlude fires once nav advances ONTO the dash point, i.e. the
+  // dog has genuinely closed the shape before it stops and lies down.
   const int loop_wp_count = nav.count();
   bool dash_pending = false;
   if (getenv("WP_DASH")) {
     nav.appendDash(atof(getenv("WP_DASH")), vx);
     dash_pending = nav.count() > loop_wp_count;
   }
-  const int dash_wp_index = loop_wp_count + 1;
+  const int dash_wp_index = nav.count() - 1;
 
   if (getenv("WP_ACCEPT"))   nav.accept_radius = atof(getenv("WP_ACCEPT"));
   if (getenv("WP_LOOP"))     nav.loop = true;
@@ -167,6 +167,24 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     if (getenv("WP_HAIRPIN")) { auto L = planner.limits(); L.hairpin_rad = atof(getenv("WP_HAIRPIN")); planner.setLimits(L); }
     if (getenv("WP_VPIVOT"))  { auto L = planner.limits(); L.v_pivot     = atof(getenv("WP_VPIVOT"));  planner.setLimits(L); }
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
+    /*
+     * STOPS ARE PART OF THE PLAN (see BodyPathPlanner::addStopXY). The path
+     * end always brakes to v_min (every mission finishes with a lie-down);
+     * with a dash appended, the loop-closure waypoint - where the dog stops,
+     * lies down and stands back up before the sprint - is a mid-path stop,
+     * so the profile brakes into it and re-accelerates out of it with the
+     * same two-pass math the corners use. Before this, the dog arrived at
+     * both at full cruise and the stop sequence was really a crash-stop.
+     */
+    if (getenv("WP_END_BRAKE") && atoi(getenv("WP_END_BRAKE")) == 0)
+      planner.setEndStop(false);
+    if (dash_pending) {
+      const auto& stopw = nav.waypoint(dash_wp_index - 1);
+      planner.addStopXY(stopw.north, stopw.east);
+      printf("[plan] mid-path stop registered at the loop closure "
+             "(wp%02d N=%.2f E=%.2f) for the dash interlude\n",
+             dash_wp_index - 1, stopw.north, stopw.east);
+    }
     planner.plan(wx, wy, 0.10, false, corridor);
     /*
      * ANALYSE THE MISSION ONCE, HERE, BEFORE THE DOG MOVES.
@@ -514,8 +532,14 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //    is no longer entered on a timer's say-so: the loop below polls
       //    the REAL measured body speed and only proceeds once it is
       //    actually low, with a bounded timeout as a backstop.
+      // Ramp from the speed actually being COMMANDED right now, not from
+      // cruise: the planner's mid-path stop (addStopXY at the loop closure)
+      // has already braked the dog to ~v_min by the time this fires, so the
+      // stick is at a creep - ramping "vx down to zero" from here would
+      // first SPIKE the command back up to cruise.
+      const float v_at_stop = bridge->driverCommand().leftStickAnalog[1];
       for (int k = 15; k >= 0; --k) {
-        bridge->driverCommand().leftStickAnalog[1]  = vx * (float)k / 15.f;
+        bridge->driverCommand().leftStickAnalog[1]  = v_at_stop * (float)k / 15.f;
         bridge->driverCommand().rightStickAnalog[0] = 0.f;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }

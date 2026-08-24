@@ -30,9 +30,8 @@ void WaypointNav::makeStar(float radius_m, int points, float speed) {
   // Visit every 2nd vertex of a regular n-gon: for odd n that traces a star
   // polygon in one closed stroke (n=5 -> the classic pentagram), which is the
   // mission the OpenPilot build flies.
-  if (points > MAXWP) points = MAXWP;
+  if (points > MAXWP - 1) points = MAXWP - 1;   // one slot reserved for the closing waypoint
   int step = (points % 2 == 1) ? 2 : 1;   // even n has no single-stroke star
-  _n = points;
   // Rotate the whole pattern so the FIRST waypoint sits due NORTH - the dog
   // spawns facing north, so the mission opens with a straight leg instead of a
   // ~140 degree pivot-in-place (the pivot is the crawl's least stable move and
@@ -45,6 +44,21 @@ void WaypointNav::makeStar(float radius_m, int points, float speed) {
     _wp[i].east  = radius_m * sinf(a);
     _wp[i].speed = speed;
   }
+  /*
+   * CLOSE THE LOOP. A pentagram is drawn 0->1->2->3->4->0 - the final stroke
+   * back to the first vertex is part of the SHAPE, not an optional extra. This
+   * list used to end at the last vertex, and the closing leg only ever existed
+   * as a side effect of appendDash()'s return-to-wp00 insert - so a star with
+   * the dash disabled visibly stopped one stroke short of the drawn plan
+   * (which the UI renders closed). Closing belongs to the mission itself;
+   * appendDash() now detects an already-closed course and only appends the
+   * sprint. (The oval and atom already close by construction - their waypoint
+   * lists trace the full stroke back to the start.)
+   */
+  _wp[points].north = _wp[0].north;
+  _wp[points].east  = _wp[0].east;
+  _wp[points].speed = speed;
+  _n = points + 1;
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] star mission: %d points, r=%.1f m, v=%.2f m/s\n", _n, radius_m, speed);
   for (int i = 0; i < _n; ++i)
@@ -317,24 +331,50 @@ void WaypointNav::appendDash(float distance_m, float speed) {
   float dn = _wp[0].north - _wp[_n - 1].north;
   float de = _wp[0].east  - _wp[_n - 1].east;
   const float len = sqrtf(dn * dn + de * de);
-  if (len < 1e-3f) return;   // wp0 and the last waypoint coincide, nothing to aim at
-  dn /= len; de /= len;
+  if (len < 1.0f) {
+    /*
+     * The course ALREADY closes - its last waypoint is (at or within a
+     * metre of) wp00. makeStar now appends its own closing waypoint, and
+     * the oval/atom have always traced their stroke back to the start, so
+     * inserting another return point would add a degenerate metre-long leg
+     * the dog has to "navigate" at the seam. Just append the sprint,
+     * continuing the course's own closing tangent (the final leg's heading,
+     * which by construction ends at wp00 - the same direction the old
+     * two-point insert produced, minus the duplicate point).
+     */
+    dn = _wp[_n - 1].north - _wp[_n - 2].north;
+    de = _wp[_n - 1].east  - _wp[_n - 2].east;
+    const float l2 = sqrtf(dn * dn + de * de);
+    if (l2 < 1e-3f) return;
+    dn /= l2; de /= l2;
+    _wp[_n].north = _wp[_n - 1].north + dn * distance_m;
+    _wp[_n].east  = _wp[_n - 1].east  + de * distance_m;
+    _wp[_n].speed = speed;
+    ++_n;
+    printf("[nav] dash finish appended: course already closes at wp%02d, "
+           "%.1f m sprint onward to wp%02d  N=%7.2f  E=%7.2f\n",
+           _n - 2, distance_m, _n - 1, _wp[_n - 1].north, _wp[_n - 1].east);
+  } else {
+    // OPEN course (e.g. outback): insert the explicit return to wp00 first,
+    // then sprint onward along the closing heading - the original two-point
+    // design, still the right one when the loop does not close itself.
+    dn /= len; de /= len;
 
-  const int return_idx = _n;
-  _wp[_n].north = _wp[0].north;
-  _wp[_n].east  = _wp[0].east;
-  _wp[_n].speed = speed;
-  ++_n;
+    const int return_idx = _n;
+    _wp[_n].north = _wp[0].north;
+    _wp[_n].east  = _wp[0].east;
+    _wp[_n].speed = speed;
+    ++_n;
 
-  _wp[_n].north = _wp[return_idx].north + dn * distance_m;
-  _wp[_n].east  = _wp[return_idx].east  + de * distance_m;
-  _wp[_n].speed = speed;
-  ++_n;
-
-  printf("[nav] dash finish appended: return to wp00 (wp%02d N=%7.2f E=%7.2f), "
-         "then %.1f m onward to wp%02d  N=%7.2f  E=%7.2f\n",
-         return_idx, _wp[return_idx].north, _wp[return_idx].east, distance_m,
-         _n - 1, _wp[_n - 1].north, _wp[_n - 1].east);
+    _wp[_n].north = _wp[return_idx].north + dn * distance_m;
+    _wp[_n].east  = _wp[return_idx].east  + de * distance_m;
+    _wp[_n].speed = speed;
+    ++_n;
+    printf("[nav] dash finish appended: return to wp00 (wp%02d N=%7.2f E=%7.2f), "
+           "then %.1f m onward to wp%02d  N=%7.2f  E=%7.2f\n",
+           return_idx, _wp[return_idx].north, _wp[return_idx].east, distance_m,
+           _n - 1, _wp[_n - 1].north, _wp[_n - 1].east);
+  }
   fflush(stdout);
 }
 
