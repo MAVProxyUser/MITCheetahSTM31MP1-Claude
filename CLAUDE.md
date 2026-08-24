@@ -3210,6 +3210,32 @@ change to the planner/follower lineage before trusting its old tuning.
   construction. Measured: oval 4/4 full-sequence PASS - the FIRST
   4-for-4 end-to-end oval in this project's history - star guard 2/2 on
   the same binary.
+### THE FULL FLEET COMPLETED - 2026-08-24 14:52, tagged fleet-complete-20260824
+
+**All three dogs, SIMULTANEOUSLY, ran their complete sequence - loop,
+stop, lie down, stand back up, 100 m dash - and every one finished.**
+
+    dog1  oval:40:5.0  @3.5 trotRunning  COMPLETE t= 83.8 s  (judged PASS,
+                       held gait switch fired "9 -> 5 while standing")
+    dog0  star:10.514:5 @3.5 trotRunning COMPLETE t=114.6 s
+    dog2  atom:9.0:6   @2.1 trotting     COMPLETE t=118.2 s
+
+Conditions: quiet host (load ~1.7 at launch - the gz-teardown-on-done fix
+had just removed the idle-engine load leak), cameras off, single branch
+master at 6e94c74, every change committed and pushed BEFORE the run so
+the exact producing state is reproducible. Loop health across all three:
+max period 2.51-2.52 ms, ZERO samples over 4 ms in ~135 per dog - the
+cleanest parallel run ever recorded here, and the final confirmation that
+every earlier simultaneous wipeout was the host, not the controller.
+
+Known nit, deliberately NOT changed (operator: "save this! don't change
+it right now!"): the new teardown-on-done fires ~1 s after the LAST dog's
+"MISSION COMPLETE", which truncates the final settle/judge printout of
+the later-finishing dogs (their missions and dashes are complete; only
+the [mission] RESULT bookkeeping line is cut). dog1 finished early enough
+to get its full judged PASS. Queued fix for LATER: key the poller's done
+detection on "[mission] RESULT" / [FALL] instead of "MISSION COMPLETE".
+
 ### BASELINE, END OF 2026-08-24 (build 308ef89/f51a433, single branch master)
 
 Solo, one dog at a time, dash=100, cameras off, quiet host - the
