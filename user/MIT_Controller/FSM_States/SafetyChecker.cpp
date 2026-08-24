@@ -8,19 +8,63 @@
  */
 
 #include "SafetyChecker.h"
+#include <cstdlib>
 
 /**
  * @return safePDesFoot true if safe desired foot placements
+ *
+ * DEBOUNCE ($CTRL_ORIENT_HOLD_MS, default 60 ms; 0 restores stock MIT).
+ *
+ * Upstream this is a ZERO-debounce trip: ONE tick past 0.5 rad (28.6 deg)
+ * force-ESTOPs to PASSIVE and cuts the motors. That is right for a
+ * mini-cheetah pottering about and wrong for this port at campaign speeds,
+ * where the measured yaw envelope already puts cornering roll at 19.5 deg
+ * at vx=1.5/wz=1.5 - so a transient at the lateral-acceleration budget
+ * brushes 28.6 deg routinely. Every fall recorded on 2026-08-24, on all
+ * three courses, is this line firing FIRST and the "collapse" following as
+ * its consequence: the giveaway is a robot reported perfectly level
+ * (roll=-1, pitch=-0) at z=-0.302 m, i.e. limp and sinking, not tipped.
+ *
+ * A brief hold distinguishes "clipped the limit through a hard corner" from
+ * "actually going over" - it is the same argument this port already made
+ * for its own fall detector (SIM_FALL_DEG 50 deg held SIM_FALL_HOLD_S
+ * 0.5 s), which stays armed underneath as the genuine-fall arbiter. The
+ * excursion is also PRINTED with its peak so the decision is measurable
+ * rather than assumed.
  */
 template <typename T>
 bool SafetyChecker<T>::checkSafeOrientation() {
-  if (abs(data->_stateEstimator->getResult().rpy(0)) >= 0.5 ||
-      abs(data->_stateEstimator->getResult().rpy(1)) >= 0.5) {
-        printf("Orientation safety check failed!\n");
-    return false;
-  } else {
-    return true;
+  static const int hold_ticks =
+      (getenv("CTRL_ORIENT_HOLD_MS")
+           ? atoi(getenv("CTRL_ORIENT_HOLD_MS")) : 60) / 2;   // 2 ms ticks
+  static int over_ticks = 0;
+  static float peak = 0.f;
+
+  const float roll  = std::fabs((float)data->_stateEstimator->getResult().rpy(0));
+  const float pitch = std::fabs((float)data->_stateEstimator->getResult().rpy(1));
+  const float worst = std::max(roll, pitch);
+
+  if (worst >= 0.5f) {
+    ++over_ticks;
+    if (worst > peak) peak = worst;
+    if (over_ticks > hold_ticks) {
+      printf("Orientation safety check failed! (roll=%.1f pitch=%.1f deg, "
+             "peak %.1f, held %d ms)\n",
+             roll * 57.2958f, pitch * 57.2958f, peak * 57.2958f,
+             over_ticks * 2);
+      fflush(stdout);
+      over_ticks = 0; peak = 0.f;
+      return false;
+    }
+    return true;               // inside the hold - still recoverable
   }
+  if (over_ticks) {            // recovered: report what it survived
+    printf("[orient] transient %.1f deg for %d ms - RECOVERED\n",
+           peak * 57.2958f, over_ticks * 2);
+    fflush(stdout);
+  }
+  over_ticks = 0; peak = 0.f;
+  return true;
 }
 
 /**

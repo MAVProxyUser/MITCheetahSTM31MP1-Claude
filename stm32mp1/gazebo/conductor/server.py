@@ -650,12 +650,27 @@ class Fleet:
                 i = s["index"]
                 cenv = env.copy()
                 cenv["SIM_INSTANCE"] = str(i)
+                # STAGGER THE RAMP ACROSS THE FLEET. Every dog used a fixed
+                # 4 s delay, so N dogs launched together reached commanded
+                # cruise in the SAME instant - and gz is ONE process serving
+                # all of them, so that instant is the fleet's peak physics
+                # demand. Measured 2026-08-24 18:28: three dogs, three
+                # different courses, three different waypoints, all down at
+                # t=12.4-12.5 s of their own clocks, with every per-dog
+                # instrument clean (loop max 3.0 ms, 0 over-4 ms, bridges at
+                # a steady 500 cmd/s). Per-dog instruments CANNOT see a
+                # shared-simulator stall: the control loops are wall-clock
+                # timed, so when physics falls behind, forces computed for a
+                # 2 ms step get integrated over a longer one and every dog
+                # is hit at once. Staggering by 5 s per slot spreads that
+                # peak; a solo dog is unaffected (i=0 keeps the validated 4 s).
+                delay_s = 4 + 5 * i
                 cmd = (
                     "env DYLD_LIBRARY_PATH=. SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
-                    "SIM_VX_DELAY_S=4 SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
-                    "WP_MAX_YAWRATE=1.2 %s timeout 220 ./mit_ctrl_sim 127.0.0.1 "
+                    "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
+                    "WP_MAX_YAWRATE=1.2 %s timeout 240 ./mit_ctrl_sim 127.0.0.1 "
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"
-                    % (i, s["gait"], s["speed"], s["mission"], s["extra"])
+                    % (i, s["gait"], s["speed"], delay_s, s["mission"], s["extra"])
                 )
                 clog = open(os.path.join(RUN_DIR, "ctrl_%d.log" % i), "w")
                 cp = subprocess.Popen(["bash", "-c", cmd], cwd=HOST_RUN,
