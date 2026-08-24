@@ -468,6 +468,22 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         near_stop = true;
     }
 
+    /*
+     * OPEN THE STOP WINDOW ON THE BRAKING APPROACH, not at arrival. The
+     * zero-debounce orientation ESTOP tripped on a genuine 28.6 deg
+     * arrival wobble braking hard into the star's closure (loop clean at
+     * 3.34 ms - no stall) in the instant BEFORE the interlude's own
+     * suspend executed, cutting the motors mid-stop and leaving a zombie
+     * the debounced detector never saw (flat-ish at ~30-45 deg never
+     * crosses its 50 deg trip). Inside a stop's hold radius the stop is
+     * already commanded in every sense that matters - gait changes are
+     * held here for the same reason - so the debounced detector is the
+     * arbiter from here through stand-up. Re-armed the moment the dog is
+     * driving outside any stop radius.
+     */
+    if (near_stop) setOrientTripEnable(false);
+    else if (running) setOrientTripEnable(true);
+
     if (seg && bridge->userParams() && seg->gait != cur_gait && !near_stop) {
       ControlParameterValue cv; cv.d = (double)seg->gait;
       bridge->userParams()->collection.lookup("cmpc_gait")
