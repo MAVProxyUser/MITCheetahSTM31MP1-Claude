@@ -38,7 +38,8 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | Acute-vertex pivot | ✅ the follower now **yaws in place** when the steering target falls behind the nose plane — the star's 162° opening hairpin pivots cleanly (2/2, 0.1 s spread) instead of drawing a loop; re-verified full-sequence PASS on all three courses on this build |
 | Oval sustained envelope | ✅ **re-swept to VSUS 2.4** — a controlled bisect (last night's binary vs HEAD) proved nothing regressed, the 2.6 cell was always ~50% on this lineage; at 2.4 the curves are **9/9 clean**. Trot-in-place stop settle was tried, measured harmful (7-of-8 stop tips vs ~1-in-3), and reverted with the tally in the code |
 | Final-build regression guard | ✅ star full-sequence **PASS ×2**, atom **PASS**, on the exact build that carries every change above |
-| Remaining items | ❌ the oval STOP tips sideways ~50% (arrival carries ~0.9 m/s + S-weave into a short post-curve brake zone — star/atom stops arrive at a creep and pass); one unexplained mid-dash spin-out on the atom with every instrument clean (load suspected, cameras now default OFF); spawn legs below ground pre-stand |
+| Oval stop | ✅ **fixed — steered deceleration**: the oval closes 1.2 m off its arc exit, and zeroing yaw mid-straightening tipped it ~50%; the stop sequences now keep the follower's steering live through the decel. **First 4-for-4 end-to-end oval ever**, star guard 2/2 on the same build |
+| Remaining items | ❌ one unexplained mid-dash spin-out on the atom with every instrument clean (load suspected, cameras now default OFF); spawn legs below ground pre-stand |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 

@@ -3197,14 +3197,19 @@ change to the planner/follower lineage before trusting its old tuning.
   `ConvexMPCLocomotion::zeroVelHold`. A plausible mechanism endorsed by
   everyone (operator included) still loses to an interleaved A/B.
 - Star regression guard on the final build: **PASS x2**. Atom: **PASS**.
-- REMAINING OPEN, the oval STOP (~50% sideways tips, roll 53-88): the
-  oval closure sits ~10 m after the 180-exit so the dog arrives still
-  carrying ~0.9 m/s with an S-weave, where star/atom arrive at a creep
-  down long straights. Candidate next steps, untested: lengthen the
-  braking zone into the closure (a smaller a_lon or an earlier stop
-  registration for THIS course), or move the oval's closure waypoint a
-  few metres further up the straight so the brake completes before the
-  stop sequence begins.
+- ~~REMAINING OPEN, the oval STOP~~ **FIXED (cc7650c): STEERED
+  DECELERATION.** The diagnosis sharpened once arrival SPEED was ruled
+  out (the star's stop passes arriving at 1.2 m/s; the oval tipped at
+  0.9): makeOval closes its lap 1.2 m off the exit of a continuous R=5
+  arc, so the stop sequence zeroed the yaw stick while the body still
+  carried the 180's residual yaw/roll - the dog stopped
+  mid-straightening. Both stop sequences now keep the follower's
+  steering live through the first 0.5 s of the decel (re-reading
+  GPS/estimator per ramp step), zeroing yaw only once genuinely slow; a
+  straight approach already steers ~0 so other courses are no-ops by
+  construction. Measured: oval 4/4 full-sequence PASS - the FIRST
+  4-for-4 end-to-end oval in this project's history - star guard 2/2 on
+  the same binary.
 - Also open: ONE unexplained mid-dash spin-out on the atom (roll 102 at
   steady-state 2.1, straight line, w=0.00 for 10 s prior) with EVERY
   instrument clean - loop max 3.07 ms / 0 over-4 ms, zero bridge stalls,
