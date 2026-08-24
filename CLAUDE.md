@@ -3344,6 +3344,42 @@ the synchronized ramp-top), the star and oval are genuinely mid-pack
 reliable in a fleet, and the remaining fleet failures are ordinary
 per-course marginals - the atom's continuous curvature above all.
 
+### THE ORIENTATION-HOLD A/B (2026-08-24 late) - promising, NOT yet causal
+
+$CTRL_ORIENT_HOLD_MS, same build, same host, same slot order, 3-dog
+fleets with the 100 m dash:
+
+    hold = 200 ms   run1 PASS/PASS/PASS   run2 PASS/PASS/PASS   = 6/6
+                    orientation events logged: ZERO
+    hold =  60 ms   run1 INCOMPLETE/PASS/FALL                   = 1/3
+                    trips: peak 49.8 deg and 40.5 deg, both held 62 ms
+
+Two complete fleet sweeps at 200 ms, including the atom, which was 0/6
+across the preceding six fleet runs. That is the best fleet result since
+the milestone tag.
+
+**But the causal claim does NOT hold up yet, and the reason is subtle:**
+the winning arm logged ZERO excursions past 28.6 deg, so its 200 ms hold
+was never exercised. A hold value can only matter in a run where an
+excursion happens; if none does, the two arms are running identical
+controllers. So what the data actually shows is that the 200 ms runs were
+DYNAMICALLY CLEANER, not that the longer hold rescued anything - and the
+60 ms arm's two trips were at 49.8 and 40.5 deg SUSTAINED past 62 ms,
+which look like genuine losses the ESTOP was right to catch (compare the
+recovered transients: 49.8 deg but only 36 ms).
+
+Also explained by this instrumentation: the "stuck dog" mode. dog0 in
+hold60_1 sat at wp6/7 for 160 s, commanded v=0.68 and not translating,
+never falling and never finishing - it had ESTOPed to PASSIVE at t~60 s
+and could not move. A trip mid-mission does not always produce a [FALL];
+sometimes it produces a zombie that burns the whole timeout.
+
+**Next step, and it must be INTERLEAVED**: alternate 60/200/60/200 within
+one session, N>=6 per arm, and gate on whether an excursion actually
+occurred. Blocked arms (200,200 then 60,60) cannot separate the hold from
+run-to-run dynamics, which is exactly the trap this file has recorded
+four times today.
+
 ### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
 
 Hourly backups on this Mac start around :38. Both same-wall-second
