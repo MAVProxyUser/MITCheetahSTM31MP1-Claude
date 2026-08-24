@@ -387,6 +387,16 @@ class Fleet:
                         s[key] = max(lo, min(float(fields[key]), hi))
                     except (TypeError, ValueError):
                         pass
+            if "extra" in fields:
+                # Per-slot env overrides, appended AFTER the recipe's extra so
+                # they win (env A=1 A=2 keeps the last). Needed for A/B work
+                # (e.g. WP_VSUS sweeps) without editing RECIPES. STRICTLY
+                # token-validated - this string is interpolated into a
+                # bash -c command line, so only bare KEY=VALUE survives.
+                toks = str(fields["extra"]).split()
+                ok_toks = [t for t in toks
+                           if re.fullmatch(r"[A-Z][A-Z0-9_]*=[-A-Za-z0-9_.:]*", t)]
+                s["extra"] = " ".join(ok_toks)
             return True, s
 
     def draft_set_cap(self, value):
@@ -440,7 +450,10 @@ class Fleet:
             # call carrying its own "slots" body with an unclamped speed.
             speed = clamp_speed(s.get("speed", recipe["speed"]), speed_cap,
                                  s.get("model", DEFAULT_MODEL))
-            extra = recipe["extra"]
+            # Slot-level overrides go AFTER the recipe's own extra: with
+            # `env A=1 A=2 cmd` the later assignment wins, so a slot can
+            # override a recipe knob (WP_VSUS etc.) for A/B work.
+            extra = (recipe["extra"] + " " + str(s.get("extra") or "")).strip()
             dash = float(s.get("dash") or 0.0)
             if dash > 0:
                 # Appended after whatever the recipe's own mission builds -
