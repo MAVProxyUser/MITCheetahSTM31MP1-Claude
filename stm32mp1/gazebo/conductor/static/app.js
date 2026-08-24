@@ -91,7 +91,9 @@ function kindOf(spec) { return spec.split(":")[0]; }
 
 function renderSlots() {
   const el = document.getElementById("slots");
-  const locked = state.phase !== "idle";
+  // Only an ACTIVE fleet locks the draft - "done" used to leave every input
+  // disabled until a manual Stop, which read as the whole UI being broken.
+  const locked = state.phase === "launching" || state.phase === "running";
   el.innerHTML = slots.map((s, i) => {
     const recipe = state.recipes[kindOf(s.mission)] || {};
     return `<div class="play-card active">
@@ -124,12 +126,24 @@ function renderSlots() {
         </label>
       </div>
       <div class="slot-row cam-config-row">
-        <label class="cam-check"><input type="checkbox" data-i="${i}" data-f="cam_front"
-               ${s.cam_front !== false ? "checked" : ""} ${locked ? "disabled" : ""}> Front cam</label>
-        <label class="cam-check"><input type="checkbox" data-i="${i}" data-f="cam_nadir"
-               ${s.cam_nadir !== false ? "checked" : ""} ${locked ? "disabled" : ""}> Nadir cam</label>
-        <label class="cam-check"><input type="checkbox" data-i="${i}" data-f="cam_chase"
-               ${s.cam_chase !== false ? "checked" : ""} ${locked ? "disabled" : ""}> Chase cam</label>
+        <label class="cam-check"><input type="checkbox" data-i="${i}" data-f="dash_toggle"
+               ${(s.dash ?? 0) > 0 ? "checked" : ""} ${locked ? "disabled" : ""}
+               title="Quick toggle for the field above - checked sets a 100m dash finish, unchecked sets 0 (mission ends at the loop)."> 100m dash when done</label>
+      </div>
+      <div class="slot-row cam-config-row">
+        ${["air", "pro", "edu"].map(m => `
+        <label class="cam-check" title="Hard per-model speed ceiling, enforced server-side on top of the fleet cap - the speed command can never exceed it. Edu's 4.7 is Unitree's peak-sprint figure (optimised test conditions), not a sustained rating.">
+          <input type="radio" name="model-${i}" data-i="${i}" data-f="model" value="${m}"
+                 ${(s.model || "edu") === m ? "checked" : ""} ${locked ? "disabled" : ""}>
+          Go1 ${m[0].toUpperCase() + m.slice(1)} (&le;${(state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[m]} m/s)</label>`).join("")}
+      </div>
+      <div class="slot-row cam-config-row">
+        <label class="cam-check" title="Live: unchecking mid-run mutes the stream instantly, re-checking resumes it. A camera unchecked at LAUNCH is never spawned in the world and cannot come back mid-run."><input type="checkbox" data-i="${i}" data-f="cam_front"
+               ${s.cam_front !== false ? "checked" : ""}> Front cam</label>
+        <label class="cam-check" title="Live: unchecking mid-run mutes the stream instantly, re-checking resumes it."><input type="checkbox" data-i="${i}" data-f="cam_nadir"
+               ${s.cam_nadir !== false ? "checked" : ""}> Nadir cam</label>
+        <label class="cam-check" title="Live: unchecking mid-run mutes the stream instantly, re-checking resumes it."><input type="checkbox" data-i="${i}" data-f="cam_chase"
+               ${s.cam_chase !== false ? "checked" : ""}> Chase cam</label>
       </div>
       <div class="slot-row cam-config-row">
         <label>Chase dist (m)
@@ -156,9 +170,20 @@ function renderSlots() {
   const NUMERIC_FIELDS = new Set(["speed", "dash", "chase_distance", "chase_height", "chase_degree"]);
   el.querySelectorAll("select,input").forEach(elm => {
     elm.addEventListener("change", e => {
-      const i = +e.target.dataset.i, f = e.target.dataset.f;
-      slots[i][f] = e.target.type === "checkbox" ? e.target.checked
+      const i = +e.target.dataset.i;
+      // dash_toggle is a UI-only quick-set for the "dash" field - not a real
+      // slot key, so it maps onto the same "dash" the numeric input owns
+      // rather than getting its own field on the server.
+      const f = e.target.dataset.f === "dash_toggle" ? "dash" : e.target.dataset.f;
+      slots[i][f] = e.target.dataset.f === "dash_toggle" ? (e.target.checked ? 100 : 0)
+        : e.target.type === "checkbox" ? e.target.checked
         : NUMERIC_FIELDS.has(f) ? +e.target.value : e.target.value;
+      // Mirror the server's model ceiling locally for instant feedback -
+      // the server clamps authoritatively either way.
+      if (f === "model" || f === "speed") {
+        const cap = (state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[slots[i].model || "edu"] ?? 3.9;
+        if (+slots[i].speed > cap) slots[i].speed = cap;
+      }
       fetch("/api/slots/" + i, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [f]: slots[i][f] }),
@@ -343,9 +368,17 @@ function renderFleet() {
           ${r.text ? "&middot; " + r.text : ""}
           ${r.t ? "&middot; t=" + r.t : ""}
         </div>
-        <div class="cam-row">${s.cam_front !== false ? tile("front_cam", "FWD") : ""}${
-          s.cam_nadir !== false ? tile("nadir_cam", "DOWN") : ""}${
-          s.cam_chase !== false ? tile("chase_cam", "CHASE") : ""}</div>
+        ${(() => {
+          // Tile visibility follows the DRAFT checkbox live (the server
+          // gates the stream on the same flag), so unchecking a camera
+          // mid-run hides its tile immediately instead of freezing it on
+          // the last frame. The locked flag still gates what was spawned.
+          const d = (state.draft_slots || [])[r.index] || {};
+          const on = k => s[k] !== false && d[k] !== false;
+          return `<div class="cam-row">${on("cam_front") ? tile("front_cam", "FWD") : ""}${
+            on("cam_nadir") ? tile("nadir_cam", "DOWN") : ""}${
+            on("cam_chase") ? tile("chase_cam", "CHASE") : ""}</div>`;
+        })()}
       </div>`;
     }).join("");
   }

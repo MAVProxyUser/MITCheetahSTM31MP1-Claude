@@ -105,6 +105,17 @@ import terrain  # noqa: E402 - conductor/terrain.py, procedural heightmaps
 # ---------------------------------------------------------------------------
 HARD_SPEED_CAP = 3.9
 
+# Per-model hard cap, independent of and in ADDITION to HARD_SPEED_CAP above -
+# a real Go1 Air cannot do 3.5 m/s no matter what the mission asks for, so
+# picking a model must clamp the same way changing the mission's speed field
+# does, enforced here server-side (never trust the browser alone). EDU's
+# figure is Unitree's own "peak sprint, optimised test conditions" number
+# (17 km/h) rather than its sustained rating (3.7) - kept as the ceiling
+# because it is still below HARD_SPEED_CAP's ceiling and a user who
+# explicitly picks EDU has already opted into its top end.
+MODEL_MAX_SPEED = {"air": 2.5, "pro": 3.5, "edu": 4.7}
+DEFAULT_MODEL = "edu"
+
 # Per-mission-kind recipe: gait, and the extra knobs THIS SESSION measured to
 # be the best validated configuration for that course shape (see CLAUDE.md,
 # "CAMPAIGN RESULTS"). The UI can override gait and speed; it does not expose
@@ -197,9 +208,11 @@ def mission_kind(spec):
     return spec.split(":", 1)[0]
 
 
-def clamp_speed(v, cap):
+def clamp_speed(v, cap, model=None):
     v = max(0.3, min(float(v), HARD_SPEED_CAP))
     cap = max(0.3, min(float(cap), HARD_SPEED_CAP))
+    if model is not None:
+        cap = min(cap, MODEL_MAX_SPEED.get(model, HARD_SPEED_CAP))
     return round(min(v, cap), 2)
 
 
@@ -261,11 +274,11 @@ class Fleet:
         # ("side view chase camera... hover over the dogs chasing").
         self.draft_slots = [
             dict(mission="star:10.514:5", gait="trotRunning", speed=3.5, dash=100,
-                 **DEFAULT_CAM_SLOT),
+                 model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
             dict(mission="oval:40:5.0", gait="trotRunning", speed=3.5, dash=100,
-                 **DEFAULT_CAM_SLOT),
+                 model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
             dict(mission="atom:9.0:6", gait="trotting", speed=2.1, dash=100,
-                 **DEFAULT_CAM_SLOT),
+                 model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
         ]
         self.draft_cap = 3.5
         # Terrain, from terrain.py. "flat" reproduces the EXACT ground_plane
@@ -297,6 +310,7 @@ class Fleet:
                 "status": self.status,
                 "log": self.log[-60:],
                 "hard_cap": HARD_SPEED_CAP,
+                "model_max_speed": MODEL_MAX_SPEED,
                 "recipes": RECIPES,
                 "gaits": GAITS,
                 "planned": self.planned,
@@ -325,7 +339,7 @@ class Fleet:
                 mission={"star": "star:10.514:5", "oval": "oval:40:5.0",
                          "atom": "atom:9.0:6"}.get(nxt, "star:10.514:5"),
                 gait=next(g for g, n in GAITS.items() if n == r["gait"]),
-                speed=r["speed"], dash=100, **DEFAULT_CAM_SLOT))
+                speed=r["speed"], dash=100, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT))
             return True, self.draft_slots
 
     def draft_remove_slot(self, i):
@@ -346,8 +360,14 @@ class Fleet:
                 s["mission"] = str(fields["mission"])
             if "gait" in fields and fields["gait"] in GAITS:
                 s["gait"] = fields["gait"]
+            if "model" in fields and fields["model"] in MODEL_MAX_SPEED:
+                s["model"] = fields["model"]
+                # Re-clamp immediately - switching to a slower model with an
+                # already-fast speed set must visibly drop it, not silently
+                # cap it only at launch time.
+                s["speed"] = clamp_speed(s["speed"], HARD_SPEED_CAP, s["model"])
             if "speed" in fields:
-                s["speed"] = clamp_speed(fields["speed"], HARD_SPEED_CAP)
+                s["speed"] = clamp_speed(fields["speed"], HARD_SPEED_CAP, s.get("model", DEFAULT_MODEL))
             if "dash" in fields:
                 # 0/None/"" = no finish. The loop mission is unchanged either
                 # way - this only appends one more waypoint after it closes.
@@ -415,7 +435,11 @@ class Fleet:
             gait = GAITS.get(s.get("gait", ""), recipe["gait"])
             gait_name = s.get("gait") if s.get("gait") in GAITS else next(
                 (g for g, n in GAITS.items() if n == gait), str(gait))
-            speed = clamp_speed(s.get("speed", recipe["speed"]), speed_cap)
+            # Model cap is enforced HERE, not only in draft_set_slot - this is
+            # the one path that cannot be bypassed by a direct /api/launch
+            # call carrying its own "slots" body with an unclamped speed.
+            speed = clamp_speed(s.get("speed", recipe["speed"]), speed_cap,
+                                 s.get("model", DEFAULT_MODEL))
             extra = recipe["extra"]
             dash = float(s.get("dash") or 0.0)
             if dash > 0:
@@ -682,6 +706,18 @@ class Fleet:
                 self._gz_cam_nodes.append(node)
 
                 def on_image(msg, idx=i, camname=cam):
+                    # DYNAMIC per-frame gate: the checkbox edits the DRAFT
+                    # slot, and this reads it live, so unchecking a camera
+                    # mid-run stops (and un-publishes) its stream instantly
+                    # and re-checking resumes it. Launch-time flags still
+                    # decide whether the sensor exists in the world at all -
+                    # a camera disabled at launch has no topic and can never
+                    # be re-enabled mid-run, only mid-run muted/unmuted.
+                    with self.lock:
+                        d = self.draft_slots[idx] if idx < len(self.draft_slots) else {}
+                        if not d.get(CAM_FLAG_KEYS[camname], True):
+                            self.cameras.get(idx, {}).pop(camname, None)
+                            return
                     try:
                         img = _PILImage.frombytes(
                             "RGB", (msg.width, msg.height), msg.data)
