@@ -91,7 +91,12 @@ from PIL import Image as _PILImage          # noqa: E402
 
 CAMERAS = ("front_cam", "nadir_cam", "chase_cam")
 CAM_FLAG_KEYS = {"front_cam": "cam_front", "nadir_cam": "cam_nadir", "chase_cam": "cam_chase"}
-DEFAULT_CAM_SLOT = dict(cam_front=True, cam_nadir=True, cam_chase=True,
+# Cameras default OFF. Nine live feeds were repeatedly implicated in
+# host-load fleet failures (GPU 44-49% with them, 0% without), and a server
+# restart used to silently reset drafts back to all-on - which re-armed
+# them under the operator mid-session ("KILL THE CAMERAS"). Fail dark;
+# checking a box is deliberate.
+DEFAULT_CAM_SLOT = dict(cam_front=False, cam_nadir=False, cam_chase=False,
                          chase_distance=3.0, chase_height=1.2, chase_degree=90.0)
 import terrain  # noqa: E402 - conductor/terrain.py, procedural heightmaps
 
