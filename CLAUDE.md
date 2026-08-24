@@ -3029,6 +3029,83 @@ of `[GAIT] Transitioning gait from TROT to STAND` and look at body height/
 velocity/foot contact state tick-by-tick through that transition, rather than
 at the coarse ~1 Hz nav-line resolution used so far.
 
+### RESOLVED (next session, same night): it was never the lie-down - it was the ARRIVAL
+
+That "next step" was executed and found the real bug one level up. The raw
+log showed the dog reaching the stop waypoint at **v=3.50 - full cruise**.
+The speed profile brakes for corners and had NO concept of braking for a
+stop; the stop sequence then slammed the stick 3.5->0 in 0.75 s (~4.7 m/s^2
+demanded against a body that does ~1.2), the gait scheduler cut TROT->STAND
+on the zeroed command while the body was still moving fast, the braking
+pitch tripped `SafetyChecker::checkSafeOrientation` (a ZERO-debounce 28.6
+deg ESTOP - one bad tick cuts the motors) within a tick, and the "fall
+during lie-down" was really a fall during an unplanned crash-stop. The
+unsteered brake-skid is also the "yaw'ed off centre right before the fall"
+seen on camera on two dogs at once.
+
+**The regression's history (found by git archaeology, per direct
+instruction)**: the stop sequences were built and validated in the trotting
+@ 2.0 m/s era (the 13/13 "settles + lies down" record). The campaign then
+moved the loop recipes to trotRunning @ 3.5 - and nobody made the STOP
+speed-aware. The loop got faster; the stop stayed tuned for 2.0. All three
+prior interlude fixes (FSM path, edamp coverage, ramp shape) were real but
+downstream - treating the landing while the approach was broken.
+
+**Fix set (commit e1cdcb6), "stops are part of the plan":**
+- `BodyPathPlanner::addStopXY()` / `setEndStop()` (`WP_END_BRAKE=0`
+  disables): the path end is always a stop, and the loop-closure waypoint
+  is a registered mid-path stop when a dash is armed. Both force v to
+  v_min ahead of the existing backward pass, so the already-tuned
+  braking-zone math corners use builds the deceleration into the plan, and
+  the forward pass re-accelerates out of a mid-path stop automatically -
+  which is exactly what the dash sprint needs.
+- `WaypointNav::makeStar` now closes the loop itself (0->1->2->3->4->0).
+  The closing stroke previously existed only as a side effect of
+  appendDash's return-to-wp00 insert, so a star with dash=0 stopped one
+  visible leg short of the drawn (closed) plan.
+- `appendDash` detects an already-closed course (last waypoint within 1 m
+  of wp00 - star now, oval/atom always) and appends ONE sprint point along
+  the closing tangent instead of a degenerate metre-long return leg.
+- The interlude's decel ramp starts from the LIVE commanded speed, not
+  cruise - the plan has already braked the dog to a creep by the time it
+  fires, and ramping "vx down to zero" from there would first spike the
+  command back up to 3.5.
+
+**Verified live** (single dog, star @ 3.5 trotRunning, dash=0): all SIX
+waypoints including the closing leg, planned braking visible in the log
+(2.72 -> 2.29 -> 1.76 -> 1.19 m/s into the final waypoint), NO orientation
+trip, roll/pitch 2 deg at the end. The flown trace is a clean closed
+pentagram. Path is 107.4 m now (was 88.1 without the closing leg) - the
+69.4 s wall time is NOT comparable to the old 5-leg headline numbers.
+
+**Also tried and REVERTED (do not retry)**: disabling
+`checkSafeOrientation` in LOCOMOTION/BALANCE_STAND to stop the trip.
+Symptom-level, made things worse (falls at 9 s mid-course), and the actual
+fix was removing the crash-stop that caused the pitch spike.
+
+**Still open, in priority order:**
+1. **The opening hairpin (star's first corner, 18 deg interior)** - the
+   one remaining blemish on an otherwise clean star: an overshoot loop
+   with a pivot on the way out at the top vertex. Working theory: the
+   corridor grading collapses that fillet to R~0.03 m, which is (a) BELOW
+   the 0.10 m path resampling, so the 3-point curvature estimate smears
+   the corner and under-reports kappa right at the vertex, and (b) below
+   any radius the body can track at ANY speed floor (at v_min 0.25 and
+   yaw_rate_max 1.2, the tightest trackable arc is v/w ~= 0.21 m).
+   Candidate fix with the new machinery: floor the effective corridor at
+   ~v_min/yaw_rate_max, and auto-register super-acute vertices (turn >
+   turn_hard) as planner STOPS so the dog arrives at creep and pivots.
+2. **Fall detector fires at the very end on z=0.090 held 0.5 s while DEAD
+   LEVEL (roll=2 pitch=2)** - kills the run before the lie-down judge
+   lines print. That signature after 69 s of running is consistent with
+   LinearKF z-drift eating the 0.10 m threshold margin rather than a
+   physical fall (the detector reads the ESTIMATE - same failure shape as
+   the documented 0.15->0.10 threshold lesson). Verify against Gazebo
+   truth (the conductor's pose feed carries true z) before touching the
+   threshold.
+3. Re-verify oval and atom with the new stop-planning (their loops were
+   already clean; their ends were the same crash-stop).
+
 ### New debug route: raw logs over REST
 
 `GET /api/logs/{i}?kind=ctrl|bridge&tail=N|full=1` - the full text

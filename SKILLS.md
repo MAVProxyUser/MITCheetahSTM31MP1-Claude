@@ -649,3 +649,21 @@ be re-run through the WHOLE mission end to end before it is trusted — the
 cornering fix above was solid in isolation and in a dash=0 star, but the same
 build's loop-to-dash interlude still fails on the full dash=30 run. Isolating
 a fix is for finding it; the full sequence is for believing it.
+
+**When a maneuver fails, check the speed it was ENTERED at before debugging
+the maneuver itself.** The "fall during lie-down" was chased through three
+real-but-downstream fixes (FSM transition legality, edamp coverage, ramp
+shape) while the raw log's own arrival line said `v=3.50` — the dog was
+reaching every stop point at full cruise because the profile only braked for
+corners, never for stops. A sequence validated at one cruise speed (2.0-era
+stop code) silently becomes a crash-stop when the recipes move to 3.5. The
+planner now brakes for stops (`addStopXY`/end-stop, `WP_END_BRAKE=0` to
+disable for A/B); if a stop maneuver regresses, FIRST confirm the arrival
+speed in the `[nav]` lines is actually low.
+
+**Restart the conductor with `conductor.sh` (or its venv python), never bare
+`python3`.** `server.py` imports gz.transport13 + protobuf at module level;
+system python lacks them and the server dies at import — which presents as
+"the whole UI stopped working". The venv interpreter path is pinned inside
+`conductor.sh`. A stale server running pre-edit code is the same trap as a
+stale `gz sim` — kill it and relaunch after ANY server.py change.
