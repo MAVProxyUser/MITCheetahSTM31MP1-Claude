@@ -441,6 +441,23 @@ class Fleet:
                 return False, "unknown terrain %r" % terrain_kind
             if self.phase in ("launching", "running"):
                 return False, "a fleet is already active - stop it first"
+            # TIME MACHINE GATE (operator-diagnosed): hourly backups on this
+            # Mac start around :38, and the two same-wall-second multi-dog
+            # stall kills landed at 14:38:09 and 16:44:09 (six minutes into
+            # the 16:38 backup). A backup's I/O burst is exactly the kind of
+            # host stall that applies 2 ms control forces for 18 ms. Refuse
+            # to launch while one is in flight; `sudo tmutil disable` (or
+            # `tmutil stopbackup`) is the operator-side fix for a session.
+            try:
+                tm = subprocess.run(["tmutil", "status"], capture_output=True,
+                                     text=True, timeout=5).stdout
+                if "Running = 1" in tm:
+                    return False, ("Time Machine backup in progress - it has "
+                                   "killed fleets before (I/O stall = 9x force "
+                                   "impulse). Wait for it, or `tmutil "
+                                   "stopbackup` / `sudo tmutil disable`.")
+            except Exception:  # noqa: BLE001 - tmutil missing/slow never blocks
+                pass
             if not (1 <= len(slots) <= 3):
                 return False, "1 to 3 slots only"
             self.phase = "launching"
