@@ -3165,8 +3165,24 @@ ESTOP lines - runs now end only when the dog really goes over.
    6/6" tuning was measured on an older build lineage; the current stack
    (steering cap, pivot follower, stop braking) has not had its oval VSUS
    re-swept. Re-sweep 2.4/2.5/2.6 with equal N before trusting 2.6 again.
-   (The oval STOP itself: 2/2 passes since the gait-hold below; prior
-   tips at roll 72/88 deg have not recurred - keep counting reps.)
+1b. **RETRACTED on more reps: the gait-hold did NOT cure the oval stop.**
+   "2/2 passes since the hold" was written at N=2 and fell apart at N=5:
+   the stop tally on the gait-hold build is 3 PASS / 2 sideways tips
+   (roll 68 and 84 deg, both immediately after "loop complete") - the
+   same ~40% tip rate as before the hold. The small-sample trap, again,
+   committed into the record hours after re-reading the rule. The hold
+   itself is KEPT (entering a stop mid-gait-switch is still wrong on
+   principle and costs nothing), but the oval stop's instability has a
+   different dominant cause. What distinguishes it from the star's clean
+   stop, for the next session: the oval's closure sits ~10 m after the
+   180-exit, so braking from the 2.6 sustained cap barely fits and the
+   dog reaches the stop still carrying ~0.9 m/s (the star brakes down a
+   20 m straight and arrives at a true creep); and the tips are pure
+   ROLL with pitch ~0, pointing at lateral velocity / roll oscillation
+   from the S-weave across the joint still live when TROT->STAND fires.
+   Next diagnostic: a failing rep with SIM_YAWDBG/STM32MP1_EST_DBG in
+   the oval recipe's extra (temporary harness edit - RESTORE IT) to see
+   roll/vy through the stop window tick by tick.
 2. **Spawn pose: the dog's legs are below z=0 pre-stand** (user-observed).
    Spawn is z=0.08 belly-down but joints spawn at q=0, so the legs pierce
    the ground plane until the initial fold - likely also why every run
