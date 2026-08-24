@@ -3137,18 +3137,49 @@ cruise).
 **Full-sequence re-verification ON THE PIVOT BUILD, one dog at a time,
 dash=100: star PASS 7/7, oval PASS 95/95, atom PASS 109/109.**
 
+### RESOLVED: the SECOND stop-window killer - MIT's zero-debounce orientation ESTOP
+
+Two separate mechanisms police a stop, and only one had been made
+mode-aware. This port's fall detector got its z-gate (9cd5b8b); MIT's
+stock `SafetyChecker::checkSafeOrientation` - zero debounce, 28.6 deg,
+every 2 ms, force-ESTOP to PASSIVE (motors cut) on a single bad sample -
+stayed armed through the stop sequence's BALANCE_STAND. A transient
+wobble tick during the settle cut the motors mid-crouch, CAUSING the
+fall it polices, and the stop sequence (unaware the FSM was yanked to
+PASSIVE under it) drove a dead robot and hung the mission at "running"
+for three hours. Fixed per direct instruction ("IF this mode, and not
+commanding forward, AFTER a stop command - don't trip"):
+`setOrientTripEnable()` gates the ESTOP off from the stop command until
+standing-and-driving again; inside the window the DEBOUNCED detector
+(50 deg / 0.5 s) is the arbiter, so genuine tips still end runs; cruise
+is untouched. Verified on the failing cell (oval, 3 reps): PASS, PASS,
+and one genuine 88-deg tip caught by the debounced detector with zero
+ESTOP lines - runs now end only when the dog really goes over.
+
 **Still open, in priority order:**
-1. **The oval interlude is marginal** (1 tip in 4 stop attempts overall:
-   roll=72 deg in BALANCE_STAND, ~2 s after a clean, level, v=0.90
-   arrival). Star and atom interludes passed cleanly. Difference not
-   isolated; the oval closes onto its start joint right where the analyzer
-   has just switched gaits (trotting -> trotRunning 3 s before the stop).
+1. **The oval STOP is physically marginal (~1 in 3)** even with both
+   stop-window gates in (tips measured at roll 72 and 88 deg - real,
+   sideways, during the stop maneuver; star and atom stops pass cleanly).
+   Standing suspect: the analyzer switches to the flight-phase gait 3 s
+   before the closure ("trotting -> trotRunning entering straight"), so
+   the stop begins from a barely-engaged trotRunning. Candidate
+   pre-planner refinement: the analyzer should not schedule a gait
+   upgrade on a segment that ends in a STOP - stay on trotting through
+   the closure and let the dash re-select.
 2. **Spawn pose: the dog's legs are below z=0 pre-stand** (user-observed).
    Spawn is z=0.08 belly-down but joints spawn at q=0, so the legs pierce
    the ground plane until the initial fold - likely also why every run
-   logs 1-2 startup "STATE ESTIMATE WENT NON-FINITE" blips. Fix is initial
-   joint angles (or a spawn z that matches q=0 legs), in the world
-   generator.
+   logs 1-2 startup "STATE ESTIMATE WENT NON-FINITE" blips (Gazebo truth
+   shows the body popped to z=0.097 by the first sample). Investigated:
+   TWO spawn conventions already coexist - `make_world.py` drops the base
+   from z=0.45 to settle onto its legs, while the speedway proto the
+   conductor clones (`clone_dog(..., height=0.08)`) uses the DELIBERATE
+   belly-down start documented elsewhere in this file ("the real Go1
+   procedure... makes each SITL run start from an identical settled
+   pose"). Every validated result in this file shares the 0.08 start and
+   its startup blips, so changing it re-baselines everything - an operator
+   decision, not a bug fix: either accept the cosmetic clip, or move the
+   fleet proto to the 0.45 settle-drop and re-validate the boot sequence.
 3. **Host load kills fleets, in matching pairs/triples**: all three dogs'
    control loops blew from a clean 2.48 ms to 20-24 ms at the same
    wall-second (a 10x force impulse - dog1 genuinely rolled 53 deg) and

@@ -31,6 +31,15 @@ void setEdamp(double d);
 //! catch - so the mission suspends the z branch around its own lie-downs
 //! (the attitude branch stays armed; a lie-down is level by definition).
 void setFallZEnable(bool on);
+//! Defined in RobotRunner.cpp - gates MIT's ZERO-debounce 28.6 deg
+//! orientation ESTOP (ControlFSM::safetyPreCheck). During a commanded stop
+//! the settle/crouch wobble can cross 28.6 deg for a tick; the ESTOP then
+//! cuts the motors mid-maneuver and CAUSES the fall (and the stop sequence,
+//! unaware the FSM was yanked to PASSIVE under it, drives a dead robot).
+//! Gated off from the stop command until standing-and-driving again; the
+//! debounced fall detector (50 deg / 0.5 s) stays the arbiter inside the
+//! window, so a genuine tip still ends the run.
+void setOrientTripEnable(bool on);
 //! Situational stance-height bias into the controller's height governor, m.
 void setHeightBias(double b);
 
@@ -517,6 +526,14 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
              "before the %s dash\n", elapsed(), mission);
       fflush(stdout);
 
+      // STOP WINDOW OPENS: forward command is being taken to zero on
+      // purpose. Suspend the zero-debounce orientation ESTOP for the whole
+      // stop/lie-down/stand-up maneuver (re-armed below once driving
+      // again) - one transient 28.6 deg tick during the settle otherwise
+      // cuts the motors mid-crouch and causes the very fall it polices.
+      // The debounced fall detector stays armed as the window's arbiter.
+      setOrientTripEnable(false);
+
       // 1. decelerate from cruise - a stepped-to-zero stick pitches the
       //    robot forward on the way down, same reasoning as end-of-mission.
       //
@@ -628,8 +645,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // Let the gait engage before asking it to go anywhere - the same
       // settle window the initial sequencer holds at mission start.
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-      // Standing tall again - re-arm the z-collapse test for the dash.
+      // Standing tall and driving again - stop window closes: re-arm both
+      // the z-collapse test and the orientation ESTOP for the dash.
       setFallZEnable(true);
+      setOrientTripEnable(true);
 
       restart_t = elapsed();   // ramp forward speed again from this standstill
       printf("[nav] back up at t=%.1fs - dashing the final leg\n", elapsed());
@@ -642,6 +661,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
       bridge->driverCommand().rightStickAnalog[0] = 0.f;
       done = true;
+      // STOP WINDOW: same suspension as the interlude's (see that comment).
+      // Never re-armed - the mission ends inside this window, and the
+      // debounced fall detector plus the judge's own attitude criteria
+      // cover it to the end.
+      setOrientTripEnable(false);
       /*
        * END-OF-MISSION SEQUENCE, and the PASS/FAIL criterion.
        *

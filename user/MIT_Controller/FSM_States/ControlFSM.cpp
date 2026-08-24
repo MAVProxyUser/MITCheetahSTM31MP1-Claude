@@ -7,6 +7,7 @@
 
 #include "ControlFSM.h"
 #include <rt/rt_rc_interface.h>
+#include <atomic>
 
 /**
  * Constructor for the Control FSM. Passes in all of the necessary
@@ -190,10 +191,17 @@ void ControlFSM<T>::runFSM() {
  *
  * @return the appropriate operating mode
  */
+// Defined in RobotRunner.cpp next to the (debounced) fall detector: the
+// mission gates this zero-debounce ESTOP off during its own commanded stop
+// windows, where a transient wobble tripping it cuts the motors mid-crouch
+// and CAUSES the fall. The debounced detector stays armed throughout.
+extern std::atomic<bool> g_orientTripEnable;
+
 template <typename T>
 FSM_OperatingMode ControlFSM<T>::safetyPreCheck() {
   // Check for safe orientation if the current state requires it
-  if (currentState->checkSafeOrientation && data.controlParameters->control_mode != K_RECOVERY_STAND) {
+  if (currentState->checkSafeOrientation && g_orientTripEnable.load() &&
+      data.controlParameters->control_mode != K_RECOVERY_STAND) {
     if (!safetyChecker->checkSafeOrientation()) {
       operatingMode = FSM_OperatingMode::ESTOP;
       std::cout << "broken: Orientation Safety Ceck FAIL" << std::endl;

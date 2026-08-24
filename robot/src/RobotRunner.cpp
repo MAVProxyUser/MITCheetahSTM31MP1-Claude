@@ -452,6 +452,20 @@ void setEdamp(double d) { g_edampGain = d; }
 std::atomic<bool> g_fallZEnable{true};
 void setFallZEnable(bool on) { g_fallZEnable = on; }
 
+// MIT orientation-ESTOP gate, honored by ControlFSM::safetyPreCheck().
+// checkSafeOrientation is a ZERO-debounce 28.6 deg trip evaluated every
+// 2 ms tick that force-ESTOPs to PASSIVE - motors cut - on a single bad
+// sample. Right for cruise; wrong DURING A COMMANDED STOP: the settle and
+// crouch carry transient attitude wobble, one 28.6 deg tick there cuts the
+// motors mid-maneuver and CAUSES the very fall it exists to prevent (the
+// stop sequence, unaware, then drives a dead robot - measured as a 3-hour
+// hung mission). The mission gates it off from the stop command until it
+// is standing and driving again; inside that window the DEBOUNCED fall
+// detector above (50 deg held 0.5 s) remains the arbiter, so a genuine
+// tip still ends the run.
+std::atomic<bool> g_orientTripEnable{true};
+void setOrientTripEnable(bool on) { g_orientTripEnable = on; }
+
 /*!
  * ATTITUDE TRACE ($CTRL_ATT_DBG = tick decimation) - the raw material for a
  * fall signature.
