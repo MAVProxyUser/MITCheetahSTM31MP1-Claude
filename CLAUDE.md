@@ -3083,28 +3083,66 @@ pentagram. Path is 107.4 m now (was 88.1 without the closing leg) - the
 Symptom-level, made things worse (falls at 9 s mid-course), and the actual
 fix was removing the crash-stop that caused the pitch spike.
 
+### RESOLVED (same night): item 2 was the detector shooting the dog for obeying orders
+
+The z-drift theory above is DEAD, killed by polling Gazebo TRUTH z live
+through the stop window: the dog arrived at the closure at creep, stood
+level at true z=0.30, began the COMMANDED lie-down, descended under
+control (truth 0.30 -> 0.19 -> 0.11), and the fall detector's z-collapse
+branch (estimate 0.094 < 0.10 held 0.5 s - the estimate within 2 cm of
+truth) called the intentional crouch a collapse and `_exit()`d the process
+mid-lie-down. A commanded lie-down and the collapse that branch exists to
+catch are the SAME signature: a level body descending through 0.10 m. The
+process exit is also the whole reason "the dog never stands back up".
+Fix: `setFallZEnable()` gates ONLY the z branch; the mission suspends it
+around its own lie-downs and re-arms it once standing again; the ATTITUDE
+branch stays armed throughout (a lie-down is level by definition, so a
+genuine tip during one still trips). Commit 9cd5b8b.
+
+### FULL-SEQUENCE RESULTS (2026-08-24, single dog at a time, dash=100)
+
+loop -> stop at closure -> lie down -> stand back up -> 100 m dash ->
+planned end braking -> settle -> final lie down -> judged:
+
+| course | result | detail |
+|---|---|---|
+| star @3.5 trotRunning | **PASS 7/7** | truth-polled end to end: lie-down z 0.117, back up, dash peak 3.64 m/s, settle 0.288 level, laydown 0.027. First judged PASS on the full sequence in this project's history |
+| oval @3.5 trotRunning+analyzer | **PASS 95/95** (1 of 3 tries) | all 4 pre-planned gait changes fired; one mid-course fall (marginal, loop health clean), one interlude tip (roll=72 in BALANCE_STAND ~2 s after a clean level arrival at v=0.90) - the interlude is MARGINAL on this course, cause not isolated |
+| atom @2.1 trotting | **PASS 109/109** | clean first try, laydown z=0.040 |
+
+Every mission also proved the dash geometry: the sprint continues the
+course's closing tangent (star 3.64 m/s peak; atom ran its 100 m due
+north to N=103.6).
+
 **Still open, in priority order:**
 1. **The opening hairpin (star's first corner, 18 deg interior)** - the
-   one remaining blemish on an otherwise clean star: an overshoot loop
-   with a pivot on the way out at the top vertex. Working theory: the
-   corridor grading collapses that fillet to R~0.03 m, which is (a) BELOW
-   the 0.10 m path resampling, so the 3-point curvature estimate smears
-   the corner and under-reports kappa right at the vertex, and (b) below
-   any radius the body can track at ANY speed floor (at v_min 0.25 and
-   yaw_rate_max 1.2, the tightest trackable arc is v/w ~= 0.21 m).
-   Candidate fix with the new machinery: floor the effective corridor at
-   ~v_min/yaw_rate_max, and auto-register super-acute vertices (turn >
-   turn_hard) as planner STOPS so the dog arrives at creep and pivots.
-2. **Fall detector fires at the very end on z=0.090 held 0.5 s while DEAD
-   LEVEL (roll=2 pitch=2)** - kills the run before the lie-down judge
-   lines print. That signature after 69 s of running is consistent with
-   LinearKF z-drift eating the 0.10 m threshold margin rather than a
-   physical fall (the detector reads the ESTIMATE - same failure shape as
-   the documented 0.15->0.10 threshold lesson). Verify against Gazebo
-   truth (the conductor's pose feed carries true z) before touching the
-   threshold.
-3. Re-verify oval and atom with the new stop-planning (their loops were
-   already clean; their ends were the same crash-stop).
+   remaining blemish on an otherwise clean star: an overshoot loop with a
+   pivot on the way out at the top vertex. NOTE the first sub-resolution
+   theory is FALSIFIED: buildPath's arc emitter has `asteps = max(2, ...)`
+   so even an R=0.03 fillet gets 3+ path points and the profile does brake
+   for it. Whatever remains is in execution at ultra-low commanded speed
+   (0.03-0.08 m/s is below what the trot meaningfully tracks) or in the
+   follower's lookahead across a feature smaller than itself. Needs the
+   first-corner [nav]/heading trace from a quiet single-dog run before any
+   further planner change.
+2. **The oval interlude is marginal** (1 tip in 2 attempts at the stop:
+   roll=72 deg in BALANCE_STAND, ~2 s after a clean, level, v=0.90
+   arrival). Star and atom interludes passed cleanly. Difference not
+   isolated; the oval closes onto its start joint right where the analyzer
+   has just switched gaits (trotting -> trotRunning 3 s before the stop).
+3. **Spawn pose: the dog's legs are below z=0 pre-stand** (user-observed).
+   Spawn is z=0.08 belly-down but joints spawn at q=0, so the legs pierce
+   the ground plane until the initial fold - likely also why every run
+   logs 1-2 startup "STATE ESTIMATE WENT NON-FINITE" blips. Fix is initial
+   joint angles (or a spawn z that matches q=0 legs), in the world
+   generator.
+4. **Host load kills fleets, in matching pairs/triples**: all three dogs'
+   control loops blew from a clean 2.48 ms to 20-24 ms at the same
+   wall-second (a 10x force impulse - dog1 genuinely rolled 53 deg) and
+   every dog "fell" simultaneously. Identical simultaneous failure across
+   independent processes = the HOST, never the controller. Cameras were
+   the GPU load (49% -> 0% with them off; they are now dynamically
+   mutable from the panel). Run one dog at a time when measuring.
 
 ### New debug route: raw logs over REST
 

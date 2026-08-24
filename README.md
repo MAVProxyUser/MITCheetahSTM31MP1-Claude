@@ -34,7 +34,8 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | Star cornering (steering-rate cap) | ✅ **fixed and verified** — corner speed now capped by yaw authority, not just traction; no more overshoot/loop-back at tight vertices |
 | Stops planned like corners | ✅ **fixed and verified** — the profile now brakes for the mission end and the dash interlude (`addStopXY`/end-stop); the "fall during lie-down" was a crash-stop arrival at full cruise, see `CLAUDE.md` |
 | Star closes its own loop | ✅ `makeStar` appends the 0→1→2→3→4→**0** closing stroke; a dash-less star no longer stops one leg short of the drawn plan |
-| Remaining stop-point items | ❌ **open** — the star's acute opening hairpin still overshoots (pre-planner corridor collapses below trackable radius), and the fall detector ends runs on estimated z=0.09 while dead level (suspected KF z-drift, verify vs Gazebo truth) |
+| **Full mission sequence** (loop → lie down → stand up → 100 m dash → lie down) | ✅ **judged PASS on all three courses** (star 7/7, oval 95/95, atom 109/109, single-dog) — the last blocker was the fall detector's z-test mistaking the *commanded* lie-down for a collapse (`setFallZEnable`) |
+| Remaining items | ❌ star's acute opening hairpin still draws a small loop; the oval interlude is marginal (1 tip in 2); spawn pose puts the legs below ground pre-stand; 3-dog fleets are host-load-sensitive (run one at a time to measure) |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
