@@ -1,0 +1,71 @@
+/* Docs page - same palette as styles.css (see its header comment, and its
+   .back-link which this page also uses), its own layout only: a scrolling
+   list of endpoint cards instead of the fleet grid. */
+
+.docs-main { max-width: 920px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+.docs-intro { color: var(--muted); font-size: 0.88rem; line-height: 1.55; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid #243028; }
+.docs-intro code { font-family: var(--font-mono); color: var(--ink); background: var(--bg2); padding: 0.05em 0.35em; border-radius: 3px; }
+.docs-intro b { color: var(--accent); }
+
+.ep-card { background: var(--bg2); border: 1px solid #2c3532; border-left: 3px solid var(--link); border-radius: 6px; margin-bottom: 1.1rem; overflow: hidden; }
+.ep-card.state-changing { border-left-color: var(--warn); }
+
+.ep-head { display: flex; align-items: center; gap: 0.7rem; padding: 0.8rem 1rem; cursor: pointer; user-select: none; }
+.ep-method { font-family: var(--font-mono); font-weight: 700; font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 3px; letter-spacing: 0.03em; min-width: 3.6em; text-align: center; }
+.ep-method.GET { background: rgba(90,158,143,0.18); color: var(--link); }
+.ep-method.POST { background: rgba(200,180,74,0.18); color: var(--accent); }
+.ep-method.DELETE { background: rgba(196,92,58,0.18); color: var(--warn); }
+.ep-path { font-family: var(--font-mono); font-size: 0.92rem; color: var(--ink); flex: 1; }
+.ep-path .param { color: var(--accent); }
+.ep-badge { font-family: var(--font-display); font-size: 0.66rem; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0.05rem 0.4rem; letter-spacing: 0.03em; text-transform: uppercase; }
+.ep-chevron { color: var(--muted); font-size: 0.75rem; transition: transform 0.15s ease; }
+.ep-card.open .ep-chevron { transform: rotate(90deg); }
+
+.ep-body { display: none; padding: 0 1rem 1rem; border-top: 1px solid #243028; }
+.ep-card.open .ep-body { display: block; }
+.ep-desc { color: var(--muted); font-size: 0.84rem; line-height: 1.5; margin: 0.85rem 0; }
+.ep-desc code { font-family: var(--font-mono); color: var(--ink); }
+
+.ep-field { margin-bottom: 0.7rem; }
+.ep-field label { display: block; font-family: var(--font-display); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+.ep-field input[type=number], .ep-field input[type=text] {
+  background: var(--bg1); border: 1px solid #2c3532; color: var(--ink); border-radius: 4px;
+  padding: 0.4rem 0.55rem; font-family: var(--font-mono); font-size: 0.85rem; width: 100%;
+}
+.ep-body-editor {
+  width: 100%; min-height: 5.2rem; background: var(--bg1); border: 1px solid #2c3532; border-radius: 4px;
+  color: var(--ink); font-family: var(--font-mono); font-size: 0.82rem; padding: 0.6rem; resize: vertical;
+  line-height: 1.4;
+}
+.ep-body-editor:focus, .ep-field input:focus { outline: none; border-color: var(--accent); }
+
+.ep-actions { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.7rem; }
+.ep-btn {
+  font-family: var(--font-display); font-size: 0.78rem; letter-spacing: 0.02em; text-transform: uppercase;
+  padding: 0.45rem 0.9rem; border-radius: 4px; border: 1px solid #2c3532; background: var(--bg1);
+  color: var(--ink); cursor: pointer; display: flex; align-items: center; gap: 0.4rem;
+}
+.ep-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ep-btn.play { border-color: var(--ok); color: var(--ok); }
+.ep-btn.play:hover { background: rgba(61,154,95,0.12); }
+.ep-btn.play:disabled { opacity: 0.5; cursor: default; }
+.ep-btn .glyph { font-size: 0.7rem; }
+.ep-copied { font-family: var(--font-mono); font-size: 0.75rem; color: var(--ok); opacity: 0; transition: opacity 0.2s ease; }
+.ep-copied.show { opacity: 1; }
+
+.ep-curl {
+  margin-top: 0.7rem; background: var(--bg0); border: 1px solid #2c3532; border-radius: 4px;
+  padding: 0.6rem 0.7rem; font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted);
+  white-space: pre-wrap; word-break: break-all;
+}
+
+.ep-response { margin-top: 0.8rem; }
+.ep-response-head { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.35rem; }
+.ep-status { font-family: var(--font-mono); padding: 0.05rem 0.45rem; border-radius: 3px; }
+.ep-status.ok { background: rgba(61,154,95,0.18); color: var(--ok); }
+.ep-status.err { background: rgba(196,92,58,0.18); color: var(--warn); }
+.ep-response-body {
+  background: var(--bg0); border: 1px solid #2c3532; border-radius: 4px; padding: 0.7rem;
+  font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink); white-space: pre-wrap;
+  word-break: break-word; max-height: 420px; overflow: auto; margin: 0;
+}

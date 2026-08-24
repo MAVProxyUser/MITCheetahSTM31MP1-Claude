@@ -76,6 +76,30 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   else if (sscanf(mission, "outback:%f", &d) == 1)         nav.makeOutAndBack(d, vx);
   else                                                     nav.makeStar(5.3f, 5, vx);
 
+  // $WP_DASH=<metres>: append a straight finishing sprint after the loop
+  // above closes, continuing along whatever heading the final leg left the
+  // dog on. This is the 100 m dash as a FINISH, not a standalone course - the
+  // dog proves it can corner the whole loop, then gets to show what its gait
+  // does in a straight line once there is nothing left to turn for.
+  //
+  // Per direct instruction, the handoff between loop and dash is not just a
+  // waypoint change: the dog stops, lies down, and stands back up before the
+  // sprint - the same lie-down/stand-up the QA ladder already rehearses at
+  // the true end of every mission (see the END-OF-MISSION SEQUENCE below),
+  // just run once more in the middle instead of only at the finish.
+  // loop_wp_count marks the boundary: appendDash() now inserts TWO
+  // waypoints (an explicit return to wp00, THEN the dash point), so the
+  // interlude should fire once the RETURN leg is complete and the dash
+  // point becomes active - one PAST loop_wp_count, not at it - so the dog
+  // has genuinely closed the shape before it stops and lies down.
+  const int loop_wp_count = nav.count();
+  bool dash_pending = false;
+  if (getenv("WP_DASH")) {
+    nav.appendDash(atof(getenv("WP_DASH")), vx);
+    dash_pending = nav.count() > loop_wp_count;
+  }
+  const int dash_wp_index = loop_wp_count + 1;
+
   if (getenv("WP_ACCEPT"))   nav.accept_radius = atof(getenv("WP_ACCEPT"));
   if (getenv("WP_LOOP"))     nav.loop = true;
   // The MPC trot turns far harder than the crawl, which is what max_yawrate was
@@ -135,6 +159,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     if (getenv("WP_TURN_SOFT")) { auto L=planner.limits(); L.turn_soft=atof(getenv("WP_TURN_SOFT")); planner.setLimits(L); }
     if (getenv("WP_TURN_HARD")) { auto L=planner.limits(); L.turn_hard=atof(getenv("WP_TURN_HARD")); planner.setLimits(L); }
     if (getenv("WP_CSCALE"))    { auto L=planner.limits(); L.corner_scale_min=atof(getenv("WP_CSCALE")); planner.setLimits(L); }
+    // Same turn_soft/turn_hard grading, applied to the fillet's geometric
+    // corridor instead of the lateral-accel budget - shrinks how far an
+    // acute corner's rounded arc misses the true vertex by. See the field
+    // comment on BodyLimits::corridor_scale_min.
+    if (getenv("WP_CORRIDOR_MIN")) { auto L=planner.limits(); L.corridor_scale_min=atof(getenv("WP_CORRIDOR_MIN")); planner.setLimits(L); }
     if (getenv("WP_HAIRPIN")) { auto L = planner.limits(); L.hairpin_rad = atof(getenv("WP_HAIRPIN")); planner.setLimits(L); }
     if (getenv("WP_VPIVOT"))  { auto L = planner.limits(); L.v_pivot     = atof(getenv("WP_VPIVOT"));  planner.setLimits(L); }
     const double corridor = getenv("WP_ACCEPT") ? atof(getenv("WP_ACCEPT")) : 1.0;
@@ -179,9 +208,29 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     fflush(stdout);
   }
 
-  // Wait for the sequencer to finish its velocity ramp before taking the stick.
-  while (bridge->driverCommand().leftStickAnalog[1] < vx * 0.99f)
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  /*
+   * TAKE THE STICK OURSELVES, from LOCOMOTION entry - not by waiting for the
+   * bridge's own straight-line ramp to finish, which is what used to run the
+   * dog dead ahead for the whole delay+ramp window before nav ever steered
+   * (see the WP_MISSION guard added around that ramp in
+   * Stm32mp1HardwareBridge.cpp for the measured symptom and why it is wrong
+   * for a mission specifically). Wait for control_mode == 4 (K_LOCOMOTION),
+   * then hold the SAME gait-engage settle the old ramp used
+   * ($SIM_VX_DELAY_S, still the standing-gait settle time, not a straight-line
+   * hold) before calling nav.update() for the first time - the planner's own
+   * accel limit (a_lon/a_accel_max) ramps speed from the standstill the robot
+   * is actually at, while STEERING from tick one instead of after 15 s of
+   * running straight.
+   */
+  while (bridge->getControlMode() != 4)
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  {
+    float settle_s = getenv("SIM_VX_DELAY_S") ? atof(getenv("SIM_VX_DELAY_S")) : 3.f;
+    printf("[nav] LOCOMOTION engaged - holding %.1f s for the gait to settle "
+           "before nav takes the stick\n", settle_s);
+    fflush(stdout);
+    std::this_thread::sleep_for(std::chrono::milliseconds((long)(settle_s * 1000.f)));
+  }
 
   const auto t0 = std::chrono::steady_clock::now();
   auto elapsed = [&t0]() {
@@ -189,6 +238,22 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   };
   printf("[nav] taking the stick at t=%.1fs (mission %s)\n", elapsed(), mission);
   fflush(stdout);
+  /*
+   * Anchor for the forward-speed ramp below - NOT armed on the initial
+   * takeover (restart_t starts a full ramp window in the past, so vscale is
+   * 1.0 immediately). BodyPathPlanner::computeSpeedProfile() now forces
+   * _path[0].v = 0 and ramps it forward itself with the SAME accel limit, so
+   * applying a second, independent time-based ramp here on top of that
+   * double-ramps and desyncs the caller's notion of "how far along the plan
+   * am I" from the plan's own arc-length-based one - measured to cost the
+   * star ~4 s and a visibly wide, arcing entry into its first corner (see
+   * the comment at that _path[0].v = 0 assignment for the full account).
+   * The dash interlude's stand-back-up IS a genuine standstill the
+   * pre-computed profile does not know about (plan() is never called again
+   * mid-mission), so THAT restart still arms this ramp for real.
+   */
+  const float vx_ramp_s = getenv("SIM_VX_RAMP_S") ? atof(getenv("SIM_VX_RAMP_S")) : 3.f;
+  float restart_t = elapsed() - vx_ramp_s;
 
   /*
    * GAIT DECIDER ($WP_GAIT_DECIDER=1) - Apollo's task of the same name, using
@@ -411,6 +476,97 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       fflush(stdout);
     }
 
+    /*
+     * LOOP-TO-DASH INTERLUDE. The loop closed AND the explicit return to
+     * wp00 (appendDash()'s first inserted point) is done - nav has just
+     * advanced onto the actual dash waypoint - so stop, settle, lie down,
+     * then stand back up before sprinting the dash, exactly mirroring the
+     * end-of-mission sequence below rather than inventing a second one.
+     * This blocks the thread for its duration (a few seconds), which is
+     * fine: nothing else needs the stick during a controlled sit-and-stand,
+     * and the alternative (driving it from the 50 Hz loop with a state
+     * machine) buys nothing but complexity for a one-shot event.
+     */
+    if (dash_pending && lastIdx == dash_wp_index) {
+      dash_pending = false;
+      printf("[nav] loop complete at t=%.1fs - stop, lie down, stand back up "
+             "before the %s dash\n", elapsed(), mission);
+      fflush(stdout);
+
+      // 1. decelerate from cruise - a stepped-to-zero stick pitches the
+      //    robot forward on the way down, same reasoning as end-of-mission.
+      for (int k = 20; k >= 0; --k) {
+        bridge->driverCommand().leftStickAnalog[1]  = vx * (float)k / 20.f;
+        bridge->driverCommand().rightStickAnalog[0] = 0.f;
+        std::this_thread::sleep_for(std::chrono::milliseconds(75));
+      }
+      bridge->driverCommand().leftStickAnalog[1]  = 0.f;
+      bridge->driverCommand().rightStickAnalog[0] = 0.f;
+
+      // 2. settle on its feet
+      bridge->setControlMode(3);                 // K_BALANCE_STAND
+      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+
+      // 3. lie down - re-enter STAND_UP with a low target (see the
+      //    end-of-mission comment for why this reuses that interpolation).
+      //    BALANCE_STAND -> STAND_UP is not a legal FSM transition
+      //    (FSM_State_BalanceStand::checkTransition()'s switch has no
+      //    K_STAND_UP case - every request fell to `default`, printing
+      //    "Bad Request: Cannot transition from 3 to 1" and being silently
+      //    ignored, so the dog just stood there under BALANCE_STAND's own
+      //    control indefinitely - measured on a 3-dog fleet run: over a
+      //    hundred rejected requests, then an eventual orientation-safety
+      //    fall from prolonged undriven standing, never an actual lie-down).
+      //    K_STAND_UP IS legal from K_PASSIVE
+      //    (FSM_State_Passive::checkTransition() has that case), which is
+      //    also the FSM's OWN normal bootstrap path (PASSIVE -> STAND_UP ->
+      //    BALANCE_STAND -> LOCOMOTION), so hop through PASSIVE first.
+      // PASSIVE cuts leg torque entirely at the FSM level, but
+      // RobotRunner::finalizeStep() applies edampCommand() AFTER the FSM
+      // state's own control regardless of which state is active - so
+      // damping through this hop is not fighting PASSIVE, it is what
+      // actually reaches the legs while PASSIVE would otherwise leave them
+      // at true zero. Without this, a still-tall standing robot free-falls
+      // for however long PASSIVE holds - measured as a real collapse
+      // (roll/pitch/z all dropping) even at a bare 300 ms.
+      setEdamp(8.0);
+      bridge->setControlMode(0);                 // K_PASSIVE
+      // As BRIEF as possible regardless - the FSM only needs ONE control
+      // tick (2 ms) to register PASSIVE as current before it will accept
+      // the next request, so this only has to outlast scheduling jitter.
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      // Hand off to STAND_UP's own controlled Cartesian interpolation
+      // undamped - edamp fighting an active position controller defeats
+      // the point of using that interpolation at all.
+      setEdamp(0.0);
+      setStandUpHeight(0.07);
+      bridge->setControlMode(1);                 // K_STAND_UP
+      std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      setEdamp(8.0);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+
+      // 4. stand back up - restore the normal stand-up target (0.25, from
+      //    FSM_State_StandUp.cpp's g_standUpHeight default) and go back
+      //    through the SAME staged entry used at mission start: STAND_UP ->
+      //    BALANCE_STAND -> LOCOMOTION. Skipping BALANCE_STAND here would
+      //    hand the MPC the same 9 cm height step CLAUDE.md already measured
+      //    as a launch (z 0.211 -> 0.342 at 0.32 m/s vertical).
+      setEdamp(0.0);
+      setStandUpHeight(0.25);
+      bridge->setControlMode(1);                 // K_STAND_UP
+      std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      bridge->setControlMode(3);                 // K_BALANCE_STAND
+      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      bridge->setControlMode(4);                 // K_LOCOMOTION
+      // Let the gait engage before asking it to go anywhere - the same
+      // settle window the initial sequencer holds at mission start.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+      restart_t = elapsed();   // ramp forward speed again from this standstill
+      printf("[nav] back up at t=%.1fs - dashing the final leg\n", elapsed());
+      fflush(stdout);
+    }
+
     if (!running) {
       printf("[nav] MISSION COMPLETE t=%.1fs  (%d waypoints)\n", elapsed(), nav.count());
       fflush(stdout);
@@ -449,6 +605,31 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
 
       // 3. LIE DOWN: re-enter STAND_UP with a low target so the same Cartesian
       //    interpolation that stands the robot up lowers it instead.
+      //    BALANCE_STAND -> STAND_UP is not a legal FSM transition (see the
+      //    matching comment in the loop-to-dash interlude above, where this
+      //    was actually caught: FSM_State_BalanceStand::checkTransition()
+      //    has no K_STAND_UP case, so this request was silently rejected
+      //    every tick and the "lie down" never happened - hop through
+      //    K_PASSIVE first, which IS a legal source for K_STAND_UP and is
+      //    the FSM's own normal bootstrap path.
+      // PASSIVE cuts leg torque entirely at the FSM level, but
+      // RobotRunner::finalizeStep() applies edampCommand() AFTER the FSM
+      // state's own control regardless of which state is active - so
+      // damping through this hop is not fighting PASSIVE, it is what
+      // actually reaches the legs while PASSIVE would otherwise leave them
+      // at true zero. Without this, a still-tall standing robot free-falls
+      // for however long PASSIVE holds - measured as a real collapse
+      // (roll/pitch/z all dropping) even at a bare 300 ms.
+      setEdamp(8.0);
+      bridge->setControlMode(0);                 // K_PASSIVE
+      // As BRIEF as possible regardless - the FSM only needs ONE control
+      // tick (2 ms) to register PASSIVE as current before it will accept
+      // the next request, so this only has to outlast scheduling jitter.
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      // Hand off to STAND_UP's own controlled Cartesian interpolation
+      // undamped - edamp fighting an active position controller defeats
+      // the point of using that interpolation at all.
+      setEdamp(0.0);
       setStandUpHeight(0.07);
       bridge->setControlMode(1);                 // K_STAND_UP
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
@@ -494,7 +675,19 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       _exit(0);
     }
 
-    bridge->driverCommand().leftStickAnalog[1]  = nv;
+    /*
+     * FORWARD-SPEED RAMP, STEERING AT FULL AUTHORITY. A stepped velocity
+     * command from standstill is the exact hazard the old bridge-side ramp
+     * existed to avoid ("knocked the trot over"), so that protection is kept
+     * here - but only on the SPEED channel. Yaw rate is nav's steering
+     * output, recomputed fresh every tick from the actual heading error, not
+     * a fixed step; letting it act at full strength from tick one is what
+     * fixes the straight-line overshoot, and it is already measured safe at
+     * far higher authority than this ever asks for (3.0 rad/s stationary
+     * spin, roll < 1.5 deg, nothing falls - see the yaw envelope results).
+     */
+    const float vscale = std::min(1.f, (elapsed() - restart_t) / std::max(0.1f, vx_ramp_s));
+    bridge->driverCommand().leftStickAnalog[1]  = nv * vscale;
     bridge->driverCommand().rightStickAnalog[0] = yaw_sign * nw;
 
     static int navlog = 0;

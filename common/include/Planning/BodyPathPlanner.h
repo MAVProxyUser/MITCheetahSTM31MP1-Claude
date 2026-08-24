@@ -155,6 +155,26 @@ struct BodyLimits {
   double turn_soft = 1.4;
   double turn_hard = 2.8;
   double corner_scale_min = 1.0;   // 1.0 = grading OFF. Measured: 0.55 costs 2 s and 0.4 costs 3 s for NO reliability gain on this course. Kept as a knob for courses with genuinely varied corner angles.
+  /*!
+   * SAME turn_soft/turn_hard grading, applied to the FILLET RADIUS instead of
+   * the lateral-acceleration budget. corner_scale_min trades RELIABILITY for
+   * time on a corner the robot can already make; this trades POSITIONAL
+   * ACCURACY for time on one it can already make - a fillet of radius R
+   * misses the true vertex by R*(csc(phi/2)-1) (see buildPath's own comment),
+   * so a fixed corridor cuts every corner the same amount regardless of how
+   * sharp it is, missing an acute vertex by a visibly large margin while a
+   * gentle one is untouched. 1.0 = OFF (unchanged geometry, current
+   * behaviour, still the right default for a course whose corners are all
+   * mild). Below 1.0, an acute corner's EFFECTIVE corridor shrinks toward
+   * corridor*corridor_scale_min as its direction change grows past
+   * turn_soft toward turn_hard - and because computeSpeedProfile derives
+   * v_max from the path's OWN measured curvature (buildPath lays the fillet
+   * down; the numerical circumradius kappa comes from those exact points),
+   * a tighter fillet here automatically commands a slower, near-pivot speed
+   * through it too - one geometric fix does both jobs, they were never two
+   * separate levers.
+   */
+  double corridor_scale_min = 1.0;
   double hairpin_rad = 9.9;   // OFF by default: measured to cost time on this course, see below
   //! Speed carried through a hairpin. Not zero - a stopped robot still has to
   //! accelerate again - but slow enough that v*omega is negligible.
@@ -469,8 +489,24 @@ class BodyPathPlanner {
           if (phi > 1e-3 && phi < M_PI - 1e-3) {
             const double half = phi * 0.5;
             const double offsetPerR = 1.0/std::sin(half) - 1.0;
-            // radius the corridor allows, and never more than half a leg
-            R = (offsetPerR > 1e-6) ? corridor / offsetPerR : 1e9;
+            // ANGLE-GRADED CORRIDOR - see the field comment on
+            // corridor_scale_min. turnAngle here is the DIRECTION CHANGE
+            // (0 = straight through, pi = full reversal) - the same
+            // quantity and the same turn_soft/turn_hard thresholds the
+            // speed grading below uses, so "how acute is too acute" is one
+            // shared answer, not two. turnAngle = pi - phi.
+            double eff_corridor = corridor;
+            if (_lim.corridor_scale_min < 1.0) {
+              const double turnAngle = M_PI - phi;
+              if (turnAngle > _lim.turn_soft) {
+                const double f = std::min(1.0, (turnAngle - _lim.turn_soft) /
+                                   std::max(1e-6, _lim.turn_hard - _lim.turn_soft));
+                eff_corridor = corridor * (1.0 - f * (1.0 - _lim.corridor_scale_min));
+              }
+            }
+            // radius the (possibly graded) corridor allows, and never more
+            // than half a leg
+            R = (offsetPerR > 1e-6) ? eff_corridor / offsetPerR : 1e9;
             T = R / std::tan(half);
             const double Tmax = 0.45 * std::min(ilen, jlen);
             if (T > Tmax) { T = Tmax; R = T * std::tan(half); }
@@ -628,6 +664,44 @@ class BodyPathPlanner {
       const double lim = std::sqrt(_path[i+1].v * _path[i+1].v + 2 * _lim.a_lon_max * ds);
       _path[i].v = std::min(_path[i].v, lim);
     }
+    /*
+     * THE ROBOT IS AT REST AT s=0, ALWAYS - plan() is only ever called once,
+     * at mission setup, before nav takes the stick (mit_sim_main.cpp calls it
+     * exactly once; a later mid-mission restart, e.g. after the dash
+     * interlude's stand-back-up, reads further into an ALREADY-computed
+     * profile and is handled separately, by the caller ramping in from
+     * wherever _path[i].v already is - it does not call plan() again). Up to
+     * here, _path[0].v is whatever the curvature limit allowed - v_cruise
+     * outright on a straight opening tangent, which is exactly the star's
+     * case (wp00 is rotated due north to avoid an opening pivot). Left
+     * uncorrected, that tells the caller to command near-cruise speed on
+     * tick one, while the caller ALSO safety-ramps its own output up from a
+     * true standstill (a stepped velocity command was measured to knock the
+     * trot over) - two independent ramps, on the same channel, disagreeing
+     * about where the robot actually is on the profile. Every corner after
+     * the first inherits that arc-length error for the rest of the mission.
+     * Measured effect on the star specifically (the only course of the three
+     * whose first leg starts at v_max already): 42.4 s against a validated
+     * 38.25 s baseline, and a visibly wide, arcing entry into wp00 instead of
+     * a clean pivot. Zeroing it here lets the SAME forward accel-limited pass
+     * below produce the ramp, arc-length-consistent with the braking-zone
+     * math the corners already depend on, so the caller no longer needs (or
+     * should apply) a second, independent ramp on the initial takeover.
+     *
+     * NOT literally 0.0: follow() reads _path[nearestIndex(x,y)].v directly,
+     * with no lookahead on the SPEED value (only the steering target point
+     * gets a lookahead). The robot starts at essentially _path[0]'s own
+     * coordinates, so nearestIndex()==0 on the very first tick, commanding
+     * exactly this value - a literal 0.0 here is *vx=0 forever: the robot
+     * never moves, so nearestIndex never advances past 0, so vplan never
+     * leaves 0. Measured: v pinned at 0.00 for 70+ s, standing in place.
+     * _lim.v_min (0.25 m/s default, the same floor computeSpeedProfile
+     * already enforces everywhere else in this function) guarantees actual
+     * progress from tick one while still being far below the v_max this was
+     * fixing - the forward accel-limited pass below still ramps normally
+     * from there.
+     */
+    _path[0].v = _lim.v_min;
     // Forward pass uses the ACCELERATION limit, not the braking one - slow in,
     // fast out. The backward pass above already guaranteed the robot can shed
     // the speed; there is no reason to make it regain it just as slowly.

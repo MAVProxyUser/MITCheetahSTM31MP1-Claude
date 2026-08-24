@@ -20,14 +20,127 @@ Also emits a <gui><camera> pose in the output world, roughly centred over the
 combined layout and high enough to frame every slot at once - so the operator
 does not have to hunt for the fleet with the mouse the moment the window opens.
 """
+import json
+import math
 import sys
 import os
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/..")
 from make_multi_world import mission_bbox, load_proto, clone_dog  # noqa: E402
+import terrain  # noqa: E402
 
 MARGIN = 30.0  # m between adjacent slots' bounding boxes
+
+DEFAULT_CAM_CFG = dict(front=True, nadir=True, chase=True,
+                        distance=3.0, height=1.2, degree=90.0)
+
+
+def strip_camera_sensor(model, sensor_name):
+    """Remove one named <sensor> from wherever it lives in the model - a
+    disabled feed costs real GPU/CPU (always_on=1 renders regardless of
+    subscribers), so "off" means actually absent from the world, not just
+    unsubscribed. ElementTree has no find-parent, so walk every link."""
+    for link in model.findall("link"):
+        for s in list(link.findall("sensor")):
+            if s.get("name") == sensor_name:
+                link.remove(s)
+
+
+def configure_chase_cam(model, distance, height, degree):
+    """Rewrite the go1 template's existing chase_cam sensor (body-mounted,
+    originally a fixed rear/above mount for record_video.py) to sit
+    `distance` m out from the trunk at angle `degree` (0 = directly behind,
+    90 = left side - "side view" per the request), `height` m above it,
+    pitched to look back at the body. Body-mounted rather than a free
+    camera tracked via the world/set_pose service: it rides with the dog
+    for free (no per-tick pose-update loop needed), the same reason the
+    original hardcoded mount worked at all.
+    """
+    rad = math.radians(degree)
+    ox = -distance * math.cos(rad)   # 0 deg = straight behind (-X, body fwd is +X)
+    oy = distance * math.sin(rad)    # 90 deg = to the left (+Y)
+    oz = height
+    # look back toward the body origin
+    yaw = math.atan2(-oy, -ox)
+    pitch = math.atan2(height, max(0.05, distance))
+    for link in model.findall("link"):
+        for s in link.findall("sensor"):
+            if s.get("name") != "chase_cam":
+                continue
+            pose = s.find("pose")
+            if pose is None:
+                pose = ET.SubElement(s, "pose")
+            pose.text = "%.3f %.3f %.3f 0 %.4f %.4f" % (ox, oy, oz, pitch, yaw)
+            img = s.find("camera/image")
+            if img is not None:
+                # Match front/nadir's size/rate - this feed now goes to a
+                # browser tile at 10 Hz, not record_video.py's standalone
+                # capture, and the smaller frame is real load saved per dog.
+                w, h = img.find("width"), img.find("height")
+                if w is not None: w.text = "480"
+                if h is not None: h.text = "270"
+            rate = s.find("update_rate")
+            if rate is not None:
+                rate.text = "10"
+            return
+
+
+def apply_camera_config(model, cfg):
+    """cfg: dict with front/nadir/chase bools and distance/height/degree for
+    chase. Strips whichever feeds are unchecked, configures chase_cam's pose
+    if it's kept."""
+    if not cfg.get("front", True):
+        strip_camera_sensor(model, "front_cam")
+    if not cfg.get("nadir", True):
+        strip_camera_sensor(model, "nadir_cam")
+    if not cfg.get("chase", True):
+        strip_camera_sensor(model, "chase_cam")
+    else:
+        configure_chase_cam(model, float(cfg.get("distance", DEFAULT_CAM_CFG["distance"])),
+                             float(cfg.get("height", DEFAULT_CAM_CFG["height"])),
+                             float(cfg.get("degree", DEFAULT_CAM_CFG["degree"])))
+
+
+def apply_terrain(world, kind, run_dir, slots=None):
+    """Swap the ground_plane's flat <plane> for a procedural <heightmap>, or
+    do nothing at all for "flat" - which leaves the EXACT geometry every
+    campaign result in CLAUDE.md was measured on, byte-for-byte unchanged.
+    A non-flat terrain is new, unvalidated ground and is opt-in for exactly
+    that reason.
+
+    `slots` (from layout()) sizes the flat spawn disc to just cover this
+    fleet's actual spawn points, each (spawn_north, spawn_east) away from
+    world origin - NOT a fixed fraction of the grid. A fixed 1/6-of-grid disc
+    (65.6 m radius) was measured to fully contain the 100 m star (21 m east
+    extent) and every other course this port has run, so "rolling terrain"
+    launches were silently running on flat ground the whole time. Sizing per
+    fleet still protects every dog's stance but stops swallowing missions
+    whose own scale is close to the spawn-clearance radius."""
+    if kind == "flat" or kind not in terrain.TERRAIN_TYPES:
+        return
+    gp = None
+    for m in world.findall("model"):
+        if m.get("name") == "ground_plane":
+            gp = m
+            break
+    if gp is None:
+        return
+    flatten_radius_m = 2.0
+    if slots:
+        import math
+        farthest = max(math.hypot(north, east) for _spec, north, east, _bb in slots)
+        flatten_radius_m = farthest + 2.0
+    png_path = os.path.join(run_dir, "terrain_%s.png" % kind)
+    amp = terrain.generate(kind, png_path, flatten_radius_m=flatten_radius_m)
+    for link in gp.findall("link"):
+        for tag in ("collision", "visual"):
+            hm_xml = terrain.build_heightmap_xml(png_path, amp, textured=(tag == "visual"))
+            for el in link.findall(tag):
+                geom = el.find("geometry")
+                if geom is not None:
+                    el.remove(geom)
+                el.append(ET.fromstring("<geometry>%s</geometry>" % hm_xml))
 
 
 def layout(missions):
@@ -64,8 +177,18 @@ def camera_pose(slots):
 
 
 def main():
-    src, out = sys.argv[1], sys.argv[2]
-    missions = sys.argv[3:]
+    args = sys.argv[1:]
+    terrain_kind = "flat"
+    cam_cfgs = None
+    for a in list(args):
+        if a.startswith("--terrain="):
+            terrain_kind = a.split("=", 1)[1]
+            args.remove(a)
+        elif a.startswith("--cam_config="):
+            cam_cfgs = json.loads(a.split("=", 1)[1])
+            args.remove(a)
+    src, out = args[0], args[1]
+    missions = args[2:]
     if not missions:
         raise SystemExit(__doc__)
     if len(missions) > 3:
@@ -73,9 +196,12 @@ def main():
 
     slots = layout(missions)
     tree, world, proto = load_proto(src)
+    apply_terrain(world, terrain_kind, os.path.dirname(os.path.abspath(out)), slots=slots)
 
     for i, (spec, north, east, bbox) in enumerate(slots):
         m, name = clone_dog(proto, i, north=north, east=east)
+        cfg = cam_cfgs[i] if cam_cfgs and i < len(cam_cfgs) else DEFAULT_CAM_CFG
+        apply_camera_config(m, cfg)
         world.append(m)
 
     gui = world.find("gui")

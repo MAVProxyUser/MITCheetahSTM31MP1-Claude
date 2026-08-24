@@ -32,15 +32,36 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .brand span { color: var(--accent); }
 .caption { font-family: var(--font-display); color: var(--accent); font-size: 0.85rem; letter-spacing: 0.02em; }
 .topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+.back-link { font-family: var(--font-display); color: var(--link); text-decoration: none; font-size: 0.8rem; letter-spacing: 0.03em; text-transform: uppercase; border: 1px solid #2c3532; border-radius: 4px; padding: 0.4rem 0.7rem; }
+.back-link:hover { color: var(--accent); border-color: var(--accent); }
+
+.load-widget { display: flex; align-items: center; gap: 0.9rem; font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
+.load-item { display: flex; align-items: center; gap: 0.35rem; }
+.load-label { letter-spacing: 0.04em; }
+.load-bar { width: 54px; height: 6px; border-radius: 3px; background: var(--bg2); border: 1px solid #2c3532; overflow: hidden; }
+.load-fill { display: block; height: 100%; width: 0%; background: var(--ok); transition: width 0.4s ease, background 0.4s ease; }
+.load-fill.warn { background: var(--accent); }
+.load-fill.hot  { background: var(--warn); }
+.load-val { min-width: 2.6em; text-align: right; color: var(--ink); }
 
 .main { display: grid; grid-template-columns: 1fr 360px; min-height: 0; flex: 1; }
 @media (max-width: 960px) { .main { grid-template-columns: 1fr; } }
 
-.stage {
-  padding: 1rem; overflow: auto;
+.stage { padding: 1rem; overflow: auto; }
+
+.scene-wrap {
+  position: relative; height: 46vh; min-height: 320px; margin-bottom: 0.85rem;
+  border: 1px solid #243028;
   background: radial-gradient(ellipse at 30% 20%, #1a2220 0%, transparent 50%),
               linear-gradient(160deg, #101418 0%, #0a0c0e 100%);
 }
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.scene-legend {
+  position: absolute; left: 0.75rem; bottom: 0.75rem; z-index: 2;
+  padding: 0.4rem 0.55rem; background: rgba(12,14,16,0.72); border: 1px solid #2a3330;
+  font-size: 0.72rem; color: var(--muted); font-family: var(--font-mono); line-height: 1.5;
+}
+.scene-legend .sw { display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.3rem; vertical-align: middle; }
 .stage-note {
   padding: 0.6rem 0.75rem; margin-bottom: 1rem; border: 1px solid #2a3330;
   background: rgba(12,14,16,0.6); font-size: 0.78rem; color: var(--muted); font-family: var(--font-mono);
@@ -61,6 +82,9 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .play-card h3 small { font-family: var(--font-mono); color: var(--muted); font-size: 0.65rem; text-transform: none; letter-spacing: 0; }
 .play-card p { margin: 0; font-size: 0.72rem; color: var(--muted); line-height: 1.35; font-family: var(--font-mono); }
 .slot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; margin-top: 0.2rem; }
+.cam-config-row { grid-template-columns: repeat(3, 1fr); }
+.cam-check { flex-direction: row !important; align-items: center; gap: 0.35rem !important; font-size: 0.68rem !important; }
+.cam-check input[type=checkbox] { accent-color: var(--accent); width: 13px; height: 13px; margin: 0; }
 .slot-row label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.63rem; font-family: var(--font-mono); color: var(--muted); }
 .slot-row select, .slot-row input {
   padding: 0.28rem 0.35rem; border: 1px solid #2c3532; background: #0e1210; color: var(--ink);
@@ -109,6 +133,26 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .fleet-phase.complete { color: var(--ok); }
 .fleet-phase.fell { color: var(--warn); }
 .fleet-meta { font-family: var(--font-mono); font-size: 0.68rem; color: var(--muted); }
+
+/* Camera tiles - lifted from Chuck's .ahrs-cam: a diagonal-stripe placeholder
+   until a real frame arrives, then just the frame. */
+.cam-row { display: flex; gap: 0.4rem; margin-top: 0.35rem; }
+.cam-tile {
+  position: relative; flex: 1; aspect-ratio: 16 / 9;
+  background: repeating-linear-gradient(-45deg, #12161a, #12161a 6px, #181e22 6px, #181e22 12px);
+  border: 1px solid #243028; overflow: hidden;
+}
+.cam-tile.live { background: #0a0c0e; }
+.cam-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-label {
+  position: absolute; left: 0.25rem; bottom: 0.2rem; font-family: var(--font-mono);
+  font-size: 0.6rem; color: var(--muted); text-shadow: 0 0 3px #000;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.cam-fell {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+}
+.cam-fell svg { width: 60%; height: 60%; }
 
 .dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; display: inline-block; margin-right: 0.35rem; }
 .dot.up { background: var(--ok); }

@@ -5,21 +5,25 @@
     <div class="brand">CHEETAH <span>CONDUCTOR</span></div>
   </div>
   <div class="caption" id="caption">STM32MP1 -&gt; Go1 SITL fleet control - up to 3 dogs</div>
+  <div class="load-widget" id="loadWidget" title="Mac host load - CLAUDE.md's own post-mortems trace more than one 'unexplained' sim failure back to unwatched machine load">
+    <span class="load-item"><span class="load-label">CPU</span><span class="load-bar"><span class="load-fill" id="cpuFill"></span></span><span class="load-val" id="cpuVal">--</span></span>
+    <span class="load-item"><span class="load-label">GPU</span><span class="load-bar"><span class="load-fill" id="gpuFill"></span></span><span class="load-val" id="gpuVal">--</span></span>
+  </div>
   <div class="topbar-actions">
+    <a class="back-link" href="/docs" title="Every REST endpoint, live">API DOCS</a>
     <button class="launch-btn stop-btn" id="stopBtn" style="width:auto" disabled>STOP FLEET</button>
   </div>
 </div>
 <div class="main">
   <div class="stage">
-    <div class="stage-note">
-      This panel launches and locks the run; the 3D scene is the native <b>Gazebo</b>
-      window it opens (planned track dim, flown track bright, one hue per dog - see
-      <code>trail_daemon.py</code>). Nothing here re-renders that scene; it just drives it.
+    <div class="scene-wrap">
+      <canvas id="scene"></canvas>
+      <div class="scene-legend" id="sceneLegend"></div>
     </div>
-    <div class="subhead">Fleet status</div>
-    <div id="fleetCards"></div>
     <div class="subhead">Orchestration log</div>
     <div class="log" id="logBox"></div>
+    <div class="subhead">Fleet status</div>
+    <div id="fleetCards"></div>
   </div>
 
   <div class="side">
@@ -38,6 +42,19 @@
           Go1 Pro rated max 3.5, EDU rated max 3.7, marketing peak 4.7 (not a target).
           No slot's commanded speed can exceed this, whatever its own field says.</div>
       </div>
+      <div class="slot-row" style="grid-template-columns:1fr">
+        <label>Terrain
+          <select id="terrainSelect">
+            <option value="flat">Flat (validated ground_plane)</option>
+            <option value="rolling">Rolling hills (~0.35 m)</option>
+            <option value="rough">Rough / bumpy (~0.15 m)</option>
+          </select>
+        </label>
+      </div>
+      <div class="cap-hint" style="margin-top:0.3rem">Procedural, not a real DEM -
+        see <code>conductor/terrain.py</code>. "Flat" is byte-identical to the
+        ground every campaign result was measured on; anything else is new,
+        unvalidated ground.</div>
       <button class="launch-btn" id="launchBtn">Launch fleet</button>
     </div>
 

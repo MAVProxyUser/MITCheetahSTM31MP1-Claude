@@ -327,7 +327,23 @@ void Stm32mp1HardwareBridge::run() {
         // a steady-state offset, not a divergence.
         const bool haveVx = getenv("SIM_VX") && atof(getenv("SIM_VX")) != 0.0;
         const bool haveWz = getenv("SIM_WZ") && atof(getenv("SIM_WZ")) != 0.0;
-        if (final_mode == 4 && (haveVx || haveWz)) {
+        /*
+         * $WP_MISSION SKIPS THIS WHOLE RAMP. Without this guard, the sequence
+         * below drives the stick straight ahead (zero yaw) for delay_s + 3 s
+         * + ramp_s - with the Conductor's own defaults (4 + 3 + 8 = 15 s) that
+         * is a genuine multi-metre straight-line overshoot BEFORE navThread's
+         * wait condition (stick >= 99% of vx) is ever satisfied, because that
+         * condition is exactly what this block spends 15 s working toward.
+         * Measured: it shows up as a straight bisecting line through the
+         * atom's rosette, since the mission's own curve starts turning
+         * immediately while this ramp keeps the dog going dead straight.
+         * navThread takes the stick itself instead (see its own settle wait)
+         * the moment LOCOMOTION engages, so mode sequencing above still runs
+         * unchanged - only the STRAIGHT velocity ramp is what a mission
+         * pre-empts, because steering from the first tick is the entire point
+         * of having a mission at all.
+         */
+        if (final_mode == 4 && (haveVx || haveWz) && !getenv("WP_MISSION")) {
           // Let the gait ENGAGE before asking it to go anywhere. The MPC port
           // holds MIT's standing gait for a short window after LOCOMOTION
           // entry (first async solution + settle), so a velocity ramp that

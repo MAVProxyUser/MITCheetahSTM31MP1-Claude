@@ -292,6 +292,52 @@ void WaypointNav::makeOutAndBack(float distance_m, float speed) {
   fflush(stdout);
 }
 
+void WaypointNav::appendDash(float distance_m, float speed) {
+  if (_n < 2 || _n + 1 >= MAXWP) return;
+  /*
+   * TWO waypoints, not one: an explicit return to wp00 (closing the shape
+   * for real, not just pointing at it), THEN the dash outward from there.
+   * Per direct instruction - "it never went back to the first waypoint
+   * before doing the dash" - extrapolating wp[last]'s heading toward wp00
+   * (the previous version) got the DIRECTION right but skipped the point
+   * itself: the dog would peel off toward wp00 without ever actually
+   * arriving, which reads as leaving the course unfinished before sprinting
+   * off. Now it genuinely closes the loop first.
+   *
+   * Heading for the final leg is wp[last] -> wp[0], same reasoning as
+   * before: a closed course's last waypoint is usually a VERTEX at some
+   * oblique angle (a star tip, an atom lobe), and extrapolating THAT leg's
+   * own direction sends the dash further along whatever angle the vertex
+   * happened to leave the dog on - a star tip shoots it into open ground at
+   * a spike angle. Aiming at wp0 instead is the course's own closing
+   * tangent, so the dash continues the SHAPE. With wp0 now a real
+   * intermediate stop, the final leg's direction is identical either way
+   * (same two points), just computed before appending wp0 rather than after.
+   */
+  float dn = _wp[0].north - _wp[_n - 1].north;
+  float de = _wp[0].east  - _wp[_n - 1].east;
+  const float len = sqrtf(dn * dn + de * de);
+  if (len < 1e-3f) return;   // wp0 and the last waypoint coincide, nothing to aim at
+  dn /= len; de /= len;
+
+  const int return_idx = _n;
+  _wp[_n].north = _wp[0].north;
+  _wp[_n].east  = _wp[0].east;
+  _wp[_n].speed = speed;
+  ++_n;
+
+  _wp[_n].north = _wp[return_idx].north + dn * distance_m;
+  _wp[_n].east  = _wp[return_idx].east  + de * distance_m;
+  _wp[_n].speed = speed;
+  ++_n;
+
+  printf("[nav] dash finish appended: return to wp00 (wp%02d N=%7.2f E=%7.2f), "
+         "then %.1f m onward to wp%02d  N=%7.2f  E=%7.2f\n",
+         return_idx, _wp[return_idx].north, _wp[return_idx].east, distance_m,
+         _n - 1, _wp[_n - 1].north, _wp[_n - 1].east);
+  fflush(stdout);
+}
+
 void WaypointNav::setOrigin(double lat_deg, double lon_deg) {
   _lat0 = lat_deg;
   _lon0 = lon_deg;

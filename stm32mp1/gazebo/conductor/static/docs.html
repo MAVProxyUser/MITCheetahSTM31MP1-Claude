@@ -1,0 +1,24 @@
+<title>Cheetah Conductor - API Docs</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/docs.css">
+<div class="topbar">
+  <div>
+    <div class="brand">CHEETAH <span>CONDUCTOR</span></div>
+  </div>
+  <div class="caption">REST API reference - every route, live</div>
+  <div class="topbar-actions">
+    <a class="back-link" href="/">&larr; Conductor</a>
+  </div>
+</div>
+<div class="docs-main">
+  <div class="docs-intro">
+    Every interactive element in the Conductor panel is backed by one of these
+    routes - clicking something in the browser and calling one of these with
+    <code>curl</code> hit the exact same code path. <b>Play</b> sends the
+    request to this server for real (state-changing routes really launch,
+    stop, or edit the draft fleet); <b>Copy curl</b> copies an equivalent
+    shell command. Base URL: <code id="baseUrl"></code>
+  </div>
+  <div id="endpoints"></div>
+</div>
+<script src="/docs.js"></script>

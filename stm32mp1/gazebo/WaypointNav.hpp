@@ -41,6 +41,14 @@ class WaypointNav {
   void makeCircle(float radius_m, int points, float speed);
   //! Straight there-and-back, for speed measurement runs.
   void makeOutAndBack(float distance_m, float speed);
+  /*! Append ONE more waypoint after whatever mission is already built, so a
+   *  closed loop (star/oval/atom) gets a straight finishing sprint instead of
+   *  ending back where it started. Direction continues along the FINAL leg's
+   *  own heading (the vector into the last waypoint), so it needs no idea
+   *  what course it is finishing - it just keeps going the way the dog is
+   *  already pointed when the loop closes. No-op on an empty or 1-point
+   *  mission (nothing to take a heading from). */
+  void appendDash(float distance_m, float speed);
   //! N-pointed star (visit every k-th vertex), the OpenPilot demo mission.
   void makeStar(float radius_m, int points, float speed);
   /*! Atom-logo rosette: ONE closed stroke with `lobes` petals through a common

@@ -443,6 +443,35 @@
             <clip><near>0.05</near><far>300</far></clip>
           </camera>
         </sensor>
+        <!-- FORWARD camera - Chuck UI's front feed. Mounted at the nose,
+             level with a slight downward tilt so the ground ahead is in
+             frame. 480p is deliberate: this feed is polled and JPEG-encoded
+             for a browser tile, not used for vision, so keep it small. -->
+        <sensor name="front_cam" type="camera">
+          <always_on>1</always_on>
+          <update_rate>10</update_rate>
+          <topic>front_cam</topic>
+          <pose>0.28 0 0.02 0 0.15 0</pose>
+          <camera>
+            <horizontal_fov>1.05</horizontal_fov>
+            <image><width>480</width><height>270</height><format>R8G8B8</format></image>
+            <clip><near>0.03</near><far>200</far></clip>
+          </camera>
+        </sensor>
+        <!-- DOWN (nadir) camera - Chuck UI's other standard feed. Pitch of
+             pi/2 rotates the camera's forward axis from +X to -Z: straight
+             down at the ground the dog is standing/running on. -->
+        <sensor name="nadir_cam" type="camera">
+          <always_on>1</always_on>
+          <update_rate>10</update_rate>
+          <topic>nadir_cam</topic>
+          <pose>0 0 -0.06 0 1.5708 0</pose>
+          <camera>
+            <horizontal_fov>1.05</horizontal_fov>
+            <image><width>480</width><height>270</height><format>R8G8B8</format></image>
+            <clip><near>0.03</near><far>50</far></clip>
+          </camera>
+        </sensor>
         <sensor name="cheetah_imu" type="imu">
           <always_on>1</always_on>
           <update_rate>500</update_rate>
