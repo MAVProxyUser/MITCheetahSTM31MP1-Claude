@@ -1,0 +1,54 @@
+<title>Cheetah Conductor</title>
+<link rel="stylesheet" href="/styles.css">
+<div class="topbar">
+  <div>
+    <div class="brand">CHEETAH <span>CONDUCTOR</span></div>
+  </div>
+  <div class="caption" id="caption">STM32MP1 -&gt; Go1 SITL fleet control - up to 3 dogs</div>
+  <div class="topbar-actions">
+    <button class="launch-btn stop-btn" id="stopBtn" style="width:auto" disabled>STOP FLEET</button>
+  </div>
+</div>
+<div class="main">
+  <div class="stage">
+    <div class="stage-note">
+      This panel launches and locks the run; the 3D scene is the native <b>Gazebo</b>
+      window it opens (planned track dim, flown track bright, one hue per dog - see
+      <code>trail_daemon.py</code>). Nothing here re-renders that scene; it just drives it.
+    </div>
+    <div class="subhead">Fleet status</div>
+    <div id="fleetCards"></div>
+    <div class="subhead">Orchestration log</div>
+    <div class="log" id="logBox"></div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>Slots (max 3)</h2>
+      <div id="slots"></div>
+      <button class="add-slot" id="addSlot">+ Add dog</button>
+    </div>
+
+    <div class="panel">
+      <h2>Speed cap</h2>
+      <div class="span-slider">
+        <div class="row"><span>Fleet-wide ceiling</span><strong id="capVal">3.5</strong> m/s</div>
+        <input type="range" id="capSlider" min="0.5" max="3.9" step="0.1" value="3.5">
+        <div class="cap-hint">Hard limit <b>3.9 m/s</b> - enforced server-side, not just here.
+          Go1 Pro rated max 3.5, EDU rated max 3.7, marketing peak 4.7 (not a target).
+          No slot's commanded speed can exceed this, whatever its own field says.</div>
+      </div>
+      <button class="launch-btn" id="launchBtn">Launch fleet</button>
+    </div>
+
+    <div class="legend">
+      <b>Locked recipes</b> (this session's validated results, CLAUDE.md):<br>
+      star: trotRunning 3.5, WP_ALAT=3.25 -&gt; 38.25s @ 6/6<br>
+      oval: trotRunning 3.5, analyzer, WP_VSUS=2.6 -&gt; 30.48s @ 6/6<br>
+      atom: trotting 2.1, bare -&gt; 58.97s @ 6/6<br>
+      A slot's Gait/Speed fields override the recipe's defaults; the extra
+      per-mission params (WP_ALAT etc.) always apply and are not editable here.
+    </div>
+  </div>
+</div>
+<script src="/app.js"></script>
