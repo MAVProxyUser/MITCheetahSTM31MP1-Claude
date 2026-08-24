@@ -3311,13 +3311,33 @@ samples below 0.9 is 0.0%. The sim keeps up. (An earlier "min 0.442" came
 from a parser grabbing the wrong protobuf fields - 138k samples off a
 5 Hz topic should have been the tell. Fixed to parse real_time_factor.)
 
-**RETRACTION 2 - the orientation ESTOP is NOT the mid-course killer.**
-With the trip instrumented to print its own attitude and to report
-RECOVERED transients, the post-reboot fleet runs logged ZERO excursions
-past 28.6 deg outside stop windows. Earlier trips were real, but they are
-not what is dropping dogs now. The debounce (60 ms) and instrumentation
-are kept - cheap, and the trip's zero-tick behaviour is still wrong for
-this port - but it cannot be credited for any pass.
+**RETRACTION 2 WAS ITSELF WRONG - un-retracted, with data.** I wrote that
+"the post-reboot fleet runs logged ZERO excursions past 28.6 deg" after
+checking TWO clean runs and generalising to all of them. Counting every
+post-reboot fleet log instead: **7 dog-runs tripped the orientation
+ESTOP**, and the instrumentation this commit added says exactly what they
+were. The small-sample error, made a fourth time in one day, in the
+direction of retracting a CORRECT hypothesis.
+
+What the instrumented trip actually measures:
+
+    RECOVERED (rode it out, debounce saved them):
+      49.8 deg for 36 ms      39.6 deg for 24 ms
+      31.5 deg for 12 ms      30.3 deg for 22 ms
+    TRIPPED (all seven, every one at the 60 ms ceiling):
+      peak 30.0 / 30.1 / 30.6 / 31.4 / 32.3 / 35.9 / 36.6 deg, held 62 ms
+
+Two things follow. First, **the debounce is doing real work**: under stock
+MIT every one of those four recoveries - including a body that hit
+49.8 deg and came back in 36 ms - would have been an instant ESTOP, motors
+cut, dog dead. One star run recovered FOUR excursions before tripping on
+the fifth. Second, **60 ms may still be too short**: the trips fire at
+peaks of only 30-37 deg, well under an excursion the same robot is
+measured recovering from, and the post-trip [FALL] state differs from the
+trip state (e.g. trip at roll=29/pitch=37, final roll=40/pitch=10) - the
+signature of a dog flopping after its motors were cut, not of a dog that
+was already lost. $CTRL_ORIENT_HOLD_MS is env-tunable precisely so this
+is a measurement rather than an argument; a 200 ms arm is being run.
 
 What survives: falls no longer share a timestamp (the stagger did break
 the synchronized ramp-top), the star and oval are genuinely mid-pack
