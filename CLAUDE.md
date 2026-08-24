@@ -3187,6 +3187,31 @@ RECIPES mid-test. The campaign-era "VSUS 2.6 -> 6/6, 30.48 s" row now
 reads as history, not spec: re-measure a course's envelope after any
 change to the planner/follower lineage before trusting its old tuning.
 
+**FINAL TALLY (end of the 2026-08-24 session), all on the shipping build:**
+- VSUS 2.4 mid-course: **9/9 curve-clean** (3 sweep + 3 settle-off + 3
+  final), vs ~50% at 2.6 across both bisect binaries. The curves are
+  fixed.
+- Trot-in-place settle: MEASURED HARMFUL and reverted - 7-of-8 stop
+  arrivals tipped (~88 deg, near-identical) with the 1.2 s hold, vs
+  1-in-3 stock. The full verdict lives as a comment at
+  `ConvexMPCLocomotion::zeroVelHold`. A plausible mechanism endorsed by
+  everyone (operator included) still loses to an interleaved A/B.
+- Star regression guard on the final build: **PASS x2**. Atom: **PASS**.
+- REMAINING OPEN, the oval STOP (~50% sideways tips, roll 53-88): the
+  oval closure sits ~10 m after the 180-exit so the dog arrives still
+  carrying ~0.9 m/s with an S-weave, where star/atom arrive at a creep
+  down long straights. Candidate next steps, untested: lengthen the
+  braking zone into the closure (a smaller a_lon or an earlier stop
+  registration for THIS course), or move the oval's closure waypoint a
+  few metres further up the straight so the brake completes before the
+  stop sequence begins.
+- Also open: ONE unexplained mid-dash spin-out on the atom (roll 102 at
+  steady-state 2.1, straight line, w=0.00 for 10 s prior) with EVERY
+  instrument clean - loop max 3.07 ms / 0 over-4 ms, zero bridge stalls,
+  zero pivot fires. Matches the campaign-era force-delivery-on-straights
+  class, now in the dash-after-mission regime; cameras/GPU load was the
+  one uncontrolled variable (they now default OFF, fail-dark).
+
 1a. **superseded - kept for the method** (was: IN FLIGHT bisect note). The
    dash=0 A/B cleared the stop machinery (falls persist without any
    mid-path stop: 2 PASS / 2 mid-course falls). The live suspect is the

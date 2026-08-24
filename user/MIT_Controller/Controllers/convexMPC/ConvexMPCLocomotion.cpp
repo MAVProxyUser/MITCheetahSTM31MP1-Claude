@@ -1266,18 +1266,18 @@ bool ConvexMPCLocomotion::zeroVelHold() {
   // transition request rather than swinging legs at a standstill.
 
   const float kZeroVel = 0.01f;      // Unitree's threshold, .rodata 0x2665e0
-  // 25 ticks (50 ms) stopped the trot STEPPING almost the instant a stop
-  // command landed, freezing into the standing gait with the arrival's
-  // lateral sway still live - and the oval's stop was tipping sideways
-  // (roll 68-88 deg) from exactly that pose. A trot stepping IN PLACE
-  // balances actively ("standing trot helps balance automatically" - the
-  // operator's own prescription); 600 ticks (1.2 s at 2 ms) lets it shed
-  // the sway before the static stand takes over. Mission start is
-  // unaffected: the command sits at zero for whole seconds before nav
-  // takes the stick, so the hold is long since engaged either way, and it
-  // still releases instantly on the first nonzero command.
+  // MEASURED AND REVERTED (2026-08-24): raising this to 600 ticks (1.2 s
+  // of trot-in-place before the standing gait engages, to actively shed
+  // arrival sway at a stop) made the oval's stop WORSE, not better - 7 of
+  // 8 stop arrivals tipped sideways at a consistent roll ~88 deg with the
+  // long hold, vs ~1 in 3 at the stock 50 ms (A/B'd via
+  // CTRL_ZEROVEL_HOLD=25, 2 PASS / 1 tip). The plausible-sounding idea
+  // ("a stepping trot balances actively") loses to the data: a trot
+  // commanded to zero while the body still carries ~0.9 m/s of arrival
+  // momentum fights it for the whole window instead of letting the stand
+  // catch it. Do not raise this again without an interleaved A/B.
   static const int kHold =
-      getenv("CTRL_ZEROVEL_HOLD") ? atoi(getenv("CTRL_ZEROVEL_HOLD")) : 600;
+      getenv("CTRL_ZEROVEL_HOLD") ? atoi(getenv("CTRL_ZEROVEL_HOLD")) : 25;
 
   const bool zeroish =
       std::sqrt(_x_vel_des * _x_vel_des + _y_vel_des * _y_vel_des) < kZeroVel &&
