@@ -823,6 +823,18 @@ class Fleet:
                         self.phase = "done"
                         procs = list(self.procs)
                         self.procs = []
+                        # Clear the SUBSCRIPTION state too, exactly as stop()
+                        # does - killing the processes but keeping _gz_node
+                        # left the next launch holding a stale subscription
+                        # to a dead gz, so its pose feed never came up: the
+                        # canvas froze on the previous run's final positions
+                        # while the new controllers ran blind ("the interface
+                        # was out of sync" - it was the server, not the
+                        # browser).
+                        self._name_to_index = {}
+                        self._last_pose = {}
+                        self._gz_node = None
+                        self._gz_cam_nodes = []
                     self._note("fleet run complete")
                     # KILL THE SIM ON DONE. Leaving gz alive "for the next
                     # launch" left it idling at ~a full core simulating an
