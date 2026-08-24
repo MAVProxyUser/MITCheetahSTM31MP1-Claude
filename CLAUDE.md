@@ -3288,6 +3288,42 @@ window). Standing oval residuals: stop tip ~1-in-5 on the restored
 geometry, sustained-entry ~1-in-5 at VSUS 2.4 - both real, both
 documented, neither a regression.
 
+### FLEET AFTER THE REBOOT (2026-08-24 evening, build 45c0596) - and two retractions
+
+Post-reboot, on a quiet host, 6 three-dog fleet runs with the 100 m dash:
+
+    star   4/6      oval   4/6      atom   0/6   (atom passes SOLO)
+
+**THE ATOM IS THE FLEET-FRAGILE COURSE, and it is not the launch slot.**
+Decisive swap test: atom moved to slot 0 (first away, 4 s delay) STILL
+fell; star moved to slot 2 (last, 14 s delay) PASSED. So the ramp stagger
+is exonerated, and so is start order - the atom simply has no margin in
+company. That is consistent with what this file already says about it:
+"no corner tighter than R=2.14 m, and NO RECOVERY ANYWHERE", roll-limited
+rather than height-limited. star and oval have long straights to recover
+on; the atom never stops asking.
+
+**RETRACTION 1 - the shared-simulator stall was WRONG.** The theory (gz
+falls behind, forces integrate over a longer step, all dogs hit at once)
+was reasonable and is refuted by its own measurement: real_time_factor
+over a full fleet run is p5=0.996, mean=1.000, and the fraction of
+samples below 0.9 is 0.0%. The sim keeps up. (An earlier "min 0.442" came
+from a parser grabbing the wrong protobuf fields - 138k samples off a
+5 Hz topic should have been the tell. Fixed to parse real_time_factor.)
+
+**RETRACTION 2 - the orientation ESTOP is NOT the mid-course killer.**
+With the trip instrumented to print its own attitude and to report
+RECOVERED transients, the post-reboot fleet runs logged ZERO excursions
+past 28.6 deg outside stop windows. Earlier trips were real, but they are
+not what is dropping dogs now. The debounce (60 ms) and instrumentation
+are kept - cheap, and the trip's zero-tick behaviour is still wrong for
+this port - but it cannot be credited for any pass.
+
+What survives: falls no longer share a timestamp (the stagger did break
+the synchronized ramp-top), the star and oval are genuinely mid-pack
+reliable in a fleet, and the remaining fleet failures are ordinary
+per-course marginals - the atom's continuous curvature above all.
+
 ### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
 
 Hourly backups on this Mac start around :38. Both same-wall-second
