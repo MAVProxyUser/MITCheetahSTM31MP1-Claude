@@ -8,6 +8,10 @@
 #include <atomic>
 #include <unistd.h>
 
+// Defined further down next to setEdamp; declared here because the fall
+// detector (earlier in the file) gates its z-branch on it.
+extern std::atomic<bool> g_fallZEnable;
+
 #include <cmath>
 #include <cstdlib>
 #include "RobotRunner.h"
@@ -236,7 +240,18 @@ void RobotRunner::run() {
       const float roll  = std::fabs(_stateEstimate.rpy[0]);
       const float pitch = std::fabs(_stateEstimate.rpy[1]);
       const bool tipped    = (roll > fall_rad || pitch > fall_rad);
-      const bool collapsed = (stood && std::isfinite(bodyZ) && bodyZ < fall_z);
+      // The z test CANNOT tell a commanded lie-down from a collapse - both
+      // are a level body descending through 0.10 m. Every "fall during
+      // lie-down" of 2026-08-24 was this branch firing DURING the mission's
+      // own intentional crouch (verified against Gazebo truth: estimate
+      // 0.094, truth 0.11, robot exactly where it was told to go - the
+      // process then _exit()s mid-lie-down, which also reads as "the dog
+      // never stands back up"). The mission suspends the z branch around
+      // its commanded lie-downs via setFallZEnable(); the ATTITUDE branch
+      // stays armed throughout - a lie-down is level by definition, so a
+      // genuine tip during one still trips.
+      const bool collapsed = (g_fallZEnable.load() &&
+                              stood && std::isfinite(bodyZ) && bodyZ < fall_z);
       if (tipped || collapsed)
         fallen_for += controlParameters->controller_dt;
       else
@@ -430,6 +445,12 @@ void RobotRunner::setupStep() {
  */
 std::atomic<double> g_edampGain{0.0};
 void setEdamp(double d) { g_edampGain = d; }
+
+// Fall detector z-branch gate - see the comment at the `collapsed` test.
+// Default ON; the mission turns it off around a COMMANDED lie-down and back
+// on once the robot is standing again. Attitude tripping is unaffected.
+std::atomic<bool> g_fallZEnable{true};
+void setFallZEnable(bool on) { g_fallZEnable = on; }
 
 /*!
  * ATTITUDE TRACE ($CTRL_ATT_DBG = tick decimation) - the raw material for a

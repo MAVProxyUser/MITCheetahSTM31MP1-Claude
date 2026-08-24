@@ -25,6 +25,12 @@
 void setStandUpHeight(double h);
 //! Defined in RobotRunner.cpp - Unitree-style damping hold (edampCommand).
 void setEdamp(double d);
+//! Defined in RobotRunner.cpp - gates the fall detector's z-collapse branch.
+//! A COMMANDED lie-down is a level body descending through the detector's
+//! 0.10 m threshold - indistinguishable from the collapse it exists to
+//! catch - so the mission suspends the z branch around its own lie-downs
+//! (the attitude branch stays armed; a lie-down is level by definition).
+void setFallZEnable(bool on);
 //! Situational stance-height bias into the controller's height governor, m.
 void setHeightBias(double b);
 
@@ -584,6 +590,12 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // at true zero. Without this, a still-tall standing robot free-falls
       // for however long PASSIVE holds - measured as a real collapse
       // (roll/pitch/z all dropping) even at a bare 300 ms.
+      // The z-collapse fall test cannot tell this COMMANDED crouch from a
+      // real collapse (both are a level body under 0.10 m) - it killed the
+      // process mid-lie-down on every dash run of 2026-08-24, which also
+      // read as "the dog never stands back up". Suspend just the z branch
+      // for the crouch; attitude tripping stays armed.
+      setFallZEnable(false);
       setEdamp(8.0);
       bridge->setControlMode(0);                 // K_PASSIVE
       // As BRIEF as possible regardless - the FSM only needs ONE control
@@ -616,6 +628,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // Let the gait engage before asking it to go anywhere - the same
       // settle window the initial sequencer holds at mission start.
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      // Standing tall again - re-arm the z-collapse test for the dash.
+      setFallZEnable(true);
 
       restart_t = elapsed();   // ramp forward speed again from this standstill
       printf("[nav] back up at t=%.1fs - dashing the final leg\n", elapsed());
@@ -691,6 +705,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // at true zero. Without this, a still-tall standing robot free-falls
       // for however long PASSIVE holds - measured as a real collapse
       // (roll/pitch/z all dropping) even at a bare 300 ms.
+      // Suspend the z-collapse fall test for this COMMANDED lie-down too -
+      // same reason as the interlude's (see that comment): the detector was
+      // killing the process mid-crouch, before the judge lines ever printed.
+      setFallZEnable(false);
       setEdamp(8.0);
       bridge->setControlMode(0);                 // K_PASSIVE
       // As BRIEF as possible regardless - the FSM only needs ONE control
