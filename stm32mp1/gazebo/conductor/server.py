@@ -821,12 +821,26 @@ class Fleet:
                         wp, tot, d, v = m[-1]
                         st["waypoints"] = "%s/%s" % (wp, tot)
                         st["text"] = "d=%sm v=%sm/s" % (d, v)
-                    if "MISSION COMPLETE" in text:
+                    if "[mission] RESULT" in text:
+                        # A dog is DONE at its JUDGE line, not at "MISSION
+                        # COMPLETE": the judge prints ~9 s later, after the
+                        # end-of-mission settle + lie-down. Keying done on
+                        # MISSION COMPLETE made the teardown-on-done kill
+                        # single-dog runs (and the last fleet finisher)
+                        # mid-lie-down, truncating their verdict - two
+                        # perfect 114.2 s star guards were reported as
+                        # failures by exactly this.
                         tm = re.search(r"MISSION COMPLETE t=([\d.]+)s", text)
                         st["phase"] = "complete"
                         st["t"] = tm.group(1) + "s" if tm else ""
                         done.add(i)
                         self._note("dog%d COMPLETE t=%s" % (i, st["t"]))
+                    elif "MISSION COMPLETE" in text:
+                        # Loop+dash finished; lie-down/judge still running -
+                        # show it, but do NOT count it done yet.
+                        tm = re.search(r"MISSION COMPLETE t=([\d.]+)s", text)
+                        st["phase"] = "finishing"
+                        st["t"] = tm.group(1) + "s" if tm else ""
                     elif "[FALL]" in text:
                         st["phase"] = "fell"
                         done.add(i)

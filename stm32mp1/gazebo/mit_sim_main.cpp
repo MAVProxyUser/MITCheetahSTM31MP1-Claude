@@ -451,7 +451,14 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // next to the closure coordinates, and a bare radius test would
       // hold the analyzer's very first upgrade at mission start. Require
       // the mission to be past halfway before a stop can be "ahead".
-      const float R_HOLD = 10.f;
+      // 16, not 10: the oval's pre-dash stop moved 7.2 m up the straight
+      // (the run-in), which put the closing straight's trotting ->
+      // trotRunning upgrade OUTSIDE a 10 m hold - it fired 3.7 s before
+      // the stop, mid-braking, and the stop went 0-for-4 (tips at roll
+      // 41-78) where the held configuration was 5-of-6. The hold must
+      // cover run-in + braking zone; the held switch still applies while
+      // standing after the stand-up, which is the verified-clean path.
+      const float R_HOLD = 16.f;
       const bool second_half = lastIdx > nav.count() / 2;
       if (dash_pending && second_half &&
           std::hypot(N - hold_stop_n[0], E - hold_stop_e[0]) < R_HOLD)
