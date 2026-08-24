@@ -48,6 +48,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAZEBO_DIR = os.path.abspath(os.path.join(HERE, ".."))
@@ -816,7 +817,37 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # /docs works exactly like typing it looks like it should.
         if self.path in ("/docs", "/docs/"):
             self.path = "/docs.html"
+            return super().do_GET()
+        m = re.match(r"^/api/logs/(\d+)(?:\?(.*))?$", self.path)
+        if m:
+            return self._logs(int(m.group(1)), m.group(2) or "")
         return super().do_GET()
+
+    def _logs(self, i, query):
+        """Raw log for dog `i` - the FULL text mit_ctrl_sim/the bridge wrote,
+        not just the curated one-line-per-event orchestration log /api/state
+        already carries. ?kind=ctrl|bridge (default ctrl) picks which
+        process; ?tail=<n> returns only the last n lines (default 500 - full
+        logs run to thousands of lines on a long mission, and most uses want
+        "what just happened", not the whole file); ?full=1 overrides tail
+        and returns everything."""
+        params = urllib.parse.parse_qs(query)
+        kind = params.get("kind", ["ctrl"])[0]
+        if kind not in ("ctrl", "bridge"):
+            return self._json({"ok": False, "error": "kind must be ctrl or bridge"}, 400)
+        path = os.path.join(RUN_DIR, "%s_%d.log" % (kind, i))
+        try:
+            with open(path, errors="ignore") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return self._json({"ok": False, "error": "no log for dog %d (not launched yet, "
+                                "or run_dir was cleared)" % i}, 404)
+        full = params.get("full", ["0"])[0] == "1"
+        if not full:
+            tail = int(params.get("tail", ["500"])[0])
+            lines = lines[-tail:]
+        return self._json({"ok": True, "index": i, "kind": kind,
+                            "lines": len(lines), "text": "".join(lines)})
 
     def _body(self):
         length = int(self.headers.get("Content-Length", 0))

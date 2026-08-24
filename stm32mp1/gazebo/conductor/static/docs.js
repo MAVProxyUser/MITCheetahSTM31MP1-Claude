@@ -16,6 +16,19 @@ const ENDPOINTS = [
           "this one route is the entire state of the app.",
   },
   {
+    method: "GET", path: "/api/logs/{i}", stateChanging: false, hasIndex: true,
+    desc: "Raw log text for dog <code>{i}</code> - the full thing " +
+          "<code>mit_ctrl_sim</code> or the bridge wrote, not the curated " +
+          "one-line-per-event feed <code>/api/state</code>'s <code>log</code> " +
+          "already carries. Query params (not shown by Play below, add them " +
+          "to the URL yourself): <code>?kind=ctrl</code> (default) or " +
+          "<code>bridge</code> picks which process's log; " +
+          "<code>?tail=500</code> (default) caps it to the last N lines - a " +
+          "long mission's ctrl log runs to thousands; <code>?full=1</code> " +
+          "returns everything regardless of tail. 404 if dog <code>{i}</code> " +
+          "was never launched or the run dir was cleared.",
+  },
+  {
     method: "POST", path: "/api/launch", stateChanging: true,
     desc: "Freeze a config and launch the fleet. Refuses a second call " +
           "while one is already <code>launching</code> or <code>running</code> " +

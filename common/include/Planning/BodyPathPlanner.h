@@ -618,8 +618,42 @@ class BodyPathPlanner {
     for (auto& p : _path) {
       (void)_ci;
       const double k = std::fabs(p.kappa);
-      p.v_max = (k > 1e-6) ? std::sqrt(_lim.a_lat_max / k) : _lim.v_cruise;
-      p.v_max = std::max(_lim.v_min, std::min(_lim.v_cruise, p.v_max));
+      /*
+       * TWO INDEPENDENT constraints on cornering speed, not one - and this
+       * only ever enforced the first:
+       *   traction/roll:  v <= sqrt(a_lat_max / kappa)   (a physics limit)
+       *   steering:       v <= yaw_rate_max / kappa       (an actuation limit -
+       *                   the body simply cannot yaw fast enough to track a
+       *                   curvature this tight at this speed, regardless of
+       *                   how much lateral acceleration it could tolerate)
+       * They cross over at ordinary corners (traction binds first, which is
+       * why gentle-course tuning never needed the second one) but at the
+       * angle-graded corridor's own extreme end they diverge hugely: at the
+       * star's tightest fillet (R~0.03 m after corridor_scale_min), traction
+       * allows 0.31 m/s while steering (yaw_rate_max 1.2 rad/s) allows only
+       * 0.036 m/s - an almost 9x gap. Commanding the traction number sends
+       * the body into a turn its own steering rate cannot actually track,
+       * which does not fail safe - it overshoots the fillet and loops back,
+       * the "elephant foot" shape measured on the star's every corner, not
+       * just the hairpin. Verified directly (not assumed): an isolated
+       * vx=1.0/wz=1.2 test tracks yaw at ~100% commanded, over 35 s, roll
+       * 6-9 deg, never falls - the steering CAN be trusted once it is not
+       * being asked to also violate its own rate limit.
+       */
+      double v_max = _lim.v_cruise;
+      if (k > 1e-6) {
+        const double v_traction = std::sqrt(_lim.a_lat_max / k);
+        const double v_steering = _lim.yaw_rate_max / k;
+        v_max = std::min(v_traction, v_steering);
+      }
+      // NOT floored to v_min here - v_min exists to keep _path[0] off a
+      // literal zero (follow()'s nearestIndex lookup would never advance
+      // past a point commanding exactly 0, see that assignment below).
+      // Flooring EVERY point to it would undo the steering cap above right
+      // where it matters most: the star's tightest fillet wants ~0.036 m/s,
+      // well under v_min's 0.25 - forcing it back up is exactly the
+      // traction-only speed that was measured to shank the corner.
+      p.v_max = std::min(_lim.v_cruise, v_max);
       // A hairpin is taken as a PIVOT, not an arc: force it slow enough that
       // v*omega - and therefore roll - is negligible, and let the steering do
       // the work the fillet cannot.

@@ -495,13 +495,44 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
 
       // 1. decelerate from cruise - a stepped-to-zero stick pitches the
       //    robot forward on the way down, same reasoning as end-of-mission.
-      for (int k = 20; k >= 0; --k) {
-        bridge->driverCommand().leftStickAnalog[1]  = vx * (float)k / 20.f;
+      //
+      //    WRONG TWICE before this, in opposite directions:
+      //    - a short (1.5s, fixed) ramp was blamed for "pitching the robot
+      //      forward" - but that test also had the (since-fixed) illegal
+      //      BALANCE_STAND->STAND_UP transition confounding it, so the real
+      //      cause was never isolated;
+      //    - lengthening it to hold a gentler ~1.2 m/s^2 (this body's
+      //      CORNERING deceleration rate, borrowed from a different
+      //      manoeuvre than "come to a dead stop") made it WORSE: the stick
+      //      still commands nonzero forward speed, UNSTEERED (yaw zeroed),
+      //      for the entire ramp - at 3.5 m/s over a ~2.9 s ramp that is
+      //      ~5 m of straight-line coasting PAST wp00 before it even starts
+      //      meaningfully slowing, which is the overshoot actually observed
+      //      live, not a planner or waypoint-arrival bug.
+      //    Short and sharp instead - the goal at a stop is arriving close to
+      //    the point, not a gentle deceleration profile - and BALANCE_STAND
+      //    is no longer entered on a timer's say-so: the loop below polls
+      //    the REAL measured body speed and only proceeds once it is
+      //    actually low, with a bounded timeout as a backstop.
+      for (int k = 15; k >= 0; --k) {
+        bridge->driverCommand().leftStickAnalog[1]  = vx * (float)k / 15.f;
         bridge->driverCommand().rightStickAnalog[0] = 0.f;
-        std::this_thread::sleep_for(std::chrono::milliseconds(75));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
       bridge->driverCommand().rightStickAnalog[0] = 0.f;
+      {
+        const float settle_start = elapsed();
+        while (elapsed() - settle_start < 2.0f) {
+          if (bridge->robotRunner()) {
+            const auto& es = bridge->robotRunner()->getStateEstimate();
+            const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
+                                         es.vBody[1] * es.vBody[1]);
+            if (spd < 0.15f) break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+      }
 
       // 2. settle on its feet
       bridge->setControlMode(3);                 // K_BALANCE_STAND
@@ -539,7 +570,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // undamped - edamp fighting an active position controller defeats
       // the point of using that interpolation at all.
       setEdamp(0.0);
-      setStandUpHeight(0.07);
+      setStandUpHeight(0.15);  // 0.07 measured to fall during the interpolation itself (roll/pitch stayed tiny - not a rollover - z sagged fast); trying a less extreme crouch that still counts as "lying down"
       bridge->setControlMode(1);                 // K_STAND_UP
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       setEdamp(8.0);
@@ -585,15 +616,31 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
        * starts with (stand -> lie down -> stand up -> slow walk), so a mission
        * that passes here has rehearsed the sequence a real dog has to survive.
        */
-      // 1. decelerate. Zeroing the stick from cruise is a step input - the
-      //    robot pitches forward and goes down, which is why every completed
-      //    star run used to be followed by a [FALL] three seconds later.
-      for (int k = 20; k >= 0; --k) {
-        bridge->driverCommand().leftStickAnalog[1] = nv * (float)k / 20.f;
+      // 1. decelerate. Short and sharp, then VERIFY the real measured speed
+      //    is actually low before touching the FSM - see the matching
+      //    comment and the same fix in the loop-to-dash interlude above,
+      //    where a longer "gentler" ramp turned out to just coast the dog
+      //    several metres past the stopping point, unsteered, before
+      //    slowing down at all.
+      for (int k = 15; k >= 0; --k) {
+        bridge->driverCommand().leftStickAnalog[1] = nv * (float)k / 15.f;
         bridge->driverCommand().rightStickAnalog[0] = 0.f;
-        std::this_thread::sleep_for(std::chrono::milliseconds(75));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
       bridge->driverCommand().leftStickAnalog[1] = 0.f;
+      bridge->driverCommand().rightStickAnalog[0] = 0.f;
+      {
+        const float settle_start = elapsed();
+        while (elapsed() - settle_start < 2.0f) {
+          if (bridge->robotRunner()) {
+            const auto& es = bridge->robotRunner()->getStateEstimate();
+            const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
+                                         es.vBody[1] * es.vBody[1]);
+            if (spd < 0.15f) break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+      }
 
       // 2. settle on its feet
       bridge->setControlMode(3);                 // K_BALANCE_STAND
@@ -630,7 +677,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // undamped - edamp fighting an active position controller defeats
       // the point of using that interpolation at all.
       setEdamp(0.0);
-      setStandUpHeight(0.07);
+      setStandUpHeight(0.15);  // 0.07 measured to fall during the interpolation itself (roll/pitch stayed tiny - not a rollover - z sagged fast); trying a less extreme crouch that still counts as "lying down"
       bridge->setControlMode(1);                 // K_STAND_UP
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       // 3b. DAMPING HOLD - Unitree's second phase. Their sequence is
