@@ -706,6 +706,29 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // Let the gait engage before asking it to go anywhere - the same
       // settle window the initial sequencer holds at mission start.
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      // Apply any gait change the stop-window HOLD deferred, NOW - while
+      // still STANDING in freshly-engaged LOCOMOTION (zeroVelHold keeps
+      // the standing gait until driving resumes, so a cmpc_gait change
+      // here engages exactly like mission start: on the first stride,
+      // gracefully). Releasing it on the first DRIVING tick instead put a
+      // live trot->trotRunning transition under the dash's very first
+      // acceleration on a freshly-stood dog - measured on the oval's
+      // fleet run: "back on its feet", the gait change, and the
+      // orientation ESTOP all landed in the same second and the dash
+      // never happened.
+      if (use_analyzer && bridge->userParams()) {
+        const planning::MissionSegment* segNow =
+            analyzer.segmentAhead(planner.currentS(), analyzer_lead);
+        if (segNow && segNow->gait != cur_gait) {
+          ControlParameterValue cv2; cv2.d = (double)segNow->gait;
+          bridge->userParams()->collection.lookup("cmpc_gait")
+              .set(cv2, ControlParameterValueKind::DOUBLE);
+          printf("[mission] held gait change applied while standing: "
+                 "%d -> %d for the dash\n", cur_gait, segNow->gait);
+          fflush(stdout);
+          cur_gait = segNow->gait;
+        }
+      }
       // Standing tall and driving again - stop window closes: re-arm both
       // the z-collapse test and the orientation ESTOP for the dash.
       setFallZEnable(true);
