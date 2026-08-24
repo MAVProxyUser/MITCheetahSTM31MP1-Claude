@@ -618,7 +618,13 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         }
       }
 
-      // 2. settle on its feet
+      // 2. TROT-IN-PLACE SETTLE, then settle on its feet. With the
+      //    zero-velocity gait hold at 1.2 s (ConvexMPCLocomotion::
+      //    zeroVelHold), the trot keeps STEPPING in place here, actively
+      //    balancing away the arrival's lateral sway - the pose the oval's
+      //    stop was tipping sideways from. Give that window time to run
+      //    BEFORE handing the body to BALANCE_STAND's static WBC stand.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1300));
       bridge->setControlMode(3);                 // K_BALANCE_STAND
       std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
@@ -741,7 +747,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         }
       }
 
-      // 2. settle on its feet
+      // 2. TROT-IN-PLACE SETTLE (see the matching interlude comment), then
+      //    settle on its feet.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1300));
       bridge->setControlMode(3);                 // K_BALANCE_STAND
       std::this_thread::sleep_for(std::chrono::milliseconds(1500));
       const auto& s1 = bridge->robotRunner()->getStateEstimate();

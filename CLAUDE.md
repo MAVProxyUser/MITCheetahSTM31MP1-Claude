@@ -3165,6 +3165,24 @@ ESTOP lines - runs now end only when the dog really goes over.
    6/6" tuning was measured on an older build lineage; the current stack
    (steering cap, pivot follower, stop braking) has not had its oval VSUS
    re-swept. Re-sweep 2.4/2.5/2.6 with equal N before trusting 2.6 again.
+1a. **IN FLIGHT (2026-08-24 morning): the oval mid-course bisect.** The
+   dash=0 A/B cleared the stop machinery (falls persist without any
+   mid-path stop: 2 PASS / 2 mid-course falls). The live suspect is the
+   PIVOT follower branch (ab36f0b) firing transiently mid-curve: a tick
+   of ex<0 at cruise snaps the stick from 2.6 to v_min with full yaw
+   while the body still carries 2.6 m/s of momentum - and the flown
+   trace shows exactly that signature, a straight CHORD cut across the
+   bottom 180 (operator-spotted). A throttled diagnostic print now sits
+   in the branch ([follow] PIVOT fired, with vplan); if it fires at
+   vplan~2.6 mid-curve the fix is gating the branch to planned-creep
+   speeds (vplan <= v_min) - which is exactly the star hairpin's regime
+   (plans ~0.04) and can never engage on the oval's 2.6 curves, so the
+   star is untouched by construction. Also deployed, one sample so far
+   (inconclusive): the trot-in-place settle - zeroVelHold 50 ms -> 1.2 s
+   plus a 1.3 s pre-BALANCE_STAND wait in both stop sequences, per the
+   operator's "standing trot helps balance automatically". Note its
+   dash=0 end-stops went 2/2.
+
 1b. **RETRACTED on more reps: the gait-hold did NOT cure the oval stop.**
    "2/2 passes since the hold" was written at N=2 and fell apart at N=5:
    the stop tally on the gait-hold build is 3 PASS / 2 sideways tips

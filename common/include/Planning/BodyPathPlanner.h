@@ -324,6 +324,18 @@ class BodyPathPlanner {
     if (ex < 0.0) {
       w = (ey >= 0.0) ? _lim.yaw_rate_max : -_lim.yaw_rate_max;
       vcmd = std::min(vplan, _lim.v_min);
+      // DIAGNOSTIC (behaviour unchanged): if this branch ever fires at
+      // cruise-plan speeds it is a violent command discontinuity (stick
+      // snapped from vplan to v_min in one tick) and a candidate cause of
+      // mid-curve falls - it is only MEANT to fire at planned-creep
+      // vertices (the star hairpin plans ~0.04). Throttled print so a
+      // burst shows up once, not 500 times.
+      static int pivot_fires = 0;
+      if ((pivot_fires++ % 50) == 0) {
+        printf("[follow] PIVOT fired (n=%d): vplan=%.2f ex=%.2f ey=%.2f\n",
+               pivot_fires, vplan, ex, ey);
+        fflush(stdout);
+      }
     }
 
     *vx = vcmd;

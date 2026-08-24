@@ -1266,8 +1266,18 @@ bool ConvexMPCLocomotion::zeroVelHold() {
   // transition request rather than swinging legs at a standstill.
 
   const float kZeroVel = 0.01f;      // Unitree's threshold, .rodata 0x2665e0
+  // 25 ticks (50 ms) stopped the trot STEPPING almost the instant a stop
+  // command landed, freezing into the standing gait with the arrival's
+  // lateral sway still live - and the oval's stop was tipping sideways
+  // (roll 68-88 deg) from exactly that pose. A trot stepping IN PLACE
+  // balances actively ("standing trot helps balance automatically" - the
+  // operator's own prescription); 600 ticks (1.2 s at 2 ms) lets it shed
+  // the sway before the static stand takes over. Mission start is
+  // unaffected: the command sits at zero for whole seconds before nav
+  // takes the stick, so the hold is long since engaged either way, and it
+  // still releases instantly on the first nonzero command.
   static const int kHold =
-      getenv("CTRL_ZEROVEL_HOLD") ? atoi(getenv("CTRL_ZEROVEL_HOLD")) : 25;
+      getenv("CTRL_ZEROVEL_HOLD") ? atoi(getenv("CTRL_ZEROVEL_HOLD")) : 600;
 
   const bool zeroish =
       std::sqrt(_x_vel_des * _x_vel_des + _y_vel_des * _y_vel_des) < kZeroVel &&
