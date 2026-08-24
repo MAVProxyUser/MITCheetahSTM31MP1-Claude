@@ -3114,29 +3114,42 @@ Every mission also proved the dash geometry: the sprint continues the
 course's closing tangent (star 3.64 m/s peak; atom ran its 100 m due
 north to N=103.6).
 
+### RESOLVED: the hairpin was the FOLLOWER's arc model, not the planner
+
+The first-corner trace from a quiet run showed the profile doing its job
+(arrival braked to ~1.0 m/s, ~0.04 m/s planned at the vertex) and the
+pigtail coming from pure pursuit itself: the lookahead's 0.35 m floor
+reaches past a fillet only ~0.1 m long, so at a 162 deg vertex the
+steering target lands on the exit leg nearly BEHIND the body's nose plane
+(ex < 0) - where the arc-through-the-target model is degenerate. Arcing
+toward a point behind you while creeping forward traces exactly the
+measured loop. Fix (commit ab36f0b), per the operator's own prescription
+("slow and almost yaw in place"): when ex < 0 the follower PIVOTS -
+yaw_rate_max toward the target's side, speed floored to min(vplan, v_min)
+- until the target comes back in front. Verified 2/2 (68.8/68.9 s, 0.1 s
+spread): pivot at v=0.25/w=1.20, heading 0->160 deg in ~2.5 s, body
+confined to ~0.4 x 0.6 m at the vertex, clean accelerate-out. The branch
+only fires when the target is genuinely behind the nose, which gentle
+curvature never produces - and it doubles as recovery from a large
+tracking upset (pivot back onto the path at a creep, not an arc at
+cruise).
+
+**Full-sequence re-verification ON THE PIVOT BUILD, one dog at a time,
+dash=100: star PASS 7/7, oval PASS 95/95, atom PASS 109/109.**
+
 **Still open, in priority order:**
-1. **The opening hairpin (star's first corner, 18 deg interior)** - the
-   remaining blemish on an otherwise clean star: an overshoot loop with a
-   pivot on the way out at the top vertex. NOTE the first sub-resolution
-   theory is FALSIFIED: buildPath's arc emitter has `asteps = max(2, ...)`
-   so even an R=0.03 fillet gets 3+ path points and the profile does brake
-   for it. Whatever remains is in execution at ultra-low commanded speed
-   (0.03-0.08 m/s is below what the trot meaningfully tracks) or in the
-   follower's lookahead across a feature smaller than itself. Needs the
-   first-corner [nav]/heading trace from a quiet single-dog run before any
-   further planner change.
-2. **The oval interlude is marginal** (1 tip in 2 attempts at the stop:
+1. **The oval interlude is marginal** (1 tip in 4 stop attempts overall:
    roll=72 deg in BALANCE_STAND, ~2 s after a clean, level, v=0.90
    arrival). Star and atom interludes passed cleanly. Difference not
    isolated; the oval closes onto its start joint right where the analyzer
    has just switched gaits (trotting -> trotRunning 3 s before the stop).
-3. **Spawn pose: the dog's legs are below z=0 pre-stand** (user-observed).
+2. **Spawn pose: the dog's legs are below z=0 pre-stand** (user-observed).
    Spawn is z=0.08 belly-down but joints spawn at q=0, so the legs pierce
    the ground plane until the initial fold - likely also why every run
    logs 1-2 startup "STATE ESTIMATE WENT NON-FINITE" blips. Fix is initial
    joint angles (or a spawn z that matches q=0 legs), in the world
    generator.
-4. **Host load kills fleets, in matching pairs/triples**: all three dogs'
+3. **Host load kills fleets, in matching pairs/triples**: all three dogs'
    control loops blew from a clean 2.48 ms to 20-24 ms at the same
    wall-second (a 10x force impulse - dog1 genuinely rolled 53 deg) and
    every dog "fell" simultaneously. Identical simultaneous failure across
