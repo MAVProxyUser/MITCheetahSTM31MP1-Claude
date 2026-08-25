@@ -184,9 +184,32 @@ function renderSlots() {
         const cap = (state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[slots[i].model || "edu"] ?? 3.9;
         if (+slots[i].speed > cap) slots[i].speed = cap;
       }
+      const body = { [f]: slots[i][f] };
+      // Switching the MISSION KIND must also snap gait/speed/extra to that
+      // course's own tuned recipe - each course's stable envelope was
+      // measured against a specific gait+speed+extra combination (e.g. the
+      // atom needs trotting@2.1 with WP_ALON=0.4; trotRunning@3.5 is star/
+      // oval's profile and spins the atom out on its own curvature). Without
+      // this, picking a new mission left the PREVIOUS mission's gait/speed
+      // in place - the note text updated (it is looked up fresh from
+      // state.recipes every render) but the actual command did not, so the
+      // panel silently ran an untested, wrong-gait combination.
+      if (f === "mission") {
+        const recipe = state.recipes[kindOf(slots[i].mission)];
+        if (recipe) {
+          const gaitName = Object.keys(state.gaits || {}).find(
+            name => state.gaits[name] === recipe.gait);
+          if (gaitName) { slots[i].gait = gaitName; body.gait = gaitName; }
+          const cap = (state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[slots[i].model || "edu"] ?? 3.9;
+          slots[i].speed = Math.min(recipe.speed, cap);
+          body.speed = slots[i].speed;
+          slots[i].extra = recipe.extra || "";
+          body.extra = slots[i].extra;
+        }
+      }
       fetch("/api/slots/" + i, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [f]: slots[i][f] }),
+        body: JSON.stringify(body),
       });
       renderSlots();
     });

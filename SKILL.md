@@ -662,7 +662,12 @@ printed and resync off its most recent position instead; and the verdict
 must match the CURATED wording (`"dog%d: mission result: %s"`), not the
 RAW controller log's `"[mission] RESULT: %s"` that only exists inside
 `ctrl_%d.log` - the two look interchangeable and are not, and guessing at
-the wrong one silently turns every PASS into a reported FAIL.
+the wrong one silently turns every PASS into a reported FAIL. A third: a
+healthy run can go 60s+ between curated log lines with the control loop
+perfectly fine the whole time (the atom's tightest corner, R~1.89m, has
+the dog visibly hold one N/E for several seconds) - `--stall-timeout`
+defaults to 100s for exactly this reason, and a TIMEOUT verdict should be
+checked against the raw log before it is trusted as a real wedge.
 
 ```bash
 python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90

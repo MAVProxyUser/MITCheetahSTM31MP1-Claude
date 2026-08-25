@@ -615,6 +615,17 @@ class Fleet:
                         dn, de = dn / length, de / length
                         dash = float(s["dash"])
                         pts = pts + [(n0, e0), (n0 + dn * dash, e0 + de * dash)]
+                if len(pts) == 1:
+                    # A standalone dash is ONE waypoint (the whole mission,
+                    # not a finish appended to a loop), so it never enters
+                    # the appendDash overlay above. But a single point is
+                    # nothing to draw a line to - the panel's canvas only
+                    # renders a planned track when it has >1 point - so
+                    # anchor it at the local origin the dog actually starts
+                    # from, same as the real controller's own path (see the
+                    # BodyPathPlanner comment: "the path must start where
+                    # the robot is").
+                    pts = [(0.0, 0.0)] + pts
                 planned[s["index"]] = [[e + east, n + north] for (n, e) in pts]
             with self.lock:
                 self.planned = planned

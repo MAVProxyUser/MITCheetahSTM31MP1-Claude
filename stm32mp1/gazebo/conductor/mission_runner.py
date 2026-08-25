@@ -10,13 +10,24 @@ of hanging the terminal forever.
 
 Usage:
   mission_runner.py --slot "dash:100" --timeout 90
-  mission_runner.py --slot "star:10.514:5:trotRunning:3.5:100" \\
-                     --slot "oval:40:5.0:trotRunning:3.5:100" \\
-                     --slot "atom:9.0:6:trotting:2.1:100" --timeout 300
+  mission_runner.py --slot "star:10.514:5" --slot "oval:40:5.0" \\
+                     --slot "atom:9.0:6" --gait trotRunning --gait trotRunning \\
+                     --gait trotting --speed 3.5 --speed 3.5 --speed 2.1 \\
+                     --dash 100 --dash 100 --dash 100 --timeout 300
 
-Each --slot is "mission:gait:speed:dash" (gait/speed/dash optional - falls
-back to the recipe's own default gait/speed and no dash). Exits 0 if every
-dog in the run reported PASS, 1 otherwise (FAIL, FELL, error, or timeout).
+Each --slot is just the mission spec; --gait/--speed/--dash/--extra are
+repeated flags matched to --slot BY POSITION (the i-th --gait applies to
+the i-th --slot). Omitted ones fall back to that mission's own recipe
+default. Exits 0 if every dog in the run reported PASS, 1 otherwise (FAIL,
+FELL, error, or timeout).
+
+Pick --stall-timeout generously - a mission can go 60s+ between curated
+orchestration log lines with the controller perfectly healthy the whole
+time (e.g. the atom's tightest corner, R~1.89m, has the dog visibly creep
+for several seconds with no discrete event to log). A short stall-timeout
+does not distinguish that from a genuine wedge; it will kill a healthy run
+and report a false FAIL. Confirm suspected wedges against the raw log
+(GET /api/logs/{i}) before trusting a TIMEOUT verdict.
 """
 import argparse
 import json
@@ -57,9 +68,11 @@ def main():
                      help="raw KEY=VALUE env override(s) for the matching --slot, space-separated")
     ap.add_argument("--timeout", type=float, default=240,
                      help="overall wall-clock budget in seconds (default 240)")
-    ap.add_argument("--stall-timeout", type=float, default=60,
+    ap.add_argument("--stall-timeout", type=float, default=100,
                      help="abort if no new orchestration log line appears for this many "
-                          "seconds - catches a wedged launch, not just a slow one (default 60)")
+                          "seconds - catches a wedged launch, not just a slow one (default "
+                          "100; a healthy run CAN go 60s+ silent through a slow corner, "
+                          "e.g. the atom's tightest turn - see the module docstring)")
     ap.add_argument("--poll", type=float, default=2.0,
                      help="state-poll interval in seconds (default 2)")
     ap.add_argument("--keep-cameras", action="store_true",

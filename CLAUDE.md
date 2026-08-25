@@ -3755,3 +3755,62 @@ for any future harness against this same server:
   reads the wrong thing and produces a false verdict" trap this file
   already warns about elsewhere, caught immediately by comparing the
   runner's own verdict against the raw log rather than trusting it blind.
+
+## Two more found via the new launcher: a missing dash overlay, and a real panel bug behind an atom spin-out
+
+**The dash overlay was not drawing.** `mission_waypoints("dash:100")`
+correctly returns `[(100.0, 0.0)]` after the fix above - one point, no
+return leg - but the panel canvas only draws a planned track when it has
+more than one point (`static/app.js`: `if (p && p.length > 1)`), so a
+single-point course drew nothing at all. Fixed in `server.py`, not in
+`mission_waypoints()` itself: when the planned-track builder sees exactly
+one point it prepends the local origin `(0.0, 0.0)` - the same "the path
+must start where the robot is" anchor `BodyPathPlanner` already uses for
+the real controller. Prepending in `mission_waypoints()` instead would
+have been wrong: that function's point COUNT also gates whether the
+separate append-dash-finish overlay logic fires (`if s.get("dash") and
+len(pts) >= 2`), and inflating a standalone dash from 1 to 2 points would
+have made a leftover truthy `dash` field on that slot incorrectly trigger
+the finish-overlay math on top of an already-dash-only mission. Verified
+via `/api/state`'s `planned` field directly (`{"0": [[0.0, 0.0], [0.0,
+100.0]]}`), not just by eyeballing the canvas.
+
+**The atom spin-out (run17) was a real, independent panel bug - not a
+regression from any of today's C++ planner changes.** The atom slot was
+running `gait=trotRunning speed=3.5` - star/oval's profile - instead of
+its own validated `trotting @ 2.1, WP_ALON=0.4`, even though the slot's
+own `note`/`extra` fields correctly displayed the atom's recipe text.
+Root cause: `static/app.js`'s change handler for the mission dropdown only
+ever POSTs the new `mission` string - it never re-applies that course's
+recipe (`gait`/`speed`/`extra`), the way `draft_add_slot()` already does
+server-side for a BRAND NEW slot. So switching an EXISTING slot's mission
+kind (star -> atom) left the previous mission's gait/speed in place while
+the displayed note text (looked up fresh from `state.recipes` on every
+render) correctly described the new one - a UI showing the right label
+over the wrong command. trotRunning is documented above as one of the
+worst gaits for the atom's continuous curvature; running it 67% over its
+own recipe's speed on top of that produced exactly what the operator
+saw. Fixed: selecting a mission now looks up `state.recipes[kind]`,
+resolves its numeric gait index back to a name via `state.gaits`, and
+sends `gait`+`speed`(model-capped)+`extra` in the SAME POST as `mission`.
+Confirmed innocent of today's BodyPathPlanner/reversal-stop changes
+first: run17's raw log has no `[plan] reversal ... registered as a
+stop` and no `[follow] PIVOT fired` anywhere near the fall - those
+branches never engaged. Re-tested at the CORRECT recipe: PASS, t=62.3s,
+in range of the previously-measured 58.97-124s atom baseline.
+
+**A false stall-timeout, caught on the way.** The first re-test at the
+correct recipe was killed by `mission_runner.py`'s own `--stall-timeout
+45` mid-mission, at a point where the raw ctrl log showed the control
+loop perfectly healthy (2.1-2.2ms, on-target period) and `v=2.10` still
+commanded - not a wedge. The dog visibly parked at one N/E for 3+ seconds
+crossing the atom's tightest corner (R=1.89m, the same point the mission
+analyzer already flags as the costliest feature) before continuing; a
+longer allowance (180s) let it finish cleanly. The curated orchestration
+log genuinely can go quiet for 60s+ on a healthy run through a slow
+corner, with nothing to distinguish that from an actual hang except
+patience or checking the raw log - `--stall-timeout`'s default was raised
+100 (was 60) and the module docstring now says this explicitly. Do not
+trust a TIMEOUT verdict from this tool without checking the raw log
+first; it is a safety net against silent wedges (like the SystemExit bug
+above), not proof of one.
