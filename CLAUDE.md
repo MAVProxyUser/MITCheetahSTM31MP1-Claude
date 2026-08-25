@@ -3909,3 +3909,42 @@ Since the race is now closed structurally, this should not recur; flagged
 here rather than closed outright because it was not reproduced in this
 exact shape (only inferred from the mechanism and the timing of both
 reports arriving together).
+
+## "Re-launch fleet needs clicked several times to react" - same family, plus a real caching trap found chasing it
+
+Same shape as the remove-button bug, on the Launch button: `renderFleet()`
+only disables `launchBtn` once a POLL TICK (every 400 ms) observes
+`phase` actually leave `"launching"/"running"`, but the click handler
+itself did nothing synchronous - no disable, no relabel - so there was up
+to a 400 ms window after a click where the button still looked live. A
+click landing in that window fires a SECOND `/api/launch`, which the
+server correctly refuses (`"a fleet is already active"`) - but that
+refusal surfaced via `alert()`, a BLOCKING modal that freezes ALL page JS
+(including the `poll()` loop) until dismissed. A couple of impatient
+clicks stack a couple of frozen dialogs: the FIRST click had already
+launched the fleet, but the page looked dead behind the pile-up, which is
+exactly "needs clicked several times to react" from the outside. Fixed
+the same way as remove: disable the button and set it to "Launching..."
+synchronously, before the `fetch`, and only restore it manually on an
+actual refusal (a success leaves it disabled for `renderFleet()` to take
+over once `phase` really moves).
+
+**Found chasing this, independently worth having**: the browser serving
+this panel was running STALE `app.js` through a `Cmd+Shift+R` hard
+reload, a brand new tab, AND a fresh `preview_start` - repeatedly. Cause:
+`SimpleHTTPRequestHandler`'s default headers carry `Last-Modified` but no
+`Cache-Control`, so a browser's heuristic freshness rules can cache a
+static file indefinitely with no revalidation at all - not even a
+conditional GET. For a panel whose JS/CSS get edited and reloaded
+constantly during active development, that is a real trap: a page open
+from before a fix landed keeps running the OLD, already-buggy code with
+NO visible sign anything is stale - the exact same "silently wrong
+because nobody rechecked the source" shape this file already warns about
+for logs, just for served files instead. Fixed with one line
+(`Handler.end_headers()` now sends `Cache-Control: no-store`
+unconditionally, for both the JSON API and the static files) rather than
+worked around per-request, since this is a single-operator local dev tool
+where there is no caching benefit worth ever risking staleness for.
+Verified: `curl -sI /app.js` now shows `Cache-Control: no-store`, and the
+button fix was confirmed live immediately afterward with no further
+cache fighting.

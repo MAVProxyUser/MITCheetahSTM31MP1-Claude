@@ -527,15 +527,45 @@ document.getElementById("addSlot").addEventListener("click", async () => {
   const j = await r.json();
   if (j.ok) { slots = j.slots; renderSlots(); } else { alert(j.message); }
 });
-document.getElementById("launchBtn").addEventListener("click", async () => {
+document.getElementById("launchBtn").addEventListener("click", async e => {
+  // Disable and relabel INSTANTLY, before the fetch - renderFleet() only
+  // disables this button once a poll tick (every 400ms) observes
+  // phase leave "done"/"idle", which left a window where a click had
+  // visibly done nothing yet. A user re-clicking into that window fired a
+  // SECOND /api/launch, which the server correctly refuses ("a fleet is
+  // already active") - but that refusal surfaced as alert(), a BLOCKING
+  // modal that freezes all page JS (including the poll loop) until
+  // dismissed. Stacking several of those from a few impatient clicks is
+  // exactly what "needs clicked several times to react" looks like from
+  // outside: the first click had already launched the fleet, but the page
+  // looked frozen behind a pile of dialogs earned by the clicks after it.
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.textContent = "Launching...";
   const cap = +document.getElementById("capSlider").value;
   const terrainVal = document.getElementById("terrainSelect").value;
-  const r = await fetch("/api/launch", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ slots, speed_cap: cap, terrain: terrainVal }),
-  });
-  const j = await r.json();
-  if (!j.ok) alert(j.message || j.error);
+  try {
+    const r = await fetch("/api/launch", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slots, speed_cap: cap, terrain: terrainVal }),
+    });
+    const j = await r.json();
+    if (!j.ok) {
+      // Refused (not actually launching) - restore the button ourselves;
+      // renderFleet()'s poll-driven disable only fires once phase is
+      // really "launching"/"running", which never happened here.
+      btn.disabled = false;
+      btn.textContent = prevText;
+      alert(j.message || j.error);
+    }
+    // On success, leave it disabled with "Launching..." - the next poll
+    // tick's renderFleet() takes over from here as phase actually moves.
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = prevText;
+    alert("launch failed: " + err);
+  }
 });
 document.getElementById("stopBtn").addEventListener("click", async () => {
   await fetch("/api/stop", { method: "POST" });

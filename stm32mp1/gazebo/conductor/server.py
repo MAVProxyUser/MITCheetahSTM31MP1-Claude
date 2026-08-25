@@ -1025,6 +1025,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # the on-page log is the log that matters here
 
+    def end_headers(self):
+        # This is a local, single-operator dev panel whose static/*.js and
+        # *.css get edited and reloaded constantly - there is no caching
+        # benefit worth the cost of ever serving stale code. Without this,
+        # SimpleHTTPRequestHandler's default (Last-Modified only, no
+        # Cache-Control) let a browser's heuristic freshness rules serve a
+        # cached app.js indefinitely - a hard reload (Cmd+Shift+R) did not
+        # even reliably bypass it. A page open from before a fix landed
+        # would keep running the OLD, already-buggy code with no visible
+        # sign anything was stale - exactly the kind of silent staleness
+        # this port's harness rules already warn against for logs.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def _json(self, obj, code=200):
         body = json.dumps(obj).encode()
         self.send_response(code)
