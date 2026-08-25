@@ -920,16 +920,30 @@ class Fleet:
                         st["t"] = tm.group(1) + "s" if tm else ""
                         done.add(i)
                         self._note("dog%d COMPLETE t=%s" % (i, st["t"]))
+                    elif "[FALL]" in text:
+                        # Checked BEFORE "MISSION COMPLETE", not after: a dog
+                        # can complete its loop+dash, print MISSION COMPLETE,
+                        # and THEN fall during the final settle/lie-down -
+                        # before ever printing a judge RESULT. `text` is the
+                        # log's full content re-read every tick, so once
+                        # MISSION COMPLETE appears it is present on every
+                        # future tick too; checking it first would classify
+                        # that dog as "finishing" FOREVER; done never reaches
+                        # len(locked), and the whole fleet's phase is stuck
+                        # at "running" permanently even though the dog's
+                        # controller process has already exited. Caught live:
+                        # two dogs judged PASS, a third fell after its own
+                        # MISSION COMPLETE and the fleet phase never left
+                        # "running" - only a manual /api/stop cleared it.
+                        st["phase"] = "fell"
+                        done.add(i)
+                        self._note("dog%d FELL" % i)
                     elif "MISSION COMPLETE" in text:
                         # Loop+dash finished; lie-down/judge still running -
                         # show it, but do NOT count it done yet.
                         tm = re.search(r"MISSION COMPLETE t=([\d.]+)s", text)
                         st["phase"] = "finishing"
                         st["t"] = tm.group(1) + "s" if tm else ""
-                    elif "[FALL]" in text:
-                        st["phase"] = "fell"
-                        done.add(i)
-                        self._note("dog%d FELL" % i)
                     with self.lock:
                         for j, old in enumerate(self.status):
                             if old["index"] == i:

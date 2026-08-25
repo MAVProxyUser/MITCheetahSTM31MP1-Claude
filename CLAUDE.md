@@ -3814,3 +3814,45 @@ patience or checking the raw log - `--stall-timeout`'s default was raised
 trust a TIMEOUT verdict from this tool without checking the raw log
 first; it is a safety net against silent wedges (like the SystemExit bug
 above), not proof of one.
+
+## The poller could get permanently stuck at "running" - a dog falling AFTER its own MISSION COMPLETE masked itself forever
+
+Operator report: "Fleet Running got stuck. everything else was perfect."
+`/api/state` showed `phase: running` indefinitely with two dogs already
+judged PASS and the third's controller process long dead - no launch
+possible until a manual `/api/stop`.
+
+`_start_poller()`'s per-dog classification is an `if/elif` chain over the
+log's FULL text, re-read from scratch every tick (not incremental - only
+the curated EVENT_PATTERNS scan is): `"[mission] RESULT"` -> complete,
+`"MISSION COMPLETE"` -> finishing, `"[FALL]"` -> fell. The order was
+wrong for a real sequence: loop+dash finishes (prints MISSION COMPLETE),
+then the end-of-mission settle/lie-down itself goes wrong and the dog
+falls (prints [FALL]) BEFORE ever reaching the judge's RESULT line. Once
+`"MISSION COMPLETE"` is anywhere in the file it is in the file on EVERY
+future tick too, and it was checked before `"[FALL]"` - so that dog was
+classified `"finishing"` forever, never added to `done`, and the fleet's
+overall `len(done) == len(locked)` check could never pass. A dog that
+falls after completing its course, but before settling safely, is a
+real and not even rare event (see the atom fleet-fragility note above) -
+this was not a one-off. Fixed by checking `"[FALL]"` before `"MISSION
+COMPLETE"` (still after `"[mission] RESULT"`, which is the more
+authoritative final outcome and should win if somehow both are present).
+
+Verified live: re-ran the identical 3-dog config (atom+dash, oval+dash,
+atom+dash) that produced the original stuck report. This time one dog
+(dog0, atom) fell mid-course - roll 43.8 deg against `Unsafe locomotion`'s
+40 deg cap, the already-documented atom-in-fleet roll-limited fragility,
+not a new bug - and `phase` correctly reached `"done"` with `PASS=2
+FAIL=0 FELL=1` instead of hanging. The stuck-panel bug is fixed; the
+atom's marginal multi-dog reliability is unchanged and already tracked
+above.
+
+**Still open, not fixed here**: if a controller process dies WITHOUT ever
+printing `[FALL]`, `MISSION COMPLETE`, or `[mission] RESULT` at all (a
+segfault, an OOM kill, a transport failure) the poller still has no way
+to notice, and the fleet would wedge the same way with no evidence in the
+curated log at all. `self.procs` mixes gz/bridge/controller Popen objects
+in one flat list, not indexed per dog, so a clean "is dog i's controller
+still alive" check would need its own tracking - not implemented, since
+every wedge seen so far has left a clear text marker to key off.
