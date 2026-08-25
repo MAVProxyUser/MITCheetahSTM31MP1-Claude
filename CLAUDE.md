@@ -4198,3 +4198,56 @@ missions confirmed working**; the two "falls" were an artifact of the
 accidental 3-dog fleet context (consistent with this file's own
 long-documented fleet fragility, not a new regression), not of star or
 circle themselves.
+
+## Automatic post-mission reports: orchestration log + planned-vs-flown plot
+
+Per direct request: "start making a report post mission that includes
+the orchestration log, and what you see on the path planned / path
+driven part of the screen" - motivated by exactly the kind of
+stale/ambiguous-screenshot confusion documented in the section above.
+`mission_runner.py` now writes `/tmp/cheetah_conductor/reports/run<N>_
+report.{txt,png}` on every run - PASS, FAIL, or TIMEOUT/stall abort - with
+the full accumulated orchestration log, a per-dog PASS/FAIL/FELL/
+incomplete breakdown, and a plot of each dog's planned vs. flown path.
+
+**Deliberately reads the panel's own data, not a re-derivation.** The
+plot pulls `state["planned"]` / `state["positions"][i]["trail"]` straight
+from `/api/state` - the exact world-frame arrays `server.py` freezes at
+launch and updates live, that `app.js`'s canvas already draws from
+(`hue.dim` for planned, `hue.bright` for flown). Reconstructing the
+geometry independently (e.g. re-integrating the raw controller log) could
+silently diverge from what was actually on screen, which defeats the
+entire point of the feature.
+
+Also pulled `mission_waypoints()` out of `trail_daemon.py` and
+`mission_viz.py` into a new dependency-free `stm32mp1/gazebo/
+mission_geometry.py` (no `gz` imports) so the report generator could use
+it without requiring the `gz.transport13` bindings, which only exist in
+specific venvs on this Mac. Found a real, previously-unnoticed bug doing
+this: `mission_viz.py`'s own copy of the function had silently drifted
+and was missing the `atom` and `oval` cases entirely - it would have
+raised `unknown mission spec` if anyone had ever run a viz on either.
+Fixed as a side effect of de-duplicating, not a separate patch.
+
+Verified against the live server on two shapes, and caught two real bugs
+in the process:
+- A degenerate near-straight `dash:20`: `aspect='equal'` on a near-zero-
+  width bounding box crushed the x-axis to a sliver and its tick labels
+  overlapped into an illegible smear. Fixed by mirroring `app.js`'s own
+  bounding-box + fixed `pad=6` framing convention (with the axis span
+  floored so a truly 1-D course still gets a plottable width) instead of
+  trusting matplotlib's auto-margins.
+- Per-dog verdict attribution: the first cut matched
+  `line.startswith("dogN:")`, but `/api/state`'s log lines carry a
+  `"[HH:MM:SS] runN "` prefix ahead of the `"dogN: ..."` text
+  `_note()` was actually called with - so nothing ever matched and every
+  dog reported `incomplete` regardless of its real result. Fixed to a
+  substring check (`"dogN:" in line`), which cannot false-match a
+  different dog's line up to 3 dogs (`"dog1:"` is not a substring of
+  `"dog10:"`).
+
+The `sector:15:3` test run's plot visibly reproduced the corner-rounding
+the operator had already flagged from a live screenshot - the bright
+(flown) track visibly cuts inside the dim (planned) polygon's sharp
+vertices - now captured automatically as report evidence instead of
+needing a live screenshot at the right moment.
