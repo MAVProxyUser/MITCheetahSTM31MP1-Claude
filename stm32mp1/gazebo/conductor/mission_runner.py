@@ -28,15 +28,35 @@ for several seconds with no discrete event to log). A short stall-timeout
 does not distinguish that from a genuine wedge; it will kill a healthy run
 and report a false FAIL. Confirm suspected wedges against the raw log
 (GET /api/logs/{i}) before trusting a TIMEOUT verdict.
+
+Every run - PASS, FAIL, or TIMEOUT - writes a report to
+/tmp/cheetah_conductor/reports/run<N>_report.{txt,png}: the full
+orchestration log plus a planned-vs-flown path plot, per dog, drawn from
+the exact same world-frame data the live panel's own canvas uses (not a
+re-derivation from the raw log, which could silently show a different
+picture than what was actually on screen).
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.request
 
 BASE = "http://127.0.0.1:8420"
+REPORT_DIR = "/tmp/cheetah_conductor/reports"
+
+# Same hues as trail_daemon.py's DOG_HUES / the panel's own app.js HUES -
+# (dim, bright) per dog index, so a report image reads as the same colours
+# the operator saw live. Kept as a plain tuple here rather than imported:
+# trail_daemon.py pulls in gz.transport13 at module level, which this
+# script must not require just to write a report after the run is over.
+DOG_HUES = [
+    ((1.00, 0.55, 0.10, 0.55), (1.00, 0.75, 0.25, 1.0)),   # amber
+    ((0.20, 0.55, 1.00, 0.55), (0.35, 0.80, 1.00, 1.0)),   # blue
+    ((0.30, 0.90, 0.35, 0.55), (0.50, 1.00, 0.55, 1.0)),   # green
+]
 
 
 def api(method, path, body=None, timeout=10):
@@ -49,6 +69,133 @@ def api(method, path, body=None, timeout=10):
     except urllib.error.URLError as e:
         raise SystemExit("conductor unreachable at %s: %s "
                           "(is server.py running?)" % (BASE, e))
+
+
+def render_report(run_id, slots, state, all_lines):
+    """Write a self-contained post-mission report: the orchestration log
+    plus a planned-vs-flown path plot for every dog.
+
+    Uses state["planned"]/state["positions"][i]["trail"] - the EXACT same
+    world-frame data server.py freezes at launch and updates live, that the
+    browser panel's own canvas draws from (see app.js's ctx.strokeStyle =
+    hue.dim / hue.bright). This is not a reconstruction from the raw log;
+    it is a snapshot of what was actually on screen, which is the whole
+    point - a description built by re-deriving the geometry could silently
+    diverge from what the operator saw and reintroduce the exact
+    stale/ambiguous-screenshot confusion this feature exists to avoid.
+    Called even on a TIMEOUT/stall abort, using whatever state was last
+    polled - that is often the most useful case to have a report for.
+    """
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    base = os.path.join(REPORT_DIR, "run%s" % run_id)
+
+    # Per-dog verdict, attributed by the "dogN: ..." / "dogN FELL" prefix
+    # server.py's poller _note()s with - the same curated lines the
+    # aggregate PASS/FAIL/FELL counts below are drawn from, just split out
+    # per index instead of summed across the whole fleet.
+    per_dog = {}
+    for i in range(len(slots)):
+        # log lines carry a "[HH:MM:SS] runN " prefix ahead of the "dogN:
+        # ..." text _note() was actually called with, so this has to be a
+        # substring check, not startswith. "dogN:"/"dogN " (with the colon
+        # or space right after the digit) can't false-match a different
+        # dog's line - "dog1:" is not a substring of "dog10:", and this
+        # fleet caps at 3 dogs anyway.
+        mine = [l for l in all_lines if ("dog%d:" % i) in l or ("dog%d " % i) in l]
+        if any("mission result: PASS" in l for l in mine):
+            per_dog[i] = "PASS"
+        elif any("FELL" in l for l in mine):
+            per_dog[i] = "FELL"
+        elif any("mission result: FAIL" in l for l in mine):
+            per_dog[i] = "FAIL"
+        else:
+            per_dog[i] = "incomplete"
+
+    txt_path = base + "_report.txt"
+    with open(txt_path, "w") as f:
+        f.write("Cheetah Conductor post-mission report - run %s\n" % run_id)
+        f.write("phase at report time: %s\n" % state.get("phase"))
+        f.write("=" * 60 + "\n")
+        for i, spec in enumerate(slots):
+            f.write("dog%d: %-24s -> %s\n" % (i, spec, per_dog[i]))
+        f.write("=" * 60 + "\n")
+        f.write("orchestration log:\n")
+        f.write("\n".join(all_lines) + "\n")
+    print("[runner] report: %s" % txt_path, flush=True)
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("[runner] matplotlib not installed - skipping path plot "
+              "(the text report above still has the full log)", flush=True)
+        return
+
+    planned = state.get("planned") or {}
+    positions = state.get("positions") or {}
+    fig, ax = plt.subplots(figsize=(9, 9), facecolor="#0c0e10")
+    ax.set_facecolor("#0c0e10")
+    ax.grid(True, color="#1a2020", linewidth=0.8)
+    ax.set_aspect("equal")
+
+    any_pts = False
+    all_x, all_y = [], []
+    for i, spec in enumerate(slots):
+        dim, bright = DOG_HUES[i % len(DOG_HUES)]
+        p = planned.get(str(i))
+        if p and len(p) > 1:
+            # closed, matching app.js's ctx.closePath() on the planned line
+            xs = [pt[0] for pt in p] + [p[0][0]]
+            ys = [pt[1] for pt in p] + [p[0][1]]
+            ax.plot(xs, ys, color=dim, linewidth=2,
+                    label="dog%d planned (%s)" % (i, spec))
+            all_x += xs; all_y += ys
+            any_pts = True
+        trail = (positions.get(str(i)) or {}).get("trail")
+        if trail and len(trail) > 1:
+            # NOT closed, matching app.js's flown-trail line
+            xs = [pt[0] for pt in trail]
+            ys = [pt[1] for pt in trail]
+            ax.plot(xs, ys, color=bright, linewidth=2.5,
+                    label="dog%d flown (%s)" % (i, per_dog[i]))
+            all_x += xs; all_y += ys
+            any_pts = True
+
+    if not any_pts:
+        plt.close(fig)
+        print("[runner] no planned/flown points in state yet - skipping path plot "
+              "(run likely aborted before launch finished placing the fleet)",
+              flush=True)
+        return
+
+    # Fixed padding around the data bbox, same convention as app.js's own
+    # canvas framing (pad=6, span floored at 1) - without this, aspect=
+    # 'equal' on a near-straight course (e.g. dash, near-zero east extent)
+    # crushes one axis to a sliver and its tick labels collide into an
+    # unreadable smear.
+    pad = 6.0
+    minx, maxx = min(all_x) - pad, max(all_x) + pad
+    miny, maxy = min(all_y) - pad, max(all_y) + pad
+    if maxx - minx < 1.0:
+        cx = (minx + maxx) / 2.0; minx, maxx = cx - 0.5, cx + 0.5
+    if maxy - miny < 1.0:
+        cy = (miny + maxy) / 2.0; miny, maxy = cy - 0.5, cy + 0.5
+    ax.set_xlim(minx, maxx)
+    ax.set_ylim(miny, maxy)
+
+    ax.set_title("run %s  -  %s" % (run_id, ", ".join(slots)), color="#e6ebe6")
+    ax.set_xlabel("east (m)", color="#7a8580")
+    ax.set_ylabel("north (m)", color="#7a8580")
+    ax.tick_params(colors="#7a8580")
+    for spine in ax.spines.values():
+        spine.set_color("#2a3330")
+    ax.legend(facecolor="#121517", edgecolor="#2a3330", labelcolor="#e6ebe6",
+              fontsize=8, loc="best")
+    png_path = base + "_report.png"
+    fig.savefig(png_path, dpi=130, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    print("[runner] report: %s" % png_path, flush=True)
 
 
 def main():
@@ -157,11 +304,13 @@ def main():
         if now - start > args.timeout:
             print("[runner] TIMEOUT after %.0fs (overall budget) - stopping run"
                   % args.timeout, flush=True)
+            render_report(run_id, args.slot, st, all_lines)
             api("POST", "/api/stop")
             sys.exit(1)
         if now - last_progress > args.stall_timeout:
             print("[runner] TIMEOUT: no new log line for %.0fs - run appears wedged, stopping"
                   % args.stall_timeout, flush=True)
+            render_report(run_id, args.slot, st, all_lines)
             api("POST", "/api/stop")
             sys.exit(1)
 
@@ -199,6 +348,8 @@ def main():
     fails = log_text.count("mission result: FAIL")
     fell = sum(1 for line in all_lines if "FELL" in line)
     world_fail = "world build FAILED" in log_text
+
+    render_report(run_id, args.slot, final_state, all_lines)
 
     print("=" * 60)
     print("[runner] run %s phase=%s  dogs=%d  PASS=%d FAIL=%d FELL=%d"
