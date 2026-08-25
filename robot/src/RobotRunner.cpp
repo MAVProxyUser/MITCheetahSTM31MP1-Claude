@@ -231,8 +231,16 @@ void RobotRunner::run() {
   {
     static const bool stall_on =
         !getenv("SIM_STALL_DETECT") || atoi(getenv("SIM_STALL_DETECT")) != 0;
+    // 8 ms (4x the 2 ms target), NOT 4 ms. A single 4.8 ms tick is ordinary
+    // macOS scheduler jitter - the operator's machine never exceeds ~24% CPU
+    // and still produces them - and reacting to one cost a dash outright:
+    // the safe hold zeroed a 3.00 m/s sprint and flipped the dog to
+    // roll=154. Genuine damaging stalls measured here are 13-17 ms, so the
+    // trigger sits above the noise and below the real thing. "Host stall"
+    // is also the wrong mental model for the small ones: this is a thread
+    // missing its slot, not a saturated machine.
     static const double sick_ms =
-        getenv("SIM_STALL_MS") ? atof(getenv("SIM_STALL_MS")) : 4.0;
+        getenv("SIM_STALL_MS") ? atof(getenv("SIM_STALL_MS")) : 8.0;
     static const int clear_ticks =
         getenv("SIM_STALL_CLEAR") ? atoi(getenv("SIM_STALL_CLEAR")) : 500;
     static auto last_tick = std::chrono::steady_clock::now();

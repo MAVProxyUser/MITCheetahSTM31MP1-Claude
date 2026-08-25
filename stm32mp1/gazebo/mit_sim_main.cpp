@@ -999,9 +999,26 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       const float stall_t0 = elapsed();
       static const float liedown_after =
           getenv("SIM_STALL_LIEDOWN_S") ? atof(getenv("SIM_STALL_LIEDOWN_S")) : 3.0f;
-      printf("[nav] HOST STALL at t=%.1fs (wp%d/%d) - pausing, holding position\n",
+      printf("[nav] HOST STALL at t=%.1fs (wp%d/%d) - easing to a stop\n",
              stall_t0, nav.activeIndex(), nav.count());
       fflush(stdout);
+      /*
+       * RAMP DOWN - do not step. Zeroing the stick in one tick is itself a
+       * violent discontinuity, and at sprint speed it is far more dangerous
+       * than the jitter that triggered it: a single 4.8 ms tick during the
+       * dash zeroed a 3.00 m/s command and flipped the dog to roll=154.
+       * A safety response that is more damaging than the hazard is not a
+       * safety response. Same short-and-sharp shape the stop sequences use,
+       * with steering left live so the dog keeps tracking while it sheds
+       * speed instead of braking blind.
+       */
+      {
+        const float v_at_stall = bridge->driverCommand().leftStickAnalog[1];
+        for (int k = 15; k >= 0; --k) {
+          bridge->driverCommand().leftStickAnalog[1] = v_at_stall * (float)k / 15.f;
+          std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+      }
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
       bridge->driverCommand().rightStickAnalog[0] = 0.f;
 

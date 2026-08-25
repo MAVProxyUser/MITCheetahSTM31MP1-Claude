@@ -306,6 +306,17 @@ class Fleet:
         self.draft_terrain = "flat"
         self.cameras = {}             # index -> {"front_cam": "data:...", "nadir_cam": "data:..."}
         self._gz_cam_nodes = []       # one Node per camera subscription, kept alive
+        # RUN NUMBER. Monotonic, persisted across server restarts, so the
+        # operator can say "run 47's atom did X" and both of us mean the same
+        # run. Shown in the panel, stamped into every orchestration log line,
+        # and passed to each controller as $SIM_RUN_ID so it lands in that
+        # dog's own ctrl log too.
+        self.run_id = 0
+        try:
+            with open(os.path.join(RUN_DIR, "run_seq.txt")) as f:
+                self.run_id = int(f.read().strip() or 0)
+        except Exception:  # noqa: BLE001 - first boot, or a wiped /tmp
+            self.run_id = 0
         self.host_load = read_host_load()
         threading.Thread(target=self._host_load_loop, daemon=True).start()
 
@@ -317,7 +328,8 @@ class Fleet:
             time.sleep(1.5)
 
     def _note(self, msg):
-        self.log.append("[%s] %s" % (time.strftime("%H:%M:%S"), msg))
+        tag = ("run%d " % self.run_id) if self.run_id else ""
+        self.log.append("[%s] %s%s" % (time.strftime("%H:%M:%S"), tag, msg))
         self.log = self.log[-200:]
         print(msg, flush=True)
 
@@ -328,6 +340,7 @@ class Fleet:
                 "slots": self.slots,
                 "status": self.status,
                 "log": self.log[-60:],
+                "run_id": self.run_id,
                 "hard_cap": HARD_SPEED_CAP,
                 "model_max_speed": MODEL_MAX_SPEED,
                 "recipes": RECIPES,
@@ -468,6 +481,13 @@ class Fleet:
             if not (1 <= len(slots) <= 3):
                 return False, "1 to 3 slots only"
             self.phase = "launching"
+            self.run_id += 1
+            try:
+                os.makedirs(RUN_DIR, exist_ok=True)
+                with open(os.path.join(RUN_DIR, "run_seq.txt"), "w") as f:
+                    f.write(str(self.run_id))
+            except Exception:  # noqa: BLE001 - numbering is not worth failing a launch
+                pass
             self.log = []
             self.procs = []
 
@@ -673,11 +693,11 @@ class Fleet:
                 # peak; a solo dog is unaffected (i=0 keeps the validated 4 s).
                 delay_s = 4 + 5 * i
                 cmd = (
-                    "env DYLD_LIBRARY_PATH=. SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
+                    "env DYLD_LIBRARY_PATH=. SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
                     "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
                     "WP_MAX_YAWRATE=1.2 %s timeout 240 ./mit_ctrl_sim 127.0.0.1 "
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"
-                    % (i, s["gait"], s["speed"], delay_s, s["mission"], s["extra"])
+                    % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"], s["extra"])
                 )
                 clog = open(os.path.join(RUN_DIR, "ctrl_%d.log" % i), "w")
                 cp = subprocess.Popen(["bash", "-c", cmd], cwd=HOST_RUN,

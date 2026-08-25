@@ -383,6 +383,9 @@ function renderFleet() {
     }).join("");
   }
 
+  const rid = state.run_id ? ("RUN " + state.run_id) : "";
+  const hdr = document.querySelector(".topbar .subtitle, .topbar h2, .topbar span");
+  if (hdr && rid && !hdr.dataset.norun) hdr.textContent = hdr.textContent.replace(/ · RUN \d+$/, "") + " · " + rid;
   document.getElementById("logBox").textContent = (state.log || []).join("\n");
   document.getElementById("logBox").scrollTop = 1e9;
 
