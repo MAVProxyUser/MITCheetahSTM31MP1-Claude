@@ -179,8 +179,29 @@ RECIPES = {
     # WP_CORRIDOR_MIN=0.1 graded (R tightens further to 0.14m once graded,
     # correctly, but the fall was PITCH-dominant - the same signature the
     # atom needed WP_ALON for). WP_ALON=0.4 fixed it: PASS 112.8s, clean.
-    "sector": dict(gait=20, speed=2.0, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
-                    note="walking, graded corridor + gentle WP_ALON - PASS 112.8s (1 rep)"),
+    # WP_TURN_SOFT/WP_TURN_HARD added per direct request to track sector's
+    # corners as tightly as star's. Root cause (measured via a standalone
+    # BodyPathPlanner probe, not guessed): the corridor-grading curve's
+    # defaults (turn_soft=80deg, turn_hard=160deg) were tuned around STAR'S
+    # OWN two corner angles (144/162deg) - star's mildest corner already
+    # sits 80% up that ramp. Sector's corners are ALL 120-147.5deg, direction
+    # changes that are real corners by the field comment's own definition
+    # ("1.4 rad = 80 deg (a real corner)") but land only ~50% up star's ramp,
+    # so the SAME already-working mechanism was firing at half strength:
+    # sector's dominant 120deg corner got R=0.83m/v=1.0m/s versus star's
+    # 144deg corner at R=0.19m/v=0.23m/s - 4x wider AND 4x faster, by
+    # geometry, not by a tracking failure. Narrowing the ramp to 46-115deg
+    # (so 120deg sits near ITS top) brings sector's dominant corner to
+    # R=0.15m/v=0.18m/s and its sharpest to R=0.058m - star's own ballpark.
+    # Scoped to this recipe only (WP_TURN_SOFT/WP_TURN_HARD default to
+    # 1.4/2.8 rad when unset), so star/oval/atom/dash are untouched.
+    "sector": dict(gait=20, speed=2.0,
+                    extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4 "
+                          "WP_TURN_SOFT=0.8 WP_TURN_HARD=2.0",
+                    note="walking, graded corridor + gentle WP_ALON + narrowed "
+                         "turn-grading ramp for star-tight corners - PASS 141.3s "
+                         "(was 112.8s untightened; slower is the expected cost of "
+                         "hugging every vertex instead of cutting it)"),
     # First fall was NOT the 180-degree end-of-pass turn itself (tracked
     # that cleanly at full speed, hdg swinging smoothly 0->180) - it was
     # the SHORT 5m connector immediately after, still carrying a full 2.0
