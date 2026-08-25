@@ -21,6 +21,11 @@
 #include "rt/rt_rc_interface.h"
 #include "Math/orientation_tools.h"
 
+// Defined in RobotRunner.cpp; suspends the z-collapse fall check around
+// known-safe low-height windows (see the sequencer thread below and
+// mit_sim_main.cpp's dash interlude, which already uses the same function).
+void setFallZEnable(bool on);
+
 // The SpineBoard structs and the LCM POD structs must be layout-identical for the
 // memcpy bridge below to be valid.
 static_assert(sizeof(SpiCommand) == sizeof(spi_command_t), "SpiCommand layout mismatch");
@@ -282,6 +287,23 @@ void Stm32mp1HardwareBridge::run() {
       int t_stand = getenv("SIM_STAND_S") ? atoi(getenv("SIM_STAND_S")) : 4;
       int t_bal   = getenv("SIM_BAL_S")   ? atoi(getenv("SIM_BAL_S"))   : 8;
       int t_loco  = getenv("SIM_LOCO_S")  ? atoi(getenv("SIM_LOCO_S"))  : 14;
+      // The z-collapse fall check (RobotRunner.cpp) latches "stood" the
+      // FIRST time estimated body height crosses 0.25 m, specifically so a
+      // robot that starts low (belly-down spawn) is not misread as
+      // collapsed before it has ever stood - only once BODY HEIGHT has
+      // proven a real stand does a later low reading mean a genuine
+      // collapse. That assumes spawn height stays below 0.25 m, which is
+      // true for the intended lying-down spawn but was measured to be
+      // false for a time while investigating a taller one (see git history
+      // around 2026-08-25) - a spawn tall enough to clear straight,
+      // uncontrolled legs is itself ABOVE 0.25 m, which would arm the
+      // check before the boot-limp phase even begins and read the natural
+      // settle-under-gravity as an instant collapse. Suspended here for
+      // the whole boot sequence (spawn through the FIRST genuine stand),
+      // same mechanism the dash interlude already uses around its own
+      // commanded lie-down/stand-up - re-armed the moment `final_mode` is
+      // reached below, so mid-mission collapse detection is untouched.
+      setFallZEnable(false);
       usleep(t_stand * 1000000);
       _robotParams.control_mode = 1;                  // K_STAND_UP
       printf("[sim] control_mode -> STAND_UP\n"); fflush(stdout);
@@ -300,6 +322,10 @@ void Stm32mp1HardwareBridge::run() {
         }
         _robotParams.control_mode = final_mode;       // K_LOCOMOTION (4) etc.
         printf("[sim] control_mode -> %d\n", final_mode); fflush(stdout);
+        // Genuinely standing now (STAND_UP -> BALANCE_STAND -> final_mode
+        // all completed) - re-arm the z-collapse check for the rest of the
+        // mission. See the comment above the matching setFallZEnable(false).
+        setFallZEnable(true);
         // After the trot stabilizes, RAMP in the forward velocity (a 0 -> vx step
         // through the ~6-10 ms UDP loop knocked the trot over; ramping does not).
         // $SIM_VX target speed, $SIM_VX_RAMP_S ramp duration (default 3 s).
@@ -414,6 +440,13 @@ void Stm32mp1HardwareBridge::run() {
             }
           }
         }
+      } else {
+        // $SIM_MODE=1 (debug: stop the sequencer at STAND_UP, never reach
+        // BALANCE_STAND/LOCOMOTION) - the re-arm above is inside the
+        // final_mode != 1 branch and would never run, so do it here
+        // instead. Otherwise the z-collapse check stays disabled for the
+        // rest of the process, silently, in a rarely-used debug path.
+        setFallZEnable(true);
       }
     }).detach();
   }

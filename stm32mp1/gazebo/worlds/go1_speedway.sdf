@@ -58,8 +58,22 @@
       </link>
     </model>
     <model name="go1">
-      <!-- Face NORTH (+y) so the dog is parallel to the barn (barn long axis is N-S). -->
-      <pose>0 0 0.08 0 0 1.5707963</pose>
+      <!-- Face NORTH (+y) so the dog is parallel to the barn (barn long axis is N-S).
+           Z=0.42, not the old 0.08: every joint spawns at q=0 and DART clamps
+           the calf's illegal q=0 to near its own limit, so even "lying down"
+           the (uncontrolled, undamped-by-any-command) leg reaches ~0.32 m
+           below the body - measured directly via gz topic on FL_calf's
+           settled world pose, not calculated from nominal geometry. At 0.08
+           the feet sat about 0.32 m UNDER the ground plane; 0.42 brings them
+           to about ground level with a couple cm of margin. This is a single
+           Z number - no joint angles or other poses touched. Spawning above
+           the fall-detector's 0.25 m arm height needed a matching change in
+           Stm32mp1HardwareBridge.cpp (suspend the z-collapse check for the
+           boot sequence, same mechanism already used around the dash
+           interlude's own lie-down) - see that file for why a bare threshold
+           bump could not work here (spawn height ends up above the robot's
+           own normal standing height). -->
+      <pose>0 0 0.42 0 0 1.5707963</pose>
       <link name="base">
         <inertial>
           <pose>0.020866157113366469 0.0018596720421213159 -0.00046917899041193459 0 0 0</pose>
