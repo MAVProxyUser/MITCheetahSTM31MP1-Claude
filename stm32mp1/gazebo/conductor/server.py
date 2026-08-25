@@ -138,16 +138,26 @@ RECIPES = {
     # the curves clean AND the full stop/lie-down/stand-up/dash sequence.
     "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.4",
                  note="trotRunning, analyzer, sustained cap 2.4 (re-swept 2026-08-24; 2.6 is past the current envelope)"),
-    # THE ATOM HAD NO LATERAL MARGIN AT ALL. Its own planner line said so:
-    # "tightest corner R=1.89m -> 2.10m/s" against cruise 2.10 - the
-    # curvature cap EQUALLED cruise, so the profile never slowed it
-    # anywhere and the whole course ran at ~93% of the a_lat budget. Star
-    # and oval both get real braking margin; the atom got none, which is
-    # why it was the one course that tipped on a transient (reproducibly,
-    # at the first lobe entry, t~11.5s, wp14-16). WP_ALAT=1.8 plans the
-    # lobes at sqrt(1.8*1.89)=1.84 m/s while straights keep 2.10 - margin
-    # exactly where the curvature is, and nowhere else.
-    "atom": dict(gait=9, speed=2.1, extra="WP_ALAT=1.8",
+    # THE ATOM'S FAILURE IS PITCH, NOT ROLL - so the lever is LONGITUDINAL.
+    # Every trip measured on this course reads pitch-dominant: 30.5, 33.0,
+    # 35.6, 35.9, 36.6, 36.9 deg of PITCH with roll in the teens. Lowering
+    # the lateral budget (tried, WP_ALAT=1.8) governs ROLL and did nothing,
+    # because roll was never what tripped.
+    #
+    # Pitch is fore/aft, i.e. braking and driving. plan() picks a_lon from
+    # cruise speed: `(v_cruise >= 2.2) ? 0.4 : 1.5`. Star and oval cruise at
+    # 3.5 and get the gentle 0.4; the atom cruises at 2.1 and therefore
+    # falls into the 1.5 branch - 3.75x more longitudinal demand than either
+    # of them, against a body measured to track ~1.2 m/s^2, and on the ONLY
+    # course whose curvature varies continuously (so it is braking and
+    # driving the whole lap, never coasting). That is a pitch excitation
+    # applied nonstop. WP_ALON=0.4 gives it the same gentle profile the two
+    # courses that pass already use.
+    #
+    # The speed-keyed default is the real bug here: it assumes slow = safe
+    # to brake hard, which is exactly backwards for a slow course that is
+    # ALWAYS turning.
+    "atom": dict(gait=9, speed=2.1, extra="WP_ALON=0.4",
                  note="trotting, bare (analyzer adds nothing here) - 58.97s @ 6/6"),
     "dash": dict(gait=5, speed=3.0, extra="",
                  note="trotRunning straight-line - UNDER REVIEW, see README"),

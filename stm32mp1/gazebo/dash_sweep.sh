@@ -20,7 +20,7 @@ export PATH="/opt/homebrew/bin:$PATH"
 # STALE-BINARY GUARD. This harness runs ./mit_ctrl_sim out of host-run/, which
 # is NOT what `cmake --build` writes - so a rebuild followed by a sweep happily
 # measures the previous binary and reports it as the new one. Same failure class
-# as the SIM_CHEATER trap (RULE ZERO in SKILLS.md): the runner not reflecting the
+# as the SIM_CHEATER trap (RULE ZERO in SKILL.md): the runner not reflecting the
 # code. Copy the freshly built binary every time, and say which one is running.
 BUILT=host-build/user/MIT_Controller/mit_ctrl_sim
 if [ -f "$BUILT" ]; then

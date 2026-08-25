@@ -1,6 +1,6 @@
 # CLAUDE.md — STM32MP1 Cheetah port: rules, architecture, and traps
 
-Read before changing the port. Companion to `SKILLS.md` (commands) and `README.md`.
+Read before changing the port. Companion to `SKILL.md` (commands) and `README.md`.
 
 ## The board (Octavo OSD32MP1-RED)
 
@@ -2654,7 +2654,7 @@ identical covariance cap)
 **The pre-hardware task is therefore**: fold C and D into the yaml, rework E,
 delete F, and leave only A (operator input) and B (debug prints) as environment
 variables. Until then the honest statement is that these results depend on a
-specific env incantation, recorded in `SKILLS.md`, and not on the shipped config.
+specific env incantation, recorded in `SKILL.md`, and not on the shipped config.
 
 ### The QA ladder (run in this order, stop at the first failure)
 
@@ -3461,6 +3461,91 @@ control loops against each other and guarantee they never contend, but it
 would also put N dogs behind one crash and one GIL-free-but-shared
 address space. The real contention here is gz's single physics thread,
 which merging controllers does not touch.
+
+### SESSION 2026-08-25 (early hours): five real bugs, and two of my own making
+
+**1. THE INTERLUDE BUG - re-entering STAND_UP from STAND_UP skips the ramp.**
+The end-of-mission lie-down has always passed; the dash interlude never
+did. The ONLY structural difference is that end-of-mission never stands
+back UP. FSM_State_StandUp interpolates on `progress = 2*iter*dt` capped
+at 1.0, with `_ini_foot_pos` captured in onEnter() ONLY, and
+checkTransition() increments iter every tick. After 2.5 s crouched, iter
+is ~1250 and progress is pinned at 1.0 - so raising g_standUpHeight
+0.15 -> 0.25 and re-requesting K_STAND_UP does NOT re-enter the state and
+does NOT interpolate: pDes[2] jumps the full 10 cm in ONE tick against
+kpCartesian=500. A launch, not a stand. Fix: hop through K_PASSIVE first
+so onEnter() re-captures the crouched feet and restarts the ramp -
+exactly what mission start does. This is why the dog "fell right after
+lying down before the dash", every time, for days.
+
+**2. THE DASH COURSE COULD NOT LAUNCH AT ALL.** The panel spells it
+`outback:100`; its RECIPES key is `dash`; mission_kind() returned
+"outback", the lookup missed and launch() died on recipe["note"] with a
+KeyError visible only in server stdout. Aliased. Found only because a
+verification harness reported the dash as PASS with numbers BYTE-IDENTICAL
+to the atom run before it - the launch failed, no new log was written, and
+the reporter read the PREVIOUS run's file. The harness now deletes
+ctrl_*.log before every run. A harness that can emit a false PASS is worse
+than no harness.
+
+**3. THE PIVOT BRANCH FIRED AT FULL CRUISE** (dash, once launchable):
+`PIVOT fired: vplan=3.00 ex=-1.73`, snapping 3.00 -> v_min with full yaw
+against 3 m/s of momentum, roll 52 / pitch 69. Gated to
+`vplan <= 4*v_min`. And the reason the profile never braked: **a 180
+reversal is three COLLINEAR points**, so the 3-point curvature estimate
+reads kappa ~ 0 and the turnaround looks like a straight. Curvature cannot
+express "reverse direction here" - any waypoint with >150 deg direction
+change is now registered as a planner stop.
+
+**4. THE ATOM'S FAILURE IS PITCH, AND THE a_lon DEFAULT IS BACKWARDS.**
+Every atom trip measured pitch-dominant (30.5, 33.0, 35.6, 35.9, 36.6,
+36.9 deg) with roll in the teens. A first fix lowering the LATERAL budget
+(WP_ALAT=1.8) was therefore aimed at the wrong axis and the very next run
+rejected it (pitch 36.9 again). Pitch is braking and driving, and plan()
+picks a_lon from cruise speed:
+
+    a_lon_max = (v_cruise >= 2.2) ? 0.4 : 1.5;
+
+Star and oval cruise at 3.5 and get the gentle 0.4; the atom cruises at
+2.1 and lands in the 1.5 branch - 3.75x more longitudinal demand than
+either course that passes, against a body measured to track ~1.2 m/s^2,
+on the ONLY course whose curvature varies continuously (braking and
+driving the whole lap, never coasting). The rule assumes slow = safe to
+brake hard, which is exactly backwards for a slow course that is always
+turning. Atom recipe now carries WP_ALON=0.4. First reps: PASS t=124.0s
+and PASS t=123.9s, trips=0 on a course that had been tripping every run.
+
+**5. SPAWN POSE IS ILLEGAL, NOT COSMETIC (operator-spotted, OPEN).**
+`q=0` is OUTSIDE the calf joint's range (-2.818 .. -0.888), so all four
+calves spawn at an illegal angle, the legs splay straight down through the
+floor and the dog excavates itself. Very likely also the source of the two
+"STATE ESTIMATE WENT NON-FINITE" lines every dog prints at boot. Fix needs
+legal folded joint angles at spawn (the documented crouch (0,-1.3,2.5)
+abstract = URDF (0,+1.3,-2.5), both in range), NOT a higher spawn z, which
+would just stand it on locked straight legs.
+
+### MY OWN TWO, recorded because they cost the operator real time
+
+**The stall MITIGATION was worse than the stall.** Asked to detect host
+stalls and degrade gracefully, I built pause -> lie down -> stand up. A
+single 4.8 ms tick - ordinary scheduler jitter on a machine sitting at
+24% CPU - tripped it mid-dash, it zeroed a 3.00 m/s command in one tick,
+and the dog flipped to roll=154. It destroyed a perfect run AND the
+evidence: a mitigated run says nothing about what the stall would have
+done. Per direct instruction the mitigation is GONE - detect and log only,
+the dog is allowed to fall, and the data stays honest. Threshold also
+4 -> 8 ms: genuine damaging stalls here are 13-17 ms.
+
+**"Host load" was the wrong model.** The operator's machine never exceeds
+~24% CPU. Small overruns are a thread missing its slot, not a saturated
+host, and calling them "the host stalled" led directly to a trigger that
+did real damage. Only the 13-17 ms events were ever genuine.
+
+**RUN NUMBERS** (operator request): monotonic, persisted in
+RUN_DIR/run_seq.txt across restarts, shown in the panel, stamped on every
+orchestration log line, and passed to each controller as $SIM_RUN_ID so it
+lands in that dog's own ctrl log. "Run 47's atom did X" now means the same
+run to both parties.
 
 ### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
 

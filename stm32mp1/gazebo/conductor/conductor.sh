@@ -14,7 +14,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
 
 # Refuse to start over stragglers from a previous run/sweep - the exact bug
-# class documented in SKILLS.md (a bridge still holding a port, topics from a
+# class documented in SKILL.md (a bridge still holding a port, topics from a
 # dead partition) would otherwise silently corrupt the next launch.
 for pid in $(pgrep -f 'gz[ ]sim|mit_ctrl[_]sim|cheetah[_]gazebo[_]bridge|conductor/server.py' 2>/dev/null); do
   [ "$pid" = "$$" ] && continue

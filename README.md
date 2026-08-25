@@ -9,7 +9,7 @@ Cortex-A7 running Linux + a Cortex-M4), driving **Unitree RS485 legs**, with a
 > Fork of MIT Cheetah-Software (BSD-3, see `LICENSE`). All original build/run docs
 > for the desktop + Mini Cheetah still apply; this README covers the STM32MP1 port,
 > which lives under **`stm32mp1/`**. See also `CLAUDE.md` (rules + traps) and
-> `SKILLS.md` (the exact commands).
+> `SKILL.md` (the exact commands).
 
 ## Why the STM32MP1
 
@@ -41,7 +41,12 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | Oval stop | ✅ **steered deceleration** (the oval closes 1.2 m off its arc exit; zeroing yaw mid-straightening tipped it ~50%): stop tally now **5/6 (~83%)** — the "fixed 4/4" first claimed here was the small-sample trap; real improvement, residual ~1-in-6 tip remains. Held gait changes now apply while standing (dash-start ESTOP class closed, verified). Star guard 2/2 |
 | **Current baseline (2026-08-24)** | ✅ **solo: star PASS · oval PASS · atom PASS**, full sequence with 100 m dash, one dog at a time, cameras off |
 | **THE FULL FLEET COMPLETED** (tag `fleet-complete-20260824`) | ✅ **all three simultaneously**: oval t=83.8 s (judged PASS), star t=114.6 s, atom t=118.2 s — complete loops, stop/lie-down/stand-up interludes, and 100 m dashes in parallel, loop health max 2.52 ms with zero over-budget samples. Earlier parallel wipeouts confirmed as host stalls, not code |
-| Remaining items | ❌ oval stop residual ~1-in-6 tip; conductor leaves gz idling after "done" (~1 core — gates/kills added operationally, server-side fix queued); spawn legs below ground pre-stand |
+| **Dash interlude fixed at the root** (2026-08-25) | ✅ re-requesting `K_STAND_UP` while *already in* STAND_UP skipped `onEnter()`, so the stand-back-up stepped the feet 10 cm in one tick instead of ramping — a launch, not a stand. Now hops through `K_PASSIVE` first, exactly as mission start does. This was the "falls right after lying down before the dash" failure |
+| Dash course | ✅ **could not launch at all** (`outback` vs `dash` recipe key — KeyError in server stdout only); plus the pivot branch firing at 3 m/s and a 180° reversal reading as `kappa≈0` (three collinear points). All three fixed |
+| Atom | ✅ **`WP_ALON=0.4`** — its trips were **pitch** (30–37°), not roll, and `a_lon` defaults to `(v_cruise>=2.2) ? 0.4 : 1.5`, so the atom's 2.1 cruise got **3.75× more longitudinal demand** than star/oval on the one course that brakes and drives continuously. **3/3 PASS, zero trips** |
+| Host-stall detector | ✅ **detect and log only** — the mitigation it originally carried zeroed a 3 m/s command on 4.8 ms of ordinary jitter and flipped the dog. The robot is allowed to fall so the data stays honest |
+| Run numbers | ✅ monotonic, persisted across restarts, in the panel, every log line, and each dog's own controller log (`$SIM_RUN_ID`) |
+| Remaining items | ❌ **spawn pose is illegal**: `q=0` is outside the calf joint range (−2.818…−0.888), so all four calves spawn illegal and the legs splay through the floor — the dog excavates itself, and this is the likely source of the boot-time `STATE ESTIMATE WENT NON-FINITE` pair. Also: oval stop residual ~1-in-6 tip |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
 
@@ -348,7 +353,7 @@ stm32mp1/gazebo/run_gazebo_sim.sh                 # Mac: Gazebo (headless) + bri
 ssh <board-ip> 'cd /usr/local/cheetah-mp1 && ./stand_sim <mac-ip>'   # board: stand + squat
 ```
 
-See `SKILLS.md` for hardware bring-up, the sensor/actuator probes, and debugging.
+See `SKILL.md` for hardware bring-up, the sensor/actuator probes, and debugging.
 
 ## Layout of the port
 

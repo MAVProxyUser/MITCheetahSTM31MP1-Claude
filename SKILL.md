@@ -1,4 +1,4 @@
-# SKILLS.md — STM32MP1 Cheetah port: the commands
+# SKILL.md — STM32MP1 Cheetah port: the commands
 
 ---
 
@@ -611,6 +611,42 @@ python3 stm32mp1/gazebo/record_video.py out.mp4 25 /chase_cam
 ```
 Records the `chase_cam` sensor on the robot's trunk straight into ffmpeg. Needs no
 GUI and does not spam "Saved image to:" toasts the way `/gui/screenshot` polling did.
+
+## Run numbers - use them
+
+Every launch gets a monotonic run number, persisted across server restarts
+(`/tmp/cheetah_conductor/run_seq.txt`). It appears in the panel, on every
+orchestration log line (`run47 dog2: ...`), and inside each dog's own
+controller log via `$SIM_RUN_ID`. Quote it when reporting behaviour - "run
+47's atom did X" is unambiguous, "the atom fell" is not.
+
+## Harness rules learned the hard way (2026-08-25)
+
+**A harness that can emit a false PASS is worse than no harness.** A
+verification script reported the dash as PASS with numbers byte-identical
+to the previous run: the launch had crashed, no new log was written, and
+the reporter read the PREVIOUS run's file. Only an md5 of the logs caught
+it. Every harness here now `rm -f /tmp/cheetah_conductor/ctrl_*.log`
+BEFORE each run, and treats a missing log as "never launched", never as a
+result.
+
+**Do not touch gz while a measurement is running.** A `pkill -9 -f "gz sim"`
+issued to probe something else killed the simulator out from under a test
+that was mid-flight and turned a valid rep into INCOMPLETE. Same rule as
+the two-sweeps trap, but it applies to ad-hoc diagnostics too - if a batch
+is in flight, READ ONLY.
+
+**Check the failure AXIS before picking a lever.** The atom's trips were
+pitch (30-37 deg) with roll in the teens; the first fix lowered the LATERAL
+budget, which governs roll, and the very next run rejected it with pitch
+36.9 again. Roll <- a_lat, pitch <- a_lon. One glance at which number is
+large would have saved a whole cycle.
+
+**Detect, do not mitigate, while you are still learning the failure.** A
+host-stall "safe hold" (pause, lie down, stand up) tripped on 4.8 ms of
+ordinary scheduler jitter, zeroed a 3.00 m/s command in one tick and
+flipped the dog - destroying both a good run and the evidence. A mitigated
+run tells you nothing about what the hazard would have done.
 
 ## The Conductor fleet panel (`stm32mp1/gazebo/conductor/`)
 
