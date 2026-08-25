@@ -707,6 +707,27 @@ stale `server.py` serving code from before your last edit is the single most
 common "why didn't my fix take effect" here — it looks exactly like a
 regression.
 
+**The browser can be stale too, and worse than the server about it.**
+`Handler.end_headers()` sends `Cache-Control: no-store` on every response
+(static files included) specifically because a browser was seen running
+old `app.js` through a hard reload, a brand-new tab, and a fresh preview
+in a row — restarting `server.py` alone does not fix a page that already
+loaded the JS before your edit. If a browser-side fix looks like it did
+not take effect, close the tab and open a genuinely new one before
+suspecting the code.
+
+**Any panel control that fires an async request should disable/relabel
+itself SYNCHRONOUSLY on click, before the `fetch`, and restore itself on
+failure** — not rely on the next `poll()` tick (every 400 ms) to notice
+and disable it. Two real bugs shipped from skipping this: a slot's
+remove button raced a second click against a still-in-flight DELETE and
+could act on a now-stale index, and the launch button's up-to-400ms gap
+let a second click fire a redundant `/api/launch`, whose refusal surfaced
+as a blocking `alert()` that froze the whole page (including the poll
+loop) until dismissed — which reads exactly like "needs clicked several
+times to react," even though the first click had already worked. Both
+are fixed in `app.js`; match this pattern for any new button.
+
 **Test the FULL sequence, not just the piece you changed.** A fix verified in
 isolation (e.g. an open-loop yaw-sweep for the cornering cap) still needs to
 be re-run through the WHOLE mission end to end before it is trusted — the

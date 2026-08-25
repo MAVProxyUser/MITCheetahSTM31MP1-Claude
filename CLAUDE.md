@@ -3948,3 +3948,14 @@ where there is no caching benefit worth ever risking staleness for.
 Verified: `curl -sI /app.js` now shows `Cache-Control: no-store`, and the
 button fix was confirmed live immediately afterward with no further
 cache fighting.
+
+**Operator-confirmed, not just self-tested.** Per direct confirmation
+this now works: a full re-launch cycle through the live panel (run29 into
+run30, both via real clicks - not curl/`mission_runner.py`) landed clean
+- both dogs `settled on its feet -> ok`, `lying down -> ok`, `mission
+result: PASS` - with none of the multi-click/frozen-dialog behaviour that
+prompted this whole chain of fixes. That closes out, in one session, the
+remove-button race, the launch-button race, the stale-cache trap that
+made both hard to verify, and the earlier fleet-phase-stuck-at-"running"
+poller bug - all four found from two short operator reports and none of
+them speculative fixes.
