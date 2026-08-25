@@ -3959,3 +3959,84 @@ remove-button race, the launch-button race, the stale-cache trap that
 made both hard to verify, and the earlier fleet-phase-stuck-at-"running"
 poller bug - all four found from two short operator reports and none of
 them speculative fixes.
+
+## The spawn-underground bug: two wrong fixes, then a measured one
+
+Operator report, from a screenshot: at launch the dog's legs/feet are
+visibly buried below the ground plane instead of resting on it.
+
+**Attempt 1, REVERTED both times it was tried, per direct correction: a
+deliberate joint-angle crouch pose.** Encoding a folded (hip=0, thigh=1.3,
+calf=-2.5 rad, URDF convention) starting posture into each leg's own child
+LINK pose (the `//joint/axis/initial_position` SDF element is deprecated
+in 1.8 and gone from the 1.9 schema this project uses - verified it is a
+no-op on this gz-sim by direct measurement before trying the pose-encoding
+route instead). This is the WRONG FIX regardless of whether the specific
+angles chosen were also bad: the operator's actual complaint was about Z
+placement only, and in practice this made the robot topple onto its back
+during stand-up - not a rendering artifact, reproduced live. Reverted to
+the exact pre-session baseline both times it came up. **Standing lesson:
+do not re-introduce a joint-angle spawn fix without checking with the
+operator first** - they have now rejected it twice, explicitly.
+
+**Attempt 2, ALSO reverted: raising spawn Z alone to 0.47 m.** This
+overcorrected into a different, worse failure - the run died in the same
+second it launched. Root cause, confirmed by reading the code rather than
+guessing again: `RobotRunner.cpp`'s z-collapse fall check latches `stood`
+the first time estimated body height exceeds 0.25 m, specifically so the
+robot's normal low, belly-down spawn (0.08 m) is never misread as a
+collapse before it has ever stood. Spawning above 0.25 m arms that latch
+immediately, and the very next low reading - the ordinary settle under
+gravity during the boot-limp phase, before any controller torque exists
+at all - reads as an instant collapse. `[FALL] collapsed: roll=-0
+pitch=2 z=0.043` at t~0, level attitude: not a real fall, a false
+positive from a threshold this change violated.
+
+**What actually shipped (commit 4c84efc): spawn Z raised to 0.42 m, plus
+a genuinely separate fix for the false-positive this surfaces.** The Z
+value itself was chosen empirically, not calculated: probed the settled
+FL_calf world pose via `gz topic -e -t .../pose/info` after a full 1 s of
+physics-only settling (no controller) at several spawn heights.
+
+| spawn Z | settled foot bottom (front / rear) |
+|---|---|
+| 0.08 (old) | -0.32 to -0.37 m |
+| 0.20 | -0.18 to -0.19 m (worse than 0.42 - see below) |
+| **0.42** | **-0.10 / -0.17 m** |
+| 0.60 | -0.10 / -0.18 m (no further improvement) |
+
+Two things this measurement found that a hand calculation would have
+missed: the improvement is NOT linear with spawn height (0.20 -> 0.42 is
+a much bigger jump than nominal geometry predicts, because the leg
+absorbs some of the extra drop by bending further under the fall's
+momentum before settling), and past ~0.4 m the settled configuration
+stops depending on spawn height at all - 0.42 and 0.60 land within
+noise of each other, so 0.42 reaches the same equilibrium as 0.60
+without the extra drop. **This is also the honest limit of a Z-only
+fix**: the legs' own contact-resolved resting shape has a physical floor
+(front feet ~10 cm under, rear ~17 cm under) that no spawn height above
+this closes further - reaching exactly Z=0 would need the leg's own
+posture changed, which attempt 1 already showed is off the table without
+checking first. Front feet clearing better than rear is itself a real,
+unexplained asymmetry - not investigated further this session.
+
+**The false-positive fix, done correctly this time**: rather than bump
+the 0.25 m arm threshold (which cannot work - the new 0.42 m spawn is
+itself ABOVE the robot's own normal standing height of ~0.29 m achieved
+crouched under load, so no single threshold can sit above spawn height
+AND at-or-below standing height at once), the fix reuses
+`setFallZEnable()`, the mechanism this codebase already has for exactly
+this situation (it already suspends the same check around the dash
+interlude's commanded lie-down). Suspended in
+`Stm32mp1HardwareBridge.cpp`'s sequencer thread for the whole boot
+window (spawn through the first genuine stand), re-armed the instant the
+sequencer reaches its final control mode, with a fallback re-arm for the
+rare `$SIM_MODE=1` debug path that never reaches that point. Mid-mission
+collapse detection is completely untouched - this only widens the boot
+window that was already exempt, using the pattern already validated
+there.
+
+Verified: single-dog star mission, clean run start to finish, no
+immediate false fall, `mission result: PASS` at t=61.8s matching the
+pre-existing baseline for this exact config - the fix does not regress
+anything measured earlier in this file.
