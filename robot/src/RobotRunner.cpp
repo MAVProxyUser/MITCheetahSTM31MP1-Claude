@@ -6,11 +6,17 @@
  */
 
 #include <atomic>
+#include <chrono>
 #include <unistd.h>
 
 // Defined further down next to setEdamp; declared here because the fall
 // detector (earlier in the file) gates its z-branch on it.
 extern std::atomic<bool> g_fallZEnable;
+
+// HOST STALL flag - set by the stall detector in run(), read by the mission
+// thread (mit_sim_main) so it can stop translating and hold. Defined below
+// next to setEdamp with the other cross-thread controls.
+extern std::atomic<bool> g_hostStall;
 
 #include <cmath>
 #include <cstdlib>
@@ -193,6 +199,62 @@ void RobotRunner::run() {
                ny * 0.002f, wzCmd, e.omegaBody[2], trueRate,
                e.rpy[2], trueYaw,
                e.rpy[0] * 57.2958f, e.rpy[1] * 57.2958f, e.position[2]);
+        fflush(stdout);
+      }
+    }
+  }
+
+  /*
+   * HOST STALL DETECTOR.
+   *
+   * The control loop is WALL-CLOCK timed: it computes forces for a 2 ms
+   * step and the simulator integrates them over however long the tick
+   * actually took. A scheduling stall therefore multiplies every commanded
+   * force by (actual/target) - a 16 ms tick is an 8x impulse - and it is
+   * invisible in every other instrument, because the bridge's command rate
+   * and the estimator both look fine either side of it. Measured on this
+   * Mac: a genuine stall shows up as ONE tick at 13-17 ms across all three
+   * dogs of a fleet in the same instant, against a clean 2.5-3.5 ms in the
+   * runs either side.
+   *
+   * A single spike cannot be predicted, only reacted to - so the useful
+   * definition of "pre-emptive" is: the FIRST overrun latches a stall and
+   * the mission stops being vulnerable (stop translating, hold, and lie
+   * down if it persists) instead of continuing to sprint into whatever
+   * comes next. Over-4 ms ticks are essentially absent from healthy runs
+   * here (over4=0 of ~140 samples), so this is a sensitive detector with a
+   * cheap false-positive cost: a brief pause.
+   *
+   * $SIM_STALL_MS (default 4.0 = 2x the 2 ms target), $SIM_STALL_CLEAR
+   * (default 500 clean ticks = 1 s), $SIM_STALL_DETECT=0 disables.
+   */
+  {
+    static const bool stall_on =
+        !getenv("SIM_STALL_DETECT") || atoi(getenv("SIM_STALL_DETECT")) != 0;
+    static const double sick_ms =
+        getenv("SIM_STALL_MS") ? atof(getenv("SIM_STALL_MS")) : 4.0;
+    static const int clear_ticks =
+        getenv("SIM_STALL_CLEAR") ? atoi(getenv("SIM_STALL_CLEAR")) : 500;
+    static auto last_tick = std::chrono::steady_clock::now();
+    static long armed = 0;
+    static int clean = 0;
+    const auto now_tick = std::chrono::steady_clock::now();
+    const double dt_ms =
+        std::chrono::duration<double, std::milli>(now_tick - last_tick).count();
+    last_tick = now_tick;
+    // Ignore the first second: startup ticks are irregular by construction
+    // (world load, first MPC solve, JPos init) and mean nothing about the host.
+    if (stall_on && ++armed > 500) {
+      if (dt_ms > sick_ms) {
+        clean = 0;
+        if (!g_hostStall.exchange(true)) {
+          printf("[STALL] control period %.1f ms (limit %.1f) - host stalled, "
+                 "mission entering safe hold\n", dt_ms, sick_ms);
+          fflush(stdout);
+        }
+      } else if (g_hostStall.load() && ++clean >= clear_ticks) {
+        g_hostStall = false;
+        printf("[STALL] clear after %d clean ticks - safe to resume\n", clean);
         fflush(stdout);
       }
     }
@@ -451,6 +513,12 @@ void setEdamp(double d) { g_edampGain = d; }
 // on once the robot is standing again. Attitude tripping is unaffected.
 std::atomic<bool> g_fallZEnable{true};
 void setFallZEnable(bool on) { g_fallZEnable = on; }
+
+// See the HOST STALL DETECTOR in run(). Latched on the first control-period
+// overrun, cleared after a second of clean ticks; the mission thread reads it
+// through hostStallActive() and degrades gracefully instead of sprinting on.
+std::atomic<bool> g_hostStall{false};
+bool hostStallActive() { return g_hostStall.load(); }
 
 // MIT orientation-ESTOP gate, honored by ControlFSM::safetyPreCheck().
 // checkSafeOrientation is a ZERO-debounce 28.6 deg trip evaluated every

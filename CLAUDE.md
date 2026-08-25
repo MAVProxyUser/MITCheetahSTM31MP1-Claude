@@ -3402,6 +3402,66 @@ What the same 18 dog-runs do show:
   open item on the board. Reproduce it SOLO first (it may not even need a
   fleet), then instrument the lobe entry.
 
+### HOST-STALL DETECTION AND GRACEFUL DEGRADATION (operator-specified)
+
+The controller now notices when the HOST is failing it and degrades on
+purpose instead of sprinting into the stall. Detector lives in
+RobotRunner::run() beside the fall detector, response lives in the
+mission thread.
+
+**Why this is the right layer.** The control loop is wall-clock timed: it
+computes forces for a 2 ms step and the sim integrates them over however
+long the tick really took, so a 16 ms tick is an 8x impulse and a 64 ms
+tick is a 32x one. Nothing else can see it - the bridge's command rate
+and the estimator both look fine either side. But the loop can time
+ITSELF, and over-4 ms ticks are essentially absent from healthy runs here
+(over4=0 of ~140), so a single overrun is a sensitive, cheap trigger.
+"Pre-emptive" honestly means: the first overrun latches, and the mission
+stops being VULNERABLE to whatever comes next.
+
+Response, in the operator's own words ("pause walking, trot in place, and
+lay down, then stand back up when ready"):
+  1. stick to zero at once - stop translating, gait keeps stepping in
+     place under zeroVelHold rather than freezing mid-stride;
+  2. if it persists past $SIM_STALL_LIEDOWN_S (3 s), lie down under
+     control - the mission's own PASSIVE-hop -> STAND_UP-low -> damped
+     hold, with both detectors suspended so the deliberate crouch is not
+     read as a collapse;
+  3. when the host is clean again (500 clean ticks = 1 s), stand back up
+     through the staged entry and resume from the same waypoint, with the
+     speed ramp re-armed so it eases back to cruise.
+
+**VERIFIED BY INJECTION, not by waiting for luck.** A CPU storm (8
+spinners) did NOT perturb the loop at all - max period 2.51 ms, over4=0 -
+which is itself worth knowing about this machine. A precise
+SIGSTOP/SIGCONT of 60 ms did:
+
+    [STALL] control period 64.5 ms (limit 4.0) - host stalled, mission entering safe hold
+    [nav] HOST STALL at t=5.7s (wp0/6) - pausing, holding position
+    [STALL] clear after 500 clean ticks - safe to resume
+    [nav] resuming mission at t=6.7s (wp0/6)
+    [mission] RESULT: PASS  (waypoints 6/6, settle ok, laydown ok)
+
+A 64.5 ms stall is a 32x force impulse and was previously an unsurvivable
+event; the dog paused, held, resumed and completed the mission. Knobs:
+$SIM_STALL_MS (4.0), $SIM_STALL_CLEAR (500), $SIM_STALL_LIEDOWN_S (3),
+$SIM_STALL_DETECT=0 to disable.
+
+**Scope, honestly**: this proves the mechanism end to end on an injected
+stall. It does NOT yet prove it rescues the fleet - real fleet stalls are
+rare (one in 18 dog-runs) and the remaining fleet failures are per-course
+marginals, not stalls. It also does nothing about a stall that hits
+DURING the lie-down itself.
+
+**On the "one binary for N dogs" question**: worth doing for a different
+reason than scheduling. Separate processes are what make the current
+3-dog fleet honest - independent control loops, independent estimators,
+no shared failure inside the controller. One binary could schedule its N
+control loops against each other and guarantee they never contend, but it
+would also put N dogs behind one crash and one GIL-free-but-shared
+address space. The real contention here is gz's single physics thread,
+which merging controllers does not touch.
+
 ### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
 
 Hourly backups on this Mac start around :38. Both same-wall-second
