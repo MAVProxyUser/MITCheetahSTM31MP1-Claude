@@ -726,9 +726,27 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //    BALANCE_STAND -> LOCOMOTION. Skipping BALANCE_STAND here would
       //    hand the MPC the same 9 cm height step CLAUDE.md already measured
       //    as a launch (z 0.211 -> 0.342 at 0.32 m/s vertical).
+      // RE-ENTER STAND_UP THROUGH PASSIVE. This is THE difference between
+      // this sequence and the end-of-mission one that has always worked:
+      // end-of-mission only ever lies DOWN, so it never hits this. Here the
+      // robot is ALREADY in STAND_UP (that is how it lay down), and
+      // FSM_State_StandUp interpolates on `progress = 2*iter*dt` capped at
+      // 1.0 with `_ini_foot_pos` captured in onEnter() ONLY. After 2.5 s
+      // crouched, iter is ~1250 and progress is pinned at 1.0 - so simply
+      // raising g_standUpHeight 0.15 -> 0.25 and re-requesting K_STAND_UP
+      // does NOT re-enter the state and does NOT interpolate: pDes[2] jumps
+      // the full 10 cm in ONE tick against kpCartesian=500. That is a
+      // launch, and it is why the dog fell "right after lying down" every
+      // time. Hopping through PASSIVE forces a real state exit so onEnter()
+      // re-captures the crouched foot positions and restarts the ramp -
+      // exactly what mission start does (PASSIVE -> STAND_UP), which is the
+      // pattern that has always worked.
+      setEdamp(8.0);
+      bridge->setControlMode(0);                 // K_PASSIVE (damped hop)
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
       setEdamp(0.0);
       setStandUpHeight(0.25);
-      bridge->setControlMode(1);                 // K_STAND_UP
+      bridge->setControlMode(1);                 // K_STAND_UP - fresh onEnter
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       bridge->setControlMode(3);                 // K_BALANCE_STAND
       std::this_thread::sleep_for(std::chrono::milliseconds(1500));
@@ -987,9 +1005,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       if (lay_down) {
         printf("[nav] host clear - standing back up to resume\n");
         fflush(stdout);
+        // Same PASSIVE hop as the dash interlude, for the same reason -
+        // re-requesting K_STAND_UP while already in it skips onEnter() and
+        // steps the feet instead of interpolating. See that comment.
+        setEdamp(8.0);
+        bridge->setControlMode(0);                 // K_PASSIVE (damped hop)
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
         setEdamp(0.0);
         setStandUpHeight(0.25);
-        bridge->setControlMode(1);                 // K_STAND_UP
+        bridge->setControlMode(1);                 // K_STAND_UP - fresh onEnter
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));
         bridge->setControlMode(3);                 // K_BALANCE_STAND
         std::this_thread::sleep_for(std::chrono::milliseconds(1500));
