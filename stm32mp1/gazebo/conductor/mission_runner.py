@@ -235,7 +235,16 @@ def main():
         ap.error("max 3 slots")
 
     st = api("GET", "/api/state")
-    gaits = st["gaits"]
+    gaits = st["gaits"]                       # name -> numeric SIM_GAIT id
+    gait_name_by_id = {v: k for k, v in gaits.items()}
+    recipes = st["recipes"]                   # RECIPES stores gait as that
+                                               # SAME numeric id, not a name -
+                                               # has to be converted back
+                                               # before it can be POSTed to
+                                               # /api/slots/{i}, which only
+                                               # accepts a name (checks
+                                               # `fields["gait"] in GAITS`,
+                                               # GAITS's KEYS being names).
 
     # --- reconcile draft slot COUNT to len(args.slot) --------------------
     for _ in range(20):
@@ -256,19 +265,59 @@ def main():
                           % (len(st["draft_slots"]), len(args.slot)))
 
     # --- populate each slot ----------------------------------------------
+    # /api/slots/{i} only OVERWRITES the fields you pass it - a bare
+    # {"mission": ...} leaves gait/speed/dash/extra at whatever that draft
+    # slot already held (server.py's draft_set_slot() has no "look up this
+    # mission's recipe" fallback of its own; that lookup lives in the
+    # BROWSER's JS, which this script does not run). Relying on the slot
+    # to already hold the right mission's leftover values is exactly the
+    # kind of silent state carryover this harness exists to avoid - caught
+    # here after a server restart reset slot 0 to its hard-coded star
+    # default (trotRunning/3.5/dash=100) and a bare --slot sector:15:3 ran
+    # star's gait/speed/dash against sector's waypoints. So: look up each
+    # mission's own recipe by kind (mirroring server.py's mission_kind())
+    # and apply it explicitly whenever the matching --gait/--speed/--extra
+    # flag was not given. --dash has no recipe concept at all (RECIPES
+    # carries gait/speed/extra/note only) - default it to 0 (no finish
+    # dash) rather than trust the slot's leftover value.
     for i, mission in enumerate(args.slot):
+        kind = mission.split(":", 1)[0]
+        kind = "dash" if kind in ("outback", "dash") else kind
+        recipe = recipes.get(kind, {})
         body = {"mission": mission}
         if i < len(args.gait):
             g = args.gait[i]
             if g not in gaits:
                 raise SystemExit("unknown gait %r - choices: %s" % (g, sorted(gaits)))
             body["gait"] = g
+        elif "gait" in recipe:
+            body["gait"] = gait_name_by_id.get(recipe["gait"], recipe["gait"])
         if i < len(args.speed):
             body["speed"] = args.speed[i]
+        elif "speed" in recipe:
+            body["speed"] = recipe["speed"]
         if i < len(args.dash):
             body["dash"] = args.dash[i]
+        else:
+            body["dash"] = 0
         if i < len(args.extra):
+            # ADDITIVE, not a replacement: server.py's launch() ALWAYS
+            # prepends the recipe's own extra to the slot's extra field
+            # ("recipe['extra'] + ' ' + s['extra']", server.py:598), so
+            # this is for a genuine additional override beyond the
+            # recipe's own tuning (env A=1 A=2 keeps the last, so this
+            # wins over the recipe on a shared key).
             body["extra"] = args.extra[i]
+        else:
+            # Explicitly clear rather than omit the key: server.py's
+            # draft_set_slot() only touches "extra" when the key is
+            # present at all, so a bare omission here would leave
+            # whatever override a PRIOR /api/slots/{i} call on this same
+            # slot happened to leave behind - the exact silent-carryover
+            # bug this whole fallback exists to close. The recipe's own
+            # tuning still applies either way, via the same launch()
+            # prepend.
+            body["extra"] = ""
         if not args.keep_cameras:
             body["cam_front"] = body["cam_nadir"] = body["cam_chase"] = False
         r = api("POST", "/api/slots/%d" % i, body)
