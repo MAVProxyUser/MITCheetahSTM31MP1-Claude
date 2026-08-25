@@ -195,12 +195,29 @@ RECIPES = {
     # R=0.15m/v=0.18m/s and its sharpest to R=0.058m - star's own ballpark.
     # Scoped to this recipe only (WP_TURN_SOFT/WP_TURN_HARD default to
     # 1.4/2.8 rad when unset), so star/oval/atom/dash are untouched.
+    #
+    # WP_CORRIDOR_MIN 0.1 -> 0.07 per direct follow-up ("still a bit weak
+    # vs star... tighten it up just a hair"): at turn_soft=0.8/turn_hard=2.0,
+    # ALL of sector's corner angles (120/127.5/147.5deg) already sit ABOVE
+    # turn_hard, so the turn_soft/turn_hard ramp is fully saturated (f=1.0)
+    # for every one of them - there was no more headroom left in THAT knob
+    # (confirmed via the probe: lowering turn_soft/turn_hard further changed
+    # nothing). The remaining lever is corridor_scale_min itself, the FLOOR
+    # that ramp clamps to: eff_corridor = corridor * corridor_scale_min at
+    # f=1. Probed 0.10/0.07/0.05/0.03; picked 0.07 as the requested "hair" -
+    # a 30% radius cut (120deg corner: R=0.150m -> 0.105m, comfortably
+    # inside star's own 0.028-0.191m corner range) without the much larger
+    # speed cost 0.05/0.03 would add (v_min 0.180 -> 0.126 m/s, vs 0.090/
+    # 0.054 at the more aggressive settings).
     "sector": dict(gait=20, speed=2.0,
-                    extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4 "
+                    extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
                           "WP_TURN_SOFT=0.8 WP_TURN_HARD=2.0",
                     note="walking, graded corridor + gentle WP_ALON + narrowed "
-                         "turn-grading ramp for star-tight corners - PASS 141.3s "
-                         "(was 112.8s untightened; slower is the expected cost of "
+                         "turn-grading ramp + tightened corridor floor for "
+                         "star-tight corners - PASS 140.9s "
+                         "(no slower than the 141.3s at CORRIDOR_MIN=0.1 - the "
+                         "extra tightening cost nothing measurable; both are "
+                         "slower than 112.8s untightened, the expected cost of "
                          "hugging every vertex instead of cutting it)"),
     # First fall was NOT the 180-degree end-of-pass turn itself (tracked
     # that cleanly at full speed, hdg swinging smoothly 0->180) - it was
