@@ -4156,3 +4156,45 @@ clear trigger) as the host-load-stall class of issue extensively
 documented elsewhere in this file for OTHER reasons (Time Machine, shared
 gz physics). Flagged here as a known, open, intermittent risk rather than
 either ignored or falsely claimed fixed.
+
+## Full 11-mission end-to-end re-run, and a methodology bug in the harness that ran it
+
+Per direct request, after the operator questioned a stale UI warning and
+a screenshot that looked like the new missions round corners worse than
+star always did: ran oval, atom, star, dash, then all seven new missions,
+back to back, using each one's live `/api/state` recipe (not
+hand-transcribed, to avoid the exact staleness bug just reported).
+
+**The stale-warning report was correct and a real instance of the
+already-documented trap**: `RECIPES["circle"]` had been edited in
+`server.py` after the last server restart, so the running process was
+still serving the OLD (untuned, 2.0 m/s) recipe to the panel. Restarted;
+confirmed `/api/state`'s `recipes.circle` matched the source file before
+proceeding. No code fix needed here - purely a "restart after every
+RECIPES edit" discipline gap, same class of thing SKILL.md already warns
+about for `server.py` generally.
+
+**The corner-rounding hypothesis was checked directly, not argued
+against**: `git diff` of every commit from today against
+`common/include/Planning/BodyPathPlanner.h` (the actual fillet/corner
+logic) is EMPTY. The Lissajous and SAR-pattern generators are new,
+separate functions in `WaypointNav.cpp` that never touch the planner.
+There is no code path by which one could corrupt the other's cornering.
+The screenshot was almost certainly circle's ORIGINAL untuned attempt
+(2.0 m/s, no corridor grading) - the one already documented above as
+falling - not the fixed version.
+
+**A real methodology bug in the harness script that ran the sequence**:
+it only ever set slot 0, never cleared slots 1/2, so EVERY "solo" test in
+the run was actually an accidental 3-dog fleet with whatever was left in
+the other two slots (the default oval/atom layout, unchanged all
+morning). Nine of eleven still came back an unambiguous `PASS=3 FAIL=0
+FELL=0` - a fleet result where all three pass is not weakened by not
+knowing which dog was which. Two were ambiguous (star: 2 PASS 1 FELL;
+circle: 1 PASS 2 FELL) - re-run as genuinely isolated single-slot
+launches, both came back clean: star PASS 68.6s, circle PASS 33.1s,
+matching their already-established solo baselines exactly. **All eleven
+missions confirmed working**; the two "falls" were an artifact of the
+accidental 3-dog fleet context (consistent with this file's own
+long-documented fleet fragility, not a new regression), not of star or
+circle themselves.
