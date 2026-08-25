@@ -3374,11 +3374,33 @@ never falling and never finishing - it had ESTOPed to PASSIVE at t~60 s
 and could not move. A trip mid-mission does not always produce a [FALL];
 sometimes it produces a zombie that burns the whole timeout.
 
-**Next step, and it must be INTERLEAVED**: alternate 60/200/60/200 within
-one session, N>=6 per arm, and gate on whether an excursion actually
-occurred. Blocked arms (200,200 then 60,60) cannot separate the hold from
-run-to-run dynamics, which is exactly the trap this file has recorded
-four times today.
+**THE INTERLEAVED A/B WAS RUN, AND IT REFUTES THE HOLD.** Three pairs,
+arms alternated so host drift hits both equally, load recorded per run:
+
+    hold 200 ms   (P,F,P) (P,F,P) (P,F,F)   = 5/9 dogs
+    hold  60 ms   (P,P,F) (I,F,F) (F,P,F)   = 3/9 dogs
+
+Fisher p ~ 0.6 - noise. The blocked 6/6-vs-1/6 was the confound, not the
+knob: the 60 ms block simply ran later on a busier host. The debounce
+stays (its four measured saves are real, and a zero-tick ESTOP is still
+wrong for this port) but it is NOT the fleet's problem and tuning it
+further is not the lever. **Fifth small-sample lesson of the day, and the
+first one caught BEFORE it was published as a result.**
+
+What the same 18 dog-runs do show:
+- **One genuine host stall, caught in the act**: il_p2_h200 has all three
+  dogs at 13.3-16.7 ms worst loop in the same run (over-4 ms on every
+  dog) - the real signature, and nothing like the clean 2.5-3.5 ms of the
+  runs around it. That is what a shared-host event looks like when it
+  actually happens, and it is rare.
+- **The atom has a REPRODUCIBLE failure at t=11.5 s**, 3 for 3 in one
+  arm, always at wp14-16 (the first lobe, N~1, E~0-2), always a pitch
+  excursion of 30.5-35.7 deg held past 62 ms, always ending level
+  (roll 7-14, pitch ~0) rather than tipped. Same waypoint, same time,
+  same shape - that is a deterministic dynamics problem at the atom's
+  first lobe entry, NOT variance, and it is the single most tractable
+  open item on the board. Reproduce it SOLO first (it may not even need a
+  fleet), then instrument the lobe entry.
 
 ### THE HOST-STALL CULPRIT, NAMED (operator-diagnosed): TIME MACHINE
 
