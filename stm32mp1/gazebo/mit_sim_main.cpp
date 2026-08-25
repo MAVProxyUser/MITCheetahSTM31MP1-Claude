@@ -213,6 +213,30 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
              "(wp%02d N=%.2f E=%.2f) for the dash interlude\n",
              dash_wp_index - 1, stopw.north, stopw.east);
     }
+    /*
+     * A NEAR-180 REVERSAL IS A STOP, and the profile cannot see it.
+     * computeGeometry() estimates curvature from three consecutive path
+     * points; on a course that doubles back along its own line (the
+     * out-and-back dash) those three points are COLLINEAR, so kappa comes
+     * out ~0 and the turnaround reads as a straight. Measured: the dash
+     * held 3.00 m/s right into its own 180 and went over. Curvature cannot
+     * express "reverse direction here" - a stop can, and the braking
+     * machinery already exists. Only fires on courses that actually
+     * reverse; star/oval/atom never do, so they are untouched.
+     */
+    for (size_t k = 1; k + 1 < wx.size(); ++k) {
+      const double ax = wx[k] - wx[k-1], ay = wy[k] - wy[k-1];
+      const double bx = wx[k+1] - wx[k], by = wy[k+1] - wy[k];
+      const double la = std::hypot(ax, ay), lb = std::hypot(bx, by);
+      if (la < 1e-6 || lb < 1e-6) continue;
+      const double cosd = (ax*bx + ay*by) / (la * lb);
+      if (cosd < -0.87) {          // direction change > 150 deg
+        planner.addStopXY(wx[k], wy[k]);
+        printf("[plan] reversal at (%.1f, %.1f) registered as a stop "
+               "(%.0f deg turn - curvature cannot see it)\n",
+               wx[k], wy[k], std::acos(std::max(-1.0, cosd)) * 57.2958);
+      }
+    }
     hold_stop_n[1] = nav.waypoint(nav.count() - 1).north;
     hold_stop_e[1] = nav.waypoint(nav.count() - 1).east;
     planner.plan(wx, wy, 0.10, false, corridor);

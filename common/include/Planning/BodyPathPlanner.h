@@ -321,7 +321,19 @@ class BodyPathPlanner {
      * (body knocked to face away from the path): pivot back onto it at a
      * creep instead of arcing at cruise.
      */
-    if (ex < 0.0) {
+    // ONLY pivot from a genuine creep. Snapping the speed command from
+    // cruise to v_min with full yaw is a violent discontinuity against the
+    // body's own momentum: measured on the out-and-back, where a 180 turn
+    // put the target behind the nose while the profile still said 3.00 m/s
+    // (see below), the pivot fired and flipped the dog outright
+    // (roll 52 / pitch 69). The branch exists for super-acute vertices the
+    // profile has ALREADY braked to a crawl for - the star's 162 deg
+    // opening corner plans ~0.04 m/s - so require that braking to have
+    // happened before pivoting. If the target is behind the nose at speed,
+    // the honest answer is that the plan is wrong, and steering harder at
+    // 3 m/s cannot rescue it; hold the normal clamped pursuit and let the
+    // profile brake.
+    if (ex < 0.0 && vplan <= 4.0 * _lim.v_min) {
       w = (ey >= 0.0) ? _lim.yaw_rate_max : -_lim.yaw_rate_max;
       vcmd = std::min(vplan, _lim.v_min);
       // DIAGNOSTIC (behaviour unchanged): if this branch ever fires at
