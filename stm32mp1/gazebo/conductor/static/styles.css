@@ -93,6 +93,11 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .slot-row select:focus, .slot-row input:focus { outline: none; border-color: var(--accent); }
 .slot-remove { align-self: flex-start; padding: 0.15rem 0.4rem; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.9rem; }
 .slot-remove:hover { color: var(--warn); }
+.gait-warning {
+  margin: 0 !important; padding: 0.2rem 0.4rem; background: rgba(196, 92, 58, 0.15);
+  border: 1px solid var(--warn); color: var(--warn) !important; font-size: 0.68rem !important;
+}
+.gait-warning-dot { color: var(--warn); font-size: 0.7rem; }
 
 .add-slot {
   width: 100%; padding: 0.45rem; margin-bottom: 0.6rem; border: 1px dashed #3a4840; background: transparent;

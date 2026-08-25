@@ -89,6 +89,14 @@ let slots = DEFAULT_MISSIONS.map((m, i) => ({
 
 function kindOf(spec) { return spec.split(":")[0]; }
 
+// state.recipes stores gait as the numeric index server.py/GAITS use
+// internally; the draft slots (and this UI) store it as the name string
+// the <select> shows. One place to convert between them so the mission-
+// change handler and the mismatch warning below can never disagree.
+function gaitNameForIndex(idx) {
+  return Object.keys(state.gaits || {}).find(name => state.gaits[name] === idx);
+}
+
 function renderSlots() {
   const el = document.getElementById("slots");
   // Only an ACTIVE fleet locks the draft - "done" used to leave every input
@@ -96,9 +104,24 @@ function renderSlots() {
   const locked = state.phase === "launching" || state.phase === "running";
   el.innerHTML = slots.map((s, i) => {
     const recipe = state.recipes[kindOf(s.mission)] || {};
+    // Flag any drift from this course's own measured-good combo - a gait
+    // swap that leaves a stale gait/speed behind (the bug that spun the
+    // atom out running trotRunning@3.5, star/oval's profile, under a note
+    // that still read "trotting @ 2.1") used to fail silently. The mission
+    // change now snaps both together, but the gait/speed fields stay
+    // freely editable afterward (some A/B work wants that), so this warns
+    // rather than blocks whenever the ACTIVE combo has drifted from the
+    // recipe, from either side.
+    const recipeGait = recipe.gait !== undefined ? gaitNameForIndex(recipe.gait) : null;
+    const gaitOff = recipeGait && s.gait !== recipeGait;
+    const speedOff = typeof recipe.speed === "number" && Math.abs(s.speed - recipe.speed) > 0.05;
+    const offRecipe = gaitOff || speedOff;
     return `<div class="play-card active">
       <h3>Dog ${i} <small>${(recipe.note || "").split(" - ")[1] || ""}</small></h3>
       <p>${recipe.note || ""}</p>
+      ${offRecipe ? `<p class="gait-warning">&#9888; not this course's validated combo - ` +
+        `recipe: ${recipeGait || "?"} @ ${recipe.speed} m/s` +
+        `${recipe.extra ? " (" + recipe.extra + ")" : ""}</p>` : ""}
       <div class="slot-row">
         <label>Mission
           <select data-i="${i}" data-f="mission" ${locked ? "disabled" : ""}>
@@ -107,12 +130,12 @@ function renderSlots() {
                 ${kindOf(s.mission) === k ? "selected" : ""}>${MISSION_LABEL[k]}</option>`).join("")}
           </select>
         </label>
-        <label>Gait
+        <label>Gait${gaitOff ? ' <span class="gait-warning-dot" title="not the recipe gait">&#9888;</span>' : ""}
           <select data-i="${i}" data-f="gait" ${locked ? "disabled" : ""}>
             ${GAITS.map(g => `<option ${s.gait === g ? "selected" : ""}>${g}</option>`).join("")}
           </select>
         </label>
-        <label>Speed cmd (m/s)
+        <label>Speed cmd (m/s)${speedOff ? ' <span class="gait-warning-dot" title="not the recipe speed">&#9888;</span>' : ""}
           <input type="number" step="0.1" min="0.3" max="3.9" value="${s.speed}"
                  data-i="${i}" data-f="speed" ${locked ? "disabled" : ""}>
         </label>
@@ -197,8 +220,7 @@ function renderSlots() {
       if (f === "mission") {
         const recipe = state.recipes[kindOf(slots[i].mission)];
         if (recipe) {
-          const gaitName = Object.keys(state.gaits || {}).find(
-            name => state.gaits[name] === recipe.gait);
+          const gaitName = gaitNameForIndex(recipe.gait);
           if (gaitName) { slots[i].gait = gaitName; body.gait = gaitName; }
           const cap = (state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[slots[i].model || "edu"] ?? 3.9;
           slots[i].speed = Math.min(recipe.speed, cap);
