@@ -243,7 +243,9 @@ def mission_kind(spec):
     # recipe comes back empty and launch() dies on recipe["note"] - i.e.
     # the dash course could not be launched from the panel AT ALL, and the
     # failure was silent except for a KeyError in the server log.
-    return "dash" if kind == "outback" else kind
+    # "dash:<m>" is the real straight sprint; "outback:<m>" is the legacy
+    # out-and-back (100 out, 100 BACK) and is NOT what the panel means by dash.
+    return "dash" if kind in ("outback", "dash") else kind
 
 
 def clamp_speed(v, cap, model=None):
@@ -731,6 +733,17 @@ class Fleet:
 
         except Exception as e:  # noqa: BLE001 - report, don't crash the server
             self._note("launch error: %r" % e)
+            with self.lock:
+                self.phase = "error"
+        except SystemExit as e:
+            # A helper (e.g. mission_waypoints on an unrecognised mission
+            # kind) raising SystemExit instead of a plain Exception used to
+            # kill this thread SILENTLY - threading swallows SystemExit at
+            # the bootstrap level with no traceback, so phase stayed
+            # "launching" forever with no error logged anywhere. Caught here
+            # so every launch failure is visible, not just the ones that
+            # happen to raise Exception.
+            self._note("launch error (SystemExit): %s" % e)
             with self.lock:
                 self.phase = "error"
 

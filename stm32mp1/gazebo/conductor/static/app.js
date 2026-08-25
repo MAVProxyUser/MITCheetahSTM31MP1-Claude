@@ -103,7 +103,7 @@ function renderSlots() {
         <label>Mission
           <select data-i="${i}" data-f="mission" ${locked ? "disabled" : ""}>
             ${Object.keys(MISSION_LABEL).map(k =>
-              `<option value="${k === "dash" ? "outback:100" : k + (k === "star" ? ":10.514:5" : k === "oval" ? ":40:5.0" : ":9.0:6")}"
+              `<option value="${k === "dash" ? "dash:100" : k + (k === "star" ? ":10.514:5" : k === "oval" ? ":40:5.0" : ":9.0:6")}"
                 ${kindOf(s.mission) === k ? "selected" : ""}>${MISSION_LABEL[k]}</option>`).join("")}
           </select>
         </label>

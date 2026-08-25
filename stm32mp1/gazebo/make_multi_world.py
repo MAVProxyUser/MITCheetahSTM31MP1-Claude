@@ -74,7 +74,13 @@ def mission_bbox(spec):
         S = f[0]
         R = f[1] if len(f) > 1 else 3.0
         return (-R, S + R, 0.0, 2.0 * R)
-    if kind == "outback":
+    if kind in ("outback", "dash"):
+        # WaypointNav::makeDash is a single waypoint `d` metres due north;
+        # makeOutAndBack adds the return leg along the same line. Both span
+        # 0..d north and nothing east. (A dash slot that also carries a
+        # WP_DASH finish extends further north, but the fleet layout adds
+        # its own margin on top of the bbox, so this stays the course's own
+        # extent rather than guessing at the finish.)
         d = f[0]
         return (0.0, d, 0.0, 0.0)
     return None

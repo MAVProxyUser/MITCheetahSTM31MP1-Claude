@@ -3635,3 +3635,123 @@ feed `/api/state`'s `log` array already carries. Added specifically because
 diagnosing the interlude fall above needed exact tick-level text that the
 curated feed does not carry, and pulling it by hand meant SSH-ing into a
 scratch directory instead of one `curl`.
+
+## The standalone dash: it was never a reversal, and never needed one (2026-08-25)
+
+The panel's "dash" mission was wired to `WaypointNav::makeOutAndBack` -
+100 m out and 100 m BACK, a 180-degree reversal at the far end. A whole
+line of work (pivot-follower ramping, reversal-as-planner-stop) went into
+making that reversal survivable, on the unquestioned assumption that a
+"100 m dash" mission necessarily contains one. Per direct correction ("wtf
+do you mean 'turned around' and 'target' it should be the final
+waypoint!"), it should never have had a reversal at all: a dash is ONE
+straight leg, ending at its own final waypoint. `WaypointNav::makeDash()`
+now does exactly that (`stm32mp1/gazebo/WaypointNav.{hpp,cpp}`), wired
+ahead of the `outback:` branch in `mit_sim_main.cpp`'s `navThread()` so
+`dash:100` never falls through to the old course. The pivot-ramp and
+reversal-registration code from the earlier line of work is KEPT - it is
+correct for `outback:100` or any future course with a genuine reversal -
+it is just no longer what "dash" means in the panel.
+
+This is UNRELATED to (and does not replace) the existing "dash-as-finish"
+mechanic (`appendDash()`, `$WP_DASH`, documented above under "The
+Conductor"): that one tacks a straight sprint onto the END of a star/
+oval/atom loop, continuing from wherever the loop closes, with the full
+stop/lie-down/stand-back-up interlude in between. The panel's standalone
+"dash" mission is the OTHER case - the sprint IS the whole mission, so it
+needs no interlude at all, just the ordinary end-of-mission decelerate/
+settle/lie-down every mission already does. `mit_sim_main.cpp` already
+gates the interlude on `dash_pending` (true only when `$WP_DASH` is set to
+append a finish onto a loop) - a bare `makeDash()` mission has `_n=1`, so
+neither the mid-path stop nor the reversal-detection loop (which needs
+>=3 collinear points to fire) ever engages. No pre-planner change was
+needed for this half; it was already structurally correct once the
+mission itself stopped being a reversal.
+
+**Two more places silently assumed "dash" meant "outback", found chasing
+the launch failures below - the same class of bug, twice more:**
+
+1. `make_multi_world.py::mission_bbox()` had no `"dash"` case, so building
+   a fleet world for `dash:100` returned `None` and the whole launch died
+   with `world build FAILED: not a mission spec: 'dash:100'`. Added,
+   mirroring `outback`'s bbox shape (both span 0..d north, 0 east).
+2. `trail_daemon.py::mission_waypoints()` (imported into `server.py` to
+   plan the drawn/flown overlay) also had no `"dash"` case - and its
+   fallback is `raise SystemExit(f"unknown mission spec: {spec}")`, not a
+   normal exception. **`SystemExit` is a `BaseException`, not an
+   `Exception`, so the launch thread's `except Exception` never saw it -
+   threading's bootstrap swallows an uncaught `SystemExit` in a non-main
+   thread with NO traceback at all.** The launch thread just died,
+   silently, after printing "wrote fleet.sdf" and before "starting Gazebo
+   HEADLESS" - phase stuck at `launching` forever, no error logged
+   anywhere, no gz/bridge/controller process ever started. This is a worse
+   failure mode than a normal crash precisely because it produces NO
+   evidence. Fixed two ways: added the missing `dash` case (mirrors
+   `makeDash`: `[(d, 0.0)]`, one point, no return leg), and added a second
+   `except SystemExit` clause in `server.py`'s `_run()` so this WHOLE
+   CLASS of bug (any future helper that raises `SystemExit` on an
+   unrecognised spec) surfaces as `phase="error"` with a note instead of
+   wedging silently. `mission_viz.py`'s standalone copy of the same
+   function got the same one-line fix for consistency, though it is not on
+   the server's live path.
+
+Verified: two consecutive solo `dash:100` runs, 30.5-30.6 s each, `settled
+on its feet ... -> ok`, `lying down ... -> ok`, `mission result: PASS`.
+
+## `mission_runner.py`: a proper launcher, replacing the ad-hoc `.sh` scripts
+
+Per direct instruction ("stop using .sh scripts to launch the processes
+and make yourself a proper python launcher that ends properly and reads
+logs properly without just hanging indefinitely"). Lives in
+`stm32mp1/gazebo/conductor/mission_runner.py`, talks ONLY to the
+conductor's REST API - never touches gz/bridge/controller processes
+directly, so it structurally cannot cause the "harness kills a legit run"
+class of bug this file already documents.
+
+```
+python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90
+python3 stm32mp1/gazebo/conductor/mission_runner.py \
+  --slot "star:10.514:5" --slot "oval:40:5.0" --slot "atom:9.0:6" \
+  --gait trotRunning --gait trotRunning --gait trotting \
+  --speed 3.5 --speed 3.5 --speed 2.1 \
+  --dash 100 --dash 100 --dash 100 --timeout 300
+```
+
+Two bounded timeouts, not one: `--timeout` (overall wall-clock budget) AND
+`--stall-timeout` (abort if no NEW orchestration log line appears for N
+seconds). The second is what actually caught the `SystemExit` bug above
+live, on the first real run: the script printed the world-build lines,
+then correctly declared `TIMEOUT: no new log line for 45s - run appears
+wedged, stopping` and called `/api/stop` itself, instead of hanging the
+terminal the way a fixed `sleep`-loop `.sh` script would have. That is the
+whole point of a stall timeout distinct from an overall one - a wedge that
+happens 5 seconds into launch and a wedge that happens 5 seconds before a
+300 s budget expires should both be caught quickly, not just eventually.
+
+Two more traps hit and fixed while writing it, both worth keeping in mind
+for any future harness against this same server:
+
+- **`/api/state`'s `log` array is a sliding window, not a growing log**
+  (`self.log[-60:]` server-side). A naive "diff by length since last poll"
+  either skips lines (window advanced past what was counted) or reprints
+  stale ones once a run passes 60 orchestration lines - exactly the kind
+  of subtle harness bug that produces a wrong verdict without ever
+  raising an error. Fixed by tracking the last line actually printed and
+  finding its most recent occurrence in each new window, printing only
+  what comes after it (falling back to printing the whole window if that
+  line aged out entirely, rather than silently dropping lines) - and every
+  streamed line is also accumulated into a local buffer so the final
+  PASS/FAIL count is never at the mercy of the last snapshot's 60-line cap
+  either.
+- **The verdict strings have to match the CURATED log wording, not the
+  raw controller log's.** A first version matched `"[mission] RESULT:
+  PASS"` - the string `server.py`'s `EVENT_PATTERNS` regex matches
+  *inside* each dog's raw `ctrl_%d.log` - but that raw string never
+  appears in `/api/state`'s `log` array, which instead carries
+  `EVENT_PATTERNS`' own reformatted output, `"dog%d: mission result:
+  %s"`. Guessing at the wrong layer's string reported a run that had
+  actually printed `mission result: PASS` and settled cleanly as a FAIL,
+  on the very first live test - a self-inflicted instance of the "harness
+  reads the wrong thing and produces a false verdict" trap this file
+  already warns about elsewhere, caught immediately by comparing the
+  runner's own verdict against the raw log rather than trusting it blind.

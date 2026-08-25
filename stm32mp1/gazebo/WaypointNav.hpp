@@ -40,6 +40,8 @@ class WaypointNav {
   //! Build a closed circle of breadcrumbs (the mission we fly first).
   void makeCircle(float radius_m, int points, float speed);
   //! Straight there-and-back, for speed measurement runs.
+  //! Straight sprint of `distance_m` due north, ending at that waypoint.
+  void makeDash(float distance_m, float speed);
   void makeOutAndBack(float distance_m, float speed);
   /*! Append ONE more waypoint after whatever mission is already built, so a
    *  closed loop (star/oval/atom) gets a straight finishing sprint instead of

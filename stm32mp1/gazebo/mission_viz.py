@@ -64,6 +64,9 @@ def mission_waypoints(spec):
     if kind == "outback":
         d = float(rest[0])
         return [(d, 0.0), (0.0, 0.0)]
+    if kind == "dash":
+        d = float(rest[0])
+        return [(d, 0.0)]
     raise SystemExit(f"unknown mission spec: {spec}")
 
 

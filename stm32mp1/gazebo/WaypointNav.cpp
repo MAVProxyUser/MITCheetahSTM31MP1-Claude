@@ -297,6 +297,32 @@ void WaypointNav::makeOval(float straight_m, float radius_m,
   fflush(stdout);
 }
 
+/*
+ * THE 100 m DASH: a STRAIGHT SPRINT THAT ENDS AT ITS FINAL WAYPOINT.
+ *
+ * The panel's "dash" used to be wired to makeOutAndBack, i.e. 100 m out
+ * and 100 m BACK - 200 m with a 180 degree reversal in the middle. That is
+ * a different course, and a nasty one: pure pursuit is geometrically
+ * incapable of a reversal (a target directly behind has zero cross-track
+ * error, so there is nothing to steer on), and the reversal is invisible
+ * to curvature as well (three collinear points give kappa ~ 0). Every
+ * dash failure chased for hours was that phantom turnaround, not the
+ * sprint.
+ *
+ * A dash is one leg, due north, ending where it ends - the same thing
+ * appendDash() tacks onto the star/oval/atom, just standing alone. The
+ * end-of-mission stop then brakes into the final waypoint exactly as it
+ * does on every other course.
+ */
+void WaypointNav::makeDash(float distance_m, float speed) {
+  _n = 1;
+  _wp[0] = {distance_m, 0.f, speed};
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] dash mission: %.1f m straight, ending at the final waypoint, "
+         "at %.2f m/s\n", distance_m, speed);
+  fflush(stdout);
+}
+
 void WaypointNav::makeOutAndBack(float distance_m, float speed) {
   _n = 2;
   _wp[0] = {distance_m, 0.f, speed};

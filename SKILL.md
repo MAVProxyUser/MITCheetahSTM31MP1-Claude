@@ -648,6 +648,29 @@ ordinary scheduler jitter, zeroed a 3.00 m/s command in one tick and
 flipped the dog - destroying both a good run and the evidence. A mitigated
 run tells you nothing about what the hazard would have done.
 
+**Use `mission_runner.py`, not a bespoke `.sh` script, to launch and verify
+a run.** Per direct instruction to stop writing throwaway shell scripts
+that can hang forever: `stm32mp1/gazebo/conductor/mission_runner.py` talks
+only to the conductor's REST API, has a genuine `--timeout` AND a
+`--stall-timeout` (no new orchestration log line for N seconds = abort and
+call `/api/stop` itself, rather than sitting in a fixed `sleep` loop until
+a caller notices), and its own two harness bugs from the session that
+wrote it are worth not repeating in a future one: `/api/state`'s `log`
+array is a sliding 60-line window, not a growing log, so a length-diff
+across polls silently skips or reprints lines - track the last line
+printed and resync off its most recent position instead; and the verdict
+must match the CURATED wording (`"dog%d: mission result: %s"`), not the
+RAW controller log's `"[mission] RESULT: %s"` that only exists inside
+`ctrl_%d.log` - the two look interchangeable and are not, and guessing at
+the wrong one silently turns every PASS into a reported FAIL.
+
+```bash
+python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90
+python3 stm32mp1/gazebo/conductor/mission_runner.py \
+  --slot "star:10.514:5" --slot "oval:40:5.0" --slot "atom:9.0:6" \
+  --dash 100 --dash 100 --dash 100 --timeout 300
+```
+
 ## The Conductor fleet panel (`stm32mp1/gazebo/conductor/`)
 
 ```bash

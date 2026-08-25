@@ -321,33 +321,45 @@ class BodyPathPlanner {
      * (body knocked to face away from the path): pivot back onto it at a
      * creep instead of arcing at cruise.
      */
-    // ONLY pivot from a genuine creep. Snapping the speed command from
-    // cruise to v_min with full yaw is a violent discontinuity against the
-    // body's own momentum: measured on the out-and-back, where a 180 turn
-    // put the target behind the nose while the profile still said 3.00 m/s
-    // (see below), the pivot fired and flipped the dog outright
-    // (roll 52 / pitch 69). The branch exists for super-acute vertices the
-    // profile has ALREADY braked to a crawl for - the star's 162 deg
-    // opening corner plans ~0.04 m/s - so require that braking to have
-    // happened before pivoting. If the target is behind the nose at speed,
-    // the honest answer is that the plan is wrong, and steering harder at
-    // 3 m/s cannot rescue it; hold the normal clamped pursuit and let the
-    // profile brake.
-    if (ex < 0.0 && vplan <= 4.0 * _lim.v_min) {
-      w = (ey >= 0.0) ? _lim.yaw_rate_max : -_lim.yaw_rate_max;
-      vcmd = std::min(vplan, _lim.v_min);
-      // DIAGNOSTIC (behaviour unchanged): if this branch ever fires at
-      // cruise-plan speeds it is a violent command discontinuity (stick
-      // snapped from vplan to v_min in one tick) and a candidate cause of
-      // mid-curve falls - it is only MEANT to fire at planned-creep
-      // vertices (the star hairpin plans ~0.04). Throttled print so a
-      // burst shows up once, not 500 times.
-      static int pivot_fires = 0;
-      if ((pivot_fires++ % 50) == 0) {
-        printf("[follow] PIVOT fired (n=%d): vplan=%.2f ex=%.2f ey=%.2f\n",
-               pivot_fires, vplan, ex, ey);
-        fflush(stdout);
-      }
+    /*
+     * TARGET BEHIND THE NOSE -> PIVOT, BUT RAMP INTO IT. NEVER SNAP.
+     *
+     * Two failures got us here, and they are opposite ends of the same
+     * mistake. First version snapped the command from cruise to v_min with
+     * full yaw the instant ex<0: on the out-and-back's 180 that flipped the
+     * dog outright (roll 52 / pitch 69). Gating it to creep speed then made
+     * it strictly worse - the gate never opened (plan braked only to 1.96
+     * against a 1.0 threshold), the pivot never fired, and because a target
+     * DIRECTLY BEHIND has zero cross-track error, pure pursuit commanded
+     * w=-0.02 and the dog drove straight past the turnaround forever,
+     * 115 m and counting.
+     *
+     * The lesson: pure pursuit is geometrically INCAPABLE of a reversal -
+     * ey ~ 0 when the target is straight back, so there is no error to
+     * steer on. The pivot is the only thing that can turn the body around,
+     * so it must always be available. What must never happen is the STEP.
+     * So: bleed the speed command down toward v_min at a bounded rate, and
+     * turn at the lateral-acceleration-limited rate for whatever speed the
+     * body is actually being asked for. That spirals into the reversal
+     * instead of stamping on it, and it self-tightens as the speed drops.
+     */
+    if (ex < 0.0) {
+      // Bounded bleed-down (~3 m/s^2 at a 50 Hz nav loop) instead of a step.
+      if (_pivotV <= 0.0) _pivotV = vplan;
+      _pivotV = std::max(_lim.v_min, _pivotV - 0.06);
+      vcmd = std::min(vplan, _pivotV);
+      // Turn as hard as lateral acceleration allows AT THIS SPEED - the same
+      // budget the profile uses everywhere else, so the roll cost is bounded.
+      const double w_af = (vcmd > 1e-3) ? _lim.a_lat_max / vcmd : _lim.yaw_rate_max;
+      const double w_piv = std::min(_lim.yaw_rate_max, w_af);
+      // Commit to a side. ey ~ 0 at a true reversal, so a sign test on ey
+      // alone dithers; bias by ey when it is meaningful, else hold the last
+      // direction so the dog does not oscillate about the reversal.
+      if (std::fabs(ey) > 0.05) _pivotDir = (ey >= 0.0) ? 1.0 : -1.0;
+      else if (_pivotDir == 0.0) _pivotDir = 1.0;
+      w = _pivotDir * w_piv;
+    } else {
+      _pivotV = -1.0; _pivotDir = 0.0;   // out of the reversal - rearm
     }
 
     *vx = vcmd;
@@ -511,6 +523,10 @@ class BodyPathPlanner {
   std::vector<double> _extraCap;
   size_t _lastIdx = 0;
   bool _alonExplicit = false;
+  //! Pivot state: ramped speed command and committed turn direction while a
+  //! steering target sits behind the nose (see follow()). -1 / 0 = rearmed.
+  double _pivotV = -1.0;
+  double _pivotDir = 0.0;
   //! Mid-path stop points (world x,y) - see addStopXY. Resolved to the
   //! nearest path index at profile time, so they survive a re-plan.
   std::vector<std::pair<double, double>> _stopsXY;

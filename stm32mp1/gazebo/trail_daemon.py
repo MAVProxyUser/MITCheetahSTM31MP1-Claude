@@ -137,6 +137,11 @@ def mission_waypoints(spec):
     if kind == "outback":
         d = float(rest[0])
         return [(d, 0.0), (0.0, 0.0)]
+    if kind == "dash":
+        # Mirrors WaypointNav::makeDash - a single straight leg due north,
+        # ending AT that waypoint (no return leg, unlike outback).
+        d = float(rest[0])
+        return [(d, 0.0)]
     if kind == "atom":
         # Mirrors WaypointNav::makeAtom, including the tangential entry: the
         # curve is JOINED where its tangent is radial (roots of p x v = 0 with

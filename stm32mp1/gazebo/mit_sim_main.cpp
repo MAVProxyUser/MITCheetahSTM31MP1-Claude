@@ -95,6 +95,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
                  getenv("WP_ATOM_DS")    ? atof(getenv("WP_ATOM_DS"))    : 1.2f, vx);
   }
   else if (sscanf(mission, "circle:%f:%d", &r, &pts) >= 1) nav.makeCircle(r, pts, vx);
+  else if (sscanf(mission, "dash:%f", &d) == 1)            nav.makeDash(d, vx);
   else if (sscanf(mission, "outback:%f", &d) == 1)         nav.makeOutAndBack(d, vx);
   else                                                     nav.makeStar(5.3f, 5, vx);
 
