@@ -4251,3 +4251,96 @@ the operator had already flagged from a live screenshot - the bright
 (flown) track visibly cuts inside the dim (planned) polygon's sharp
 vertices - now captured automatically as report evidence instead of
 needing a live screenshot at the right moment.
+
+## Sector's corners tightened to star's own standard, via a standalone planner probe
+
+Per direct request, after the report above put a number on the
+corner-rounding: "start attacking the pre-planner fixes to allow this
+current shape to be followed as tightly as the star." The
+`BodyPathPlanner.h`/`MissionAnalyzer.h` code itself had already been
+confirmed (see the section above) to be byte-identical across every
+commit in this file - so this was never "the planner is broken for the
+new missions", it was "the planner's corner-grading CALIBRATION was
+tuned against exactly two data points (star's own 144/162 deg corners)
+and never validated at any other angle."
+
+**Measured, not re-derived by hand.** Built a standalone probe
+(`planner_probe.cpp`, kept in scratch alongside the existing
+`test_missions.cpp`, not committed - same convention) that links the
+REAL `WaypointNav.cpp` and the REAL `BodyPathPlanner.h` with no Gazebo
+dependency, generates a mission's actual waypoints, runs them through
+`plan()` with that mission's actual recipe parameters, and dumps every
+fillet corner's direction-change angle, radius, and commanded speed. On
+star and sector's baseline tuning:
+
+```
+star:   144 deg corner -> R=0.191m v=0.229m/s   (162 deg tip -> R=0.028m v=0.033m/s)
+sector: 120 deg corner -> R=0.830m v=0.996m/s   (dominant angle, 10 of 15 corners)
+```
+
+Sector's typical corner was planned 4x WIDER and 4x FASTER than star's
+mildest corner - by geometry, not by a tracking failure. Root cause: the
+corridor-grading curve (`BodyLimits::corridor_scale_min`, engaged by
+`WP_CORRIDOR_MIN=0.1` in both recipes) ramps linearly from full corridor
+at `turn_soft` (80 deg) to the graded minimum at `turn_hard` (160 deg).
+Star's two corner angles (144/162 deg) sit 80-100% up that ramp. Sector's
+dominant 120 deg angle sits only ~50% up the SAME ramp - the mechanism
+that makes star's corners tight was firing at roughly half strength on
+sector, never touched or validated for an angle in between.
+
+**Fix, scoped to one recipe.** `WP_TURN_SOFT`/`WP_TURN_HARD` already
+existed as env-var hooks in `mit_sim_main.cpp` (added for exactly this
+kind of tuning) but no recipe had ever set them. Swept candidate
+(turn_soft, turn_hard) pairs through the probe until sector's dominant
+corner landed in star's own ballpark:
+
+```
+turn_soft=0.8 rad (46deg), turn_hard=2.0 rad (115deg):
+  sector 120 deg corner -> R=0.150m v=0.180m/s   (was 0.830m / 0.996m/s)
+  sector 147.5 deg (cycle-boundary) -> R=0.058m  (tighter than star's own tip)
+```
+
+Added to `sector`'s `RECIPES` entry ONLY (`server.py`). `WP_TURN_SOFT`/
+`WP_TURN_HARD` default to 1.4/2.8 rad when unset, so star/oval/atom/dash
+and every other mission's recipe is untouched - confirmed by re-running
+star through the fixed harness afterward: PASS 69.0s, matching its
+established baseline exactly.
+
+**Live result**: sector:15:3 PASS 141.3s (was 112.8s untightened) - a
+report plot (`run83_report.png`) shows the flown track hugging every
+vertex with no visible rounding anywhere on the course, a stark contrast
+to the same plot before the fix. The time cost (+28.5s, ~25%) is the
+expected price of a tighter racing line - hugging a vertex instead of
+cutting it is a longer path at a lower cornering speed, not a free
+change, and is exactly the tradeoff that was asked for ("as tightly as
+the star", not "as fast as possible").
+
+**A real bug in the test harness, caught mid-investigation, fixed
+separately from the planner tuning.** The first attempt to test the new
+tuning launched sector's waypoints at star's gait/speed/dash
+(trotRunning, 3.5 m/s, dash=100) instead of sector's own (walking, 2.0
+m/s, no dash) - `mission_runner.py`'s docstring had always claimed
+omitted `--gait`/`--speed` "fall back to that mission's own recipe
+default", but `/api/slots/{i}` only OVERWRITES fields it is explicitly
+given; there is no server-side recipe lookup for an omitted field (that
+lookup lives in the browser's own JS). A server restart (for the
+`RECIPES` edit above) reset the draft slot to server.py's hard-coded
+default, and the claim in the docstring turned out to have never been
+true - it happened to work before only because whatever a human or an
+earlier script call left sitting in that slot's other fields was
+usually already correct. Fixed by having `mission_runner.py` look up
+`state["recipes"][kind]` itself and explicitly resolve gait/speed
+whenever the matching flag is omitted. Caught a SECOND bug applying the
+first fix: recipe gait is stored as the numeric `SIM_GAIT` id (e.g. 20
+for walking), but `/api/slots/{i}` validates gait by NAME against
+`GAITS` (name -> id) - sending the id back verbatim silently failed that
+check and dropped the field, the exact same class of silent
+carryover the fix was trying to close. Fixed with a reverse
+id->name lookup. And a THIRD, on `extra`: `launch()` already prepends
+`RECIPES[kind]["extra"]` to the slot's own extra field automatically
+(`server.py:598`), so defaulting the omitted case to a COPY of the
+recipe's extra doubled every token in the locked launch line (harmless -
+env `A=1 A=2` keeps the last - but confusing and wrong). Fixed by
+defaulting the omitted case to an explicit `""` instead, which also
+closes a carryover path of its own (a stale custom `--extra` from an
+earlier call on the same slot).
