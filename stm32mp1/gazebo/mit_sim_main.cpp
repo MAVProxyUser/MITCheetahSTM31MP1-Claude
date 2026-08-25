@@ -968,106 +968,31 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
      * spin, roll < 1.5 deg, nothing falls - see the yaw envelope results).
      */
     /*
-     * HOST-STALL SAFE HOLD (see the detector in RobotRunner::run()).
+     * HOST-STALL: DETECT AND LOG ONLY. NO INTERVENTION.
      *
-     * A stalled host multiplies every commanded force by however long the
-     * tick actually took, so the worst thing the mission can do is keep
-     * sprinting into it. Instead, degrade the way an operator would:
+     * This block used to pause the mission, lie the dog down and stand it
+     * back up. That was a mistake and it is removed. A single 4.8 ms tick -
+     * ordinary scheduler jitter on a machine sitting at 24% CPU - tripped
+     * it mid-dash, it zeroed a 3.00 m/s command in one tick, and the dog
+     * flipped to roll=154. The "safety" response destroyed a run that was
+     * otherwise perfect and, worse, destroyed the EVIDENCE: a mitigated run
+     * tells you nothing about what the stall would actually have done.
      *
-     *   1. STOP TRANSLATING immediately - the stick goes to zero, and the
-     *      gait keeps stepping in place under zeroVelHold rather than
-     *      freezing (a moving robot commanded to hold still is far more
-     *      stable than one whose gait is cut mid-stride).
-     *   2. If the stall PERSISTS past $SIM_STALL_LIEDOWN_S, LIE DOWN under
-     *      control - the same PASSIVE-hop -> STAND_UP-low -> damped-hold
-     *      sequence the mission already uses at its end, with both
-     *      detectors suspended so the deliberate crouch is not read as a
-     *      collapse.
-     *   3. When the host is clean again, STAND BACK UP through the staged
-     *      entry (STAND_UP -> BALANCE_STAND -> LOCOMOTION) and resume the
-     *      mission from where it stopped, re-arming the speed ramp so the
-     *      dog eases back to cruise instead of stepping to it.
-     *
-     * NOTE on "trot in place": commanding zero velocity is what produces
-     * it, and zeroVelHold hands over to the standing gait after 50 ms.
-     * Holding the TROT at zero velocity for longer was measured directly
-     * (CTRL_ZEROVEL_HOLD=600) and made stops WORSE - 7 of 8 arrivals
-     * tipped - so the hold deliberately stops translating without
-     * stretching the trot out. See the note at zeroVelHold().
+     * Per direct instruction: the dog can fall on its own. Record where and
+     * when the stall landed so the data is analysable, and let the run play
+     * out honestly. The detector in RobotRunner::run() prints the period
+     * itself; this adds the mission context (waypoint, speed) that makes it
+     * possible to line a stall up against an outcome afterwards.
      */
     if (hostStallActive()) {
-      const float stall_t0 = elapsed();
-      static const float liedown_after =
-          getenv("SIM_STALL_LIEDOWN_S") ? atof(getenv("SIM_STALL_LIEDOWN_S")) : 3.0f;
-      printf("[nav] HOST STALL at t=%.1fs (wp%d/%d) - easing to a stop\n",
-             stall_t0, nav.activeIndex(), nav.count());
-      fflush(stdout);
-      /*
-       * RAMP DOWN - do not step. Zeroing the stick in one tick is itself a
-       * violent discontinuity, and at sprint speed it is far more dangerous
-       * than the jitter that triggered it: a single 4.8 ms tick during the
-       * dash zeroed a 3.00 m/s command and flipped the dog to roll=154.
-       * A safety response that is more damaging than the hazard is not a
-       * safety response. Same short-and-sharp shape the stop sequences use,
-       * with steering left live so the dog keeps tracking while it sheds
-       * speed instead of braking blind.
-       */
-      {
-        const float v_at_stall = bridge->driverCommand().leftStickAnalog[1];
-        for (int k = 15; k >= 0; --k) {
-          bridge->driverCommand().leftStickAnalog[1] = v_at_stall * (float)k / 15.f;
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-      }
-      bridge->driverCommand().leftStickAnalog[1]  = 0.f;
-      bridge->driverCommand().rightStickAnalog[0] = 0.f;
-
-      bool lay_down = false;
-      while (hostStallActive()) {
-        if (!lay_down && elapsed() - stall_t0 > liedown_after) {
-          lay_down = true;
-          printf("[nav] stall persisting %.1fs - lying down until the host recovers\n",
-                 elapsed() - stall_t0);
-          fflush(stdout);
-          setFallZEnable(false);
-          setOrientTripEnable(false);
-          setEdamp(8.0);
-          bridge->setControlMode(0);               // K_PASSIVE (damped through)
-          std::this_thread::sleep_for(std::chrono::milliseconds(20));
-          setEdamp(0.0);
-          setStandUpHeight(0.15);
-          bridge->setControlMode(1);               // K_STAND_UP, low = lie down
-          std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-          setEdamp(8.0);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      }
-
-      if (lay_down) {
-        printf("[nav] host clear - standing back up to resume\n");
+      static bool noted = false;
+      if (!noted) {
+        noted = true;
+        printf("[nav] host stall seen at t=%.1fs (wp%d/%d, v=%.2f) - "
+               "NOT intervening, run continues\n",
+               elapsed(), nav.activeIndex(), nav.count(), nv);
         fflush(stdout);
-        // Same PASSIVE hop as the dash interlude, for the same reason -
-        // re-requesting K_STAND_UP while already in it skips onEnter() and
-        // steps the feet instead of interpolating. See that comment.
-        setEdamp(8.0);
-        bridge->setControlMode(0);                 // K_PASSIVE (damped hop)
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        setEdamp(0.0);
-        setStandUpHeight(0.25);
-        bridge->setControlMode(1);                 // K_STAND_UP - fresh onEnter
-        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-        bridge->setControlMode(3);                 // K_BALANCE_STAND
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-        bridge->setControlMode(4);                 // K_LOCOMOTION
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        setFallZEnable(true);
-        setOrientTripEnable(true);
       }
-      restart_t = elapsed();     // ease back to cruise, never step to it
-      printf("[nav] resuming mission at t=%.1fs (wp%d/%d)\n",
-             elapsed(), nav.activeIndex(), nav.count());
-      fflush(stdout);
-      continue;                  // re-read pose next tick rather than acting on stale nav
     }
 
     const float vscale = std::min(1.f, (elapsed() - restart_t) / std::max(0.1f, vx_ramp_s));

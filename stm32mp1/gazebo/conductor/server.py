@@ -138,7 +138,16 @@ RECIPES = {
     # the curves clean AND the full stop/lie-down/stand-up/dash sequence.
     "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.4",
                  note="trotRunning, analyzer, sustained cap 2.4 (re-swept 2026-08-24; 2.6 is past the current envelope)"),
-    "atom": dict(gait=9, speed=2.1, extra="",
+    # THE ATOM HAD NO LATERAL MARGIN AT ALL. Its own planner line said so:
+    # "tightest corner R=1.89m -> 2.10m/s" against cruise 2.10 - the
+    # curvature cap EQUALLED cruise, so the profile never slowed it
+    # anywhere and the whole course ran at ~93% of the a_lat budget. Star
+    # and oval both get real braking margin; the atom got none, which is
+    # why it was the one course that tipped on a transient (reproducibly,
+    # at the first lobe entry, t~11.5s, wp14-16). WP_ALAT=1.8 plans the
+    # lobes at sqrt(1.8*1.89)=1.84 m/s while straights keep 2.10 - margin
+    # exactly where the curvature is, and nowhere else.
+    "atom": dict(gait=9, speed=2.1, extra="WP_ALAT=1.8",
                  note="trotting, bare (analyzer adds nothing here) - 58.97s @ 6/6"),
     "dash": dict(gait=5, speed=3.0, extra="",
                  note="trotRunning straight-line - UNDER REVIEW, see README"),
