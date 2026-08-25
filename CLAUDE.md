@@ -3856,3 +3856,56 @@ curated log at all. `self.procs` mixes gz/bridge/controller Popen objects
 in one flat list, not indexed per dog, so a clean "is dog i's controller
 still alive" check would need its own tracking - not implemented, since
 every wedge seen so far has left a clear text marker to key off.
+
+## "× remove doesn't work well", and the oval-with-dash-checked bug that turned out to be the same bug
+
+Operator report, two symptoms in one message: the remove button on a slot
+"doesn't work well", and separately, a slot with the "100m dash when
+done" checkbox visibly CHECKED did not actually dash at the end of an
+oval run.
+
+**The remove handler used a stale positional index.** `static/app.js`'s
+`[data-remove]` click handler captured `i = +e.target.dataset.remove` at
+render time, spliced the LOCAL `slots` array immediately, fired
+`DELETE /api/slots/i`, and re-rendered - all synchronously, with the
+fetch's response never even read. Removing a slot changes the SERVER
+index of every LATER slot, so any second click (another remove, or any
+other field edit) that fires before the first DELETE's response lands is
+captured against a now-wrong index: it can act on the wrong slot, or send
+an out-of-range DELETE that server-side `draft_remove_slot()` correctly
+rejects (`"no such slot"`) - a rejection the client never even looked at,
+so nothing surfaced the failure. Reproduced directly: firing two remove
+clicks back to back only removed ONE slot locally while still sending a
+DELETE for the OTHER (now out-of-range) index, and depending on request
+ordering the server's draft could end up silently different from what
+the panel displayed - exactly a "doesn't work well" symptom with no error
+anywhere.
+
+Fixed properly, not patched: a module-level `_removing` flag now folds
+into the same `locked` condition that already disables every slot control
+during an active fleet, so the INSTANT a removal starts, every input
+(including the other remove buttons) is disabled - closing the race
+structurally rather than by luck of timing. The handler is now `async`,
+awaits the DELETE response, and adopts the SERVER's own returned slot
+list as truth (`slots = j.slots`), the same server-truth pattern
+`addSlot()` already used. Verified in the browser: right after a click,
+querying every remaining `[data-remove]` button shows `disabled: true`
+until the request resolves, and a second click fired in that window is a
+structural no-op (disabled elements do not dispatch click at all) rather
+than a race that sometimes loses.
+
+**The oval-with-dash symptom was very likely a downstream effect of the
+same bug, not a separate mechanism failure.** Tested the dash mechanism
+directly, isolated from any remove interaction: a solo oval slot with
+`dash=100`, launched through the exact `/api/launch` path the button
+calls, dashed correctly end to end - `loop complete - stopping, lying
+down before the dash finish` -> `back on its feet - dashing the final
+leg` -> `mission result: PASS` at t=83.8s. So the underlying appendDash/
+interlude machinery is not at fault. The credible explanation is that an
+earlier slot removal, racing under the bug above, desynced the oval
+slot's server-side `dash` field from what the checkbox displayed - the
+panel showed checked while the server actually launched with `dash=0`.
+Since the race is now closed structurally, this should not recur; flagged
+here rather than closed outright because it was not reproduced in this
+exact shape (only inferred from the mechanism and the timing of both
+reports arriving together).

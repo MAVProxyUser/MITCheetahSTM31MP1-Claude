@@ -86,6 +86,12 @@ let slots = DEFAULT_MISSIONS.map((m, i) => ({
   cam_front: true, cam_nadir: true, cam_chase: true,
   chase_distance: 3.0, chase_height: 1.2, chase_degree: 90,
 }));
+// True while a slot removal is in flight. Every slot input (including the
+// OTHER remove buttons) gets disabled during it - a removal changes every
+// later slot's index, and any second click/edit captured against the
+// pre-removal index would act on the wrong slot or DELETE an already-
+// shifted one out from under a different slot. See the removal handler.
+let _removing = false;
 
 function kindOf(spec) { return spec.split(":")[0]; }
 
@@ -101,7 +107,7 @@ function renderSlots() {
   const el = document.getElementById("slots");
   // Only an ACTIVE fleet locks the draft - "done" used to leave every input
   // disabled until a manual Stop, which read as the whole UI being broken.
-  const locked = state.phase === "launching" || state.phase === "running";
+  const locked = state.phase === "launching" || state.phase === "running" || _removing;
   el.innerHTML = slots.map((s, i) => {
     const recipe = state.recipes[kindOf(s.mission)] || {};
     // Flag any drift from this course's own measured-good combo - a gait
@@ -237,11 +243,31 @@ function renderSlots() {
     });
   });
   el.querySelectorAll("[data-remove]").forEach(b => {
-    b.addEventListener("click", e => {
+    b.addEventListener("click", async e => {
       const i = +e.target.dataset.remove;
-      slots.splice(i, 1);
-      fetch("/api/slots/" + i, { method: "DELETE" });
+      // Speculatively splicing the LOCAL array here (as this used to do)
+      // raced with itself: a second remove clicked before this one's
+      // response came back captured an index against the PRE-removal
+      // layout, so it could delete the wrong slot server-side, or send an
+      // out-of-range DELETE that silently no-ops while the panel shows
+      // something the server no longer agrees with. Instead: lock every
+      // slot control immediately (via _removing, see renderSlots), wait
+      // for the server's answer, and adopt ITS slot list - the same
+      // server-truth pattern addSlot() already uses - so there is no
+      // window for a second click to act on a stale index.
+      _removing = true;
       renderSlots();
+      try {
+        const r = await fetch("/api/slots/" + i, { method: "DELETE" });
+        const j = await r.json();
+        if (j.ok) slots = j.slots;
+        else alert(j.message || "could not remove slot");
+      } catch (err) {
+        alert("remove failed: " + err);
+      } finally {
+        _removing = false;
+        renderSlots();
+      }
     });
   });
   document.getElementById("addSlot").disabled = locked || slots.length >= 3;
