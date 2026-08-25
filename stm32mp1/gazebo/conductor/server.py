@@ -217,7 +217,14 @@ EVENT_PATTERNS = [
 
 
 def mission_kind(spec):
-    return spec.split(":", 1)[0]
+    kind = spec.split(":", 1)[0]
+    # The 100 m dash is spelled "outback:<m>" in WaypointNav (out and back
+    # along one line) but its RECIPES entry is keyed "dash", which is what
+    # the panel's dropdown calls it. Without this alias the lookup misses,
+    # recipe comes back empty and launch() dies on recipe["note"] - i.e.
+    # the dash course could not be launched from the panel AT ALL, and the
+    # failure was silent except for a KeyError in the server log.
+    return "dash" if kind == "outback" else kind
 
 
 def clamp_speed(v, cap, model=None):
