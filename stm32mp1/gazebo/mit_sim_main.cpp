@@ -97,6 +97,28 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   else if (sscanf(mission, "circle:%f:%d", &r, &pts) >= 1) nav.makeCircle(r, pts, vx);
   else if (sscanf(mission, "dash:%f", &d) == 1)            nav.makeDash(d, vx);
   else if (sscanf(mission, "outback:%f", &d) == 1)         nav.makeOutAndBack(d, vx);
+  // Four SAR patterns (International Aeronautical and Maritime Search and
+  // Rescue Manual) plus Lissajous search curves - see WaypointNav.cpp for
+  // the source and the geometry. Circle search is the "circle:" branch above.
+  else if (sscanf(mission, "sector:%f:%d", &d, &pts) >= 1) {
+    if (sscanf(mission, "sector:%f:%d", &d, &pts) < 2) pts = 3;   // 3 cycles
+    nav.makeSectorSearch(d, pts, vx);
+  }
+  else if (sscanf(mission, "parallel:%f", &d) == 1) {
+    float h = 5.f; int passes = 6;
+    sscanf(mission, "parallel:%f:%f:%d", &d, &h, &passes);
+    nav.makeParallelTrack(d, h, passes, vx);
+  }
+  else if (sscanf(mission, "expsquare:%f:%d", &d, &pts) >= 1) {
+    if (sscanf(mission, "expsquare:%f:%d", &d, &pts) < 2) pts = 12;
+    nav.makeExpandingSquare(d, pts, vx);
+  }
+  else if (sscanf(mission, "lissajous:%f", &d) == 1) {
+    int wx = 1, wy = 2;
+    sscanf(mission, "lissajous:%f:%d:%d", &d, &wx, &wy);
+    nav.makeLissajous(d, wx, wy,
+                       getenv("WP_LISS_DS") ? atof(getenv("WP_LISS_DS")) : 1.5f, vx);
+  }
   else                                                     nav.makeStar(5.3f, 5, vx);
 
   // $WP_DASH=<metres>: append a straight finishing sprint after the loop

@@ -67,6 +67,23 @@ class WaypointNav {
    *  course here with BOTH a flight-gait regime and a sustained-curve regime,
    *  which is what a gait decider needs to have anything to decide. */
   void makeOval(float straight_m, float radius_m, float spacing_m, float speed);
+  /*! Four canonical SAR patterns (International Aeronautical and Maritime
+   *  Search and Rescue Manual, via Steckenrider et al. 2024 Fig. 1/Eqs 1-7).
+   *  Circle search is makeCircle() above. */
+  //! Sector search: alternating full/half legs at 120 deg, "reps" six-leg
+  //! cycles through a common centre, rotated slightly between cycles.
+  void makeSectorSearch(float leg_m, int reps, float speed);
+  //! Parallel track (lawnmower) search: "passes" legs of length width_m,
+  //! stepped height_m apart.
+  void makeParallelTrack(float width_m, float height_m, int passes, float speed);
+  //! Expanding square search: outward spiral, "legs" turns of increasing
+  //! length (multiples of step_m).
+  void makeExpandingSquare(float step_m, int legs, float speed);
+  /*! Lissajous search curve (Steckenrider et al. 2024, Eq. 8): X=A*sin(wx*t+
+   *  pi/2), Y=A*sin(wy*t), traced for one full period at integer frequency
+   *  ratio wx:wy. Higher-order ratios (5:7, 11:9, ...) sweep the area more
+   *  densely; see Fig. 2. */
+  void makeLissajous(float amplitude_m, int wx, int wy, float spacing_m, float speed);
   //! Read back a waypoint (for drawing the planned track).
   const NavWaypoint& waypoint(int i) const { return _wp[i]; }
 
@@ -105,10 +122,14 @@ class WaypointNav {
   bool  loop          = false;   //!< repeat the mission forever
 
  private:
-  // Raised from 64 for makeAtom: a smooth curve needs waypoints close
-  // enough that the planner's fillet arcs reproduce it (~1.2 m -> ~106
-  // points for the default rosette). The star missions use 5.
-  static const int MAXWP = 256;
+  // Raised from 64 for makeAtom (~106 points at 1.2 m spacing), then from
+  // 256 for makeLissajous: an integer wx:wy ratio closes in exactly one
+  // sweep of t (0..2*pi - sin(wx*t) and sin(wy*t) both return to their
+  // start value/phase there, no need for the wx*wy-cycle LCM closure a
+  // naive reading of Eq. 8 suggests), but that one sweep still packs in
+  // wx+wy oscillations - measured 604 waypoints for the 11:9 ratio at a
+  // 1.5 m spacing, comfortably under this with margin for denser ratios.
+  static const int MAXWP = 768;
   NavWaypoint _wp[MAXWP];
   int   _n = 0;
   int   _idx = 0;

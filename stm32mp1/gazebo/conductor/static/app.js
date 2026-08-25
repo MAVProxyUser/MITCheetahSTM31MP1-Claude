@@ -5,7 +5,23 @@
 // to be redone, not patched.
 
 const DEFAULT_MISSIONS = ["star:10.514:5", "oval:40:5.0", "atom:9.0:6"];
-const MISSION_LABEL = { star: "Star (5pt, r=10.5)", oval: "Oval (40m + R5)", atom: "Atom (6-lobe, R=9)", dash: "Dash (100m straight)" };
+// One entry per DROPDOWN OPTION, not per mission kind - the three Lissajous
+// ratios all share kindOf()==="lissajous" (same recipe, same note) but are
+// three distinct, separately selectable missions, so this is a flat list
+// rather than the kind-keyed dict it used to be.
+const MISSION_OPTIONS = [
+  { value: "star:10.514:5", label: "Star (5pt, r=10.5)" },
+  { value: "oval:40:5.0", label: "Oval (40m + R5)" },
+  { value: "atom:9.0:6", label: "Atom (6-lobe, R=9)" },
+  { value: "dash:100", label: "Dash (100m straight)" },
+  { value: "circle:9:8", label: "Circle search (SAR)" },
+  { value: "sector:15:3", label: "Sector search (SAR)" },
+  { value: "parallel:30:5:8", label: "Parallel track search (SAR)" },
+  { value: "expsquare:5:12", label: "Expanding square search (SAR)" },
+  { value: "lissajous:15:1:2", label: "Lissajous 1:2" },
+  { value: "lissajous:15:5:7", label: "Lissajous 5:7" },
+  { value: "lissajous:15:11:9", label: "Lissajous 11:9" },
+];
 const GAITS = ["trotRunning", "trotting", "walking", "walking2", "pacing"];
 
 // Same hue list as trail_daemon.py's DOG_HUES, so a dog looks the same colour
@@ -131,9 +147,23 @@ function renderSlots() {
       <div class="slot-row">
         <label>Mission
           <select data-i="${i}" data-f="mission" ${locked ? "disabled" : ""}>
-            ${Object.keys(MISSION_LABEL).map(k =>
-              `<option value="${k === "dash" ? "dash:100" : k + (k === "star" ? ":10.514:5" : k === "oval" ? ":40:5.0" : ":9.0:6")}"
-                ${kindOf(s.mission) === k ? "selected" : ""}>${MISSION_LABEL[k]}</option>`).join("")}
+            ${(() => {
+              // Exact match first (needed to tell the three Lissajous
+              // ratios apart - they share a kind). If the slot carries a
+              // customized mission string (non-default radius/points,
+              // e.g. set via the REST API rather than this dropdown),
+              // fall back to the first option of the same KIND so the
+              // dropdown still shows something sensible rather than
+              // nothing selected.
+              const exact = MISSION_OPTIONS.some(o => o.value === s.mission);
+              return MISSION_OPTIONS.map(opt => {
+                const sel = exact ? s.mission === opt.value
+                                   : kindOf(s.mission) === kindOf(opt.value) &&
+                                     opt.value === MISSION_OPTIONS.find(
+                                       o => kindOf(o.value) === kindOf(s.mission))?.value;
+                return `<option value="${opt.value}" ${sel ? "selected" : ""}>${opt.label}</option>`;
+              }).join("");
+            })()}
           </select>
         </label>
         <label>Gait${gaitOff ? ' <span class="gait-warning-dot" title="not the recipe gait">&#9888;</span>' : ""}

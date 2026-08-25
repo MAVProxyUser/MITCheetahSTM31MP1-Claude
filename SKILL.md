@@ -683,6 +683,29 @@ cd stm32mp1/gazebo/conductor && python3 server.py            # serves on :8420
 open http://127.0.0.1:8420                                   # panel; /docs is the REST reference
 ```
 
+### The full mission catalog (all verified PASS - see CLAUDE.md for tuning story)
+
+```
+star:<r>:<points>            # e.g. star:10.514:5 - 5-point star
+oval:<straight_m>:<radius_m> # e.g. oval:40:5.0 - stadium
+atom:<outer_r>:<lobes>       # e.g. atom:9.0:6 - epitrochoid rosette
+dash:<metres>                # straight sprint, ends at the final waypoint
+circle:<r>:<points>          # e.g. circle:9:8
+sector:<leg_m>:<reps>        # e.g. sector:15:3 - SAR sector search
+parallel:<width_m>:<height_m>:<passes>  # e.g. parallel:30:5:8 - SAR lawnmower
+expsquare:<step_m>:<legs>    # e.g. expsquare:5:12 - SAR expanding square
+lissajous:<A_m>:<wx>:<wy>    # e.g. lissajous:15:5:7 - integer ratio, any
+                              #   ratio works but higher ones (11:9+) are
+                              #   genuinely long courses - see the timeout
+                              #   note in CLAUDE.md before assuming a stall
+```
+
+The six newest (circle/sector/parallel/expsquare/lissajous) all converged
+on ONE tuning - `gait=walking, speed=1.5 m/s, extra="WP_ACCEPT=1.5
+WP_CORRIDOR_MIN=0.1 WP_ALON=0.4"` - already baked into their RECIPES
+entries. Start any FUTURE new mission with this tuning rather than the
+bare default; six of these seven fell at default and passed clean with it.
+
 Everything the browser can do has a REST route — `GET /docs` is a live,
 clickable reference (Play + curl + response) for all of them, kept in sync
 with `docs.js`'s `ENDPOINTS` array as the single source of truth. Useful ones

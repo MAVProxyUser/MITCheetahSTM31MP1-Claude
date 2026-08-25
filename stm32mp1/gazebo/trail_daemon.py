@@ -194,6 +194,89 @@ def mission_waypoints(spec):
         if not out or math.hypot(out[-1][0], out[-1][1]) > 0.6 * step:
             out.append((0.0, 0.0))
         return out
+    if kind == "sector":
+        # Mirrors WaypointNav::makeSectorSearch: alternating full/half legs
+        # at 120 deg, bearing 0 = north, (north,east) = (cos,sin)(bearing).
+        leg = float(rest[0])
+        reps = int(rest[1]) if len(rest) > 1 else 3
+        offset = math.pi / 9
+        bearing = 0.0
+        n = e = 0.0
+        out = []
+        for r in range(reps):
+            for k in range(1, 7):
+                D = leg if (k - 1) % 2 == 0 else 0.5 * leg
+                n += D * math.cos(bearing)
+                e += D * math.sin(bearing)
+                # Skip the cycle-closing waypoint except on the true last
+                # leg - see WaypointNav.cpp's makeSectorSearch for why
+                # (every intermediate cycle returns to the exact same
+                # physical point, which confuses the follower).
+                if k != 6 or r == reps - 1:
+                    out.append((n, e))
+                bearing += 2 * math.pi / 3
+            bearing += offset
+        return out
+    if kind == "parallel":
+        # Mirrors WaypointNav::makeParallelTrack: sweep runs north/south,
+        # step runs east, first pass heads north.
+        width = float(rest[0])
+        height = float(rest[1]) if len(rest) > 1 else 5.0
+        passes = int(rest[2]) if len(rest) > 2 else 6
+        n = e = 0.0
+        north = True
+        out = []
+        for p in range(passes):
+            n += width if north else -width
+            out.append((n, e))
+            if p + 1 < passes:
+                e += height
+                out.append((n, e))
+            north = not north
+        return out
+    if kind == "expsquare":
+        # Mirrors WaypointNav::makeExpandingSquare: outward spiral, 90 deg
+        # turns, leg k has length step*floor((k-1)/2) (k=1,2 are zero-length
+        # and skipped).
+        step = float(rest[0])
+        legs = int(rest[1]) if len(rest) > 1 else 12
+        bearing = 0.0
+        n = e = 0.0
+        out = []
+        for k in range(1, legs + 1):
+            length = step * ((k - 1) // 2)
+            if length > 1e-3:
+                n += length * math.cos(bearing)
+                e += length * math.sin(bearing)
+                out.append((n, e))
+            bearing += math.pi / 2
+        return out
+    if kind == "lissajous":
+        # Mirrors WaypointNav::makeLissajous: X=A*sin(wx*t+pi/2) (north),
+        # Y=A*sin(wy*t) (east), t in [0, 2*pi) - integer wx,wy close the
+        # curve in exactly one sweep (see the C++ comment for why NOT
+        # 2*pi*lcm(wx,wy), a mistake caught before it shipped).
+        A = float(rest[0])
+        wx = int(rest[1]) if len(rest) > 1 else 1
+        wy = int(rest[2]) if len(rest) > 2 else 2
+        step = float(os.environ.get("WP_LISS_DS", 1.5))
+        px = lambda t: A * math.sin(wx * t + math.pi / 2)
+        py = lambda t: A * math.sin(wy * t)
+        SUB = 20000
+        dt = 2 * math.pi / SUB
+        out = [(px(0.0), py(0.0))]
+        pn, pe = out[0]
+        acc = 0.0
+        for i in range(1, SUB + 1):
+            t = dt * i
+            n, e = px(t), py(t)
+            acc += math.hypot(n - pn, e - pe)
+            pn, pe = n, e
+            if acc >= step:
+                acc -= step
+                out.append((n, e))
+        out.append((px(0.0), py(0.0)))
+        return out
     raise SystemExit(f"unknown mission spec: {spec}")
 
 

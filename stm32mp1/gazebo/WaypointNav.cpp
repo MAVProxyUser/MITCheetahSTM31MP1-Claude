@@ -443,6 +443,202 @@ void WaypointNav::toLocal(double lat_deg, double lon_deg, float* north, float* e
   *east  = (float)((lon_deg - _lon0) * _mPerDegLon);
 }
 
+/*
+ * FOUR CANONICAL SEARCH-AND-RESCUE PATTERNS, per the International
+ * Aeronautical and Maritime Search and Rescue Manual (as reproduced in
+ * Steckenrider et al., "Lissajous curves as aerial search patterns",
+ * Sci Rep 14:11144, 2024, Fig. 1 and Eqs. 1-7). Circle search is already
+ * `makeCircle()` above (same closed-loop breadcrumb trail this port
+ * already flies); the other three are new. All four use the SAME
+ * (north, east) = (cos, sin) compass-bearing convention as makeStar and
+ * open on a bearing of 0 (due north) for the usual reason - the dog
+ * spawns facing north, so the mission's first leg is a straight run
+ * instead of a pivot in place.
+ */
+
+/*
+ * SECTOR SEARCH: a "flower" of alternating long/short legs through a
+ * common centre, turning 120 deg each leg (Eq. 2-3). D_{k-1} = D on even
+ * (k-1), D/2 on odd - six legs bring the heading back to where it
+ * started (6 * 120 = 720 = 2 full turns) AND the position back to the
+ * centre exactly (verified by hand: the six (D, D/2) legs at 120 deg
+ * apart sum to zero). Successive six-leg cycles are rotated by a fixed
+ * offset - "an angular offset is often added" per the source - so
+ * repeated sweeps interrogate new sectors instead of retracing the same
+ * six legs.
+ */
+void WaypointNav::makeSectorSearch(float leg_m, int reps, float speed) {
+  if (leg_m < 1.f) leg_m = 1.f;
+  if (reps < 1) reps = 1;
+  const float offset = (float)M_PI / 9.f;   // 20 deg between six-leg cycles
+  // Bearing convention throughout this file: (north,east) = (cos,sin) of
+  // the bearing, bearing 0 = due north - same as makeStar's `a`.
+  float bearing = 0.f;
+  float n = 0.f, e = 0.f;
+  _n = 0;
+  for (int r = 0; r < reps && _n < MAXWP; ++r) {
+    for (int k = 1; k <= 6 && _n < MAXWP; ++k) {
+      const float D = ((k - 1) % 2 == 0) ? leg_m : 0.5f * leg_m;
+      n += D * cosf(bearing);
+      e += D * sinf(bearing);
+      /*
+       * SKIP THE CYCLE-CLOSING WAYPOINT, except on the true last leg. The
+       * six-leg pattern returns to the EXACT same physical point (the
+       * centre) every cycle by construction (D, D/2 legs at 120 deg apart
+       * sum to zero - verified by hand and numerically). With reps>1 that
+       * means multiple DISTINCT waypoint indices sit on the identical
+       * (north, east) coordinate - a follower doing nearest-point-on-path
+       * or pure-pursuit target selection cannot tell "arrived at cycle 1's
+       * centre" from "cycle 2's" or "cycle 3's" when they are the same
+       * point, and measured live it produced exactly the failure mode a
+       * self-intersecting path is known for: the flown track cut a smooth
+       * blob through the centre instead of tracing the six-leg zigzag,
+       * and the mission failed (orientation trip) within one cycle. Only
+       * the FINAL cycle's return-to-centre becomes a real waypoint; every
+       * intermediate one is skipped so the dog flows straight from one
+       * cycle's fifth leg into the next cycle's first, through the centre
+       * region without a duplicate point to get confused by.
+       */
+      const bool cycleClose = (k == 6);
+      const bool lastLeg = (r == reps - 1) && (k == 6);
+      if (!cycleClose || lastLeg) _wp[_n++] = {n, e, speed};
+      bearing += 2.f * (float)M_PI / 3.f;
+    }
+    bearing += offset;
+  }
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] sector search mission: %d legs (%d cycles of 6), leg=%.1f/%.1f m, "
+         "v=%.2f m/s\n", _n, reps, leg_m, 0.5f * leg_m, speed);
+  fflush(stdout);
+}
+
+/*
+ * PARALLEL TRACK (lawnmower / boustrophedon) SEARCH: sweep a rectangle
+ * of length `width_m` in `passes` legs, stepping `height_m` EAST between
+ * each pass (Eq. 4-5, re-oriented so the SWEEP runs north/south and the
+ * STEP runs east/west, rather than the paper's own axes - alternate
+ * north/south legs of length `width_m`, joined by short east `height_m`
+ * legs, covering the whole rectangle exactly once). The re-orientation
+ * is only so the first leg opens due north like every other mission
+ * here; the pattern traced is identical either way.
+ */
+void WaypointNav::makeParallelTrack(float width_m, float height_m, int passes,
+                                     float speed) {
+  if (width_m < 1.f) width_m = 1.f;
+  if (height_m < 0.5f) height_m = 0.5f;
+  if (passes < 1) passes = 1;
+  if (passes > MAXWP / 2 - 1) passes = MAXWP / 2 - 1;
+  float n = 0.f, e = 0.f;
+  bool north = true;   // first pass heads north; alternates thereafter
+  _n = 0;
+  for (int p = 0; p < passes && _n < MAXWP; ++p) {
+    n += north ? width_m : -width_m;
+    _wp[_n++] = {n, e, speed};
+    if (p + 1 < passes && _n < MAXWP) {
+      e += height_m;
+      _wp[_n++] = {n, e, speed};
+    }
+    north = !north;
+  }
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] parallel track mission: %d passes, width=%.1f m, step=%.1f m, "
+         "%d waypoints, v=%.2f m/s\n", passes, width_m, height_m, _n, speed);
+  fflush(stdout);
+}
+
+/*
+ * EXPANDING SQUARE SEARCH: an outward spiral from the centre, turning
+ * 90 deg each leg with length l*floor((k-1)/2) (Eq. 6-7) - two legs of
+ * length l, two of 2l, two of 3l, and so on, exactly like tracing a
+ * square spiral by hand.
+ */
+void WaypointNav::makeExpandingSquare(float step_m, int legs, float speed) {
+  if (step_m < 1.f) step_m = 1.f;
+  if (legs < 2) legs = 2;
+  if (legs > MAXWP - 1) legs = MAXWP - 1;
+  float bearing = 0.f;   // due north first leg; see makeSectorSearch's convention note
+  float n = 0.f, e = 0.f;
+  _n = 0;
+  for (int k = 1; k <= legs && _n < MAXWP; ++k) {
+    const float len = step_m * (float)((k - 1) / 2);
+    // k=1,2 both carry floor(0/2)=0 in Eq. 7 (a zero-length "leg", i.e. no
+    // motion) - skip it rather than emit a duplicate waypoint at the origin.
+    if (len > 1e-3f) {
+      n += len * cosf(bearing);
+      e += len * sinf(bearing);
+      _wp[_n++] = {n, e, speed};
+    }
+    bearing += (float)M_PI / 2.f;
+  }
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] expanding square mission: %d legs, step=%.1f m, %d waypoints, "
+         "v=%.2f m/s\n", legs, step_m, _n, speed);
+  fflush(stdout);
+}
+
+/*
+ * LISSAJOUS SEARCH CURVE (Eq. 8): X(t) = A*sin(wx*t + phix),
+ * Y(t) = A*sin(wy*t + phiy), traced for one full period at integer
+ * frequency ratio wx:wy - the higher the ratio's terms, the denser the
+ * coverage (compare Fig. 2's 1:2, 5:7 and 11:9 examples). Sampled at
+ * constant ARC-length spacing, same technique as makeAtom/makeOval,
+ * since a Lissajous curve's parametric speed varies a great deal more
+ * than its position does. phix=pi/2, phiy=0 (a quarter-period offset
+ * between axes) is the standard Lissajous starting phase and happens to
+ * open the curve heading due north from the origin - the usual "no pivot
+ * to start" rule, for free.
+ */
+void WaypointNav::makeLissajous(float amplitude_m, int wx, int wy,
+                                 float spacing_m, float speed) {
+  if (amplitude_m < 1.f) amplitude_m = 1.f;
+  if (wx < 1) wx = 1;
+  if (wy < 1) wy = 1;
+  if (spacing_m < 0.2f) spacing_m = 0.2f;
+  const float A = amplitude_m;
+  const float phix = (float)M_PI / 2.f, phiy = 0.f;
+  // wx and wy are INTEGERS, so sin(wx*t) and sin(wy*t) each complete a
+  // whole number of cycles (wx and wy respectively) over t in [0, 2*pi) -
+  // that alone closes the curve exactly, regardless of gcd/lcm. (A first
+  // version of this used tmax = 2*pi*lcm(wx,wy), reasoning that BOTH axes
+  // need to return to their start PHASE - true, but t=2*pi already does
+  // that for any integer wx,wy; lcm(wx,wy) cycles of t is only needed if
+  // wx,wy were rational non-integers. Measured the difference the hard
+  // way: at lcm(11,9)=99 the "closed" curve was 90 km long before this
+  // was caught by estimating waypoint counts up front.) One sweep of
+  // t:0..2*pi still packs in wx and wy oscillations respectively, which
+  // is what makes the higher ratios (5:7, 11:9) visually dense.
+  auto px = [&](float t) { return A * sinf((float)wx * t + phix); };  // north
+  auto py = [&](float t) { return A * sinf((float)wy * t + phiy); };  // east
+
+  const int SUB = 40000;
+  const float tmax = 2.f * (float)M_PI;
+  const float dt = tmax / (float)SUB;
+  float prevN = px(0.f), prevE = py(0.f), acc = 0.f;
+  _n = 0;
+  _wp[_n].north = prevN; _wp[_n].east = prevE; _wp[_n].speed = speed; ++_n;
+  for (int i = 1; i <= SUB && _n < MAXWP; ++i) {
+    const float t = dt * (float)i;
+    const float n = px(t), e = py(t);
+    acc += sqrtf((n - prevN) * (n - prevN) + (e - prevE) * (e - prevE));
+    prevN = n; prevE = e;
+    if (acc >= spacing_m) {
+      acc -= spacing_m;
+      _wp[_n].north = n; _wp[_n].east = e; _wp[_n].speed = speed;
+      ++_n;
+    }
+  }
+  if (_n < MAXWP) {   // close the curve back on its own start
+    _wp[_n].north = px(0.f); _wp[_n].east = py(0.f); _wp[_n].speed = speed;
+    ++_n;
+  }
+  accept_radius = 0.45f * spacing_m;
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] lissajous mission: %d:%d ratio, A=%.1f m, %d waypoints @ "
+         "%.2f m (accept %.2f), v=%.2f m/s\n",
+         wx, wy, A, _n, spacing_m, accept_radius, speed);
+  fflush(stdout);
+}
+
 bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
                          float* v_cmd, float* yawrate) {
   *v_cmd = 0.f;

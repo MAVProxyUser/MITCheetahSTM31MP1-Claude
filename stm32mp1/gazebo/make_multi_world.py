@@ -83,6 +83,39 @@ def mission_bbox(spec):
         # extent rather than guessing at the finish.)
         d = f[0]
         return (0.0, d, 0.0, 0.0)
+    if kind == "sector":
+        # WaypointNav::makeSectorSearch: verified numerically (not derived
+        # analytically - the rotating six-leg cycles don't have an obvious
+        # closed form) that the extent never exceeds +-leg_m on either axis
+        # even out to 20 cycles, since every six-leg cycle returns exactly
+        # to the centre and only the cycle's ORIENTATION drifts.
+        r = f[0]
+        return (-r, r, -r, r)
+    if kind == "parallel":
+        # WaypointNav::makeParallelTrack: each pass oscillates the NORTH
+        # coordinate between 0 and width_m (f[0]) and never drifts past
+        # that; EAST steps by height_m (f[1], default 5.0) once per pass
+        # after the first, (passes-1) times (f[2], default 6).
+        width = f[0]
+        height = f[1] if len(f) > 1 else 5.0
+        passes = int(f[2]) if len(f) > 2 else 6
+        return (0.0, width, 0.0, max(0.0, passes - 1) * height)
+    if kind == "expsquare":
+        # WaypointNav::makeExpandingSquare: verified numerically - the
+        # spiral's max extent on either axis is exactly step_m * legs / 4
+        # (legs = f[1], default 12), a clean closed form from the leg
+        # lengths (step*floor((k-1)/2)) summing along each of the 4
+        # cardinal directions every 4 legs.
+        step = f[0]
+        legs = f[1] if len(f) > 1 else 12.0
+        r = step * legs / 4.0
+        return (-r, r, -r, r)
+    if kind == "lissajous":
+        # WaypointNav::makeLissajous: X=A*sin(...), Y=A*sin(...) are each
+        # exactly bounded in [-A,A] regardless of the frequency ratio -
+        # a property of sine, not something that needs measuring.
+        A = f[0]
+        return (-A, A, -A, A)
     return None
 
 

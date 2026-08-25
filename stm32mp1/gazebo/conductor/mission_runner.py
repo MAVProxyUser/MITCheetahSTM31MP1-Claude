@@ -66,13 +66,16 @@ def main():
                      help="finish-dash metres for the matching --slot by position (0=none)")
     ap.add_argument("--extra", action="append", default=[],
                      help="raw KEY=VALUE env override(s) for the matching --slot, space-separated")
-    ap.add_argument("--timeout", type=float, default=240,
-                     help="overall wall-clock budget in seconds (default 240)")
-    ap.add_argument("--stall-timeout", type=float, default=100,
+    ap.add_argument("--timeout", type=float, default=300,
+                     help="overall wall-clock budget in seconds (default 300)")
+    ap.add_argument("--stall-timeout", type=float, default=200,
                      help="abort if no new orchestration log line appears for this many "
                           "seconds - catches a wedged launch, not just a slow one (default "
-                          "100; a healthy run CAN go 60s+ silent through a slow corner, "
-                          "e.g. the atom's tightest turn - see the module docstring)")
+                          "200; a healthy run CAN go well over 100s silent through a course "
+                          "with many short legs and gentle braking and no gait-change/mission "
+                          "event to log in between - measured on the sector-search mission, "
+                          "which killed a perfectly healthy run at 100s. See the module "
+                          "docstring.)")
     ap.add_argument("--poll", type=float, default=2.0,
                      help="state-poll interval in seconds (default 2)")
     ap.add_argument("--keep-cameras", action="store_true",

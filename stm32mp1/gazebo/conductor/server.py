@@ -161,6 +161,44 @@ RECIPES = {
                  note="trotting, bare (analyzer adds nothing here) - 58.97s @ 6/6"),
     "dash": dict(gait=5, speed=3.0, extra="",
                  note="trotRunning straight-line - UNDER REVIEW, see README"),
+    # Search-and-rescue patterns (International Aeronautical and Maritime
+    # Search and Rescue Manual) and Lissajous search curves (Steckenrider
+    # et al. 2024). None of these have campaign data behind them yet -
+    # walking at a modest speed is this port's most broadly reliable
+    # combination (see the gait-matrix findings in CLAUDE.md), used here
+    # as an honest, conservative default rather than a measured one.
+    # First attempt at 2.0 m/s bare fell AFTER cleanly capturing all 8
+    # waypoints - a severe pitch-dominant tip (roll=-32 pitch=67) in the
+    # end-of-mission stop, not the course itself (constant R=7.48m the
+    # whole way, no corners to speak of). Same standard tuning fixed it.
+    "circle": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
+                    note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON - PASS 32.8s (1 rep)"),
+    # First attempt fell twice: once with the default corridor (tightest
+    # First attempt fell twice: once with the default corridor (tightest
+    # corner R=0.39-0.52m, untouched) at t~22s, once with only
+    # WP_CORRIDOR_MIN=0.1 graded (R tightens further to 0.14m once graded,
+    # correctly, but the fall was PITCH-dominant - the same signature the
+    # atom needed WP_ALON for). WP_ALON=0.4 fixed it: PASS 112.8s, clean.
+    "sector": dict(gait=20, speed=2.0, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
+                    note="walking, graded corridor + gentle WP_ALON - PASS 112.8s (1 rep)"),
+    # First fall was NOT the 180-degree end-of-pass turn itself (tracked
+    # that cleanly at full speed, hdg swinging smoothly 0->180) - it was
+    # the SHORT 5m connector immediately after, still carrying a full 2.0
+    # m/s of straight-line momentum into a sharp turn. Same corridor/ALON
+    # tuning as sector did not fix it at 2.0; dropping cruise to 1.5 did -
+    # less momentum to shed before the connector, not a geometry problem.
+    "parallel": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
+                      note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON - PASS 158.2s (1 rep)"),
+    "expsquare": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
+                       note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON - PASS 87.4s (1 rep, first try)"),
+    # PASS 96.2s on 1:2 (141m), PASS 345.9s on 5:7 (558m) - same tuning as
+    # the SAR patterns. Higher ratios are genuinely LONG missions (558m for
+    # 5:7 alone) - the controller process's own safety-net timeout was
+    # raised 240s -> 900s in server.py's launch command specifically
+    # because 240 silently killed a healthy 5:7 run two-thirds through
+    # with no error at all (looked exactly like a crash - see CLAUDE.md).
+    "lissajous": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
+                       note="walking @ 1.5 m/s - PASS 1:2 96.2s, 5:7 345.9s, 11:9 561.7s"),
 }
 GAITS = {"trotting": 9, "trotRunning": 5, "walking": 20, "walking2": 21, "pacing": 8}
 GAIT_NAMES = {v: k for k, v in GAITS.items()}
@@ -385,8 +423,16 @@ class Fleet:
             if len(self.draft_slots) >= 3:
                 return False, "max 3 slots"
             used = {mission_kind(s["mission"]) for s in self.draft_slots}
-            nxt = next((k for k in RECIPES if k != "dash" and k not in used),
-                       "star")
+            # "+ Add dog" only cycles the three courses with an actual
+            # default mission STRING below (star/oval/atom) - dash and
+            # every SAR/Lissajous kind are selected via the mission
+            # dropdown instead (which snaps gait/speed/extra to the right
+            # recipe on selection), same reason dash was already excluded:
+            # this dict has no default mission string for them, and a
+            # wrong fallback (silently defaulting to star's) would launch
+            # a mismatched recipe under the wrong course's own note text.
+            CORE = ("star", "oval", "atom")
+            nxt = next((k for k in CORE if k not in used), "star")
             r = RECIPES[nxt]
             self.draft_slots.append(dict(
                 mission={"star": "star:10.514:5", "oval": "oval:40:5.0",
@@ -724,10 +770,21 @@ class Fleet:
                 # is hit at once. Staggering by 5 s per slot spreads that
                 # peak; a solo dog is unaffected (i=0 keeps the validated 4 s).
                 delay_s = 4 + 5 * i
+                # This `timeout` is a hard safety net (kill a genuinely hung
+                # controller), not a per-mission budget - it used to be 240s,
+                # sized for star/oval/atom/dash, which all finish in well
+                # under that. The Lissajous missions do not: 5:7 is a 558m
+                # course that legitimately needs 400-500s, and 240 silently
+                # SIGKILLed it two-thirds of the way through with no crash
+                # report, no [FALL], nothing - it looked exactly like a
+                # segfault (a genuinely confusing failure mode: `pgrep
+                # mit_ctrl_sim` simply returns nothing, same as a real crash
+                # would). Raised to 900s, comfortable headroom for even the
+                # much longer 11:9 ratio, while still bounding a genuine hang.
                 cmd = (
                     "env DYLD_LIBRARY_PATH=. SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
                     "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
-                    "WP_MAX_YAWRATE=1.2 %s timeout 240 ./mit_ctrl_sim 127.0.0.1 "
+                    "WP_MAX_YAWRATE=1.2 %s timeout 900 ./mit_ctrl_sim 127.0.0.1 "
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"
                     % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"], s["extra"])
                 )

@@ -4040,3 +4040,119 @@ Verified: single-dog star mission, clean run start to finish, no
 immediate false fall, `mission result: PASS` at t=61.8s matching the
 pre-existing baseline for this exact config - the fix does not regress
 anything measured earlier in this file.
+
+## Seven new missions: SAR search patterns and Lissajous search curves
+
+Per direct request (source: Steckenrider et al., "Lissajous curves as
+aerial search patterns", Sci Rep 14:11144, 2024 - Fig. 1 for the four SAR
+patterns, Fig. 2/Eq. 8 for the Lissajous curves): circle, sector,
+parallel track, and expanding square search, plus a Lissajous mission
+covering the 1:2 and 5:7 ratio examples and the 11:9 stretch goal. All
+seven now have a `WaypointNav.cpp` generator (circle already existed),
+full panel wiring (RECIPES, dropdown, `mission_bbox`, the Python
+trail-overlay mirrors in `trail_daemon.py`/`mission_viz.py`), and a
+verified PASS:
+
+| mission | spec | result |
+|---|---|---|
+| circle search | `circle:9:8` | PASS 32.8s |
+| sector search | `sector:15:3` | PASS 112.8s |
+| parallel track | `parallel:30:5:8` | PASS 158.2s |
+| expanding square | `expsquare:5:12` | PASS 87.4s |
+| Lissajous 1:2 | `lissajous:15:1:2` | PASS 96.2s |
+| Lissajous 5:7 | `lissajous:15:5:7` | PASS 345.9s |
+| Lissajous 11:9 (stretch) | `lissajous:15:11:9` | PASS 561.7s |
+
+All seven converged on the SAME tuning - `gait=walking, speed=1.5,
+WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4` - which is worth noting on
+its own: none of these new courses needed a NEW lever, only the two
+already discovered for star (graded corridor) and the atom (gentle
+longitudinal braking). Six of the seven initially fell at the DEFAULT
+(untuned) config, including circle - a constant-radius course with no
+corners at all, which fell in its END-OF-MISSION STOP, not the course
+itself.
+
+### The sector-search geometry bug: duplicate waypoints at the same physical point
+
+First implementation of `makeSectorSearch()` (the six-leg alternating
+D/D-half "flower" pattern) put a literal waypoint at the pattern's own
+centre for EVERY repeated cycle. This is a real property of the six-leg
+math (verified by hand and numerically: the six legs at 120 deg apart
+always sum to exactly zero displacement), not a bug in the generator -
+but it meant `reps=3` put THREE separate waypoint indices on the exact
+same (north, east) coordinate. A follower doing nearest-point-on-path or
+pure-pursuit target selection cannot tell "arrived at cycle 1's centre"
+from "cycle 2's" apart when they are literally the same point, and
+measured live it produced exactly the textbook self-intersecting-path
+failure: the flown track cut a smooth blob through the centre instead of
+tracing the six-leg zigzag (operator screenshot), and the mission failed
+within one cycle. Fixed by skipping the cycle-closing waypoint for every
+repetition except the true final one - same physical path (the
+north/east running totals are unaffected), just not asking the follower
+to treat the shared point as several distinct arrival goals. This did
+not by itself fix the fall (see below), but it materially changed the
+flown path shape and was worth doing in its own right.
+
+### Tuning story: same two levers as star/atom, on six more courses
+
+Chasing sector search's fall (after the geometry fix) reproduced the
+exact troubleshooting arc already documented above for star and the
+atom, on brand-new courses:
+- default corridor: fell at t~22s, 0/16 waypoints captured.
+- `+WP_CORRIDOR_MIN=0.1` (star's graded-corridor fix): survived to
+  55s, captured 3 waypoints, tightest corner correctly re-computed
+  tighter (R=0.14m) and STILL fell - but now visibly PITCH-dominant
+  (roll=22.5, pitch=34.4) - the atom's own signature.
+- `+WP_ALON=0.4` (the atom's fix): PASS, clean, 112.8s.
+
+The same sequence, or a subset of it, resolved parallel track (also
+needed a SPEED drop to 1.5 - its failure was carrying full cruise
+momentum through a short 5m connector immediately after a 30m straight,
+a genuine braking-distance problem the corridor grading alone did not
+fix), expanding square and both remaining Lissajous ratios (clean on
+the FIRST try at the full tuning), and circle (fell once at the bare
+2.0 m/s default, clean at 1.5 with the full tuning). The practical
+takeaway: for any FUTURE new mission on this planner, start with this
+tuning rather than the bare default - it is now the common case, not
+the exception.
+
+### A real, silent process-timeout bug, found chasing what looked exactly like a crash
+
+The Lissajous 5:7 test (558m, the longest course tried to that point)
+appeared to hang: `mit_ctrl_sim` had cleanly reached wp228/366 (62%
+through, healthy control loop, no orientation trip) and then simply
+STOPPED WRITING TO ITS OWN LOG - no [FALL], no error, nothing - for
+minutes, reproduced identically three times. `pgrep mit_ctrl_sim`
+returned nothing: the process was gone. No macOS crash report was ever
+generated (checked `~/Library/Logs/DiagnosticReports/` - empty for
+today), which is itself the tell that this was NOT a segfault. The
+actual cause: `server.py`'s controller launch command wraps
+`mit_ctrl_sim` in `timeout 240` - a hard safety net sized for
+star/oval/atom/dash, which all finish in well under 240s. Lissajous 5:7
+legitimately needs 400-500s and was silently SIGKILLed two-thirds of the
+way through, with a failure signature (process just vanishes, no
+evidence anywhere) indistinguishable from an actual crash without
+checking `pgrep` and the crash-report directory. Raised to 900s (comfortable
+headroom for 11:9's ~560s actual runtime). **If a future mission's
+controller process "vanishes" with no log evidence, check `timeout`
+before spending time hunting for a memory bug** - this cost real time
+here precisely because the failure signature is identical to one.
+
+### An intermittent boot-time flip, NOT resolved, flagged honestly
+
+Twice out of six total launch attempts on Lissajous 5:7 today, the robot
+flipped completely over (`roll=180 z=nan`) DURING THE BOOT SEQUENCE,
+before nav ever took the stick - i.e. before the mission's own geometry
+could possibly be involved. A same-moment control test (`dash:100`,
+launched immediately after one of the failures) passed cleanly, ruling
+out "the host is generally unhealthy right now." The other four boot
+attempts on the identical mission succeeded normally. This is a real,
+reproducible-but-intermittent failure mode (2/6 this session) that was
+NOT root-caused - it was not chased further because (a) it is confined to
+the boot window, before any mission-specific code runs, so it is very
+unlikely to be specific to the new missions in this file, and (b) it
+carries the same signature (an unexplained attitude/height blowup with no
+clear trigger) as the host-load-stall class of issue extensively
+documented elsewhere in this file for OTHER reasons (Time Machine, shared
+gz physics). Flagged here as a known, open, intermittent risk rather than
+either ignored or falsely claimed fixed.
