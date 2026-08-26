@@ -219,6 +219,118 @@ void WaypointNav::makeAtom(float outer_radius_m, int lobes, float depth,
 }
 
 /*
+ * SPIROGRAPH ROSETTE - the SAME trochoid formula makeAtom uses (identical
+ * rx/ry/vx/vy, right down to the signs - verified, not assumed), but at a
+ * different point in its own parameter space: `lobes` is used directly as
+ * the rolling-circle ratio k (makeAtom uses k = lobes-1), and `depth` is
+ * pushed up near 1.0 (makeAtom clamps well short of that). Those two
+ * changes alone move the curve from "atom's rosette" (individual small
+ * loops pointing outward from each lobe) to the classic Spirograph look
+ * this was built to match: petals that curve INWARD and converge through
+ * a shared, densely rewoven centre. Found by direct visual comparison
+ * against a reference image, not derived analytically - see CLAUDE.md
+ * for the parameter search across roughly 20 (lobes, depth) candidates.
+ *
+ * k an INTEGER (lobes, not lobes-1) means cos(t) and cos(k*t) share period
+ * 2*pi exactly, so the whole rosette closes in ONE sweep of t - no multi-
+ * revolution closure math needed (contrast makeLissajous, which needs
+ * exactly that for a ratio that is not an integer to begin with).
+ *
+ * depth's normalisation mirrors makeAtom's A/S convention exactly
+ * (S = outer_radius/(1+depth), pen offset = depth*S) so the two courses'
+ * own "how close to the centre" knobs mean the same thing - but depth
+ * near 1.0 is where THIS curve looks best (cusped petals meeting a dense
+ * woven centre); makeAtom clamps depth well short of 1.0 because AT its
+ * own k = lobes-1, depth 1.0 puts the stroke through the centre with no
+ * nucleus left at all, which reads as a mistake for that shape. For this
+ * curve, that convergence is the entire point.
+ */
+void WaypointNav::makeSpirograph(float outer_radius_m, int lobes, float depth,
+                                  float spacing_m, float speed) {
+  if (lobes < 3) lobes = 3;
+  if (depth < 0.05f) depth = 0.05f;
+  if (depth > 0.99f) depth = 0.99f;   // 1.0 exactly puts a waypoint AT the
+                                      // centre on every lobe - harmless
+                                      // geometrically but an unnecessary
+                                      // coincidence to court
+  if (spacing_m < 0.2f) spacing_m = 0.2f;
+
+  const int   k = lobes;
+  const float A = depth;
+  const float S = outer_radius_m / (1.f + A);
+  auto rx = [&](float t) { return S * (cosf(t) + A * cosf(k * t)); };
+  auto ry = [&](float t) { return S * (sinf(t) - A * sinf(k * t)); };
+  auto vx = [&](float t) { return S * (-sinf(t) - k * A * sinf(k * t)); };
+  auto vy = [&](float t) { return S * ( cosf(t) - k * A * cosf(k * t)); };
+
+  // Same join-where-the-tangent-is-radial trick as makeAtom, and for the
+  // identical reason: starting at a lobe tip meets the curve at 90 deg and
+  // puts an artificial hard corner at the very start of a course that is
+  // otherwise all smooth curvature. See makeAtom's own comment for the
+  // full derivation (roots of p x v = 0 with p . v > 0).
+  float t0 = 0.f;
+  {
+    const int SCAN = 20000;
+    float prev = rx(0.f) * vy(0.f) - ry(0.f) * vx(0.f);
+    for (int i = 1; i <= SCAN; ++i) {
+      const float t = 2.f * (float)M_PI * (float)i / (float)SCAN;
+      const float cr = rx(t) * vy(t) - ry(t) * vx(t);
+      if ((cr < 0.f) != (prev < 0.f) &&
+          rx(t) * vx(t) + ry(t) * vy(t) > 0.f) { t0 = t; break; }
+      prev = cr;
+    }
+  }
+  const float rot = -atan2f(ry(t0), rx(t0));
+  const float cr_ = cosf(rot), sr_ = sinf(rot);
+  auto px = [&](float t) { return rx(t) * cr_ - ry(t) * sr_; };
+  auto py = [&](float t) { return rx(t) * sr_ + ry(t) * cr_; };
+
+  const int SUB = 40000;   // one sweep of t (k integer closes at 2*pi)
+  const float dt = 2.f * (float)M_PI / (float)SUB;
+  float prevN = px(t0), prevE = py(t0), acc = 0.f, total = 0.f;
+  _n = 0;
+  _wp[_n].north = prevN; _wp[_n].east = prevE; _wp[_n].speed = speed; ++_n;
+  for (int i = 1; i <= SUB && _n < MAXWP; ++i) {
+    const float t = t0 + dt * (float)i;
+    const float n = px(t), e = py(t);
+    const float d = sqrtf((n - prevN) * (n - prevN) + (e - prevE) * (e - prevE));
+    acc += d; total += d;
+    prevN = n; prevE = e;
+    if (acc >= spacing_m) {
+      acc -= spacing_m;
+      _wp[_n].north = n; _wp[_n].east = e; _wp[_n].speed = speed;
+      ++_n;
+    }
+  }
+  if (_n < MAXWP) {
+    _wp[_n].north = px(t0); _wp[_n].east = py(t0); _wp[_n].speed = speed;
+    ++_n;
+  }
+  accept_radius = 0.45f * spacing_m;
+
+  float rmin = 1e9f, rmax = 0.f;
+  for (int i = 0; i < SUB; ++i) {
+    const float t  = dt * (float)i;
+    const float dxv = vx(t), dyv = vy(t);
+    const float axv = S * (-cosf(t) - k * k * A * cosf(k * t));
+    const float ayv = S * (-sinf(t) + k * k * A * sinf(k * t));
+    const float sp = sqrtf(dxv * dxv + dyv * dyv);
+    const float kap = fabsf(dxv * ayv - dyv * axv) / (sp * sp * sp);
+    if (kap > 1e-9f) { const float r = 1.f / kap;
+                       if (r < rmin) rmin = r; if (r > rmax) rmax = r; }
+  }
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  printf("[nav] spirograph mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
+         "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)\n",
+         lobes, outer_radius_m, A, total, _n, spacing_m, accept_radius);
+  printf("[nav]   turn radius %.2f - %.2f m  (a_lat 2.5 allows %.2f - %.2f m/s)"
+         "  join at %.2f m due north\n",
+         rmin, rmax, sqrtf(2.5f * rmin), sqrtf(2.5f * rmax),
+         sqrtf(px(t0) * px(t0) + py(t0) * py(t0)));
+  fflush(stdout);
+}
+
+/*
  * OVAL / STADIUM - the course that makes a gait SWITCH worth making.
  *
  * Neither existing course rewards switching, and for opposite reasons:

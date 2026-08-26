@@ -69,10 +69,12 @@ def mission_bbox(spec):
         f = [float(x) for x in rest.split(":")]
     except ValueError:
         return None
-    if kind in ("star", "atom"):
+    if kind in ("star", "atom", "spiro"):
         # Every point lies within radius f[0] of the nucleus/centre by
         # construction (star: vertices ON the circle, chords stay inside it;
-        # atom: r(t) <= outer_radius_m at every t). Safe on both axes.
+        # atom/spiro: same trochoid formula, r(t) <= outer_radius_m at every
+        # t - confirmed analytically: |r(t)|^2 = S^2*(1+A^2+2A*cos((k+1)t))
+        # <= S^2*(1+A)^2 = outer_radius_m^2 for any k, A). Safe on both axes.
         r = f[0]
         return (-r, r, -r, r)
     if kind == "circle":

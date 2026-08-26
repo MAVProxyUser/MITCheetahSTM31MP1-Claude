@@ -88,6 +88,41 @@ def mission_waypoints(spec):
             if acc >= step:
                 acc -= step; out.append((n, e))
         return out
+    if kind == "spiro":
+        # Mirrors WaypointNav::makeSpirograph - the SAME trochoid formula
+        # as "atom" above, at a different point in its own parameter
+        # space (k=lobes directly, not lobes-1; depth pushed near 1.0).
+        # See that C++ function's own comment for why those two changes
+        # move the curve from atom's own look to a classic Spirograph
+        # rosette. Same tangential-entry join as atom, same reason.
+        R = float(rest[0]); lobes = int(rest[1]) if len(rest) > 1 else 8
+        A = float(os.environ.get("WP_SPIRO_DEPTH", 0.99))
+        k = lobes; S = R / (1.0 + A)
+        rx = lambda t: S * (math.cos(t) + A * math.cos(k * t))
+        ry = lambda t: S * (math.sin(t) - A * math.sin(k * t))
+        vx = lambda t: S * (-math.sin(t) - k * A * math.sin(k * t))
+        vy = lambda t: S * (math.cos(t) - k * A * math.cos(k * t))
+        t0, prev = 0.0, rx(0) * vy(0) - ry(0) * vx(0)
+        for i in range(1, 20001):
+            t = 2 * math.pi * i / 20000
+            cr = rx(t) * vy(t) - ry(t) * vx(t)
+            if (cr < 0) != (prev < 0) and rx(t) * vx(t) + ry(t) * vy(t) > 0:
+                t0 = t; break
+            prev = cr
+        rot = -math.atan2(ry(t0), rx(t0))
+        c, sr = math.cos(rot), math.sin(rot)
+        px = lambda t: rx(t) * c - ry(t) * sr
+        py = lambda t: rx(t) * sr + ry(t) * c
+        step = float(os.environ.get("WP_SPIRO_DS", 0.45))
+        out, acc = [(px(t0), py(t0))], 0.0
+        pn, pe = px(t0), py(t0)
+        for i in range(1, 40001):
+            t = t0 + 2 * math.pi * i / 40000
+            n, e = px(t), py(t)
+            acc += math.hypot(n - pn, e - pe); pn, pe = n, e
+            if acc >= step:
+                acc -= step; out.append((n, e))
+        return out
     if kind == "oval":
         # Mirrors WaypointNav::makeOval: north straight, right 180, south
         # straight, right 180 back to the start.

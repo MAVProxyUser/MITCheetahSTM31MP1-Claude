@@ -21,6 +21,7 @@ const MISSION_OPTIONS = [
   { value: "lissajous:15:1:2", label: "Lissajous 1:2" },
   { value: "lissajous:15:5:7", label: "Lissajous 5:7" },
   { value: "lissajous:15:11:9", label: "Lissajous 11:9" },
+  { value: "spiro:9.0:8", label: "Spirograph (8-lobe rosette)" },
 ];
 const GAITS = ["trotRunning", "trotting", "walking", "walking2", "pacing"];
 

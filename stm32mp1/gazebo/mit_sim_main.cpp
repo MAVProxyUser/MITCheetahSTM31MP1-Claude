@@ -119,6 +119,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     nav.makeLissajous(d, wx, wy,
                        getenv("WP_LISS_DS") ? atof(getenv("WP_LISS_DS")) : 1.5f, vx);
   }
+  else if (sscanf(mission, "spiro:%f:%d", &r, &pts) >= 1) {
+    // "spiro:<outer radius m>[:<lobes>]" - same pattern as atom's own
+    // parser branch; depth and spacing are secondary knobs kept as env
+    // overrides. See WaypointNav.cpp's makeSpirograph for the shape.
+    if (sscanf(mission, "spiro:%f:%d", &r, &pts) < 2) pts = 8;   // 8 = the reference image
+    nav.makeSpirograph(r, pts,
+                        getenv("WP_SPIRO_DEPTH") ? atof(getenv("WP_SPIRO_DEPTH")) : 0.99f,
+                        getenv("WP_SPIRO_DS")    ? atof(getenv("WP_SPIRO_DS"))    : 0.45f, vx);
+  }
   else                                                     nav.makeStar(5.3f, 5, vx);
 
   // $WP_DASH=<metres>: append a straight finishing sprint after the loop

@@ -176,6 +176,18 @@ RECIPES = {
     # ALWAYS turning.
     "atom": dict(gait=9, speed=2.1, extra="WP_ALON=0.4",
                  note="trotting, bare (analyzer adds nothing here) - 58.97s @ 6/6"),
+    # Spirograph rosette (makeSpirograph) - per direct challenge to render a
+    # specific reference Spirograph image as a mission, "shoot for the moon."
+    # Same trochoid family as atom (same formula, k=lobes not lobes-1, depth
+    # near 1.0 instead of clamped well short of it - see WaypointNav.cpp's
+    # own comment on makeSpirograph for the exact relationship) - starting
+    # from atom's own proven-good gait/speed/tuning as the baseline, same
+    # reasoning: a smooth continuous curve, not discrete sharp vertices, so
+    # trotting's own established comfort with curvy/continuous courses
+    # applies here too pending its own live results.
+    "spiro": dict(gait=9, speed=1.8, extra="WP_ALON=0.4",
+                  note="trotting @ 1.8 m/s, atom's own bare tuning as a "
+                       "starting point - untested, first attempt pending"),
     "dash": dict(gait=5, speed=3.0, extra="",
                  note="trotRunning straight-line - UNDER REVIEW, see README"),
     # Search-and-rescue patterns (International Aeronautical and Maritime

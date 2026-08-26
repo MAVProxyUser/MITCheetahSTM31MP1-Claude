@@ -84,6 +84,26 @@ class WaypointNav {
    *  ratio wx:wy. Higher-order ratios (5:7, 11:9, ...) sweep the area more
    *  densely; see Fig. 2. */
   void makeLissajous(float amplitude_m, int wx, int wy, float spacing_m, float speed);
+  /*! Spirograph rosette: the SAME trochoid formula makeAtom uses, at a
+   *  different point in its own parameter space - `lobes` used directly as
+   *  the rolling-circle ratio k (makeAtom uses k = lobes-1) and `depth`
+   *  pushed near 1.0 (makeAtom clamps well short of it). Those two changes
+   *  move the curve from makeAtom's own look (small loops pointing
+   *  outward from each lobe) to the classic Spirograph look this was
+   *  built to match: petals curving inward, converging through a shared,
+   *  densely rewoven centre. Found by direct visual comparison against a
+   *  reference image, not derived analytically - see CLAUDE.md for the
+   *  parameter search.
+   *  @param outer_radius_m  overall size
+   *  @param lobes           petals (8 = the reference image)
+   *  @param depth           0..1, pen offset as a fraction of the rolling
+   *                         circle's own orbit radius - near 1.0 gives the
+   *                         cusped, densely-woven-centre look; lower values
+   *                         open the centre back up and round the lobes
+   *  @param spacing_m       waypoint spacing along the arc
+   *  @param speed           cruise for every leg */
+  void makeSpirograph(float outer_radius_m, int lobes, float depth,
+                       float spacing_m, float speed);
   //! Read back a waypoint (for drawing the planned track).
   const NavWaypoint& waypoint(int i) const { return _wp[i]; }
 
