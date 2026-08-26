@@ -4729,3 +4729,32 @@ actually cause harm (overlapping spawns). Closed it: launched a genuine
 PASS 3/3 - circle 30.2s, sector 132.5s, spiro 118.9s, every one matching
 its own solo baseline almost exactly, and the report plot confirms all
 three dogs spawned in cleanly separated lanes with zero overlap.
+
+## Full-catalog regression sweep, one final binary, closing out the autonomous session
+
+With the corner-tightening, spawn-on-wp0, and Spirograph work all
+landed on the same rebuilt binary, ran every mission in the catalog
+once more solo before calling the session done - not because any one of
+them was individually in doubt, but because this is the FIRST time all
+of tonight's changes have coexisted in one binary at once, and "each
+change was fine in isolation" is not the same claim as "the combination
+is fine":
+
+```
+star:10.514:5       PASS  69.0s (was 69.0-69.8s)
+oval:40:5.0          PASS  37.4s (was ~37s)
+atom:9.0:6           PASS  62.2s (was ~62s)
+dash:100             PASS  33.3s (was ~33s)
+circle:9:8           PASS  30.2s (post-shift baseline)
+sector:15:3          PASS 132.2s (post-shift baseline)
+parallel:30:5:8      PASS 182.2s (post-shift+further-tightening baseline)
+expsquare:5:12       PASS 109.0s (5/6 across tonight - see the gait
+                      investigation entry for the one intermittent fall)
+lissajous:15:1:2     PASS  96.1s (was 96.0-96.2s)
+lissajous:15:5:7     PASS 345.9s (exact match to established baseline)
+spiro:9.0:8          PASS 118.9-119.2s x3
+3-dog fleet (circle+sector+spiro together) PASS 3/3, no spawn overlap
+```
+
+Every mission in the catalog, confirmed on the final binary, in one
+sweep. Nothing broken; everything asked for landed.
