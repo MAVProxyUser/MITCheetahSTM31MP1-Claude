@@ -4717,3 +4717,15 @@ multi-layer texture - some candidates in the parameter search DID
 produce denser interference patterns, but none kept a clean,
 unambiguous 8-fold structure at the same time as that density. A
 genuine best-effort rendition, not a claimed exact match.
+
+**Multi-dog fleet confirmation, closing a real gap.** Every test above
+this point tonight was a solo dog - the `make_multi_world.py` bbox fix
+for circle/sector/parallel/expsquare (needed because `shiftFirstToOrigin`
+made their old hand-derived closed forms stale) had only been unit-
+tested against the bbox FUNCTION in isolation, never against an actual
+multi-dog spawn layout, which is the only place a wrong bbox could
+actually cause harm (overlapping spawns). Closed it: launched a genuine
+3-dog fleet (`circle:9:8`, `sector:15:3`, `spiro:9.0:8` together) and got
+PASS 3/3 - circle 30.2s, sector 132.5s, spiro 118.9s, every one matching
+its own solo baseline almost exactly, and the report plot confirms all
+three dogs spawned in cleanly separated lanes with zero overlap.
