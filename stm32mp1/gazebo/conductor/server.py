@@ -44,6 +44,7 @@ import math
 import os
 import re
 import socketserver
+import shutil
 import subprocess
 import sys
 import threading
@@ -185,10 +186,26 @@ RECIPES = {
     # as an honest, conservative default rather than a measured one.
     # First attempt at 2.0 m/s bare fell AFTER cleanly capturing all 8
     # waypoints - a severe pitch-dominant tip (roll=-32 pitch=67) in the
-    # end-of-mission stop, not the course itself (constant R=7.48m the
-    # whole way, no corners to speak of). Same standard tuning fixed it.
-    "circle": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
-                    note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON - PASS 32.8s (1 rep)"),
+    # end-of-mission stop, not the course itself. Same standard tuning fixed
+    # it - but "constant R=7.48m the whole way, no corners to speak of" (the
+    # ORIGINAL note here) undersold what that number actually meant: circle's
+    # 45deg per-vertex turns sit BELOW turn_soft's default 80deg threshold,
+    # so the corridor-grading mechanism never engages AT ALL - every corner
+    # was cut at a fillet radius comparable to the course's own 9m radius,
+    # at full 1.5 m/s cruise, no braking whatsoever. Visually: an 8-point
+    # circle search reading as a soft, undersized blob instead of tracing
+    # its own vertices. Per direct report ("SAR variants still round
+    # corners off real bad"). Probed like sector: turn_soft/turn_hard
+    # narrowed to bracket circle's OWN 45deg angle (was tuned for star's
+    # 144/162deg) brings the fillet to R=1.43m - a 5x tightening - using
+    # the same corridor_scale_min=0.07 sector already shipped with.
+    "circle": dict(gait=20, speed=1.5,
+                    extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
+                          "WP_TURN_SOFT=0.3 WP_TURN_HARD=0.79",
+                    note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
+                         "turn-grading ramp narrowed for circle's own 45deg "
+                         "corners - retest pending (was PASS 32.8s untightened, "
+                         "R=7.48m/no braking at every corner)"),
     # First attempt fell twice: once with the default corridor (tightest
     # First attempt fell twice: once with the default corridor (tightest
     # corner R=0.39-0.52m, untouched) at t~22s, once with only
@@ -254,10 +271,36 @@ RECIPES = {
     # m/s of straight-line momentum into a sharp turn. Same corridor/ALON
     # tuning as sector did not fix it at 2.0; dropping cruise to 1.5 did -
     # less momentum to shed before the connector, not a geometry problem.
-    "parallel": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
-                      note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON - PASS 158.2s (1 rep)"),
-    "expsquare": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
-                       note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON - PASS 87.4s (1 rep, first try)"),
+    #
+    # WP_TURN_SOFT/WP_TURN_HARD/WP_CORRIDOR_MIN=0.07 added per direct
+    # report ("SAR variants still round corners off real bad"), same
+    # probe-first methodology as sector and circle: parallel's every
+    # corner is a constant 90deg turn, which sits just barely inside the
+    # DEFAULT grading window (turn_soft=80deg) - only 12.5% graded - so
+    # every turn was a fillet at R=2.25m, full 1.5 m/s cruise, no braking
+    # at all. Narrowing the ramp to bracket 90deg (turn_hard=86deg, so
+    # 90deg sits fully past it) plus corridor_scale_min=0.07 (matching
+    # sector/circle) brings it to R=0.253m, v_min=0.304 m/s - real,
+    # visible corners instead of a smoothed-over lawnmower pattern.
+    "parallel": dict(gait=20, speed=1.5,
+                      extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
+                            "WP_TURN_SOFT=0.6 WP_TURN_HARD=1.5",
+                      note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
+                           "turn-grading ramp narrowed for parallel's own 90deg "
+                           "corners - retest pending (was PASS 158.2s untightened, "
+                           "R=2.25m/no braking at every corner)"),
+    # Same fix, same reasoning, same numbers as parallel immediately above -
+    # expsquare's corners are ALSO a constant 90deg turn (its 5 non-trivial
+    # legs alternate direction by exactly 90deg each), so it had the
+    # identical R=2.25m/full-cruise problem and gets the identical
+    # WP_TURN_SOFT/WP_TURN_HARD/WP_CORRIDOR_MIN treatment.
+    "expsquare": dict(gait=20, speed=1.5,
+                       extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
+                             "WP_TURN_SOFT=0.6 WP_TURN_HARD=1.5",
+                       note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
+                            "turn-grading ramp narrowed for expsquare's own 90deg "
+                            "corners - retest pending (was PASS 87.4s untightened, "
+                            "R=2.25m/no braking at every corner)"),
     # PASS 96.2s on 1:2 (141m), PASS 345.9s on 5:7 (558m) - same tuning as
     # the SAR patterns. Higher ratios are genuinely LONG missions (558m for
     # 5:7 alone) - the controller process's own safety-net timeout was
@@ -351,6 +394,34 @@ def mission_kind(spec):
     # "dash:<m>" is the real straight sprint; "outback:<m>" is the legacy
     # out-and-back (100 out, 100 BACK) and is NOT what the panel means by dash.
     return "dash" if kind in ("outback", "dash") else kind
+
+
+def archive_log(path, prev_run_id):
+    """Archive an existing per-run log before the next launch's fresh
+    open(path, "w") truncates it. Per direct request, after losing exactly
+    the evidence needed for an expsquare fall to the very next test launched
+    a couple of minutes later: gz.log/bridge_N.log/ctrl_N.log all get
+    reopened in "w" mode on every single launch, in place, with nothing
+    keeping the PREVIOUS run's copy around - fine for a quick A/B, a real
+    loss the moment something needs investigating after the fact.
+
+    Same directory (RUN_DIR/archive/), date-stamped AND run-id-stamped, so
+    a past run's logs are both sorted chronologically and unambiguously
+    tied to the run number already stamped into every orchestration log
+    line. No retention/pruning - that is a separate, explicit decision for
+    whoever needs it, not bundled into this fix.
+    """
+    if not os.path.exists(path):
+        return
+    try:
+        archive_dir = os.path.join(RUN_DIR, "archive")
+        os.makedirs(archive_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        dest = os.path.join(archive_dir, "%s_run%s_%s" % (
+            stamp, prev_run_id, os.path.basename(path)))
+        shutil.move(path, dest)
+    except Exception:  # noqa: BLE001 - archiving must never block a launch
+        pass
 
 
 def clamp_speed(v, cap, model=None):
@@ -772,6 +843,7 @@ class Fleet:
 
             self._note("starting Gazebo HEADLESS (no GUI, no marker traffic - "
                        "this page renders the fleet itself)")
+            archive_log(os.path.join(RUN_DIR, "gz.log"), self.run_id - 1)
             gz_log = open(os.path.join(RUN_DIR, "gz.log"), "w")
             p = subprocess.Popen(["gz", "sim", "-s", "-r", world_out],
                                   cwd=GAZEBO_DIR, env=env, stdout=gz_log,
@@ -803,6 +875,7 @@ class Fleet:
                 senv = env.copy()
                 senv["SIM_INSTANCE"] = str(i)
                 senv["SIM_MODEL"] = name
+                archive_log(os.path.join(RUN_DIR, "bridge_%d.log" % i), self.run_id - 1)
                 blog = open(os.path.join(RUN_DIR, "bridge_%d.log" % i), "w")
                 bp = subprocess.Popen(
                     [PYBIN, "-u", "cheetah_gazebo_bridge.py"],
@@ -855,6 +928,7 @@ class Fleet:
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"
                     % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"], s["extra"])
                 )
+                archive_log(os.path.join(RUN_DIR, "ctrl_%d.log" % i), self.run_id - 1)
                 clog = open(os.path.join(RUN_DIR, "ctrl_%d.log" % i), "w")
                 cp = subprocess.Popen(["bash", "-c", cmd], cwd=HOST_RUN,
                                        env=cenv, stdout=clog, stderr=subprocess.STDOUT)
