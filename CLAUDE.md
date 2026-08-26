@@ -4493,15 +4493,37 @@ Verified live: watched the trail array grow smoothly and un-truncated
 well past a meaningful fraction of the old cap with no sign of hitting
 the new one.
 
-**A separate, NOT resolved issue turned up verifying the above**, and
-is flagged honestly rather than folded into the trail-cap fix: that
-same verification run hung at t=202s (wp 211/606) - `mit_ctrl_sim`
-stopped producing any log output at all, with perfectly healthy
-control-loop timing right up to the last line (`maxPeriod=2.48ms`
-against an 8ms limit) and no `[STALL]`, no `[FALL]`, nothing. `gz.log`
-was completely empty - ruling out the multicast bug fixed earlier
-tonight (that failure mode fills `gz.log` with "No route to host" from
-t=0; this one produced no gz-side output at all and got well into the
-mission first). Not chased further tonight given the hour; a genuinely
-new, silent, mid-run controller hang on the longest/densest course in
-the catalog, distinct from every other failure mode documented above.
+**CORRECTION to the paragraph above, from the same night**: that "hang"
+was NOT a controller/host issue at all - it was `mission_runner.py`'s
+own `--stall-timeout` killing a perfectly healthy run, and every symptom
+that made it look like a genuine wedge (healthy control-loop timing
+right up to the last line, no `[STALL]`/`[FALL]`, `gz.log` empty, no
+crash report, the bridge log showing continuous real telemetry - varying
+IMU, drifting GPS - right through the "freeze") is exactly what a clean
+external `SIGTERM`/`kill()` produces. Confirmed by reproducing it with a
+live `sample` capture: by the time the stall-timeout's own staleness
+check fired and the script tried to sample the process, it "no longer
+appear[ed] to be running" - it had just been killed by this same
+script's own `/api/stop` call, not by anything internal to the sim.
+
+Root cause: `EVENT_PATTERNS` (`server.py`) has no entry for routine
+waypoint advancement, and `lissajous:15:11:9` is a single-gait, non-
+analyzer, no-dash mission - no gait change ever fires (needs
+`$WP_ANALYZER`, unset for this recipe), no dash interlude, no fall,
+nothing else to log. The orchestration log therefore produces ZERO new
+lines between "nav taking the stick" and "settled on its feet" at the
+very end - on this course, that gap is the entire ~550s middle of the
+mission. Proven directly: relaunched with a stall-timeout the mission
+could not possibly trip (700s against an expected 562s) and it ran to
+completion, PASS 561.7s, matching its own established baseline exactly,
+with the raw ctrl log growing continuously and linearly the whole time.
+
+No stall-timeout VALUE fixes this - any finite number less than a
+mission's own duration will eventually false-positive on a course
+shaped like this one. Fixed the actual mechanism in `mission_runner.py`
+instead: the poll loop now also resets its progress clock on any change
+to `state["status"][i]["waypoints"]`/`["text"]`, which `server.py`'s
+`_start_poller` already updates roughly once a second straight from the
+raw per-tick ctrl log, independent of mission shape - catching "the
+robot is still actually moving" even through a stretch that never emits
+a single curated event.
