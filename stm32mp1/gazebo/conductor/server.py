@@ -204,8 +204,8 @@ RECIPES = {
                           "WP_TURN_SOFT=0.3 WP_TURN_HARD=0.79",
                     note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
                          "turn-grading ramp narrowed for circle's own 45deg "
-                         "corners - retest pending (was PASS 32.8s untightened, "
-                         "R=7.48m/no braking at every corner)"),
+                         "corners, R=1.43m - PASS 30.2s (was 32.8s/34.3s at "
+                         "earlier steps; R=7.48m/no braking untightened)"),
     # First attempt fell twice: once with the default corridor (tightest
     # First attempt fell twice: once with the default corridor (tightest
     # corner R=0.39-0.52m, untouched) at t~22s, once with only
@@ -282,25 +282,44 @@ RECIPES = {
     # 90deg sits fully past it) plus corridor_scale_min=0.07 (matching
     # sector/circle) brings it to R=0.253m, v_min=0.304 m/s - real,
     # visible corners instead of a smoothed-over lawnmower pattern.
+    # WP_CORRIDOR_MIN 0.07 -> 0.05: a further step per "tighter angles,
+    # less corner rounding" - parallel's 30m straights give far more
+    # braking distance than expsquare's short spiral legs (which stayed
+    # at 0.07 for exactly that reason - it already fell once at the
+    # LOOSER setting, more braking demand is the wrong direction there).
+    # R 0.253m -> 0.181m, v_min 0.304 -> 0.217 m/s. PASS x2 (182.3s,
+    # 182.0s), negligible extra time cost for a visibly sharper corner.
     "parallel": dict(gait=20, speed=1.5,
-                      extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
+                      extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.05 WP_ALON=0.4 "
                             "WP_TURN_SOFT=0.6 WP_TURN_HARD=1.5",
                       note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
                            "turn-grading ramp narrowed for parallel's own 90deg "
-                           "corners - retest pending (was PASS 158.2s untightened, "
-                           "R=2.25m/no braking at every corner)"),
+                           "corners, tightened further to R=0.181m - PASS 181-182s "
+                           "x2 (was 158.2s at the original untightened R=2.25m/"
+                           "no-braking baseline)"),
     # Same fix, same reasoning, same numbers as parallel immediately above -
     # expsquare's corners are ALSO a constant 90deg turn (its 5 non-trivial
     # legs alternate direction by exactly 90deg each), so it had the
     # identical R=2.25m/full-cruise problem and gets the identical
     # WP_TURN_SOFT/WP_TURN_HARD/WP_CORRIDOR_MIN treatment.
+    # Deliberately NOT tightened past 0.07 the way parallel was (same
+    # 90deg angle, same formula) - expsquare's early spiral legs are only
+    # 5m (parallel's straights are 30m), giving far less distance to shed
+    # speed into an even-tighter corner. Already saw ONE fall at this
+    # exact setting (SAFETY CHECK FAILED, wp01->wp02, the two shortest
+    # legs in the whole course) before shiftFirstToOrigin existed;
+    # confirmed since as PASS x4 / FELL x1 across 5 attempts (109.0-109.2s
+    # each pass) - more braking demand is the wrong direction on this
+    # course, not an oversight.
     "expsquare": dict(gait=20, speed=1.5,
                        extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
                              "WP_TURN_SOFT=0.6 WP_TURN_HARD=1.5",
                        note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
                             "turn-grading ramp narrowed for expsquare's own 90deg "
-                            "corners - retest pending (was PASS 87.4s untightened, "
-                            "R=2.25m/no braking at every corner)"),
+                            "corners, R=0.253m - PASS x4/FELL x1 in 5 attempts, "
+                            "109.0-109.2s each pass (was PASS 87.4s untightened, "
+                            "R=2.25m/no braking at every corner). NOT tightened "
+                            "further - see comment above."),
     # PASS 96.2s on 1:2 (141m), PASS 345.9s on 5:7 (558m) - same tuning as
     # the SAR patterns. Higher ratios are genuinely LONG missions (558m for
     # 5:7 alone) - the controller process's own safety-net timeout was
