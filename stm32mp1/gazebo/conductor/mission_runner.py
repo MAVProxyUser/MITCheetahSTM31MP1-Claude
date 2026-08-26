@@ -243,6 +243,43 @@ HARNESS_TIMEOUT_EXIT = 2
 
 _NAV_RE = re.compile(r"\[nav\] wp\d+/\d+ N=([-\d.]+) E=([-\d.]+)")
 
+# Generous, per-MISSION-KIND expected solo completion times, in seconds -
+# not the fastest recorded run, the slowest one this project has actually
+# seen pass, rounded well up. Used two ways: (1) to auto-size the overall
+# timeout from whatever's actually IN a fleet instead of one hand-picked
+# number covering the worst case across the whole catalog every time
+# (previously: a fleet containing only fast missions still had to be
+# launched with a --timeout sized for lissajous:15:11:9, or a draw
+# CONTAINING 11:9 needed remembering to raise it by hand - either way a
+# human had to get it right per launch), and (2) to print an early,
+# NON-FATAL "past its own baseline" note - per direct instruction, a slow
+# dog that is still genuinely progressing should never be killed just for
+# missing this number. Keyed by mission-kind prefix; lissajous is further
+# keyed by its wx:wy ratio since 1:2 (~96s), 5:7 (~346s) and 11:9 (~562s)
+# differ by nearly 6x on the exact same recipe.
+BASELINE_S = {
+    "star": 120, "oval": 100, "atom": 130, "spiro": 150, "dash": 60,
+    "circle": 60, "sector": 160, "parallel": 210, "expsquare": 130,
+}
+_LISSAJOUS_RATIO_S = {(1, 2): 120, (5, 7): 400, (11, 9): 650}
+
+
+def mission_baseline_s(spec):
+    """Generous expected-completion estimate for one mission spec string -
+    see BASELINE_S's comment for what "generous" means here. Unknown kinds
+    (a future mission nobody's added yet) get a large flat guess rather
+    than a crash, printed as a guess so it doesn't read as a measurement."""
+    kind = spec.split(":", 1)[0]
+    kind = "dash" if kind in ("outback", "dash") else kind
+    if kind == "lissajous":
+        parts = spec.split(":")
+        try:
+            ratio = (int(parts[2]), int(parts[3]))
+        except (IndexError, ValueError):
+            ratio = None
+        return _LISSAJOUS_RATIO_S.get(ratio, 700)
+    return BASELINE_S.get(kind, 300)
+
 
 def find_zombies(slots):
     """Distinguish a genuinely WEDGED dog from a slow-but-healthy one at the
@@ -336,28 +373,31 @@ def main():
                      help="finish-dash metres for the matching --slot by position (0=none)")
     ap.add_argument("--extra", action="append", default=[],
                      help="raw KEY=VALUE env override(s) for the matching --slot, space-separated")
-    ap.add_argument("--timeout", type=float, default=700,
-                     help="overall wall-clock budget in seconds (default 700 - "
-                          "sized above lissajous:15:11:9's own ~562s baseline, "
-                          "the longest mission in the catalog; a shorter run just "
-                          "finishes early and this budget is never touched. "
-                          "Previously defaulted to 300, which is BELOW that "
-                          "baseline - every default invocation on that course "
-                          "was silently guaranteed to false-timeout a healthy "
-                          "run. Caught by hand more than once tonight, including "
-                          "one that killed a mission that had ALREADY printed "
-                          "RESULT: PASS moments earlier - see the loud TIMEOUT "
-                          "banner below and exit code 2 for why that class of "
-                          "mistake should now be impossible to mistake for a "
-                          "real FAIL.)")
+    ap.add_argument("--timeout", type=float, default=None,
+                     help="overall wall-clock budget in seconds. Default: auto-derived "
+                          "per-dog from BASELINE_S/mission_baseline_s (each dog's own "
+                          "known-slowest mission+ratio, x3, +120s boot overhead) rather "
+                          "than one fixed number - a fleet of fast missions no longer "
+                          "has to inherit a --timeout sized for lissajous:15:11:9, and a "
+                          "draw that DOES contain it doesn't need remembering to raise "
+                          "this by hand. This is the FINAL backstop, not the thing that "
+                          "usually fires: a dog missing its own baseline only gets a "
+                          "printed warning (see --stall-timeout) as long as it is still "
+                          "genuinely progressing; only ALL-dogs-stalled or this absolute "
+                          "ceiling ends the run early. Pass explicitly to override.")
     ap.add_argument("--stall-timeout", type=float, default=200,
-                     help="abort if no new orchestration log line appears for this many "
-                          "seconds - catches a wedged launch, not just a slow one (default "
-                          "200; a healthy run CAN go well over 100s silent through a course "
-                          "with many short legs and gentle braking and no gait-change/mission "
-                          "event to log in between - measured on the sector-search mission, "
-                          "which killed a perfectly healthy run at 100s. See the module "
-                          "docstring.)")
+                     help="PER-DOG: seconds of zero change in that dog's own "
+                          "state[\"status\"] entry (waypoint index/distance/speed, "
+                          "updated ~1/s straight from its raw ctrl log regardless of "
+                          "mission shape) before it is flagged as genuinely stalled "
+                          "(default 200). This does NOT end the run by itself - other "
+                          "still-progressing dogs keep running; the whole fleet is only "
+                          "torn down once EVERY dog still running is simultaneously "
+                          "flagged, or --timeout's absolute ceiling is hit. Exceeding a "
+                          "mission's own expected BASELINE_S is a separate, non-fatal "
+                          "warning - a dog that is slow but still moving is never killed "
+                          "for that alone. See mission_baseline_s()'s docstring for why "
+                          "the two are tracked separately.")
     ap.add_argument("--poll", type=float, default=2.0,
                      help="state-poll interval in seconds (default 2)")
     ap.add_argument("--keep-cameras", action="store_true",
@@ -368,6 +408,13 @@ def main():
         ap.error("need at least one --slot")
     if len(args.slot) > 3:
         ap.error("max 3 slots")
+
+    dog_baseline = [mission_baseline_s(m) for m in args.slot]
+    if args.timeout is None:
+        args.timeout = max(dog_baseline) * 3 + 120
+        print("[runner] --timeout not given - auto-derived %.0fs from this fleet's "
+              "own missions (baselines: %s, x3 + 120s boot overhead)"
+              % (args.timeout, dict(zip(args.slot, dog_baseline))), flush=True)
 
     st = api("GET", "/api/state")
     gaits = st["gaits"]                       # name -> numeric SIM_GAIT id
@@ -499,18 +546,29 @@ def main():
     # 250s log-only stall-timeout falsely killed twice ran to completion
     # (PASS 561.7s) once given a timeout it could not possibly hit - this
     # is what makes that unnecessary in the first place.
-    last_status = None
-    last_progress = time.monotonic()
+    # PER-DOG tracking, not one shared clock. A shared clock means the
+    # FASTEST dog in the fleet resets everyone's grace period, which can
+    # mask a genuinely dead dog for as long as anyone else is moving, and
+    # a single dog whose own mission is legitimately slower than another
+    # slot's has no way to get more room than whatever number was picked
+    # for the whole run. Each dog gets its own start time, its own
+    # baseline (mission_baseline_s), its own stall clock, and its own
+    # one-shot "past baseline" warning - a dog missing its baseline is
+    # flagged, never killed, as long as ITS OWN status keeps changing.
+    n_dogs_total = len(args.slot)
+    dog_start = [time.monotonic()] * n_dogs_total
+    dog_last_progress = [time.monotonic()] * n_dogs_total
+    dog_last_status = [None] * n_dogs_total
+    dog_warned_slow = [False] * n_dogs_total
+    dog_flagged_stall = [False] * n_dogs_total
+    dog_done = [False] * n_dogs_total
     start = time.monotonic()
     final_state = None
     while True:
         now = time.monotonic()
         if now - start > args.timeout:
-            harness_timeout("OVERALL BUDGET (--timeout %.0fs) elapsed" % args.timeout,
-                             run_id, args.slot, st, all_lines)
-        if now - last_progress > args.stall_timeout:
-            harness_timeout("NO PROGRESS (--stall-timeout %.0fs): no new log line "
-                             "or waypoint/distance change" % args.stall_timeout,
+            harness_timeout("ABSOLUTE CEILING (--timeout %.0fs) elapsed - this is the "
+                             "final backstop, not a per-mission budget" % args.timeout,
                              run_id, args.slot, st, all_lines)
 
         st = api("GET", "/api/state")
@@ -524,15 +582,42 @@ def main():
             for line in new_lines:
                 print("[run%s] %s" % (run_id, line), flush=True)
                 all_lines.append(line)
-            if new_lines:
-                last_progress = now
+                for i in range(n_dogs_total):
+                    # "dog0: mission result: PASS" and "dog0 FELL" are both
+                    # real formats server.py emits (see EVENT_PATTERNS) -
+                    # neither reliably has a colon, so match the dog token
+                    # on a word boundary rather than assuming one.
+                    if re.search(r"\bdog%d\b" % i, line) and \
+                            ("mission result:" in line or "FELL" in line):
+                        dog_done[i] = True
             last_line = log[-1]
 
-        status = [(s.get("index"), s.get("waypoints"), s.get("text"))
-                  for s in st.get("status", [])]
-        if status and status != last_status:
-            last_progress = now
-            last_status = status
+        for s in st.get("status", []):
+            i = s.get("index")
+            if i is None or i >= n_dogs_total or dog_done[i]:
+                continue
+            key = (s.get("waypoints"), s.get("text"))
+            if key != dog_last_status[i]:
+                dog_last_status[i] = key
+                dog_last_progress[i] = now
+                dog_flagged_stall[i] = False
+
+        still_running = [i for i in range(n_dogs_total) if not dog_done[i]]
+        for i in still_running:
+            if not dog_warned_slow[i] and now - dog_start[i] > dog_baseline[i]:
+                dog_warned_slow[i] = True
+                print("[runner] dog%d: past its own expected baseline (%.0fs, elapsed "
+                      "%.0fs) for %s - still progressing, NOT killing it"
+                      % (i, dog_baseline[i], now - dog_start[i], args.slot[i]), flush=True)
+            if not dog_flagged_stall[i] and now - dog_last_progress[i] > args.stall_timeout:
+                dog_flagged_stall[i] = True
+                print("[runner] dog%d: NO PROGRESS for %.0fs (stall-timeout %.0fs) - "
+                      "flagging as stalled; other dogs keep running"
+                      % (i, now - dog_last_progress[i], args.stall_timeout), flush=True)
+
+        if still_running and all(dog_flagged_stall[i] for i in still_running):
+            harness_timeout("ALL REMAINING DOGS STALLED: %s - nothing left to wait for"
+                             % still_running, run_id, args.slot, st, all_lines)
 
         phase = st.get("phase")
         if phase in ("done", "error", "idle"):
