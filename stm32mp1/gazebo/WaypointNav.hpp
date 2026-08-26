@@ -112,6 +112,26 @@ class WaypointNav {
   // --- tunables (OpenPilot ConditionParameters equivalents) ---
   float accept_radius = 0.25f;   //!< m, acceptance sphere (hit the point, not a buffer)
   float corridor      = 2.0f;    //!< half-plane lateral bound = corridor*accept
+  /*!
+   * OPT-IN tighter acceptance radius for the FINAL waypoint only (mission
+   * end / loop-closure back to the start point), in place of accept_radius.
+   * -1 (default) = off, unchanged behaviour: the final waypoint uses the
+   * same accept_radius as every other one.
+   *
+   * accept_radius does double duty - it is ALSO the corridor width
+   * BodyPathPlanner fillets corners with (see mit_sim_main.cpp's
+   * `corridor = WP_ACCEPT`), so tuning it for tight cornering (e.g.
+   * sector's WP_ACCEPT=1.5) makes every waypoint, INCLUDING the final one,
+   * "arrived" a full 1.5 m short of its literal coordinate. That is
+   * invisible at an intermediate waypoint (the dog just continues onto the
+   * next leg regardless), but at the FINAL one there is no next leg - the
+   * mission simply stops there, which is exactly what a closed course's own
+   * flown-trail plot shows as a visible gap back to the start point.
+   * final_accept_radius decouples "how wide can a fillet be" from "how
+   * precisely must the mission actually return to its nominal end point" -
+   * the two were never actually the same question.
+   */
+  float final_accept_radius = -1.f;
   float confirm_speed = 0.f;     //!< m/s; 0 = fly-through waypoints
   float confirm_dwell = 0.f;     //!< s to hold below confirm_speed
   float kp_heading    = 2.2f;    //!< yaw rate per rad of heading error

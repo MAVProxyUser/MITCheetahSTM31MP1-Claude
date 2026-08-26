@@ -654,6 +654,18 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
   // ---- ARRIVAL (OpenPilot conditionDistanceToTarget) ----
   bool arrived = false;
 
+  // FINAL WAYPOINT gets its own, tighter acceptance radius when opted in
+  // (see final_accept_radius's field comment): accept_radius also sizes
+  // BodyPathPlanner's cornering corridor, so a course tuned for tight
+  // corners "arrives" everywhere including the mission-end/loop-closure
+  // point a full accept_radius short of it - invisible at an intermediate
+  // waypoint (the next leg starts regardless) but a visible gap on a
+  // closed course's own flown-trail plot, since there is no next leg to
+  // cover it.
+  const bool isFinalWp = (_idx == _n - 1) && !loop;
+  const float eff_accept = (isFinalWp && final_accept_radius >= 0.f)
+                                ? final_accept_radius : accept_radius;
+
   // half-plane: past the waypoint along the inbound leg, within a corridor
   if (_legValid) {
     float legN = wp.north - _legFromN;
@@ -664,11 +676,11 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
       float relN = n - wp.north, relE = e - wp.east;
       float along = relN * un + relE * ue;            // >0 = past the waypoint
       float cross = fabsf(-relN * ue + relE * un);    // lateral miss
-      if (along > 0.f && cross < corridor * accept_radius) arrived = true;
+      if (along > 0.f && cross < corridor * eff_accept) arrived = true;
     }
   }
   // acceptance radius, optionally confirmed by speed + dwell
-  if (!arrived && dist <= accept_radius) {
+  if (!arrived && dist <= eff_accept) {
     if (confirm_speed > 0.f) {
       if (speed > confirm_speed) {
         _dwell = 0.f;
@@ -680,7 +692,7 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
       arrived = true;
     }
   }
-  if (dist > accept_radius && !arrived) _dwell = 0.f;
+  if (dist > eff_accept && !arrived) _dwell = 0.f;
 
   if (arrived) {
     printf("[nav] reached wp%02d (N=%.2f E=%.2f) dist=%.2f\n", _idx, wp.north, wp.east, dist);

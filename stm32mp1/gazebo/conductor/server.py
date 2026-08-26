@@ -209,15 +209,28 @@ RECIPES = {
     # inside star's own 0.028-0.191m corner range) without the much larger
     # speed cost 0.05/0.03 would add (v_min 0.180 -> 0.126 m/s, vs 0.090/
     # 0.054 at the more aggressive settings).
+    # WP_FINAL_ACCEPT=0.3 added per direct report: the flown-trail plot
+    # visibly fell short of the true start point on a closed course. Root
+    # cause (see WaypointNav.hpp's final_accept_radius field comment):
+    # WP_ACCEPT doubles as the legacy waypoint-arrival radius AND the
+    # BodyPathPlanner cornering corridor width, so tuning it for tight
+    # corners (1.5m here) also means the MISSION-END waypoint counts as
+    # "arrived" - ending the run - a full 1.5m short of its literal
+    # coordinate. Confirmed in the raw log before touching anything:
+    # "reached wp15 (N=-0.00 E=0.00) dist=1.49" - the dog stopped 1.49m
+    # from the true origin. New, opt-in final_accept_radius decouples the
+    # two: 0.3m closes the gap to a few tenths of a metre without the
+    # dog hunting/oscillating at an unrealistically tight tolerance.
     "sector": dict(gait=20, speed=2.0,
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
-                          "WP_TURN_SOFT=0.8 WP_TURN_HARD=2.0",
+                          "WP_TURN_SOFT=0.8 WP_TURN_HARD=2.0 WP_FINAL_ACCEPT=0.3",
                     note="walking, graded corridor + gentle WP_ALON + narrowed "
-                         "turn-grading ramp + tightened corridor floor for "
-                         "star-tight corners - PASS 140.9s "
-                         "(no slower than the 141.3s at CORRIDOR_MIN=0.1 - the "
-                         "extra tightening cost nothing measurable; both are "
-                         "slower than 112.8s untightened, the expected cost of "
+                         "turn-grading ramp + tightened corridor floor + tight "
+                         "final-waypoint closure for star-tight corners - "
+                         "PASS 141.5s/141.8s (2/2), final wp closes to "
+                         "dist=0.25-0.27m (was 1.49m) "
+                         "(prior step: PASS 140.9s at CORRIDOR_MIN=0.07; "
+                         "was 112.8s untightened, the expected cost of "
                          "hugging every vertex instead of cutting it)"),
     # First fall was NOT the 180-degree end-of-pass turn itself (tracked
     # that cleanly at full speed, hdg swinging smoothly 0->180) - it was

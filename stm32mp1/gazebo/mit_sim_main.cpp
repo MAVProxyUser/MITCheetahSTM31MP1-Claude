@@ -146,6 +146,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   const int dash_wp_index = nav.count() - 1;
 
   if (getenv("WP_ACCEPT"))   nav.accept_radius = atof(getenv("WP_ACCEPT"));
+  // See WaypointNav.hpp's field comment: WP_ACCEPT also sizes the
+  // BodyPathPlanner cornering corridor, so a course tuned for tight
+  // corners "arrives" at EVERY waypoint - including the mission-end /
+  // loop-closure one - a full WP_ACCEPT short of its literal coordinate.
+  // Invisible mid-course (the next leg starts regardless); a visible gap
+  // on a closed course's own flown-trail plot, since there is no next leg
+  // to cover it. Opt-in, off by default (-1) so nothing changes unless a
+  // recipe asks for it.
+  if (getenv("WP_FINAL_ACCEPT")) nav.final_accept_radius = atof(getenv("WP_FINAL_ACCEPT"));
   if (getenv("WP_LOOP"))     nav.loop = true;
   // The MPC trot turns far harder than the crawl, which is what max_yawrate was
   // sized for (0.7 rad/s was "what the crawl can actually deliver").
