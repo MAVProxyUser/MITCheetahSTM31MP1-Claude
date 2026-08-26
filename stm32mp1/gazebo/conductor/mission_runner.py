@@ -21,13 +21,26 @@ the i-th --slot). Omitted ones fall back to that mission's own recipe
 default. Exits 0 if every dog in the run reported PASS, 1 otherwise (FAIL,
 FELL, error, or timeout).
 
-Pick --stall-timeout generously - a mission can go 60s+ between curated
-orchestration log lines with the controller perfectly healthy the whole
-time (e.g. the atom's tightest corner, R~1.89m, has the dog visibly creep
-for several seconds with no discrete event to log). A short stall-timeout
-does not distinguish that from a genuine wedge; it will kill a healthy run
-and report a false FAIL. Confirm suspected wedges against the raw log
-(GET /api/logs/{i}) before trusting a TIMEOUT verdict.
+The stall-timeout no longer watches the curated orchestration log alone -
+it ALSO resets on any change to state["status"][i]["waypoints"]/["text"]
+(updated ~1/s straight from the raw per-tick ctrl log, regardless of
+mission shape). This matters more than it sounds: a single-gait, non-
+analyzer, no-dash mission (e.g. any of the lissajous specs) can go its
+ENTIRE middle - "nav taking the stick" to "settled on its feet" at the
+very end, ~550s on lissajous:15:11:9 - without EVENT_PATTERNS matching a
+single line, because there is no gait change (needs $WP_ANALYZER, which
+that recipe does not set), no dash, no fall, nothing to log. A log-only
+stall-timeout of ANY size less than the whole mission will eventually
+false-positive on a course exactly this shape; the fix is watching actual
+progress, not raising the number further. (Measured getting this wrong:
+200s and 250s stall-timeouts each killed a perfectly healthy
+lissajous:15:11:9 mid-run, with the ctrl log growing continuously and the
+bridge reporting live, changing telemetry the whole time - looked exactly
+like a wedged sim or host stall from the outside, and was neither; the
+same run went on to PASS at 561.7s, matching its own established
+baseline, once given a timeout it could not possibly trip.) Confirm any
+future suspected wedge against the raw log (GET /api/logs/{i}) before
+trusting a TIMEOUT verdict either way.
 
 Every run - PASS, FAIL, or TIMEOUT - writes a report to
 /tmp/cheetah_conductor/reports/run<N>_report.{txt,png}: the full
@@ -345,6 +358,26 @@ def main():
                       # snapshot's own log[] is capped to the last 60 and
                       # can scroll an early dog's result line out of view
                       # before we read the final state.
+    # PROGRESS, not just LOG LINES. Found the hard way on lissajous:15:11:9
+    # (a single-gait, non-analyzer, no-dash mission): EVENT_PATTERNS has no
+    # entry at all for routine waypoint advancement, gait changes never fire
+    # without $WP_ANALYZER, and there is no dash/HGOV/fall to log either -
+    # so the orchestration log produces LITERALLY ZERO new lines between
+    # "nav taking the stick" and "settled on its feet" at the very END of
+    # the mission. On that course that gap is the ENTIRE ~550s middle of an
+    # otherwise perfectly healthy run. No stall-timeout value that still
+    # deserves the name "stall timeout" can paper over a gap that long by
+    # just being bigger - the fix is to stop relying on the sparse curated
+    # log alone. state["status"][i]["waypoints"]/["text"] (wp index, d=.../
+    # v=...) IS updated every ~1s straight from the raw per-tick ctrl log
+    # regardless of mission shape (see server.py's _start_poller) - treating
+    # a CHANGE there as progress too catches "the robot is still actually
+    # moving" even through a mission-shape that never emits a single curated
+    # event for minutes at a time. Verified: the same mission that a 200s/
+    # 250s log-only stall-timeout falsely killed twice ran to completion
+    # (PASS 561.7s) once given a timeout it could not possibly hit - this
+    # is what makes that unnecessary in the first place.
+    last_status = None
     last_progress = time.monotonic()
     start = time.monotonic()
     final_state = None
@@ -357,8 +390,8 @@ def main():
             api("POST", "/api/stop")
             sys.exit(1)
         if now - last_progress > args.stall_timeout:
-            print("[runner] TIMEOUT: no new log line for %.0fs - run appears wedged, stopping"
-                  % args.stall_timeout, flush=True)
+            print("[runner] TIMEOUT: no new log line OR waypoint/distance progress for "
+                  "%.0fs - run appears wedged, stopping" % args.stall_timeout, flush=True)
             render_report(run_id, args.slot, st, all_lines)
             api("POST", "/api/stop")
             sys.exit(1)
@@ -377,6 +410,12 @@ def main():
             if new_lines:
                 last_progress = now
             last_line = log[-1]
+
+        status = [(s.get("index"), s.get("waypoints"), s.get("text"))
+                  for s in st.get("status", [])]
+        if status and status != last_status:
+            last_progress = now
+            last_status = status
 
         phase = st.get("phase")
         if phase in ("done", "error", "idle"):
