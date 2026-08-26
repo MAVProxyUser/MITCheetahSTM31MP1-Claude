@@ -700,11 +700,32 @@ lissajous:<A_m>:<wx>:<wy>    # e.g. lissajous:15:5:7 - integer ratio, any
                               #   note in CLAUDE.md before assuming a stall
 ```
 
-The six newest (circle/sector/parallel/expsquare/lissajous) all converged
-on ONE tuning - `gait=walking, speed=1.5 m/s, extra="WP_ACCEPT=1.5
-WP_CORRIDOR_MIN=0.1 WP_ALON=0.4"` - already baked into their RECIPES
-entries. Start any FUTURE new mission with this tuning rather than the
-bare default; six of these seven fell at default and passed clean with it.
+The six newest (circle/sector/parallel/expsquare/lissajous) all started
+from ONE shared base tuning - `gait=walking, speed=1.5 m/s,
+extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4"` - already baked
+into their RECIPES entries; six of these seven fell at bare default and
+passed clean with it. Start any FUTURE new mission there.
+
+That base alone leaves corners CUT, not tight - the corridor-grading
+ramp (`turn_soft`/`turn_hard`) defaults to bracketing star's own two
+angles (144/162deg) and does little or nothing for a gentler turn. Every
+non-lissajous SAR pattern (circle 45deg, sector 120-147.5deg, parallel/
+expsquare 90deg) needed its OWN `WP_TURN_SOFT`/`WP_TURN_HARD` narrowed
+around ITS angle, plus `WP_CORRIDOR_MIN=0.07` (not the shared 0.1) - see
+CLAUDE.md's tightening entries for the exact values and the
+`planner_probe.cpp` methodology (compute the mission's own turn angle
+FIRST, sweep candidate tunings against it, THEN touch the recipe) before
+adding a new angular pattern. Lissajous is a smooth parametric curve, not
+a fillet-through-vertices course, and does not need this treatment.
+
+circle/sector/parallel/expsquare also call `shiftFirstToOrigin()` (a
+WaypointNav.cpp/.hpp change, not a recipe knob) so the robot spawns
+exactly ON waypoint 0 instead of walking there from a separate local
+origin - star/oval/atom/dash/lissajous deliberately do NOT do this (star
+specifically depends on the old convention; see CLAUDE.md). A brand new
+angular SAR-style pattern probably wants this too; a smooth/parametric
+one (like lissajous) probably does not, since there is no single
+"first waypoint" any more special than another point on the curve.
 
 Everything the browser can do has a REST route — `GET /docs` is a live,
 clickable reference (Play + curl + response) for all of them, kept in sync
