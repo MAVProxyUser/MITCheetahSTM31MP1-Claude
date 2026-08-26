@@ -556,12 +556,21 @@ def main():
     # one-shot "past baseline" warning - a dog missing its baseline is
     # flagged, never killed, as long as ITS OWN status keeps changing.
     n_dogs_total = len(args.slot)
-    dog_start = [time.monotonic()] * n_dogs_total
     dog_last_progress = [time.monotonic()] * n_dogs_total
     dog_last_status = [None] * n_dogs_total
     dog_warned_slow = [False] * n_dogs_total
     dog_flagged_stall = [False] * n_dogs_total
     dog_done = [False] * n_dogs_total
+    # Baselines were measured as each mission's OWN nav-clock "COMPLETE
+    # t=Xs" (README/CLAUDE.md), not wall-clock-since-script-launch - every
+    # dog spends ~25-35s on world build + stand + balance + settle before
+    # nav ever takes the stick, which is real but has nothing to do with
+    # that mission's own speed. Comparing against launch time made a
+    # dash:100 (33.3s nav-clock) trip its 60s baseline warning at 60s
+    # wall-clock even though only ~28s of that was the mission actually
+    # running - caught live on the very first real 2-dog run this shipped
+    # on. None is "hasn't started yet" - no warning is possible before that.
+    dog_nav_start = [None] * n_dogs_total
     start = time.monotonic()
     final_state = None
     while True:
@@ -590,6 +599,9 @@ def main():
                     if re.search(r"\bdog%d\b" % i, line) and \
                             ("mission result:" in line or "FELL" in line):
                         dog_done[i] = True
+                    if dog_nav_start[i] is None and re.search(r"\bdog%d\b" % i, line) and \
+                            "nav taking the stick" in line:
+                        dog_nav_start[i] = now
             last_line = log[-1]
 
         for s in st.get("status", []):
@@ -604,11 +616,13 @@ def main():
 
         still_running = [i for i in range(n_dogs_total) if not dog_done[i]]
         for i in still_running:
-            if not dog_warned_slow[i] and now - dog_start[i] > dog_baseline[i]:
+            if not dog_warned_slow[i] and dog_nav_start[i] is not None and \
+                    now - dog_nav_start[i] > dog_baseline[i]:
                 dog_warned_slow[i] = True
-                print("[runner] dog%d: past its own expected baseline (%.0fs, elapsed "
-                      "%.0fs) for %s - still progressing, NOT killing it"
-                      % (i, dog_baseline[i], now - dog_start[i], args.slot[i]), flush=True)
+                print("[runner] dog%d: past its own expected baseline (%.0fs since nav "
+                      "took the stick, now %.0fs) for %s - still progressing, NOT "
+                      "killing it"
+                      % (i, dog_baseline[i], now - dog_nav_start[i], args.slot[i]), flush=True)
             if not dog_flagged_stall[i] and now - dog_last_progress[i] > args.stall_timeout:
                 dog_flagged_stall[i] = True
                 print("[runner] dog%d: NO PROGRESS for %.0fs (stall-timeout %.0fs) - "
