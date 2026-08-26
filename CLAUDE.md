@@ -4344,3 +4344,110 @@ env `A=1 A=2` keeps the last - but confusing and wrong). Fixed by
 defaulting the omitted case to an explicit `""` instead, which also
 closes a carryover path of its own (a stale custom `--extra` from an
 earlier call on the same slot).
+
+## The final-waypoint gap, a closed-loop follow() simulation, and the real cause of "0/1 dogs came up"
+
+Three follow-ups in one thread, after the operator complimented the
+tightened sector corners and asked to keep refining: "you fell short of
+the final waypoint too"; "the stars corners are cleaner... less
+porpoising"; and, once that turned into a gait A/B test, an unrelated
+but serious host-level bug that had nothing to do with any of it.
+
+**Final-waypoint gap - real, fixed.** Confirmed in the raw log first:
+`reached wp15 (N=-0.00 E=0.00) dist=1.49` - the dog called the mission
+done 1.49m short of the true origin. Root cause: `WP_ACCEPT` is BOTH
+the legacy waypoint-arrival radius (`WaypointNav::update()`'s own
+"close enough, advance" check, which drives the mission's running/
+complete state independently of `BodyPathPlanner`) AND the fillet
+corridor width - tuning it down for tight corners means the mission-END
+waypoint also counts as arrived a full `WP_ACCEPT` short, invisible at
+an intermediate waypoint (the next leg starts anyway) but a permanent
+gap on a closed course. Added `WaypointNav::final_accept_radius` (opt-in,
+default -1/off) as `$WP_FINAL_ACCEPT`, wired only into sector's recipe at
+0.3. Real C++ change - required a host rebuild via `deploy_host.sh`
+(never `cp` a fresh binary into `host-run/` directly - that script's own
+comment documents the codesign/EXIT-137 trap). Verified live twice: PASS
+141.5s/141.8s, final wp closes to dist=0.25-0.27m. One intermittent FALL
+seen on the very first live run of the rebuilt binary, at waypoint 9 of
+16 (~85s in) - nowhere near the final waypoint this change touches, and
+`final_accept_radius` is a no-op for every waypoint except the last.
+Immediate re-run: clean PASS, confirming it wasn't reproducible.
+
+**"Star's corners are cleaner" - measured, not guessed, and NOT a
+planner bug.** Built a closed-loop probe (`follow_sim.cpp`, scratch
+only) that runs the real `BodyPathPlanner::follow()` against an IDEAL
+unicycle model - zero robot dynamics, zero tracking lag, perfect
+actuation - to answer one question before touching any shared code:
+does the corner-exit wobble come from the steering algorithm itself, or
+from the real robot's imperfect tracking of a clean command? Answer:
+in the idealized simulation, BOTH star's and sector's corners converge
+identically cleanly - one small overshoot-correct, then locked to
+`w=0.000` for the rest of the straight. The ~14 degree secondary
+heading rebound measured live on sector does not exist in this
+simulation at all. The planner code is not the difference.
+
+**The gait hypothesis, tested and ruled out.** The operator's own
+observation - star runs `trotRunning`, sector runs `walking` - was a
+fair, testable hypothesis: swap sector to trotRunning and compare.
+Once genuinely tested (see below for why that took three attempts),
+sector on trotRunning at the same 2.0 m/s (PASS 142.9s) showed an
+IDENTICAL corner-exit wobble to walking (`-108 deg` rebound vs
+walking's `-111 deg`, same corner, same timing) and near-identical
+total mission time. Gait choice does not explain or fix the wobble.
+The remaining, sufficient explanation is course geometry: star's legs
+run ~18-20m between corners, sector's run 7.5-15m, so the same absolute
+settle-wobble occupies a much larger fraction of a visibly shorter leg,
+and sector packs far more corners into a similarly-sized course. Not a
+bug - a consequence of the shape being asked for.
+
+**What actually blocked the gait test, and very likely explains some
+of this file's own older "intermittent, unresolved" boot-time
+instability too.** The FIRST three attempts at the trotRunning/walking
+comparison all failed identically: the simulated dog froze at its spawn
+point forever - v pinned at v_min, N/E never changing, "0/1 dogs came
+up" at the sensor-advertise wait, bridge log showing all-zero telemetry
+(`imu_az=0`, `gps=(0.0,0.0)`) despite `cmd_rx=500/s` looking perfectly
+healthy. Ruled out in order, with real evidence at each step rather than
+guessing: a stale process (a leftover `cheetah_gazebo_bridge.py`,
+running for 10+ hours) squatting on UDP port 9100 - killed it, but a
+plain walking `dash:20` with zero custom tuning STILL froze identically,
+proving gait was never actually the variable under test; host CPU load
+(retried at load average 0.98 - still failed); thermal throttling
+(`pmset -g therm` - nothing recorded); stray gz/ignition processes
+(none); stale gz-transport discovery/shared-memory files (none); low
+memory (tight but not exhausted on this 36GB Mac).
+
+The actual cause was sitting in `gz.log` the entire time, which nothing
+up to that point had actually opened: flooded with `Exception sending a
+multicast message: No route to host` on every single send.
+gz-transport's discovery defaults to multicasting over whatever
+interface the OS's routing picks (`en0` here), and that interface's
+multicast route had stopped working sometime during this session - a
+Mac that had been up 1+ day, some networking state (DHCP renewal,
+sleep/wake, a VPN toggle) drifted underneath it. The exact trigger was
+never isolated and does not need to be; the fix does not depend on it.
+Every simulated dog's pose/IMU never actually got discovered, so runs
+that appeared to "start" were dead on arrival the whole time, regardless
+of gait, mission, or tuning - a run only ever "worked" if it happened to
+launch in a window where multicast was still routing.
+
+This is a single-machine, single-user setup - every peer already talks
+over 127.0.0.1 (the controller-bridge channel, on a completely separate
+path, was never affected - that's why `cmd_rx=500/s` kept looking healthy
+while everything gz-transport-based was dead). There was never a reason
+for gz-transport's OWN discovery to leave loopback. Fixed with
+`os.environ["GZ_IP"] = "127.0.0.1"`, set once at module load right
+alongside the existing `GZ_PARTITION` (same reasoning - has to be set
+before the transport library initialises, and propagates into every
+subprocess via the existing `env.copy()` chain). Confirmed outright:
+`gz.log` came back completely empty (0 lines) on the very next run, "0/1
+dogs" stopped appearing, and every mission tried since - `dash:20`
+trotRunning (PASS 9.9s), `sector:15:3` trotRunning (PASS 142.9s),
+`star:10.514:5` (PASS 69.0s, exact baseline match) - completed cleanly.
+
+Not retroactively claimed as certain, but worth flagging for whoever
+hits this class of symptom next: this exact signature (frozen at spawn,
+all-zero bridge telemetry, "0/N dogs came up") may explain some of this
+file's own earlier-documented intermittent boot-time falls from previous
+sessions, which were never traced to a `gz.log` multicast error because
+nothing had looked there before tonight.
