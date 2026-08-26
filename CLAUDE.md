@@ -4647,3 +4647,73 @@ premature-miss falls observed tonight. `walking` stays the shipped
 choice for every SAR pattern - there is no measured upside to switching
 and it stays consistent with how each recipe was actually tuned and
 validated.
+
+## A Spirograph rosette mission, per direct creative challenge
+
+"If you wrap it up before I wake, challenge yourself to do your best
+rendition of this specific Spirograph image [8-fold symmetric flower,
+big outer petals converging through a densely woven centre]... shoot
+for the moon they say, you may hit it."
+
+**The parameter search, done visually before touching any real code.**
+Prototyped in Python/matplotlib (scratch only) rather than guessing once
+against the real sim: swept roughly 25 hypotrochoid `(R, r, d, n_rev)`
+candidates across four rounds, checking each grid against the reference
+image's actual gestalt (8 clean, separated outer petals; a shared, richly
+rewoven centre - not just "a flower-ish thing"). Early rounds either had
+the wrong petal count (16+ instead of 8) or the right count but no
+inner density (clean, sparse petals with an open ring in the middle).
+The winning insight: `(R-r)/r` an INTEGER equal to the desired petal
+count gives clean, unambiguous n-fold symmetry closing in ONE sweep,
+and pushing `d` up toward `(R-r)` (the classic hypotrochoid "cusp"
+regime) is what pulls the petals inward into a shared woven centre
+instead of leaving them as separate closed loops.
+
+**Realized the "winning" shape was already in the codebase's own
+formula family.** `makeAtom`'s epitrochoid and the hypotrochoid found
+above turned out to be the SAME parametric formula (verified by direct
+side-by-side comparison, not assumed) - the only two differences are
+which integer `k` multiplies the second cosine/sine term (`makeAtom`
+uses `lobes-1`; the Spirograph shape wants `lobes` exactly) and how far
+`depth` is pushed (`makeAtom` clamps well under 1.0 specifically to keep
+a nucleus open; the Spirograph look wants depth near 1.0, where the
+petals fold inward and converge). So `makeSpirograph` is not a new curve
+family - it is `makeAtom`'s own math, deliberately placed at the corner
+of its parameter space `makeAtom` avoids on purpose. Wired through the
+whole mission catalog identically to every prior addition: WaypointNav
+generator (same tangential-entry join trick as `makeAtom`, same reason -
+starting at a lobe tip meets the curve at 90deg), `mit_sim_main.cpp`
+parser, `mission_geometry.py` mirror (off by exactly 1 waypoint from the
+C++ side - the same float/double rounding gap already accepted for atom/
+lissajous), `make_multi_world.py` bbox (proved analytically, not just
+assumed, that `|r(t)| <= outer_radius_m` holds for any `k`/`depth` in
+this formula), RECIPES, and the mission dropdown.
+
+**A real bug caught writing it, fixed before it shipped**: the
+diagnostic curvature computation's acceleration terms had their signs
+flipped relative to `makeAtom`'s own verified-correct formula, despite
+`rx/ry/vx/vy` being copied faithfully - cosmetic only (feeds a log
+printf, not the actual waypoints the robot flies) but wrong is wrong.
+Also caught and corrected a wrong claim in the first draft's own
+comments (called this curve "a hypotrochoid, opposite sign from
+makeAtom's epitrochoid" - not actually true of the formula used here,
+verified by direct comparison once written down) before it could
+mislead the next person reading it.
+
+**Verified live**: `spiro:9.0:8` PASSED on the FIRST attempt (119.2s),
+identically on a second confirmation run (119.2s again) - starting from
+`makeAtom`'s own proven `gait=trotting` tuning as a baseline, since this
+is the same curve family and a smooth continuous course, not discrete
+sharp vertices. A fresh report plot shows the flown track tracking the
+planned rosette with excellent fidelity, including through the tight
+centre convergence (the mission analyzer found one genuinely sustained
+tight-curvature segment there, R=1.05m, correctly braked to 1.26 m/s).
+Confirmed zero regression on star through the same rebuilt binary: PASS
+68.9s, exact baseline match.
+
+**Honest assessment against the reference**: a clean single-layer
+8-petal rosette, not the reference's denser, more elaborately woven
+multi-layer texture - some candidates in the parameter search DID
+produce denser interference patterns, but none kept a clean,
+unambiguous 8-fold structure at the same time as that density. A
+genuine best-effort rendition, not a claimed exact match.

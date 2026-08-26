@@ -698,6 +698,10 @@ lissajous:<A_m>:<wx>:<wy>    # e.g. lissajous:15:5:7 - integer ratio, any
                               #   ratio works but higher ones (11:9+) are
                               #   genuinely long courses - see the timeout
                               #   note in CLAUDE.md before assuming a stall
+spiro:<outer_r>:<lobes>      # e.g. spiro:9.0:8 - Spirograph rosette,
+                              #   makeAtom's own formula at k=lobes (not
+                              #   lobes-1) and depth near 1.0 - see
+                              #   CLAUDE.md for the parameter search
 ```
 
 The six newest (circle/sector/parallel/expsquare/lissajous) all started
