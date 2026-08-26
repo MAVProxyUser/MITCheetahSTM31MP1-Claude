@@ -102,6 +102,8 @@ from trail_daemon import mission_waypoints  # noqa: E402
 import gz.transport13 as _gz_transport      # noqa: E402
 from gz.msgs10.pose_v_pb2 import Pose_V     # noqa: E402
 from gz.msgs10.image_pb2 import Image as _GzImage  # noqa: E402
+from gz.msgs10.pose_pb2 import Pose as _GzPose      # noqa: E402
+from gz.msgs10.boolean_pb2 import Boolean as _GzBoolean  # noqa: E402
 import base64                               # noqa: E402
 import io                                   # noqa: E402
 from PIL import Image as _PILImage          # noqa: E402
@@ -509,6 +511,7 @@ class Fleet:
         self._name_to_index = {}     # "go1_2" -> 2, for the pose subscriber
         self._last_pose = {}         # index -> (x, y, t) for the speed EMA
         self._gz_node = None         # keep the Node alive - gc'ing it drops the subscription
+        self._chase_stop = None      # threading.Event - signals _follow_chase_cams to exit
         # DRAFT config, mutated by /api/slots* and /api/speed_cap. This is
         # what "+ Add dog", editing a field, or dragging the cap slider does
         # in the browser - moved server-side so every one of those actions is
@@ -767,6 +770,7 @@ class Fleet:
                                  t="", waypoints="") for s in locked]
             self.planned = {}
             self.positions = {}
+            self._chase_stop = threading.Event()
 
         threading.Thread(target=self._run, args=(locked, terrain_kind),
                          daemon=True).start()
@@ -899,6 +903,8 @@ class Fleet:
             self._name_to_index = {"go1_%d" % s["index"]: s["index"] for s in locked}
             self._subscribe_pose(env)
             self._subscribe_cameras(locked)
+            threading.Thread(target=self._follow_chase_cams, args=(locked,),
+                              daemon=True).start()
 
             for s in locked:
                 i = s["index"]
@@ -1051,6 +1057,88 @@ class Fleet:
 
         ok = node.subscribe(Pose_V, "/world/%s/dynamic_pose/info" % WORLD, on_pose)
         self._note("pose subscriber %s" % ("up" if ok else "FAILED to register"))
+
+    def _follow_chase_cams(self, locked):
+        """Live chase-camera positioning. fleet_world.make_chase_cam_model
+        spawns each enabled dog's chase_cam as a FREE-FLOATING model rather
+        than bolting it to the body specifically so this loop can move it -
+        a body-mounted sensor's pose is baked into the SDF at world-build
+        time and cannot change without a full relaunch, which is exactly
+        the "slot settings don't react live" gap this closes.
+
+        Every ~100ms, for each dog whose chase cam was enabled AT LAUNCH
+        (cam_chase off at launch means no model was ever spawned - same
+        launch-time-only constraint _subscribe_cameras already documents
+        for the mute case, and for the same reason: there is no service to
+        add a whole new model to a running world short of a relaunch):
+        read that dog's live world pose from self.positions (already kept
+        current for the trail overlay, so this adds no new subscription)
+        and the CURRENT distance/height/degree from the DRAFT slot (not
+        the locked one - reading the draft live, the same pattern
+        _subscribe_cameras' on/off mute already uses, is what makes a
+        slider drag mid-run visible within one tick instead of on the next
+        launch), then teleport the camera model via the world's set_pose
+        service.
+
+        Deliberately ignores the dog's own roll/pitch - only yaw composes
+        the body-local offset into world frame. A truly rigid attachment
+        would also inherit gait-cycle bob and any tilt, but a camera that
+        pitches and rolls with a trotting dog is closer to nauseating than
+        useful; stabilising against everything but heading is the common
+        chase-camera convention for exactly that reason, not a limitation
+        of this approach.
+
+        request() is BLOCKING (confirmed against this gz.transport13 build -
+        no async variant is exposed), so this runs on its own Node and its
+        own thread, never sharing one with the pose/camera subscribers
+        whose callbacks must never stall.
+        """
+        node = _gz_transport.Node()
+        stop_event = self._chase_stop
+        indices = [s["index"] for s in locked if s["cam_chase"]]
+        if not indices:
+            return
+        service = "/world/%s/set_pose" % WORLD
+        while not stop_event.is_set():
+            for i in indices:
+                with self.lock:
+                    pos = self.positions.get(i)
+                    d = self.draft_slots[i] if i < len(self.draft_slots) else {}
+                if pos is None:
+                    continue
+                distance = float(d.get("chase_distance", 3.0))
+                height = float(d.get("chase_height", 1.2))
+                degree = float(d.get("chase_degree", 90.0))
+                rad = math.radians(degree)
+                lox = -distance * math.cos(rad)   # 0 deg = behind (-X, body fwd +X)
+                loy = distance * math.sin(rad)    # 90 deg = left (+Y)
+                yaw = pos["yaw"]
+                # Rotate the body-local offset into world frame by the
+                # dog's OWN current heading - what a rigid attachment gives
+                # for free, done explicitly since this model is free-floating.
+                wx = pos["x"] + lox * math.cos(yaw) - loy * math.sin(yaw)
+                wy = pos["y"] + lox * math.sin(yaw) + loy * math.cos(yaw)
+                wz = pos["z"] + height
+                look_yaw = yaw + math.atan2(-loy, -lox)   # look back at the dog
+                pitch = math.atan2(height, max(0.05, distance))
+                cy, sy = math.cos(look_yaw * 0.5), math.sin(look_yaw * 0.5)
+                cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
+                req = _GzPose()
+                req.name = "go1_%d_chasecam" % i
+                req.position.x = wx
+                req.position.y = wy
+                req.position.z = wz
+                # roll=0, pitch, yaw -> quaternion (standard ZYX Euler
+                # composition, matches SDF's own <pose> convention)
+                req.orientation.w = cp * cy
+                req.orientation.x = -sp * sy
+                req.orientation.y = sp * cy
+                req.orientation.z = cp * sy
+                try:
+                    node.request(service, req, _GzPose, _GzBoolean, 100)
+                except Exception:  # noqa: BLE001 - one missed tick is invisible; never worth killing the loop over
+                    pass
+            time.sleep(0.1)
 
     def _subscribe_cameras(self, locked):
         """Front / nadir / chase feed per dog, Chuck-UI style (.ahrs-cam
@@ -1244,6 +1332,8 @@ class Fleet:
             self._gz_node = None       # drops the pose subscription
             self._gz_cam_nodes = []    # drops every camera subscription
             self.cameras = {}
+            if self._chase_stop is not None:
+                self._chase_stop.set()   # tells _follow_chase_cams to exit its loop
         for p in procs:
             try:
                 p.terminate()

@@ -47,59 +47,82 @@ def strip_camera_sensor(model, sensor_name):
                 link.remove(s)
 
 
-def configure_chase_cam(model, distance, height, degree):
-    """Rewrite the go1 template's existing chase_cam sensor (body-mounted,
-    originally a fixed rear/above mount for record_video.py) to sit
-    `distance` m out from the trunk at angle `degree` (0 = directly behind,
-    90 = left side - "side view" per the request), `height` m above it,
-    pitched to look back at the body. Body-mounted rather than a free
-    camera tracked via the world/set_pose service: it rides with the dog
-    for free (no per-tick pose-update loop needed), the same reason the
-    original hardcoded mount worked at all.
+def make_chase_cam_model(index, distance, height, degree, north, east, spawn_height=0.08):
+    """A FREE-FLOATING camera model for dog `index`, teleported live by
+    server.py's Fleet._follow_chase_cams() via the /world/.../set_pose
+    service instead of being rigidly attached to the dog's own body link.
+
+    The original design (see git history) baked distance/height/degree into
+    a body-mounted sensor's LOCAL <pose> at world-build time - free to run
+    (rides with the dog with zero per-tick cost) but frozen for the life of
+    the run: the browser's distance/height/degree fields could edit the
+    DRAFT slot all they wanted, nothing changed until the next full
+    relaunch. Per direct instruction, this is the fix: a standalone,
+    <static>true</static> model (no physics needed, set_pose teleports a
+    static model exactly the same as a dynamic one) carrying just the
+    camera sensor, positioned every ~100ms by the server from that dog's
+    OWN live pose (already tracked for the trail overlay) plus whatever
+    distance/height/degree the draft slot holds AT THAT MOMENT - so a
+    slider drag mid-run is visible within one follow-tick, not on the next
+    launch.
+
+    Topic is named EXACTLY as before ("go1_<i>/chase_cam") specifically so
+    server.py's _subscribe_cameras() needs no changes at all - it already
+    subscribes by this string, and has no idea (nor needs to know) whether
+    the publisher behind it is a body-mounted sensor or a free one.
+
+    The pose passed here is only a placeholder for the sliver of time
+    between world load and the first live position update - the follow
+    loop overwrites it on its very first tick, so it does not need to
+    account for the dog's actual spawn heading (dogs spawn facing north;
+    getting this exactly right would need duplicating that convention here
+    for a pose nobody will see for more than ~100ms).
     """
     rad = math.radians(degree)
     ox = -distance * math.cos(rad)   # 0 deg = straight behind (-X, body fwd is +X)
     oy = distance * math.sin(rad)    # 90 deg = to the left (+Y)
-    oz = height
-    # look back toward the body origin
-    yaw = math.atan2(-oy, -ox)
-    pitch = math.atan2(height, max(0.05, distance))
-    for link in model.findall("link"):
-        for s in link.findall("sensor"):
-            if s.get("name") != "chase_cam":
-                continue
-            pose = s.find("pose")
-            if pose is None:
-                pose = ET.SubElement(s, "pose")
-            pose.text = "%.3f %.3f %.3f 0 %.4f %.4f" % (ox, oy, oz, pitch, yaw)
-            img = s.find("camera/image")
-            if img is not None:
-                # Match front/nadir's size/rate - this feed now goes to a
-                # browser tile at 10 Hz, not record_video.py's standalone
-                # capture, and the smaller frame is real load saved per dog.
-                w, h = img.find("width"), img.find("height")
-                if w is not None: w.text = "480"
-                if h is not None: h.text = "270"
-            rate = s.find("update_rate")
-            if rate is not None:
-                rate.text = "10"
-            return
+    name = "go1_%d_chasecam" % index
+    m = ET.Element("model", {"name": name})
+    ET.SubElement(m, "static").text = "true"
+    pose = ET.SubElement(m, "pose")
+    # world is ENU: x = east, y = north (matches clone_dog's own convention)
+    pose.text = "%.3f %.3f %.3f 0 0 0" % (east + ox, north + oy, spawn_height + height)
+    link = ET.SubElement(m, "link", {"name": "link"})
+    sensor = ET.SubElement(link, "sensor", {"name": "chase_cam", "type": "camera"})
+    ET.SubElement(sensor, "always_on").text = "1"
+    ET.SubElement(sensor, "update_rate").text = "10"
+    ET.SubElement(sensor, "topic").text = "go1_%d/chase_cam" % index
+    cam = ET.SubElement(sensor, "camera")
+    ET.SubElement(cam, "horizontal_fov").text = "1.15"
+    img = ET.SubElement(cam, "image")
+    ET.SubElement(img, "width").text = "480"
+    ET.SubElement(img, "height").text = "270"
+    ET.SubElement(img, "format").text = "R8G8B8"
+    clip = ET.SubElement(cam, "clip")
+    ET.SubElement(clip, "near").text = "0.05"
+    ET.SubElement(clip, "far").text = "300"
+    return m
 
 
-def apply_camera_config(model, cfg):
+def apply_camera_config(model, cfg, index, north, east, spawn_height=0.08):
     """cfg: dict with front/nadir/chase bools and distance/height/degree for
-    chase. Strips whichever feeds are unchecked, configures chase_cam's pose
-    if it's kept."""
+    chase. Strips whichever feeds are unchecked. The body-mounted chase_cam
+    sensor is ALWAYS stripped now - live repositioning needs the free-
+    floating model below instead (see its docstring) - and this returns
+    that model (or None if chase is off) for the caller to world.append()
+    alongside the dog; it cannot be nested inside the dog's own model
+    element the way the old body-mounted sensor was."""
     if not cfg.get("front", True):
         strip_camera_sensor(model, "front_cam")
     if not cfg.get("nadir", True):
         strip_camera_sensor(model, "nadir_cam")
+    strip_camera_sensor(model, "chase_cam")
     if not cfg.get("chase", True):
-        strip_camera_sensor(model, "chase_cam")
-    else:
-        configure_chase_cam(model, float(cfg.get("distance", DEFAULT_CAM_CFG["distance"])),
-                             float(cfg.get("height", DEFAULT_CAM_CFG["height"])),
-                             float(cfg.get("degree", DEFAULT_CAM_CFG["degree"])))
+        return None
+    return make_chase_cam_model(index, float(cfg.get("distance", DEFAULT_CAM_CFG["distance"])),
+                                 float(cfg.get("height", DEFAULT_CAM_CFG["height"])),
+                                 float(cfg.get("degree", DEFAULT_CAM_CFG["degree"])),
+                                 north, east, spawn_height)
 
 
 def apply_terrain(world, kind, run_dir, slots=None):
@@ -201,8 +224,10 @@ def main():
     for i, (spec, north, east, bbox) in enumerate(slots):
         m, name = clone_dog(proto, i, north=north, east=east)
         cfg = cam_cfgs[i] if cam_cfgs and i < len(cam_cfgs) else DEFAULT_CAM_CFG
-        apply_camera_config(m, cfg)
+        chase_model = apply_camera_config(m, cfg, i, north, east)
         world.append(m)
+        if chase_model is not None:
+            world.append(chase_model)
 
     gui = world.find("gui")
     if gui is None:
