@@ -1120,6 +1120,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # the on-page log is the log that matters here
 
+    def guess_type(self, path):
+        # SimpleHTTPRequestHandler's default Content-Type carries no
+        # charset ("text/html", "text/javascript" - confirmed via `curl
+        # -I`). app.js's " · RUN <n>" separator is correctly UTF-8 on
+        # disk (bytes 0xc2 0xb7), and index.html has no <meta charset>
+        # either - with no encoding declared ANYWHERE (header or markup),
+        # the browser has to guess, and guessed Latin-1 for these mostly-
+        # ASCII files: each UTF-8 middle-dot byte pair got read back as
+        # two separate Latin-1 characters (0xc2 -> "Â", 0xb7 -> "·"),
+        # rendering literally as "Â·" in the page. Declaring charset=utf-8
+        # on every text response removes the guesswork instead of only
+        # patching the one string that happened to get noticed.
+        ctype = super().guess_type(path)
+        if ctype.startswith("text/") and "charset=" not in ctype:
+            ctype += "; charset=utf-8"
+        return ctype
+
     def end_headers(self):
         # This is a local, single-operator dev panel whose static/*.js and
         # *.css get edited and reloaded constantly - there is no caching
