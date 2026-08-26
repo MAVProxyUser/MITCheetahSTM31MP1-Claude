@@ -4527,3 +4527,96 @@ to `state["status"][i]["waypoints"]`/`["text"]`, which `server.py`'s
 raw per-tick ctrl log, independent of mission shape - catching "the
 robot is still actually moving" even through a stretch that never emits
 a single curated event.
+
+## Every SAR mission tightened to star's own corner standard, spawns ON wp0, and a harness that says which end broke
+
+Continuing the same night's work, after the sector-only fix: extended
+the exact same probe-first methodology (`planner_probe.cpp`, scratch
+only) to circle/parallel/expsquare, per direct report ("SAR variants
+still round corners off real bad").
+
+**All three were cutting corners at full cruise speed, zero braking.**
+Measured before touching anything: circle's 45deg-per-vertex turns and
+parallel/expsquare's constant 90deg turns all sit at or below the
+DEFAULT corridor-grading window's own `turn_soft` (80deg) - circle never
+graded at all, parallel/expsquare graded at only 12.5% strength. Result:
+circle filleted at R=7.48m on a 9m-radius course; parallel/expsquare at
+R=2.25m - both at full 1.5 m/s cruise, no deceleration whatsoever. Fixed
+with `WP_TURN_SOFT`/`WP_TURN_HARD` narrowed to bracket each mission's
+own angle plus `WP_CORRIDOR_MIN=0.07` (matching sector's own shipped
+value): circle -> R=1.43m, parallel/expsquare -> R=0.253m with real
+braking (v_min 1.5 -> 0.304 m/s). Verified live, fresh reports for each:
+circle PASS 34.3s (was 32.8s), parallel PASS 201.2s (was 158.2s),
+expsquare PASS confirmed (see below for why the FIRST attempt looked
+like a regression and wasn't).
+
+**The dog was spawning away from waypoint 0 and walking there - a
+second, distinct bug, not a visual side effect of the corridor fix.**
+Per direct, explicit instruction after the corner-rounding report, and
+independently flagged on expsquare too ("had the same illogical non
+start... had to yaw to get there and then walk to the start"). Root
+cause: every mission's waypoints are relative to (0,0), and (0,0) is
+always the robot's TRUE physical spawn point (its own first GPS fix at
+boot) - for star this is deliberate and load-bearing (wp00 rotated due
+north specifically so the opening leg needs no pivot), but for the SAR
+generators wp0 landing away from origin was just an accident of how each
+one's own parametric math happens to be centred, not a design choice.
+Fixed with `WaypointNav::shiftFirstToOrigin()`: translate the whole
+course so `_wp[0]` becomes (0,0) exactly, called only at the end of
+`makeCircle`/`makeSectorSearch`/`makeParallelTrack`/`makeExpandingSquare`
+- star/oval/atom/dash/`makeLissajous` never call it. Pure translation,
+so it composes with the corridor tightening above with zero interaction
+(every corner angle and leg length is invariant under translation) -
+confirmed live, not just argued from the math. Mirrored in
+`mission_geometry.py` (same four kinds only) and required fixing
+`make_multi_world.py`'s `mission_bbox()`, whose circle/sector/parallel/
+expsquare cases were hand-derived closed forms relative to the OLD
+origin and had gone stale - replaced with a numeric bbox computed
+directly from `mission_waypoints()` itself (correct by construction,
+size unchanged by the translation, confirmed: circle's bbox is still an
+identical 18m x 18m, just recentred). Real C++ change - rebuilt via
+`cmake --build host-build --target mit_ctrl_sim` and the mandatory
+`deploy_host.sh` (never `cp` a fresh binary into `host-run/` directly).
+
+Verified live, both fixes together, fresh reports for all four:
+circle PASS 30.2s, sector PASS 132.2s, parallel PASS 181.0s (all
+FASTER than the corridor-only numbers above - removing the spawn-to-wp0
+leg shortens the course), expsquare PASS x4 / FELL x1 across 5 total
+attempts post-corridor-fix (109.0-109.2s per pass, remarkably
+consistent) - the one fall predates the shift fix specifically (seen
+on the very first corridor-tightening attempt, before shiftFirstToOrigin
+existed) and reads as the same intermittent "state estimate went
+non-finite" class of hiccup already documented elsewhere in this file,
+not something either fix introduced or is expected to resolve.
+
+**Full regression sweep on the untouched missions, same rebuilt binary**
+- the explicit hard constraint going into this work was "NOT breaking
+existing oval, star, atom, and dash, or the Lissajous which all work
+well": star PASS 69.0s, oval PASS 37.3s, atom PASS 62.1s, dash PASS
+33.3s, lissajous:15:1:2 PASS 96.1s - every one matching its own
+established baseline exactly. The shift function is provably a no-op
+for these five (they never call it), and this sweep confirms that held
+in practice, not just on paper.
+
+**Two harness reliability fixes, found live-testing the above.**
+mission_runner.py's own `--timeout`/`--stall-timeout` produced FOUR
+false positives in one night on runs that were healthy or had already
+PASSED - most strikingly, expsquare printing `[mission] RESULT: PASS
+(waypoints 10/10)` and then getting reported as a bare, unqualified
+"FAIL" because the overall `--timeout` fired in a race right at the
+finish line, indistinguishable from a real failure without opening the
+raw log by hand. Fixed structurally, not by raising numbers again:
+- `--timeout` default raised 300 -> 700 (lissajous:15:11:9's own ~562s
+  baseline is ABOVE the old default - every default invocation on that
+  course was silently guaranteed to false-time-out).
+- A harness-induced timeout now exits 2, never 1 - exit 1 is reserved
+  for a mission-REPORTED verdict (FAIL/FELL/error) the script disagrees
+  with; exit 2 means the script gave up, which is a categorically
+  different claim. Also prints an unmissable banner naming which bound
+  fired and saying outright "NOT A MISSION VERDICT... CONFIRM before
+  trusting this as a real failure."
+- `archive_log()` in server.py: `gz.log`/`bridge_N.log`/`ctrl_N.log` now
+  get moved to `RUN_DIR/archive/<timestamp>_run<N>_<name>` before each
+  launch's fresh `open(path, "w")` truncates them in place - per direct
+  request, after this exact investigation lost the precise ctrl log for
+  an expsquare fall to the very next test launched two minutes later.
