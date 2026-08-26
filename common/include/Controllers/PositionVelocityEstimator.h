@@ -34,6 +34,12 @@ class LinearKFPositionVelocityEstimator : public GenericEstimator<T> {
   Eigen::Matrix<T, 28, 28> _R0;
   Eigen::Matrix<T, 18, 3> _B;
   Eigen::Matrix<T, 28, 18> _C;
+  // The actual (measured, clamped) dt used to build _A/_B/_Q0 THIS tick -
+  // recomputed at the top of run() from StateEstimatorData::actualDt
+  // rather than the fixed nominal controller_dt. Kept as a member so the
+  // absolute-aiding block later in run() can reuse the exact same value
+  // instead of its own separate hardcoded dt.
+  T _dtUsed;
 };
 
 /*!

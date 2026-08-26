@@ -92,6 +92,19 @@ struct StateEstimatorData {
   Vec4<T>* contactPhase;
   RobotControlParameters* parameters;
   AbsolutePositionAiding<T>* absAiding = nullptr;  //!< optional; null = stock MIT
+  // ACTUAL measured wall-clock dt for the tick about to run, in seconds -
+  // NOT parameters->controller_dt, which is the fixed nominal config value
+  // (2ms) every estimator was integrating against regardless of how long a
+  // tick actually took. RobotRunner measures the real gap between ticks
+  // (the same clock the host-stall detector already uses) and calls
+  // StateEstimatorContainer::setActualDt() with it once per tick, BEFORE
+  // running the estimators - a pointer, like contactPhase, so every
+  // estimator's own (copied-by-value) StateEstimatorData sees updates
+  // without needing setData() called again. Null is a valid, deliberate
+  // fallback (an estimator that ignores timing, or a caller that never
+  // wires this up) - LinearKFPositionVelocityEstimator::run() falls back
+  // to the nominal controller_dt when it is.
+  T* actualDt = nullptr;
 };
 
 /*!
@@ -134,7 +147,23 @@ class StateEstimatorContainer {
     _phase = Vec4<T>::Zero();
     _data.contactPhase = &_phase;
     _data.parameters = parameters;
+    // Sane startup default before the first real measurement lands -
+    // matches the nominal config value exactly, so a caller that never
+    // calls setActualDt() at all (nothing in the estimator hierarchy
+    // requires it) behaves identically to before this existed.
+    _actualDt = parameters ? (T)parameters->controller_dt : (T)0.002;
+    _data.actualDt = &_actualDt;
   }
+
+  /*!
+   * Feed the ACTUAL measured wall-clock duration of the tick about to run,
+   * in seconds - see StateEstimatorData::actualDt's comment for why this
+   * exists (a stalled host tick is otherwise integrated by every estimator
+   * as if only the nominal 2ms had passed). Call once per tick, before
+   * run(). A pointer under the hood, so every estimator already added
+   * sees the update with no need to re-call setData().
+   */
+  void setActualDt(T dt) { _actualDt = dt; }
 
   /*!
    * Run all estimators
@@ -223,6 +252,7 @@ class StateEstimatorContainer {
   StateEstimatorData<T> _data;
   std::vector<GenericEstimator<T>*> _estimators;
   Vec4<T> _phase;
+  T _actualDt;
 };
 
 #endif  // PROJECT_STATEESTIMATOR_H

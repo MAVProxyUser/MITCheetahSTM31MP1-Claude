@@ -105,8 +105,30 @@ void RobotRunner::init() {
  * to run each of their respective steps.
  */
 void RobotRunner::run() {
+  // ACTUAL TICK DURATION, measured once here and shared by everything below
+  // that used to either assume a fixed 2 ms (the estimator's own
+  // integration - see setActualDt() below) or re-measure it separately
+  // (the host-stall detector further down, which now reads dt_ms_actual
+  // instead of keeping its own clock). First call has no prior sample to
+  // diff against, so it falls back to the nominal dt rather than reporting
+  // a huge or garbage duration.
+  static auto _lastTickTime = std::chrono::steady_clock::now();
+  const auto _nowTickTime = std::chrono::steady_clock::now();
+  static bool _firstTick = true;
+  const double dt_ms_actual = _firstTick ? controlParameters->controller_dt * 1000.0
+      : std::chrono::duration<double, std::milli>(_nowTickTime - _lastTickTime).count();
+  _lastTickTime = _nowTickTime;
+  _firstTick = false;
+
   // Run the state estimator step
   //_stateEstimator->run(cheetahMainVisualization);
+  // DT-AWARE: feed the estimator the tick duration actually measured above,
+  // not the fixed nominal controller_dt every estimator integrated against
+  // before this existed. See StateEstimatorData::actualDt's comment
+  // (StateEstimatorContainer.h) and LinearKFPositionVelocityEstimator::run's
+  // own comment (PositionVelocityEstimator.cpp) for the full mechanism and
+  // why a stalled tick otherwise silently under-integrates.
+  _stateEstimator->setActualDt((float)(dt_ms_actual / 1000.0));
   _stateEstimator->run();
   //cheetahMainVisualization->p = _stateEstimate.position;
   visualizationData->clear();
@@ -243,13 +265,14 @@ void RobotRunner::run() {
         getenv("SIM_STALL_MS") ? atof(getenv("SIM_STALL_MS")) : 8.0;
     static const int clear_ticks =
         getenv("SIM_STALL_CLEAR") ? atoi(getenv("SIM_STALL_CLEAR")) : 500;
-    static auto last_tick = std::chrono::steady_clock::now();
     static long armed = 0;
     static int clean = 0;
-    const auto now_tick = std::chrono::steady_clock::now();
-    const double dt_ms =
-        std::chrono::duration<double, std::milli>(now_tick - last_tick).count();
-    last_tick = now_tick;
+    // dt_ms_actual: the SAME tick-duration measurement taken at the top of
+    // run() for the estimator's benefit - previously this block kept its
+    // own separate clock computing the identical quantity a few dozen
+    // lines later. One shared measurement, not two clocks that could in
+    // principle disagree.
+    const double dt_ms = dt_ms_actual;
     // Ignore the first second: startup ticks are irregular by construction
     // (world load, first MPC solve, JPos init) and mean nothing about the host.
     if (stall_on && ++armed > 500) {

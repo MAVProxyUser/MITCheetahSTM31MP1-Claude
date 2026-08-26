@@ -63,6 +63,43 @@ LinearKFPositionVelocityEstimator<T>::LinearKFPositionVelocityEstimator() {}
  */
 template <typename T>
 void LinearKFPositionVelocityEstimator<T>::run() {
+  // DT-AWARE INTEGRATION. _A/_B/_Q0 were built ONCE in setup() against the
+  // fixed nominal controller_dt (2ms) and reused every tick regardless of
+  // how long the tick actually took - so a stalled host tick (measured
+  // 13-18ms against a 2ms target, see RobotRunner's own host-stall
+  // detector) was integrated by this filter as if only 2ms had passed,
+  // silently under-integrating position/velocity relative to how far the
+  // robot actually moved and understating how much the covariance should
+  // have grown. Recomputed here, per tick, from the ACTUAL measured dt
+  // RobotRunner feeds in via StateEstimatorContainer::setActualDt() -
+  // cheap (a handful of Identity-block scalar multiplies, not a matrix
+  // inversion) and touches only the dt-dependent blocks, never _xhat/_P
+  // themselves, so a normal on-time tick (dt == nominal) is bit-for-bit
+  // the same filter as before this existed.
+  //
+  // Clamped rather than trusted outright: a genuinely enormous gap (sim
+  // paused, a multi-second host freeze, or simply no caller ever having
+  // wired setActualDt() up at all - see actualDt's null fallback) would
+  // blow the linearization apart if integrated literally, which is a
+  // worse failure than mildly under-integrating one tick. Capping at 20x
+  // nominal (~40ms at the stock 2ms) means even a serious stall degrades
+  // gracefully instead of the filter's estimate diverging outright.
+  {
+    T dt = this->_stateEstimatorData.actualDt
+               ? *this->_stateEstimatorData.actualDt
+               : this->_stateEstimatorData.parameters->controller_dt;
+    const T dt_nominal = this->_stateEstimatorData.parameters->controller_dt;
+    if (!std::isfinite(dt) || dt <= T(0)) dt = dt_nominal;
+    dt = std::min(dt, dt_nominal * T(20));
+    _dtUsed = dt;
+    _A.block(0, 3, 3, 3) = dt * Eigen::Matrix<T, 3, 3>::Identity();
+    _B.block(3, 0, 3, 3) = dt * Eigen::Matrix<T, 3, 3>::Identity();
+    _Q0.block(0, 0, 3, 3) = (dt / 20.f) * Eigen::Matrix<T, 3, 3>::Identity();
+    _Q0.block(3, 3, 3, 3) =
+        (dt * 9.8f / 20.f) * Eigen::Matrix<T, 3, 3>::Identity();
+    _Q0.block(6, 6, 12, 12) = dt * Eigen::Matrix<T, 12, 12>::Identity();
+  }
+
   T process_noise_pimu =
       this->_stateEstimatorData.parameters->imu_process_noise_position;
   T process_noise_vimu =
@@ -282,7 +319,11 @@ void LinearKFPositionVelocityEstimator<T>::run() {
         // so per-step odometry still dominates the short term.
         static const T tau = getenv("SIM_AID_TAU") ? (T)atof(getenv("SIM_AID_TAU"))
                                                    : T(2.0);
-        const T k = T(0.002) / (tau > T(1e-3) ? tau : T(1e-3));   // dt / tau
+        // was a hardcoded T(0.002) (the nominal dt) regardless of how long
+        // this tick actually took - now the same measured/clamped dt the
+        // predict step above uses, so a stalled tick washes out an
+        // absolute error proportionally more, not by the nominal amount.
+        const T k = _dtUsed / (tau > T(1e-3) ? tau : T(1e-3));   // dt / tau
         _xhat[ax] += k * innov;
         if (getenv("SIM_AID_DBG")) {
           static int dbg = 0;
