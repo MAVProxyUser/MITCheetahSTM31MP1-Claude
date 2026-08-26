@@ -4451,3 +4451,57 @@ all-zero bridge telemetry, "0/N dogs came up") may explain some of this
 file's own earlier-documented intermittent boot-time falls from previous
 sessions, which were never traced to a `gz.log` multicast error because
 nothing had looked there before tonight.
+
+## Camera checkboxes are already live; chase position isn't (and can't be, cheaply); the flown trail was silently truncated on long courses
+
+Three follow-ups from watching the panel live during actual use.
+
+**Camera on/off checkboxes work as designed.** Tested directly against
+a real in-progress run (toggled `cam_front` on a live `lissajous:15:11:9`
+mid-flight): the click POSTs to the draft, the draft updates, the LOCKED
+(actually-running) slot correctly stays untouched, and `_subscribe_cameras`'s
+per-frame callback already re-reads the draft on every image (see that
+function's own comment) to mute/unmute a stream instantly. This part of
+"slot settings don't react live" was not actually broken.
+
+**Chase camera position (`chase_distance`/`height`/`degree`) is
+correctly locked, and making it live is a real feature, not a bugfix.**
+`configure_chase_cam` bakes the camera's offset into a body-mounted
+sensor's `<pose>` at SPAWN time specifically so it rides with the dog at
+zero per-tick cost (see that function's own comment). Changing it after
+spawn would need converting to a free-floating camera pushed a fresh
+pose every tick from the dog's live position - the exact per-tick loop
+the current design was built to avoid. Flagged, not built, pending a
+decision on whether that trade-off is wanted.
+
+**The flown trail was being silently truncated on long courses -
+`TRAIL_MAX 4000 -> 20000`.** Reported as "Lissajous 11:9 ended
+prematurely, missed like 5-7 legs." Checked the actual navigation
+first: the ctrl log's waypoint-reached sequence was 0 through 605,
+every index in order, zero skips - PASS at 562.0s, matching the
+established 561.7s baseline almost exactly. The mission never actually
+missed anything; `_subscribe_pose`'s trail array is a rolling window
+(`(trail + [pt])[-TRAIL_MAX:]`), and at `SEG_MIN=0.15m`, this course's
+914.6m path needs a minimum of ~6100 points - the old 4000 cap silently
+evicted the OLDEST ~2000+ points (the pattern's early loops) well
+before the mission finished, so the live panel (and this same array
+read back by the post-mission report generator) showed a shape missing
+its first several legs even though the robot had already flown them
+correctly. Raised to 20000 (>3x the longest course in the catalog).
+Verified live: watched the trail array grow smoothly and un-truncated
+(25 -> 160 -> ... -> 1930 points) on a fresh Lissajous 11:9 launch,
+well past a meaningful fraction of the old cap with no sign of hitting
+the new one.
+
+**A separate, NOT resolved issue turned up verifying the above**, and
+is flagged honestly rather than folded into the trail-cap fix: that
+same verification run hung at t=202s (wp 211/606) - `mit_ctrl_sim`
+stopped producing any log output at all, with perfectly healthy
+control-loop timing right up to the last line (`maxPeriod=2.48ms`
+against an 8ms limit) and no `[STALL]`, no `[FALL]`, nothing. `gz.log`
+was completely empty - ruling out the multicast bug fixed earlier
+tonight (that failure mode fills `gz.log` with "No route to host" from
+t=0; this one produced no gz-side output at all and got well into the
+mission first). Not chased further tonight given the hour; a genuinely
+new, silent, mid-run controller hang on the longest/densest course in
+the catalog, distinct from every other failure mode documented above.
