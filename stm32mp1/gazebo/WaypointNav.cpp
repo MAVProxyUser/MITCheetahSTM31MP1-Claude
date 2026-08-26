@@ -18,6 +18,7 @@ void WaypointNav::makeCircle(float radius_m, int points, float speed) {
     _wp[i].east  = radius_m * (1.f - cosf(a));   // circle tangent to start, centre due east
     _wp[i].speed = speed;
   }
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] circle mission: %d waypoints, r=%.1f m, v=%.2f m/s\n",
          _n, radius_m, speed);
@@ -506,6 +507,7 @@ void WaypointNav::makeSectorSearch(float leg_m, int reps, float speed) {
     }
     bearing += offset;
   }
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] sector search mission: %d legs (%d cycles of 6), leg=%.1f/%.1f m, "
          "v=%.2f m/s\n", _n, reps, leg_m, 0.5f * leg_m, speed);
@@ -540,6 +542,7 @@ void WaypointNav::makeParallelTrack(float width_m, float height_m, int passes,
     }
     north = !north;
   }
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] parallel track mission: %d passes, width=%.1f m, step=%.1f m, "
          "%d waypoints, v=%.2f m/s\n", passes, width_m, height_m, _n, speed);
@@ -570,6 +573,7 @@ void WaypointNav::makeExpandingSquare(float step_m, int legs, float speed) {
     }
     bearing += (float)M_PI / 2.f;
   }
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] expanding square mission: %d legs, step=%.1f m, %d waypoints, "
          "v=%.2f m/s\n", legs, step_m, _n, speed);

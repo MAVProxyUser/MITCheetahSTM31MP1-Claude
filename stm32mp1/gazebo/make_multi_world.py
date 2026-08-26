@@ -41,6 +41,20 @@ was spawned.
 import sys
 import copy
 import xml.etree.ElementTree as ET
+from mission_geometry import mission_waypoints
+
+
+def _numeric_bbox(spec):
+    """Bbox computed directly from mission_waypoints() - the same shifted
+    generator the real course uses - rather than a hand-derived closed
+    form. Also includes (0,0): the robot's own local origin, which for
+    the shiftFirstToOrigin() missions IS wp0 (already in the list, so this
+    is a no-op there) but for anything else still needs to count, since
+    the fleet spawn/clearance math cares about everywhere the robot
+    actually stands, not just the waypoints it visits."""
+    pts = mission_waypoints(spec) + [(0.0, 0.0)]
+    ns = [p[0] for p in pts]; es = [p[1] for p in pts]
+    return (min(ns), max(ns), min(es), max(es))
 
 
 def mission_bbox(spec):
@@ -62,10 +76,15 @@ def mission_bbox(spec):
         r = f[0]
         return (-r, r, -r, r)
     if kind == "circle":
-        # WaypointNav::makeCircle: north = r*sin(a) in [-r,r],
-        #                          east  = r*(1-cos(a)) in [0,2r]
-        r = f[0]
-        return (-r, r, 0.0, 2.0 * r)
+        # WaypointNav::makeCircle now calls shiftFirstToOrigin() (robot
+        # spawns ON wp0, per direct instruction), which re-centres the
+        # course around wp0 instead of the old tangent-to-start point -
+        # the old closed form (-r,r,0,2r) was relative to THAT origin and
+        # is stale. Computed numerically from the same shifted generator
+        # mission_waypoints() calls, rather than re-deriving a new closed
+        # form by hand (which depends on n, not just r, once shifted) -
+        # single source of truth, correct by construction.
+        return _numeric_bbox(spec)
     if kind == "oval":
         # WaypointNav::makeOval: the straight runs along NORTH for S metres,
         # with a semicircular bulge of radius R at each end - one bulging
@@ -84,32 +103,21 @@ def mission_bbox(spec):
         d = f[0]
         return (0.0, d, 0.0, 0.0)
     if kind == "sector":
-        # WaypointNav::makeSectorSearch: verified numerically (not derived
-        # analytically - the rotating six-leg cycles don't have an obvious
-        # closed form) that the extent never exceeds +-leg_m on either axis
-        # even out to 20 cycles, since every six-leg cycle returns exactly
-        # to the centre and only the cycle's ORIENTATION drifts.
-        r = f[0]
-        return (-r, r, -r, r)
+        # Was a closed form relative to the OLD (tangent-to-start) origin;
+        # now stale for the same shiftFirstToOrigin() reason as circle
+        # above. Numeric, same rationale.
+        return _numeric_bbox(spec)
     if kind == "parallel":
-        # WaypointNav::makeParallelTrack: each pass oscillates the NORTH
-        # coordinate between 0 and width_m (f[0]) and never drifts past
-        # that; EAST steps by height_m (f[1], default 5.0) once per pass
-        # after the first, (passes-1) times (f[2], default 6).
-        width = f[0]
-        height = f[1] if len(f) > 1 else 5.0
-        passes = int(f[2]) if len(f) > 2 else 6
-        return (0.0, width, 0.0, max(0.0, passes - 1) * height)
+        # Same shift, same fix: was (0,width,0,(passes-1)*height) relative
+        # to the OLD origin (the true spawn point); wp0 is now that origin,
+        # so the old formula's own reference point moved.
+        return _numeric_bbox(spec)
     if kind == "expsquare":
-        # WaypointNav::makeExpandingSquare: verified numerically - the
-        # spiral's max extent on either axis is exactly step_m * legs / 4
-        # (legs = f[1], default 12), a clean closed form from the leg
-        # lengths (step*floor((k-1)/2)) summing along each of the 4
-        # cardinal directions every 4 legs.
-        step = f[0]
-        legs = f[1] if len(f) > 1 else 12.0
-        r = step * legs / 4.0
-        return (-r, r, -r, r)
+        # Same shift, same fix: the spiral's own size (step_m*legs/4 per
+        # axis) is unchanged by a translation, but the OLD (-r,r,-r,r) was
+        # centred on the spiral's start, not on wp0 (its first REAL,
+        # non-zero-length leg) - no longer the same point.
+        return _numeric_bbox(spec)
     if kind == "lissajous":
         # WaypointNav::makeLissajous: X=A*sin(...), Y=A*sin(...) are each
         # exactly bounded in [-A,A] regardless of the frequency ratio -

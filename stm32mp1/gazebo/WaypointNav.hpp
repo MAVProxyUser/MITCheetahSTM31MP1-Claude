@@ -151,6 +151,33 @@ class WaypointNav {
   // 1.5 m spacing, comfortably under this with margin for denser ratios.
   static const int MAXWP = 768;
   NavWaypoint _wp[MAXWP];
+  /*!
+   * Translate the whole course so _wp[0] becomes (0,0) - i.e. the robot's
+   * own local origin/true spawn point, per direct instruction: a SAR
+   * search course should have the robot standing ON its own first
+   * waypoint, not travelling there from a separate reference point.
+   *
+   * SCOPED to the SAR search patterns only (makeCircle/makeSectorSearch/
+   * makeParallelTrack/makeExpandingSquare each call this once, at the end
+   * of their own generator) - star/oval/atom/dash/makeLissajous do NOT
+   * call this and are completely unaffected. That line matters: star's
+   * own validated tuning (the "wp00 rotated due north to avoid an opening
+   * pivot" comment in BodyPathPlanner.h, the whole opening-leg speed
+   * profile) depends on the CURRENT convention where the path starts at
+   * the true origin and wp0 sits elsewhere - shifting star's own
+   * coordinates here would silently invalidate all of that.
+   *
+   * Pure translation, so every corner's angle, every leg's length, every
+   * fillet radius and speed the corridor-grading tuning computes are
+   * UNCHANGED - only the (north,east) reference point moves. Safe to
+   * combine with the turn_soft/turn_hard/corridor_scale_min tightening
+   * already shipped for these same four missions.
+   */
+  void shiftFirstToOrigin() {
+    if (_n < 1) return;
+    const float dn = _wp[0].north, de = _wp[0].east;
+    for (int i = 0; i < _n; ++i) { _wp[i].north -= dn; _wp[i].east -= de; }
+  }
   int   _n = 0;
   int   _idx = 0;
   bool  _complete = false;

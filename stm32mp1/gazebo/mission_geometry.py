@@ -13,6 +13,21 @@ import math
 import os
 
 
+def _shift_first_to_origin(pts):
+    """Mirrors WaypointNav::shiftFirstToOrigin() exactly - translate the
+    whole course so pts[0] becomes (0,0), the robot's own true local
+    origin/spawn point. SAR search patterns only (circle/sector/parallel/
+    expsquare); star/oval/atom/dash/lissajous never call this - see the
+    C++ field comment on shiftFirstToOrigin() for why star specifically
+    must not shift (its own validated tuning depends on the OLD
+    convention). Pure translation - every corner angle, leg length, and
+    the whole corridor-grading tuning are unaffected."""
+    if not pts:
+        return pts
+    dn, de = pts[0]
+    return [(n - dn, e - de) for (n, e) in pts]
+
+
 def mission_waypoints(spec):
     """Mirrors WaypointNav.cpp exactly. Returns [(north, east), ...]."""
     kind, *rest = spec.split(":")
@@ -29,8 +44,9 @@ def mission_waypoints(spec):
         return out
     if kind == "circle":
         r, n = float(rest[0]), int(rest[1])
-        return [(r * math.sin(2 * math.pi * (i + 1) / n),
-                 r * (1 - math.cos(2 * math.pi * (i + 1) / n))) for i in range(n)]
+        pts = [(r * math.sin(2 * math.pi * (i + 1) / n),
+                r * (1 - math.cos(2 * math.pi * (i + 1) / n))) for i in range(n)]
+        return _shift_first_to_origin(pts)
     if kind == "outback":
         d = float(rest[0])
         return [(d, 0.0), (0.0, 0.0)]
@@ -113,7 +129,7 @@ def mission_waypoints(spec):
                     out.append((n, e))
                 bearing += 2 * math.pi / 3
             bearing += offset
-        return out
+        return _shift_first_to_origin(out)
     if kind == "parallel":
         # Mirrors WaypointNav::makeParallelTrack: sweep runs north/south,
         # step runs east, first pass heads north.
@@ -130,7 +146,7 @@ def mission_waypoints(spec):
                 e += height
                 out.append((n, e))
             north = not north
-        return out
+        return _shift_first_to_origin(out)
     if kind == "expsquare":
         # Mirrors WaypointNav::makeExpandingSquare: outward spiral, 90 deg
         # turns, leg k has length step*floor((k-1)/2) (k=1,2 are zero-length
@@ -147,7 +163,7 @@ def mission_waypoints(spec):
                 e += length * math.sin(bearing)
                 out.append((n, e))
             bearing += math.pi / 2
-        return out
+        return _shift_first_to_origin(out)
     if kind == "lissajous":
         # Mirrors WaypointNav::makeLissajous: X=A*sin(wx*t+pi/2) (north),
         # Y=A*sin(wy*t) (east), t in [0, 2*pi) - integer wx,wy close the
