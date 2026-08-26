@@ -893,7 +893,21 @@ class Fleet:
         self._gz_node = node  # keep alive - a gc'd Node drops the subscription
         SEG_MIN = 0.15        # m between recorded trail points, matches
                                # trail_daemon's own decimation logic
-        TRAIL_MAX = 4000
+        # ROLLING WINDOW, and it was too short. Measured cause of a real
+        # report: Lissajous 11:9 (914.6m path) genuinely flew all 606
+        # waypoints in order (confirmed via the ctrl log - zero skipped
+        # indices) but the operator watched it on screen and saw several
+        # early legs of the pattern just missing. At SEG_MIN=0.15m, 914.6m
+        # needs a MINIMUM of ~6100 trail points before accounting for extra
+        # segments at corners - the old 4000 cap silently evicted the
+        # OLDEST ~2000+ points (the early loops) well before the mission
+        # finished. The navigation was never wrong; only the live trail
+        # (and this snapshot, and any report built from it) was truncated.
+        # Sized for headroom over the longest current mission, not just to
+        # patch this one course: 20000 covers a ~3000m path at this
+        # resolution, comfortably above anything in the mission catalog
+        # today (Lissajous 11:9 is the longest at 914.6m).
+        TRAIL_MAX = 20000
 
         def on_pose(msg):
             now = time.time()
