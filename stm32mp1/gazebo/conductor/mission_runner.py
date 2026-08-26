@@ -62,6 +62,7 @@ picture than what was actually on screen).
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -240,6 +241,45 @@ def render_report(run_id, slots, state, all_lines):
 # was actually broken. See the module docstring's lissajous:15:11:9 story.
 HARNESS_TIMEOUT_EXIT = 2
 
+_NAV_RE = re.compile(r"\[nav\] wp\d+/\d+ N=([-\d.]+) E=([-\d.]+)")
+
+
+def find_zombies(slots):
+    """Distinguish a genuinely WEDGED dog from a slow-but-healthy one at the
+    moment a timeout fires, instead of leaving that to a manual grep every
+    time (which is how the lissajous:15:5:7 zombie below was actually found
+    - this automates exactly those two checks).
+
+    A dog is flagged a "zombie" when its raw ctrl log's tail BOTH shows
+    "Operating Mode: ESTOP" (MIT's FSM forced it to PASSIVE - motors cut,
+    zero debounce, see CLAUDE.md's SafetyCheck section) AND its last few
+    [nav] lines report the IDENTICAL (N, E) - nav is still issuing a
+    velocity command into a robot that physically cannot move. Confirmed
+    reproducing this exact signature live (3-dog fleet, run162,
+    lissajous:15:5:7): ESTOP fired at nav handoff, then 280+ seconds of
+    "wp0/366 N=0.00 E=0.00 ... v=0.25 w=0.00" with no [FALL] ever printed
+    (a zombie doesn't topple, so the mission's own fall detector never
+    catches it) - only a stall-timeout on waypoint progress does. This is
+    the same "stuck dog" class CLAUDE.md's orientation-hold A/B already
+    named (dog0 in hold60_1 sat at wp6/7 for 160s, ESTOPed, never falling,
+    never finishing) - that investigation found the DEBOUNCE LENGTH is not
+    the fix (Fisher p~0.6, noise on an interleaved A/B), so this only
+    diagnoses the symptom, it does not attempt to prevent it.
+    """
+    zombies = []
+    for i in range(len(slots)):
+        try:
+            resp = api("GET", "/api/logs/%d?tail=60" % i)
+        except SystemExit:
+            continue
+        text = resp.get("text", "") if isinstance(resp, dict) else ""
+        if "Operating Mode: ESTOP" not in text:
+            continue
+        coords = _NAV_RE.findall(text)
+        if len(coords) >= 3 and len(set(coords[-3:])) == 1:
+            zombies.append(i)
+    return zombies
+
 
 def harness_timeout(reason, run_id, slots, state, all_lines):
     """Called ONLY when THIS SCRIPT's own bound (--timeout/--stall-timeout)
@@ -249,18 +289,29 @@ def harness_timeout(reason, run_id, slots, state, all_lines):
     comment above for why that reads as more dangerous than it is), and the
     single most common REAL cause, measured repeatedly in one night, is that
     the bound itself was picked too tight for this specific course - not
-    that anything is actually broken.
+    that anything is actually broken. It can ALSO mean a dog genuinely
+    wedged (see find_zombies above) - this function checks for that instead
+    of leaving it to a manual log read every time.
     """
+    zombies = find_zombies(slots)
     print("", flush=True)
     print("=" * 70, flush=True)
     print("[runner] ##  THIS TEST HARNESS TIMED OUT - NOT A MISSION VERDICT  ##", flush=True)
     print("[runner] %s" % reason, flush=True)
-    print("[runner] This does NOT mean the mission failed, fell, or the sim", flush=True)
-    print("[runner] hung - it means THIS SCRIPT stopped waiting. The most", flush=True)
-    print("[runner] likely explanation, by far: --timeout/--stall-timeout was", flush=True)
-    print("[runner] too tight for this course. CONFIRM before trusting this as", flush=True)
-    print("[runner] a real failure: GET /api/logs/{i} and check whether the", flush=True)
-    print("[runner] mission had already reached MISSION COMPLETE / RESULT: PASS.", flush=True)
+    if zombies:
+        print("[runner] AUTO-DIAGNOSIS: dog(s) %s appear ZOMBIED - ESTOP in the"
+              % zombies, flush=True)
+        print("[runner] raw log with zero position change over the last few [nav]", flush=True)
+        print("[runner] lines. This IS a real failure (a fallen-motors freeze the", flush=True)
+        print("[runner] mission's own [FALL] detector cannot see), just not one the", flush=True)
+        print("[runner] mission itself reported - see find_zombies()'s docstring.", flush=True)
+    else:
+        print("[runner] This does NOT mean the mission failed, fell, or the sim", flush=True)
+        print("[runner] hung - it means THIS SCRIPT stopped waiting. The most", flush=True)
+        print("[runner] likely explanation, by far: --timeout/--stall-timeout was", flush=True)
+        print("[runner] too tight for this course. CONFIRM before trusting this as", flush=True)
+        print("[runner] a real failure: GET /api/logs/{i} and check whether the", flush=True)
+        print("[runner] mission had already reached MISSION COMPLETE / RESULT: PASS.", flush=True)
     print("[runner] Exiting %d (harness timeout), NOT 1 (mission-reported fail)."
           % HARNESS_TIMEOUT_EXIT, flush=True)
     print("=" * 70, flush=True)

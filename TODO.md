@@ -47,6 +47,23 @@ Grouped by what it would actually take to close it.
 
 ## Genuine unsolved mysteries (cause not isolated — do not re-guess without new evidence)
 
+- [ ] **The zero-debounce orientation ESTOP occasionally fires right at nav
+      handoff and produces a permanent zombie** — MIT's FSM force-cuts to
+      PASSIVE, the dog never falls (so `[FALL]` never fires) and just sits
+      frozen issuing zero displacement for the rest of the run, silently
+      burning the full mission timeout. Previously characterised on star/oval
+      fleets (`CLAUDE.md`'s orientation-hold A/B — "dog0 sat at wp6/7 for
+      160s"); reproduced again in a randomized 3-dog fleet trial
+      (2026-08-26, run162) on `lissajous:15:5:7`, tripping within ~15s of
+      nav taking the stick rather than mid-mission. The one thing already
+      ruled out as the fix: debounce LENGTH (60ms vs 200ms Fisher p~0.6,
+      pure noise on an interleaved A/B) — the actual trigger for why the
+      trip fires at all was never chased. `mission_runner.py`'s
+      `find_zombies()` now auto-diagnoses this pattern (ESTOP in the raw
+      log + identical N/E across the last few `[nav]` lines) whenever a
+      harness timeout fires, so it no longer takes a manual log read to
+      tell apart from a merely-slow mission — that's a detection aid, not a
+      fix.
 - [ ] **Four or more dogs in one fleet always fail at boot** with `STATE
       ESTIMATE WENT NON-FINITE`. Ruled out: real-time factor, loop
       starvation, sensor topic wiring, a startup race (readiness gate didn't
