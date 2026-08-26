@@ -74,6 +74,22 @@ OPMODELS = ("/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/"
 # subscription just never received anything - a partition mismatch prints no
 # error on either side, so it must be reasoned about, not caught.
 os.environ["GZ_PARTITION"] = PARTITION
+# GZ_IP pins gz-transport's discovery to loopback. Without it, discovery
+# multicasts over whatever interface the OS's routing picks (en0 here) -
+# fine until that interface's multicast route stops actually working
+# (network state drifted over a long-running session: DHCP renewal, sleep/
+# wake, a VPN toggle - something changed the picture underneath a Mac that
+# had been up for 1+ day). Symptom, found the hard way: gz.log filling with
+# "Exception sending a multicast message: No route to host" on every send,
+# every dog reporting "0/1 came up" at the sensor-advertise wait, and the
+# simulated robot frozen at its spawn point forever (v pinned at v_min,
+# bridge log all zeros - imu_az=0, gps=(0,0) - because pose/IMU never
+# actually got discovered, so the whole run just sat there looking like a
+# dead controller). This host is single-machine, single-user - every peer
+# in this whole system already talks over 127.0.0.1 (see the "peer=
+# 127.0.0.1" in every ctrl log) - there was never a reason for gz-transport's
+# OWN discovery to leave loopback in the first place.
+os.environ["GZ_IP"] = "127.0.0.1"
 
 # mission_waypoints() is pure geometry with no gz imports triggered at call
 # time, but the FILE it lives in imports gz.transport13 at module level - safe
