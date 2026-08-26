@@ -96,12 +96,6 @@ Grouped by what it would actually take to close it.
 
 ## Proposed follow-ups that were never built
 
-- [ ] **Live chase-camera repositioning.** `configure_chase_cam` currently
-      bakes the camera offset into a body-mounted sensor's pose at spawn
-      time for zero per-tick cost; making `chase_distance`/`height`/`degree`
-      live after spawn needs converting to a free-floating camera pushed a
-      fresh pose every tick — a real architectural change, explicitly left
-      as an open decision for the user rather than built unilaterally.
 - [ ] **Contact detection was found to regress the real estimator** (21.3m
       → 5.6m) because it overwrote the KF's graded stance-phase trust ramp
       with a two-level on/off signal. The suggested, never-attempted fix:
