@@ -4620,3 +4620,30 @@ raw log by hand. Fixed structurally, not by raising numbers again:
   launch's fresh `open(path, "w")` truncates them in place - per direct
   request, after this exact investigation lost the precise ctrl log for
   an expsquare fall to the very next test launched two minutes later.
+
+**The gait question, closed with data, not argument.** Per direct
+instruction to "think hard" about `trotRunning` vs `walking` and whether
+it explains anyone "shanking corners either prematurely missing them, or
+rounding them off": ran `expsquare:5:12` - the one mission with an
+observed intermittent fall - on `trotRunning` at the SAME 1.5 m/s cruise
+`walking` uses, isolating gait as the only variable. Three consecutive
+attempts, all PASS, all landing at 106.8-106.9s - tighter timing
+variance than `walking`'s own 109.0-109.2s, and zero falls in 3 tries
+versus `walking`'s 1-in-5. Not a large enough sample to claim
+`trotRunning` is SAFER, but it is definitely not worse, and the
+underlying mechanism explains why: the "state estimate went non-finite -
+reinitialising" line that logically could have been a fall precursor
+appears EXACTLY TWICE in every single expsquare run checked (four
+`walking` passes, three `trotRunning` passes, all archived logs) -
+completely independent of gait, mission outcome, or anything else. It is
+a deterministic boot-time estimator transient, not a signal, and it
+rules out the one gait-adjacent hypothesis that could have connected the
+fall to anything measured here. Combined with the corridor-rounding
+result (identical wobble on both gaits, documented above) and the
+corner-cutting result (a pure function of `turn_soft`/`turn_hard`/
+`corridor_scale_min`, with no gait term anywhere in that computation):
+gait choice is not the explanation for any of "shanking," rounding, or
+premature-miss falls observed tonight. `walking` stays the shipped
+choice for every SAR pattern - there is no measured upside to switching
+and it stays consistent with how each recipe was actually tuned and
+validated.
