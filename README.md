@@ -8,8 +8,10 @@ Cortex-A7 running Linux + a Cortex-M4), driving **Unitree RS485 legs**, with a
 
 > Fork of MIT Cheetah-Software (BSD-3, see `LICENSE`). All original build/run docs
 > for the desktop + Mini Cheetah still apply; this README covers the STM32MP1 port,
-> which lives under **`stm32mp1/`**. See also `CLAUDE.md` (rules + traps) and
-> `SKILL.md` (the exact commands).
+> which lives under **`stm32mp1/`**. See also `CLAUDE.md` (rules + traps),
+> `SKILL.md` (the exact commands), and `TODO.md` (the open backlog — hardware
+> validation gaps, unsolved fleet/speed mysteries, and proposed follow-ups that
+> were never built).
 
 ## Why the STM32MP1
 
@@ -102,7 +104,7 @@ overruns - 3x throughput. Four or more fails for a reason not yet isolated.
 
 **Open:** the roll-out under sustained turning; achieved vs commanded foot
 force through a corner; why the trotting dash fails in parallel but not alone;
-and nothing has ever run on the STM32.
+and nothing has ever run on the STM32. See `TODO.md` for the full backlog.
 
 ## Measured locomotion (Mac SITL)
 

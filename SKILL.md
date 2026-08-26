@@ -1,5 +1,9 @@
 # SKILL.md — STM32MP1 Cheetah port: the commands
 
+Companion to `CLAUDE.md` (rules, traps, and the full running history) and
+`TODO.md` (the current open backlog — check it before starting new work, and
+update it when you close something).
+
 ---
 
 # 🛑 RULE ZERO: THERE IS NO CHEATER MODE. DO NOT USE `SIM_CHEATER`. EVER.
@@ -730,6 +734,38 @@ specifically depends on the old convention; see CLAUDE.md). A brand new
 angular SAR-style pattern probably wants this too; a smooth/parametric
 one (like lissajous) probably does not, since there is no single
 "first waypoint" any more special than another point on the curve.
+
+### Running a 3-dog fleet with random mission types
+
+```bash
+python3 -c "
+import random
+catalog = ['star:10.514:5','oval:40:5.0','atom:9.0:6','spiro:9.0:8','dash:100',
+           'circle:9:8','sector:15:3','parallel:30:5:8','expsquare:5:12',
+           'lissajous:15:1:2','lissajous:15:5:7','lissajous:15:11:9']
+print(' '.join(f'--slot \"{m}\"' for m in random.sample(catalog, 3)))
+"
+# paste the three --slot args into:
+python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "..." --slot "..." --slot "..." \
+  --timeout 600 --stall-timeout 200
+```
+
+Omit `--gait`/`--speed`/`--extra` and the runner resolves each slot's own
+recipe defaults automatically. Size `--timeout` above the SLOWEST mission
+drawn — `lissajous:15:11:9` alone is a ~560s course, so a draw containing it
+needs 700s+ (see `CLAUDE.md`'s Lissajous stall-timeout note).
+
+**If all three dogs fall at the exact same wall-clock second, that is a HOST
+stall, not a mission or code regression** — confirmed by grepping the raw
+per-dog ctrl logs (`GET /api/logs/{i}?full=1`) for `[STALL] control period`
+right around the failure timestamp; if all three show a period spike well
+past their 8ms limit at the same instant, that's the shared Gazebo physics
+thread or another process (Time Machine has been the culprit before — check
+`tmutil status`) stealing the host, not the controller. This class of failure
+is already tracked in `TODO.md` under "genuine unsolved mysteries" (4+ dog
+fleets, and the trotting-dash-fails-in-parallel case) — don't re-diagnose it
+as a new bug without first ruling out the host the way `CLAUDE.md`'s fleet
+sections already did repeatedly.
 
 Everything the browser can do has a REST route — `GET /docs` is a live,
 clickable reference (Play + curl + response) for all of them, kept in sync
