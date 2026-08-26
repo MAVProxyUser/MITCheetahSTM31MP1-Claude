@@ -96,6 +96,17 @@ truth = {"pos": [0.0,0.0,0.0], "quat": [0.0,0.0,0.0,1.0], "vworld": [0.0,0.0,0.0
 cmd = {"q_des":[0.0]*12, "qd_des":[0.0]*12, "kp":[0.0]*12, "kd":[0.0]*12, "tau_ff":[0.0]*12}
 last_cmd_t = [0.0]          # wall time of the most recent controller packet
 CMD_TIMEOUT = float(os.environ.get("BRIDGE_CMD_TIMEOUT", "0.25"))   # s
+# MICRO-STALENESS GUARD for tau_ff, separate from (and much faster than)
+# CMD_TIMEOUT above - see its comment in control_step() for the mechanism.
+# 8ms matches RobotRunner.cpp's own SIM_STALL_MS default deliberately, not
+# by coincidence: that threshold was chosen there specifically because a
+# single 4-5ms tick is ordinary macOS scheduler jitter (this machine never
+# exceeds ~24% CPU and still produces them) and reacting to one was
+# measured to do more harm than the jitter itself. Reusing the same
+# number here means this guard only ever engages on the same events the
+# C++ side already calls genuinely abnormal, not on routine noise.
+TAU_FF_STALE_S = float(os.environ.get("BRIDGE_TAU_FF_STALE_MS", "8.0")) / 1000.0
+TAU_FF_RAMP_S  = float(os.environ.get("BRIDGE_TAU_FF_RAMP_MS", "15.0")) / 1000.0
 peer_ip = [CTRL_IP]
 seq_out = [0]
 cmd_rx  = [0]   # commands received (for heartbeat)
@@ -266,7 +277,7 @@ def control_step():
     # orientation E-stop before the run even begins (measured: dog displaced
     # 0.45 m at spawn, "Orientation safety check failed!", ESTOP for ever).
     if not (_ready["joints"] and _ready["pose"]):
-        return
+        return 1.0
     # WATCHDOG. If the controller stops talking (crash, kill, unplugged cable)
     # the last command must NOT be replayed for ever: a controller killed
     # mid-swing leaves two diagonal feet commanded into the air and the robot
@@ -290,6 +301,35 @@ def control_step():
         elif _wd_said[0]:
             _wd_said[0] = False
             print("[bridge] controller is back", flush=True)
+
+    # MICRO-STALENESS GUARD (tau_ff only). Separate mechanism from the
+    # crash watchdog above and two orders of magnitude faster - that one
+    # exists for "the controller is gone" (250ms+); this exists for "the
+    # controller is a few milliseconds late," which RobotRunner.cpp's own
+    # host-stall detector documents as the actual cause of a measured 8-9x
+    # force impulse: a host scheduling hiccup delays the controller's next
+    # tick, this bridge keeps recomputing torque from the SAME stale
+    # command every ~2ms in the meantime, and because joint state barely
+    # moves over that short a gap the recomputed torque comes out roughly
+    # CONSTANT - effectively holding one command 6-9x longer than the
+    # controller intended it for.
+    #
+    # Only tau_ff decays, deliberately. q_des/kp/kd stay untouched: that is
+    # CLOSED-LOOP position tracking against LIVE qj/qdj feedback, which
+    # self-corrects regardless of how stale its setpoint is and is what
+    # actually keeps a leg doing something sane through a brief gap.
+    # tau_ff is an OPEN-LOOP feedforward force with no such correction -
+    # it is the term that turns "held too long" into an oversized impulse,
+    # so it is the only one that needs to give ground. A per-tick local
+    # scale, not a write into the shared cmd dict, so the FULL tau_ff is
+    # available again the instant a fresh command actually arrives rather
+    # than staying decayed from having been scaled down on a prior read.
+    tau_ff_scale = 1.0
+    if last_cmd_t[0] > 0.0:
+        age = time.time() - last_cmd_t[0]
+        if age > TAU_FF_STALE_S:
+            tau_ff_scale = max(0.0, 1.0 - (age - TAU_FF_STALE_S) / TAU_FF_RAMP_S)
+
     with lock:
         # PD in Cheetah frame, then convert torque back to Go1 frame
         qc  = [SIGN[i]*qj[i] + OFFSET[i] for i in range(12)]
@@ -298,10 +338,11 @@ def control_step():
         for i in range(12):
             tau_c = (cmd["kp"][i]*(cmd["q_des"][i]-qc[i])
                      + cmd["kd"][i]*(cmd["qd_des"][i]-qdc[i])
-                     + cmd["tau_ff"][i])
+                     + cmd["tau_ff"][i] * tau_ff_scale)
             tau_gz[i] = SIGN[i]*tau_c
         last_tau[:] = tau_gz
     apply_torque(tau_gz)
+    return tau_ff_scale
 
 def main():
     assert node.subscribe(IMU, IMU_TOPIC, on_imu), "IMU subscribe failed"
@@ -317,9 +358,10 @@ def main():
     last = time.time()
     hb = time.time()
     stalls = [0, 0.0]    # count >5ms, worst gap (python GIL/callback jitter diagnostics)
+    tau_ff_guard = [0, 1.0]   # ticks where the micro-staleness guard engaged, worst scale seen
     prev = time.time()
     while True:
-        control_step()
+        scale = control_step()
         send_sensor()
         now = time.time()
         gap = now - prev
@@ -327,6 +369,9 @@ def main():
         if gap > 0.005:
             stalls[0] += 1
             if gap > stalls[1]: stalls[1] = gap
+        if scale < 1.0:
+            tau_ff_guard[0] += 1
+            if scale < tau_ff_guard[1]: tau_ff_guard[1] = scale
         if now - hb >= 1.0:
             with lock:
                 q0 = round(qj[0], 3); t0 = round(last_tau[0], 2); t2 = round(last_tau[2], 2)
@@ -334,8 +379,11 @@ def main():
                 la = round(gps["lat"], 5); lo = round(gps["lon"], 5)
             print(f"[bridge] cmd_rx={cmd_rx[0]}/s peer={peer_ip[0]} imu_az={round(imu['accel'][2],2)} "
                   f"q_FR_hip={q0} tau=[{t0},{t2}] stalls>{5}ms={stalls[0]}/worst={round(stalls[1]*1000,1)}ms "
-                  f"baro={bp}Pa/{ba}m gps=({la},{lo})", flush=True)
+                  f"baro={bp}Pa/{ba}m gps=({la},{lo})"
+                  + (f" tau_ff_guard={tau_ff_guard[0]}/worst_scale={round(tau_ff_guard[1],2)}"
+                     if tau_ff_guard[0] else ""), flush=True)
             cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0
+            tau_ff_guard[0] = 0; tau_ff_guard[1] = 1.0
         last += period
         dt = last - now
         if dt > 0: time.sleep(dt)
