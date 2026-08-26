@@ -18,8 +18,18 @@ Usage:
 Each --slot is just the mission spec; --gait/--speed/--dash/--extra are
 repeated flags matched to --slot BY POSITION (the i-th --gait applies to
 the i-th --slot). Omitted ones fall back to that mission's own recipe
-default. Exits 0 if every dog in the run reported PASS, 1 otherwise (FAIL,
-FELL, error, or timeout).
+default.
+
+Exit codes are DELIBERATELY distinct, not a single pass/fail bit:
+  0 = every dog reported PASS
+  1 = the MISSION reported a real verdict this disagrees with (FAIL, FELL,
+      server phase=error) - the sim/controller's own doing
+  2 = THIS SCRIPT gave up - its own --timeout or --stall-timeout fired and
+      killed a run that may have been perfectly healthy. NOT the same claim
+      as exit 1, and printed as an unmissable banner for exactly that
+      reason: collapsing the two let a run that had already printed
+      RESULT: PASS get reported as a bare, generic failure once tonight
+      (see below).
 
 The stall-timeout no longer watches the curated orchestration log alone -
 it ALSO resets on any change to state["status"][i]["waypoints"]/["text"]
@@ -211,6 +221,55 @@ def render_report(run_id, slots, state, all_lines):
     print("[runner] report: %s" % png_path, flush=True)
 
 
+# Exit codes, DISTINCT on purpose:
+#   0 = every dog PASSED
+#   1 = the MISSION reported a real verdict this script disagrees with
+#       (FAIL, FELL, or server phase=error) - the sim/controller's own doing
+#   2 = THIS SCRIPT gave up and killed a run that may have been perfectly
+#       healthy - its own --timeout or --stall-timeout fired, not anything
+#       the mission itself reported
+# Collapsing 1 and 2 into one exit code is exactly what let a run that had
+# ALREADY printed "[mission] RESULT: PASS" get reported as a plain, generic
+# failure tonight (expsquare:5:12, --timeout 150 fired in a race against the
+# mission's own finish) - indistinguishable from a real FELL/FAIL without
+# opening the raw log by hand, which is precisely the trap CLAUDE.md already
+# documents this whole script existing to avoid. It happened four times in
+# one night before this fix, always because a --timeout/--stall-timeout
+# picked for an EARLIER, untightened baseline turned out too tight once a
+# course's own tuning made it legitimately slower - never because the sim
+# was actually broken. See the module docstring's lissajous:15:11:9 story.
+HARNESS_TIMEOUT_EXIT = 2
+
+
+def harness_timeout(reason, run_id, slots, state, all_lines):
+    """Called ONLY when THIS SCRIPT's own bound (--timeout/--stall-timeout)
+    fired - never when the mission itself reported a result. Loud and
+    unmissable on purpose: everything printed here is about to look exactly
+    like a wedged sim or a real fall from the outside (see the exit-code
+    comment above for why that reads as more dangerous than it is), and the
+    single most common REAL cause, measured repeatedly in one night, is that
+    the bound itself was picked too tight for this specific course - not
+    that anything is actually broken.
+    """
+    print("", flush=True)
+    print("=" * 70, flush=True)
+    print("[runner] ##  THIS TEST HARNESS TIMED OUT - NOT A MISSION VERDICT  ##", flush=True)
+    print("[runner] %s" % reason, flush=True)
+    print("[runner] This does NOT mean the mission failed, fell, or the sim", flush=True)
+    print("[runner] hung - it means THIS SCRIPT stopped waiting. The most", flush=True)
+    print("[runner] likely explanation, by far: --timeout/--stall-timeout was", flush=True)
+    print("[runner] too tight for this course. CONFIRM before trusting this as", flush=True)
+    print("[runner] a real failure: GET /api/logs/{i} and check whether the", flush=True)
+    print("[runner] mission had already reached MISSION COMPLETE / RESULT: PASS.", flush=True)
+    print("[runner] Exiting %d (harness timeout), NOT 1 (mission-reported fail)."
+          % HARNESS_TIMEOUT_EXIT, flush=True)
+    print("=" * 70, flush=True)
+    print("", flush=True)
+    render_report(run_id, slots, state, all_lines)
+    api("POST", "/api/stop")
+    sys.exit(HARNESS_TIMEOUT_EXIT)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -226,8 +285,20 @@ def main():
                      help="finish-dash metres for the matching --slot by position (0=none)")
     ap.add_argument("--extra", action="append", default=[],
                      help="raw KEY=VALUE env override(s) for the matching --slot, space-separated")
-    ap.add_argument("--timeout", type=float, default=300,
-                     help="overall wall-clock budget in seconds (default 300)")
+    ap.add_argument("--timeout", type=float, default=700,
+                     help="overall wall-clock budget in seconds (default 700 - "
+                          "sized above lissajous:15:11:9's own ~562s baseline, "
+                          "the longest mission in the catalog; a shorter run just "
+                          "finishes early and this budget is never touched. "
+                          "Previously defaulted to 300, which is BELOW that "
+                          "baseline - every default invocation on that course "
+                          "was silently guaranteed to false-timeout a healthy "
+                          "run. Caught by hand more than once tonight, including "
+                          "one that killed a mission that had ALREADY printed "
+                          "RESULT: PASS moments earlier - see the loud TIMEOUT "
+                          "banner below and exit code 2 for why that class of "
+                          "mistake should now be impossible to mistake for a "
+                          "real FAIL.)")
     ap.add_argument("--stall-timeout", type=float, default=200,
                      help="abort if no new orchestration log line appears for this many "
                           "seconds - catches a wedged launch, not just a slow one (default "
@@ -384,17 +455,12 @@ def main():
     while True:
         now = time.monotonic()
         if now - start > args.timeout:
-            print("[runner] TIMEOUT after %.0fs (overall budget) - stopping run"
-                  % args.timeout, flush=True)
-            render_report(run_id, args.slot, st, all_lines)
-            api("POST", "/api/stop")
-            sys.exit(1)
+            harness_timeout("OVERALL BUDGET (--timeout %.0fs) elapsed" % args.timeout,
+                             run_id, args.slot, st, all_lines)
         if now - last_progress > args.stall_timeout:
-            print("[runner] TIMEOUT: no new log line OR waypoint/distance progress for "
-                  "%.0fs - run appears wedged, stopping" % args.stall_timeout, flush=True)
-            render_report(run_id, args.slot, st, all_lines)
-            api("POST", "/api/stop")
-            sys.exit(1)
+            harness_timeout("NO PROGRESS (--stall-timeout %.0fs): no new log line "
+                             "or waypoint/distance change" % args.stall_timeout,
+                             run_id, args.slot, st, all_lines)
 
         st = api("GET", "/api/state")
         log = st.get("log", [])

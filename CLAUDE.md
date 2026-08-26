@@ -4718,6 +4718,26 @@ produce denser interference patterns, but none kept a clean,
 unambiguous 8-fold structure at the same time as that density. A
 genuine best-effort rendition, not a claimed exact match.
 
+**Chased the density gap further, and it is a real budget wall, not a
+missed parameter.** `k = (R-r)/r` a hair above 8 (e.g. 57/8 = 7.125,
+denominator 8) DOES produce the reference's dense woven look while
+keeping exact 8-fold symmetry - visually the best match found in this
+whole search - but it only closes after 8 full revolutions instead of
+`makeSpirograph`'s one, and arc length scales with revolution count.
+Measured directly (not estimated): scaled to the same 9 m outer radius,
+that curve is **1660 m long**. Even at the coarsest spacing still worth
+calling a waypoint (1.5 m, well coarser than the 0.45 m the shipped
+mission uses and too coarse to resolve the woven centre cleanly) that
+is **1107 waypoints against the shared `MAXWP=768` budget** every
+mission in this catalog is sized against - and at a normal cruise speed
+the mission itself would run **~18 minutes**, an order of magnitude
+past anything else in the catalog (the current longest, Lissajous
+11:9, is 562 s). Raising `MAXWP` is a shared-constant change with
+unknown reach into every other mission, and an 18-minute single run is
+a real scope jump, not a tuning tweak - neither is worth it to improve
+on a result already shipped, verified, and honestly caveated. Not
+pursued further; recorded so nobody re-derives this from scratch.
+
 **Multi-dog fleet confirmation, closing a real gap.** Every test above
 this point tonight was a solo dog - the `make_multi_world.py` bbox fix
 for circle/sector/parallel/expsquare (needed because `shiftFirstToOrigin`
