@@ -6132,6 +6132,23 @@ courses now agree with each other, and sector's 120-147.5-degree result
 is reproduced rather than a one-off - walking's mid-band softness at this
 specific angle band looks real and repeatable, not noise.
 
+**CORRECTION (2026-08-27, continuation session): also a multi-dog host
+artifact, same pattern as pacing's.** Checked the batch this "again showed
+the orientation trip" result actually came from: a 3-DOG BATCH
+(expsquare+parallel+sector together), not a solo run - exactly the same
+shape as the pacing coin-flip correction above. Ran walking on sector
+solo, three times: **3/3 clean passes, zero trips.** Combined with the
+earlier solo sector PASS reported elsewhere in this file, that is 4/4
+clean solo runs against a claim that was never actually tested solo in
+the first place. Walking's "mid-band softness at 120-147.5 degrees" does
+not hold up - it was, like pacing's, very likely multi-dog shared-host
+contention landing on whichever dog happened to be at a sensitive moment,
+not a property of walking or of that angle. This does not undo the
+BOUNDING/GALLOPING/PRONKING 90-147.5 degree finding higher up this file -
+those failures were checked and reproduced SOLO from the start (that is
+why that finding was trusted this far) - it only retracts walking's own,
+never-solo-verified addition to it.
+
 **Speed ceiling pushed on the passing angles**: 3/3 PASS at 2.0 m/s
 (expsquare 26.0s, parallel 95.6s, octagon 160.1s - the wall-time spread
 tracks each course's own length, not a stability difference). At 2.5,
