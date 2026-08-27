@@ -9,6 +9,7 @@
  */
 
 #include "Controllers/GaitScheduler.h"
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /*=========================== Gait Data ===============================*/
 /**
@@ -70,7 +71,7 @@ GaitScheduler<T>::GaitScheduler(MIT_UserParameters* _userParameters, float _dt) 
  */
 template <typename T>
 void GaitScheduler<T>::initialize() {
-  std::cout << "[GAIT] Initialize Gait Scheduler" << std::endl;
+  shmtrace::logf(0.0, "[GAIT] Initialize Gait Scheduler");
 
   // Start the gait in a trot since we use this the most
   gaitData._currentGait = GaitType::STAND;
@@ -274,8 +275,7 @@ void GaitScheduler<T>::modifyGait() {
 template <typename T>
 void GaitScheduler<T>::createGait() {
 
-  std::cout << "[GAIT] Transitioning gait from " << gaitData.gaitName
-            << " to ";
+  const std::string _fromGaitName = gaitData.gaitName;
 
   // Case structure gets the appropriate parameters
   switch (gaitData._nextGait) {
@@ -463,7 +463,8 @@ void GaitScheduler<T>::createGait() {
   // Gait has switched
   gaitData._currentGait = gaitData._nextGait;
 
-  std::cout << gaitData.gaitName << "\n" << std::endl;
+  shmtrace::logf(0.0, "[GAIT] Transitioning gait from %s to %s",
+                 _fromGaitName.c_str(), gaitData.gaitName.c_str());
 
   // Calculate the auxilliary gait information
   calcAuxiliaryGaitData();
@@ -538,32 +539,27 @@ void GaitScheduler<T>::printGaitInfo() {
 
   // Print at requested frequency
   if (printIter == printNum) {
-    std::cout << "[GAIT SCHEDULER] Printing Gait Info...\n";
-    std::cout << "Gait Type: " << gaitData.gaitName << "\n";
-    std::cout << "---------------------------------------------------------\n";
-    std::cout << "Enabled: " << gaitData.gaitEnabled(0) << " | "
-              << gaitData.gaitEnabled(1) << " | " << gaitData.gaitEnabled(2)
-              << " | " << gaitData.gaitEnabled(3) << "\n";
-    std::cout << "Period Time: " << gaitData.periodTime(0) << "s | "
-              << gaitData.periodTime(1) << "s | " << gaitData.periodTime(2)
-              << "s | " << gaitData.periodTime(3) << "s\n";
-    std::cout << "---------------------------------------------------------\n";
-    std::cout << "Contact State: " << gaitData.contactStateScheduled(0) << " | "
-              << gaitData.contactStateScheduled(1) << " | "
-              << gaitData.contactStateScheduled(2) << " | "
-              << gaitData.contactStateScheduled(3) << "\n";
-    std::cout << "Phase Variable: " << gaitData.phaseVariable(0) << " | "
-              << gaitData.phaseVariable(1) << " | " << gaitData.phaseVariable(2)
-              << " | " << gaitData.phaseVariable(3) << "\n";
-    std::cout << "Stance Time Remaining: " << gaitData.timeStanceRemaining(0)
-              << "s | " << gaitData.timeStanceRemaining(1) << "s | "
-              << gaitData.timeStanceRemaining(2) << "s | "
-              << gaitData.timeStanceRemaining(3) << "s\n";
-    std::cout << "Swing Time Remaining: " << gaitData.timeSwingRemaining(0)
-              << "s | " << gaitData.timeSwingRemaining(1) << "s | "
-              << gaitData.timeSwingRemaining(2) << "s | "
-              << gaitData.timeSwingRemaining(3) << "s\n";
-    std::cout << std::endl;
+    shmtrace::logf(0.0,
+        "[GAIT SCHEDULER] Printing Gait Info... Gait Type: %s "
+        "Enabled: %g | %g | %g | %g "
+        "Period Time: %gs | %gs | %gs | %gs "
+        "Contact State: %g | %g | %g | %g "
+        "Phase Variable: %g | %g | %g | %g "
+        "Stance Time Remaining: %gs | %gs | %gs | %gs "
+        "Swing Time Remaining: %gs | %gs | %gs | %gs",
+        gaitData.gaitName.c_str(),
+        (double)gaitData.gaitEnabled(0), (double)gaitData.gaitEnabled(1),
+        (double)gaitData.gaitEnabled(2), (double)gaitData.gaitEnabled(3),
+        (double)gaitData.periodTime(0), (double)gaitData.periodTime(1),
+        (double)gaitData.periodTime(2), (double)gaitData.periodTime(3),
+        (double)gaitData.contactStateScheduled(0), (double)gaitData.contactStateScheduled(1),
+        (double)gaitData.contactStateScheduled(2), (double)gaitData.contactStateScheduled(3),
+        (double)gaitData.phaseVariable(0), (double)gaitData.phaseVariable(1),
+        (double)gaitData.phaseVariable(2), (double)gaitData.phaseVariable(3),
+        (double)gaitData.timeStanceRemaining(0), (double)gaitData.timeStanceRemaining(1),
+        (double)gaitData.timeStanceRemaining(2), (double)gaitData.timeStanceRemaining(3),
+        (double)gaitData.timeSwingRemaining(0), (double)gaitData.timeSwingRemaining(1),
+        (double)gaitData.timeSwingRemaining(2), (double)gaitData.timeSwingRemaining(3));
 
     // Reset iteration counter
     printIter = 0;

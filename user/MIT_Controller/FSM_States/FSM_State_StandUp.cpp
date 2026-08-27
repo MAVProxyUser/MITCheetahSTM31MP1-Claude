@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include "FSM_State_StandUp.h"
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the FSM State that passes in state specific info to
@@ -112,9 +113,8 @@ FSM_StateName FSM_State_StandUp<T>::checkTransition() {
       break;
 
     default:
-      std::cout << "[CONTROL FSM] Bad Request: Cannot transition from "
-                << K_PASSIVE << " to "
-                << this->_data->controlParameters->control_mode << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Bad Request: Cannot transition from %d to %d",
+                     (int)K_PASSIVE, (int)this->_data->controlParameters->control_mode);
   }
 
   // Get the next state
@@ -149,8 +149,7 @@ TransitionData<T> FSM_State_StandUp<T>::transition() {
 
 
     default:
-      std::cout << "[CONTROL FSM] Something went wrong in transition"
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Something went wrong in transition");
   }
 
   // Return the transition data to the FSM

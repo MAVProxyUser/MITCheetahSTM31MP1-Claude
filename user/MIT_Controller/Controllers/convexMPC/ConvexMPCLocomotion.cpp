@@ -11,6 +11,7 @@
 #include <cmath>
 #include "ConvexMPCLocomotion.h"
 #include <Controllers/SprawlGuard.h>
+#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 // Per-foot force cap handed to the convex MPC. Mini-cheetah's 120 N suits a
 // 9 kg / 88 N robot; the Go1 is 13.1 kg / 128 N and its knee (35.55 Nm over a
@@ -67,7 +68,7 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   _parameters = parameters;
   dtMPC = dt * iterationsBetweenMPC;
   default_iterations_between_mpc = iterationsBetweenMPC;
-  printf("[Convex MPC] dt: %.3f iterations: %d, dtMPC: %.3f\n", dt, iterationsBetweenMPC, dtMPC);
+  shmtrace::logf(0.0, "[Convex MPC] dt: %.3f iterations: %d, dtMPC: %.3f", dt, iterationsBetweenMPC, dtMPC);
   // $CTRL_F_MAX overrides the per-foot force cap. The 175 N default holds MIT's
   // 1.36x-bodyweight ratio, and 250 N was rejected earlier because it made the
   // STAND sit lower - but standing is not what the cap binds on. With two feet
@@ -92,9 +93,9 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   _mpcAsync = (getenv("CTRL_MPC_ASYNC") && atoi(getenv("CTRL_MPC_ASYNC")) != 0);
   if (_mpcAsync) {
     _mpcThread = std::thread(&ConvexMPCLocomotion::_mpcWorker, this);
-    printf("[Convex MPC] solve runs ASYNC on a worker thread\n");
+    shmtrace::logf(0.0, "[Convex MPC] solve runs ASYNC on a worker thread");
   } else {
-    printf("[Convex MPC] solve runs INLINE (stock)\n");
+    shmtrace::logf(0.0, "[Convex MPC] solve runs INLINE (stock)");
   }
 
   rpy_comp[0] = 0;
@@ -252,13 +253,12 @@ void ConvexMPCLocomotion::_SetupCommand(ControlFSMData<float> & data){
   if (getenv("STM32MP1_EST_DBG")) {
     static int _vdbg = 0; ++_vdbg;
     if ((_vdbg % 25) == 0) {
-      printf("[MPC] gait=%d pad=%.3f stick=%.3f xcmd=%.3f -> xdes=%.3f  yawrate=%.3f  bodyH=%.3f\n",
+      shmtrace::logf(0.0, "[MPC] gait=%d pad=%.3f stick=%.3f xcmd=%.3f -> xdes=%.3f  yawrate=%.3f  bodyH=%.3f",
              gaitNumber,
              data._desiredStateCommand->gamepadCommand
                ? data._desiredStateCommand->gamepadCommand->leftStickAnalog[1] : -9.f,
              data._desiredStateCommand->leftAnalogStick[1],
              x_vel_cmd, _x_vel_des, _yaw_turn_rate, _body_height);
-      fflush(stdout);
     }
   }
 
@@ -369,9 +369,9 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     if (getenv("STM32MP1_MPC_IN")) {
       static int _wc = 0;
       if ((++_wc % 500) == 1)
-        printf("[WIN] hold=%d gait=%d have=%d age_ms=%lld wait=%lld\n",
+        shmtrace::logf(0.0, "[WIN] hold=%d gait=%d have=%d age_ms=%lld wait=%lld",
                (int)hold, gaitNumber, (int)_mpcHaveSolution.load(),
-               (long long)(nowMs() - _locoEntryMs), (long long)waitMs), fflush(stdout);
+               (long long)(nowMs() - _locoEntryMs), (long long)waitMs);
     }
     if (hold)
       gaitNumber = 4;
@@ -535,7 +535,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
         if (yref) {
           static int nyr = 0;
           if ((nyr++ % 250) == 0)
-            printf("[YAWREF] wzCmd=%+.3f yawDes=%+.4f yawAct=%+.4f err=%+.4f\n",
+            shmtrace::logf(0.0, "[YAWREF] wzCmd=%+.3f yawDes=%+.4f yawAct=%+.4f err=%+.4f",
                    _yaw_turn_rate, _yaw_des, seResult.rpy[2],
                    _yaw_des - seResult.rpy[2]);
         }
@@ -950,11 +950,10 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
         }
       }
       if ((nc++ % 50) == 0 && schedStance > 0) {
-        printf("[CONTACT] t=%.2f schedStance=%ld airborneWhileStance=%ld (%.1f%%) "
-               "worstAirGap=%.3f m\n",
+        shmtrace::logf(0.0, "[CONTACT] t=%.2f schedStance=%ld airborneWhileStance=%ld (%.1f%%) "
+               "worstAirGap=%.3f m",
                nc * 0.002f, schedStance, airborneWhileStance,
                100.0 * (double)airborneWhileStance / (double)schedStance, worstAir);
-        fflush(stdout);
       }
     }
   }
@@ -981,12 +980,11 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
           if (Fr_des[foot][2] > 1.0f) { fzTot += Fr_des[foot][2]; ++nStance; }
         }
         const float mg = 12.859f * 9.81f;             // corrected Go1 total mass
-        printf("[MPCZ] t=%.2f z=%.3f zref=%.3f vz=%+.3f nSt=%d Fz=%.1f mg=%.1f "
-               "Fz/mg=%.2f need=%.2f\n",
+        shmtrace::logf(0.0, "[MPCZ] t=%.2f z=%.3f zref=%.3f vz=%+.3f nSt=%d Fz=%.1f mg=%.1f "
+               "Fz/mg=%.2f need=%.2f",
                nz * 0.002f, seResult.position[2], _body_height, seResult.vWorld[2],
                nStance, fzTot, mg, fzTot / mg,
                nStance > 0 ? 4.0f / (float)nStance : 0.f);
-        fflush(stdout);
       }
     }
   }
@@ -1087,7 +1085,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
 template<>
 void ConvexMPCLocomotion::run(ControlFSMData<double>& data) {
   (void)data;
-  printf("call to old CMPC with double!\n");
+  shmtrace::logf(0.0, "call to old CMPC with double!");
 
 }
 
@@ -1210,9 +1208,8 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
     _x_vel_des = std::max(p.vMax, _x_vel_des - decel);
     static int nclamp = 0;
     if ((nclamp++ % 250) == 0) {
-      printf("[SCHED] gait=%d ENVELOPE CLAMP: vx %.2f -> %.2f (gait max %.2f)\n",
+      shmtrace::logf(0.0, "[SCHED] gait=%d ENVELOPE CLAMP: vx %.2f -> %.2f (gait max %.2f)",
              gaitNumber, speedCmd, _x_vel_des, p.vMax);
-      fflush(stdout);
     }
   }
 
@@ -1238,10 +1235,9 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
     // SEGMENT INDEX within the cycle (not a 0-1 phase), so index 0 is the wrap.
     const int seg = activeGait ? activeGait->getCurrentGaitPhase() : 0;
     if (seg == 0) {
-      printf("[SCHED] gait=%d v=%.2f  segment %d -> %d ms (iters %d -> %d)\n",
+      shmtrace::logf(0.0, "[SCHED] gait=%d v=%.2f  segment %d -> %d ms (iters %d -> %d)",
              gaitNumber, speedCmd, _segMsCurrent ? _segMsCurrent : p.segMs,
              p.segMs, iterationsBetweenMPC, wantIters);
-      fflush(stdout);
       // Write the DEFAULT, not just the live value: run() calls
       // recompute_timing(default_iterations_between_mpc) every tick, which would
       // otherwise clobber this on the very next iteration. (Measured: the
@@ -1493,7 +1489,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   //printf("current posistion: %3.f %.3f %.3f\n", p[0], p[1], p[2]);
 
   if(alpha > 1e-4) {
-    std::cout << "Alpha was set too high (" << alpha << ") adjust to 1e-5\n";
+    shmtrace::logf(0.0, "Alpha was set too high (%g) adjust to 1e-5", (double)alpha);
     alpha = 1e-5;
   }
 
@@ -1554,8 +1550,8 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
     if (getenv("STM32MP1_MPC_IN")) {
       static int _dsp = 0;
       if ((++_dsp % 22) == 1)
-        printf("[DSP] attempt #%d busy=%d haveSol=%d\n", _dsp, (int)_mpcBusy,
-               (int)_mpcHaveSolution.load()), fflush(stdout);
+        shmtrace::logf(0.0, "[DSP] attempt #%d busy=%d haveSol=%d", _dsp, (int)_mpcBusy,
+               (int)_mpcHaveSolution.load());
     }
     if (!_mpcBusy) {
       for (int i = 0; i < 3; ++i) { _mpcIn.p[i]=p[i]; _mpcIn.v[i]=v[i]; _mpcIn.w[i]=w[i]; }
@@ -1611,15 +1607,14 @@ void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in, Vec3<float> frTraj[3]
   if (getenv("STM32MP1_MPC_IN")) {
     static int _ic = 0;
     if ((++_ic % 10) == 1) {
-      printf("[MPCIN] p=%.2f %.2f %.2f  v=%.2f %.2f %.2f  yaw=%.2f h=%d\n",
+      shmtrace::logf(0.0, "[MPCIN] p=%.2f %.2f %.2f  v=%.2f %.2f %.2f  yaw=%.2f h=%d",
              in.p[0], in.p[1], in.p[2], in.v[0], in.v[1], in.v[2], in.yaw, in.horizon);
-      printf("[MPCIN] table[0..7]=%d%d%d%d %d%d%d%d  traj[0..5]=%.2f %.2f %.2f %.2f %.2f %.2f\n",
+      shmtrace::logf(0.0, "[MPCIN] table[0..7]=%d%d%d%d %d%d%d%d  traj[0..5]=%.2f %.2f %.2f %.2f %.2f %.2f",
              in.table[0],in.table[1],in.table[2],in.table[3],
              in.table[4],in.table[5],in.table[6],in.table[7],
              in.traj[0],in.traj[1],in.traj[2],in.traj[3],in.traj[4],in.traj[5]);
-      printf("[MPCIN] r(foot rel CoM) x=%.2f %.2f %.2f %.2f  z=%.2f %.2f %.2f %.2f\n",
+      shmtrace::logf(0.0, "[MPCIN] r(foot rel CoM) x=%.2f %.2f %.2f %.2f  z=%.2f %.2f %.2f %.2f",
              in.r[0],in.r[1],in.r[2],in.r[3], in.r[8],in.r[9],in.r[10],in.r[11]);
-      fflush(stdout);
     }
   }
   update_problem_data_floats((float*)in.p, (float*)in.v, (float*)in.q, (float*)in.w,
@@ -1656,18 +1651,16 @@ void ConvexMPCLocomotion::_mpcWorker() {
     if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp) != 0) {
       sp.sched_priority = 0;
       pthread_setschedparam(pthread_self(), SCHED_OTHER, &sp);
-      printf("[Convex MPC] worker: SCHED_OTHER (FIFO %d refused)\n", prio);
+      shmtrace::logf(0.0, "[Convex MPC] worker: SCHED_OTHER (FIFO %d refused)", prio);
     } else {
-      printf("[Convex MPC] worker: SCHED_FIFO %d\n", prio);
+      shmtrace::logf(0.0, "[Convex MPC] worker: SCHED_FIFO %d", prio);
     }
     cpu_set_t set; CPU_ZERO(&set); CPU_SET(1, &set);
     pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
-    fflush(stdout);
 #else
     // Host (Mac-first) build: no SCHED_FIFO/affinity - the machine is ~30x the
     // board and the default scheduler is fine for iterating the math.
-    printf("[Convex MPC] worker: host build, default scheduling\n");
-    fflush(stdout);
+    shmtrace::logf(0.0, "[Convex MPC] worker: host build, default scheduling");
 #endif
   }
   while (!_mpcQuit.load()) {
@@ -1696,7 +1689,7 @@ void ConvexMPCLocomotion::_mpcWorker() {
       static int _nanc = 0;
       ++_nanc;
       if ((_nanc % 20) == 1)
-        printf("[MPCW] REJECTED non-finite solution (%d so far)\n", _nanc), fflush(stdout);
+        shmtrace::logf(0.0, "[MPCW] REJECTED non-finite solution (%d so far)", _nanc);
       // CLEAR THE BUSY FLAG. The original `continue` skipped the publish block
       // below - which is also what releases _mpcBusy - so a single non-finite
       // solution silenced the MPC for the rest of the run: no new dispatch is
@@ -1714,8 +1707,8 @@ void ConvexMPCLocomotion::_mpcWorker() {
     if (getenv("STM32MP1_EST_DBG")) {
       static int _sc = 0;
       if ((++_sc % 10) == 1)
-        printf("[MPCW] solve #%d took %.1f ms, world fz=[%.0f %.0f %.0f %.0f]\n", _sc, _tsolve.getMs(),
-               tr[0][0][2], tr[0][1][2], tr[0][2][2], tr[0][3][2]), fflush(stdout);
+        shmtrace::logf(0.0, "[MPCW] solve #%d took %.1f ms, world fz=[%.0f %.0f %.0f %.0f]", _sc, _tsolve.getMs(),
+               tr[0][0][2], tr[0][1][2], tr[0][2][2], tr[0][3][2]);
     }
     {
       std::lock_guard<std::mutex> lk(_mpcMtx);

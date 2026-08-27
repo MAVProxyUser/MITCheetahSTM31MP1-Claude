@@ -4,6 +4,7 @@
  */
 
 #include "FSM_State.h"
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the FSM State class.
@@ -19,8 +20,7 @@ FSM_State<T>::FSM_State(ControlFSMData<T>* _controlFSMData,
       stateName(stateNameIn),
       stateString(stateStringIn) {
   transitionData.zero();
-  std::cout << "[FSM_State] Initialized FSM state: " << stateStringIn
-            << std::endl;
+  shmtrace::logf(0.0, "[FSM_State] Initialized FSM state: %s", stateStringIn.c_str());
 }
 
 /**
@@ -190,8 +190,7 @@ void FSM_State<T>::runControls() {
     footVelocities = Mat34<float>::Zero();
 
     // Print an error message
-    std::cout << "[FSM_State] ERROR: No known controller was selected: "
-              << CONTROLLER_OPTION << std::endl;
+    shmtrace::logf(0.0, "[FSM_State] ERROR: No known controller was selected: %d", CONTROLLER_OPTION);
   }
 }
 

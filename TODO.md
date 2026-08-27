@@ -146,16 +146,39 @@ Grouped by what it would actually take to close it.
       each stage (solo dash, solo star, 3-dog fleet - zero regressions,
       zero cross-contamination between dogs' bridges, and the two fixed
       messages confirmed silent on a clean run as expected).
-      **Remaining printf/cout still not converted** (broader upstream MIT
-      codebase - ConvexMPCLocomotion.cpp/GaitScheduler.cpp/WBC_Ctrl/
-      FSM_State_* siblings/JCQP/rt_* transport files/etc.) - the
-      genuinely hot-path, unthrottled, safety-relevant ones found so far
-      are fixed; what's left is either one-shot init text, already
-      env-gated + rate-limited debug (ConvexMPCLocomotion's [MPC]/[WIN]/
-      [YAWREF]/[CONTACT]/[MPCZ]), or `std::endl`-flushing on a
-      low-frequency discrete event (GaitScheduler's gait-name print) -
-      not urgent, flagged if a future session wants full project-wide
-      conversion.
+      **Correction, per direct instruction: "out of scope" was the wrong
+      boundary** - the right question is whether the code runs in the
+      dog's actual control/state-machine path, not which directory it
+      lives in. Extended the conversion accordingly to every file that
+      genuinely executes there: `GaitScheduler.cpp`, `ConvexMPCLocomotion.cpp`,
+      `SolverMPC.cpp`, `convexMPC_interface.cpp`, `RobotState.cpp` (+ the
+      unused-but-compiled `VisionRobotState.cpp` sibling), `WBIC.cpp`, and
+      the remaining `FSM_State_*`/`ControlFSM.cpp` files
+      (`RecoveryStand`/`StandUp`/`Passive`/`BalanceStand`/base). First
+      audited every `WBC_Ctrl/TaskSet/*` file (WBIC's own task list,
+      ~90 combined printf/cout sites) and found them **100% commented
+      out** - genuinely zero cost, nothing to convert. Also caught a real
+      gap in the audit method itself: the initial grep only matched
+      `std::cout`/`std::endl` literally, missing bare `cout`/`endl` reachable
+      through a `using std::cout;` declaration - broadened the search and
+      found two more real sites this way (`RobotState.cpp`/
+      `VisionRobotState.cpp`'s own `print()`). `ConvexMPCLocomotion.cpp`'s
+      per-tick `[SCHED]` envelope-clamp/segment-change lines and
+      `SolverMPC.cpp`'s `"failed to solve!"`/`"BAD ERROR 1"` (inside the
+      per-MPC-cycle solve path, not just boot) are the two clusters here
+      with a real, if lower-frequency-than-locomotionSafe(), repeat-firing
+      profile under sustained failure. Verified compiling cleanly at every
+      stage; live-regression-tested (solo dash, solo star) with the
+      GaitScheduler/FSM_State/ControlFSM subset already deployed. What's
+      left uncompiled-in-a-normal-build (`K_DEBUG`/`K_PRINT_EVERYTHING`
+      gated blocks, confirmed never defined anywhere in this build) was
+      converted too, for when someone eventually defines them. The only
+      thing NOT touched this pass: `rt_*` hardware transport files
+      (`rt_gazebo.cpp` etc.), third-party `JCQP`/`qpOASES` solver internals,
+      and the genuinely-unreachable `BackFlip`/`FrontJump`/
+      `BalanceController` demo controllers' own per-tick bodies (their
+      one-shot boot-time construction messages were left as printf) -
+      flag for a future pass if any of those turn out to matter.
 - [ ] **Four or more dogs in one fleet always fail at boot** with `STATE
       ESTIMATE WENT NON-FINITE`. Ruled out: real-time factor, loop
       starvation, sensor topic wiring, a startup race (readiness gate didn't

@@ -5,6 +5,7 @@
  */
 
 #include "FSM_State_Passive.h"
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the FSM State that passes in state specific info to
@@ -87,9 +88,8 @@ FSM_StateName FSM_State_Passive<T>::checkTransition() {
       break;
 
     default:
-      std::cout << "[CONTROL FSM] Bad Request: Cannot transition from "
-                << K_PASSIVE << " to "
-                << this->_data->controlParameters->control_mode << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Bad Request: Cannot transition from %d to %d",
+                     (int)K_PASSIVE, (int)this->_data->controlParameters->control_mode);
   }
 
   // Get the next state

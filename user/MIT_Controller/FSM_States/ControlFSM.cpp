@@ -8,6 +8,7 @@
 #include "ControlFSM.h"
 #include <rt/rt_rc_interface.h>
 #include <atomic>
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the Control FSM. Passes in all of the necessary
@@ -204,7 +205,7 @@ FSM_OperatingMode ControlFSM<T>::safetyPreCheck() {
       data.controlParameters->control_mode != K_RECOVERY_STAND) {
     if (!safetyChecker->checkSafeOrientation()) {
       operatingMode = FSM_OperatingMode::ESTOP;
-      std::cout << "broken: Orientation Safety Ceck FAIL" << std::endl;
+      shmtrace::logf(0.0, "broken: Orientation Safety Ceck FAIL");
     }
   }
 
@@ -302,25 +303,18 @@ void ControlFSM<T>::printInfo(int opt) {
 
       // Print at commanded frequency
       if (printIter == printNum) {
-        std::cout << "[CONTROL FSM] Printing FSM Info...\n";
-        std::cout
-            << "---------------------------------------------------------\n";
-        std::cout << "Iteration: " << iter << "\n";
+        std::string _opMode;
         if (operatingMode == FSM_OperatingMode::NORMAL) {
-          std::cout << "Operating Mode: NORMAL in " << currentState->stateString
-                    << "\n";
-
+          _opMode = "NORMAL in " + currentState->stateString;
         } else if (operatingMode == FSM_OperatingMode::TRANSITIONING) {
-          std::cout << "Operating Mode: TRANSITIONING from "
-                    << currentState->stateString << " to "
-                    << nextState->stateString << "\n";
-
+          _opMode = "TRANSITIONING from " + currentState->stateString +
+                    " to " + nextState->stateString;
         } else if (operatingMode == FSM_OperatingMode::ESTOP) {
-          std::cout << "Operating Mode: ESTOP\n";
+          _opMode = "ESTOP";
         }
-        std::cout << "Gait Type: " << data._gaitScheduler->gaitData.gaitName
-                  << "\n";
-        std::cout << std::endl;
+        shmtrace::logf(0.0, "[CONTROL FSM] Printing FSM Info... Iteration: %d "
+               "Operating Mode: %s Gait Type: %s",
+               iter, _opMode.c_str(), data._gaitScheduler->gaitData.gaitName.c_str());
 
         // Reset iteration counter
         printIter = 0;
@@ -333,18 +327,14 @@ void ControlFSM<T>::printInfo(int opt) {
       break;
 
     case 1:  // Initializing FSM State transition
-      std::cout << "[CONTROL FSM] Transition initialized from "
-                << currentState->stateString << " to " << nextState->stateString
-                << "\n"
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Transition initialized from %s to %s",
+                     currentState->stateString.c_str(), nextState->stateString.c_str());
 
       break;
 
     case 2:  // Finalizing FSM State transition
-      std::cout << "[CONTROL FSM] Transition finalizing from "
-                << currentState->stateString << " to " << nextState->stateString
-                << "\n"
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Transition finalizing from %s to %s",
+                     currentState->stateString.c_str(), nextState->stateString.c_str());
 
       break;
   }

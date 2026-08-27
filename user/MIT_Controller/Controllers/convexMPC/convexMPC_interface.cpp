@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 #define K_NUM_LEGS 4
 
@@ -23,17 +24,17 @@ void initialize_mpc()
 {
   //printf("Initializing MPC!\n");
   if(pthread_mutex_init(&problem_cfg_mt,NULL)!=0)
-    printf("[MPC ERROR] Failed to initialize problem configuration mutex.\n");
+    shmtrace::logf(0.0, "[MPC ERROR] Failed to initialize problem configuration mutex.");
 
   if(pthread_mutex_init(&update_mt,NULL)!=0)
-    printf("[MPC ERROR] Failed to initialize update data mutex.\n");
+    shmtrace::logf(0.0, "[MPC ERROR] Failed to initialize update data mutex.");
 
 #ifdef K_DEBUG
-  printf("[MPC] Debugging enabled.\n");
-    printf("[MPC] Size of problem setup struct: %ld bytes.\n", sizeof(problem_setup));
-    printf("      Size of problem update struct: %ld bytes.\n",sizeof(update_data_t));
-    printf("      Size of MATLAB floating point type: %ld bytes.\n",sizeof(mfp));
-    printf("      Size of flt: %ld bytes.\n",sizeof(flt));
+  shmtrace::logf(0.0, "[MPC] Debugging enabled.");
+    shmtrace::logf(0.0, "[MPC] Size of problem setup struct: %ld bytes.", sizeof(problem_setup));
+    shmtrace::logf(0.0, "      Size of problem update struct: %ld bytes.",sizeof(update_data_t));
+    shmtrace::logf(0.0, "      Size of MATLAB floating point type: %ld bytes.",sizeof(mfp));
+    shmtrace::logf(0.0, "      Size of flt: %ld bytes.",sizeof(flt));
 #else
   //printf("[MPC] Debugging disabled.\n");
 #endif
@@ -49,8 +50,8 @@ void setup_problem(double dt, int horizon, double mu, double f_max)
   }
 
 #ifdef K_DEBUG
-  printf("[MPC] Got new problem configuration!\n");
-    printf("[MPC] Prediction horizon length: %d\n      Force limit: %.3f, friction %.3f\n      dt: %.3f\n",
+  shmtrace::logf(0.0, "[MPC] Got new problem configuration!");
+    shmtrace::logf(0.0, "[MPC] Prediction horizon length: %d      Force limit: %.3f, friction %.3f      dt: %.3f",
             horizon,f_max,mu,dt);
 #endif
 

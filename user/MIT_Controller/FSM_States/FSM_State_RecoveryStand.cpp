@@ -6,6 +6,7 @@
 
 #include "FSM_State_RecoveryStand.h"
 #include <Utilities/Utilities_print.h>
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 
 /**
@@ -69,13 +70,13 @@ void FSM_State_RecoveryStand<T>::onEnter() {
   _flag = FoldLegs;
   if( !_UpsideDown() ) { // Proper orientation
     if (  (0.2 < body_height) && (body_height < 0.45) ){
-      printf("[Recovery Balance] body height is %f; Stand Up \n", body_height);
+      shmtrace::logf(0.0, "[Recovery Balance] body height is %f; Stand Up", (double)body_height);
       _flag = StandUp;
     }else{
-      printf("[Recovery Balance] body height is %f; Folding legs \n", body_height);
+      shmtrace::logf(0.0, "[Recovery Balance] body height is %f; Folding legs", (double)body_height);
     }
   }else{
-      printf("[Recovery Balance] UpsideDown (%d) \n", _UpsideDown() );
+      shmtrace::logf(0.0, "[Recovery Balance] UpsideDown (%d)", (int)_UpsideDown() );
   }
   _motion_start_iter = 0;
 }
@@ -177,8 +178,8 @@ void FSM_State_RecoveryStand<T>::_StandUp(const int & curr_iter){
     _flag = FoldLegs;
     _motion_start_iter = _state_iter+1;
 
-    printf("[Recovery Balance - Warning] body height is still too low (%f) or UpsideDown (%d); Folding legs \n", 
-        body_height, _UpsideDown() );
+    shmtrace::logf(0.0, "[Recovery Balance - Warning] body height is still too low (%f) or UpsideDown (%d); Folding legs",
+        (double)body_height, (int)_UpsideDown() );
 
   }else{
     for(size_t leg(0); leg<4; ++leg){
@@ -255,9 +256,8 @@ FSM_StateName FSM_State_RecoveryStand<T>::checkTransition() {
       break;
 
     default:
-      std::cout << "[CONTROL FSM] Bad Request: Cannot transition from "
-                << K_RECOVERY_STAND << " to "
-                << this->_data->controlParameters->control_mode << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Bad Request: Cannot transition from %d to %d",
+                     (int)K_RECOVERY_STAND, (int)this->_data->controlParameters->control_mode);
   }
 
   // Get the next state
@@ -299,8 +299,7 @@ TransitionData<T> FSM_State_RecoveryStand<T>::transition() {
       break;
 
     default:
-      std::cout << "[CONTROL FSM] Something went wrong in transition"
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Something went wrong in transition");
   }
 
   // Return the transition data to the FSM

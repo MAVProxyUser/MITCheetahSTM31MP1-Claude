@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <Utilities/Timer.h>
 #include <JCQP/QpProblem.h>
+#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 // Precision for the JCQP solve. Float on the A7 (no double-precision SIMD);
 // SIM_MPC_DOUBLE restores MIT's double at build time if ever needed.
@@ -228,7 +229,7 @@ void resize_qp_mats(s16 horizon)
 
 
 #ifdef K_DEBUG
-  printf("RESIZED MATRICES FOR HORIZON: %d\n",horizon);
+  shmtrace::logf(0.0, "RESIZED MATRICES FOR HORIZON: %d",horizon);
 #endif
 }
 
@@ -276,10 +277,8 @@ void quat_to_rpy(Quaternionf q, Matrix<fpt,3,1>& rpy)
 }
 void print_problem_setup(problem_setup* setup)
 {
-  printf("DT: %.3f\n",setup->dt);
-  printf("Mu: %.3f\n",setup->mu);
-  printf("F_Max: %.3f\n",setup->f_max);
-  printf("Horizon: %d\n",setup->horizon);
+  shmtrace::logf(0.0, "DT: %.3f Mu: %.3f F_Max: %.3f Horizon: %d",
+                 setup->dt, setup->mu, setup->f_max, setup->horizon);
 }
 
 void print_update_data(update_data_t* update, s16 horizon)
@@ -307,14 +306,10 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   rs.set(update->p, update->v, update->q, update->w, update->r, update->yaw);
 #ifdef K_PRINT_EVERYTHING
 
-  printf("-----------------\n");
-    printf("   PROBLEM DATA  \n");
-    printf("-----------------\n");
+  shmtrace::logf(0.0, "----------------- PROBLEM DATA  -----------------");
     print_problem_setup(setup);
 
-    printf("-----------------\n");
-    printf("    ROBOT DATA   \n");
-    printf("-----------------\n");
+    shmtrace::logf(0.0, "-----------------    ROBOT DATA   -----------------");
     rs.print();
     print_update_data(update,setup->horizon);
 #endif
@@ -384,9 +379,8 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
       if (gated && getenv("STM32MP1_MPC_MAT")) {
         static int ch = 0;
         if ((ch++ % 200) == 0) {
-          printf("[MPC] flight-cost gate: %d/%d horizon steps airborne, "
-                 "z/vz cost removed\n", gated, setup->horizon);
-          fflush(stdout);
+          shmtrace::logf(0.0, "[MPC] flight-cost gate: %d/%d horizon steps airborne, "
+                 "z/vz cost removed", gated, setup->horizon);
         }
       }
     }
@@ -439,10 +433,9 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   if(getenv("STM32MP1_MPC_MAT")) {
     static int _mc = 0;
     if((++_mc % 10) == 1) {
-      printf("[MPCMAT] m=%.2f I=(%.4f %.4f %.4f) |A_qp|=%.3g |B_qp|=%.3g |X_d|=%.3g |U_b|=%.3g\n",
+      shmtrace::logf(0.0, "[MPCMAT] m=%.2f I=(%.4f %.4f %.4f) |A_qp|=%.3g |B_qp|=%.3g |X_d|=%.3g |U_b|=%.3g",
              rs.m, rs.I_body(0,0), rs.I_body(1,1), rs.I_body(2,2),
              A_qp.norm(), B_qp.norm(), X_d.norm(), U_b.norm());
-      fflush(stdout);
     }
   }
   // S is DIAGONAL - it is built as `S.diagonal() = full_weight.replicate(...)`
@@ -459,9 +452,8 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   if(getenv("STM32MP1_MPC_MAT")) {
     static int _mc2 = 0;
     if((++_mc2 % 10) == 1) {
-      printf("[MPCCOST] |S|=%.3g |qH|=%.3g |qg|=%.3g |fmat|=%.3g alpha=%.2g\n",
+      shmtrace::logf(0.0, "[MPCCOST] |S|=%.3g |qH|=%.3g |qg|=%.3g |fmat|=%.3g alpha=%.2g",
              S.norm(), qH.norm(), qg.norm(), fmat.norm(), (double)update->alpha);
-      fflush(stdout);
     }
   }
 
@@ -618,7 +610,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
         {
           if(!(vc<new_vars))
           {
-            printf("BAD ERROR 1\n");
+            shmtrace::logf(0.0, "BAD ERROR 1");
           }
           var_ind[vc] = i;
           vc++;
@@ -631,7 +623,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
         {
           if(!(vc<new_cons))
           {
-            printf("BAD ERROR 1\n");
+            shmtrace::logf(0.0, "BAD ERROR 1");
           }
           con_ind[vc] = i;
           vc++;
@@ -677,7 +669,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
         (void)rval;
         int rval2 = problem_red.getPrimalSolution(q_red);
         if(rval2 != qpOASES::SUCCESSFUL_RETURN)
-          printf("failed to solve!\n");
+          shmtrace::logf(0.0, "failed to solve!");
 
         // printf("solve time: %.3f ms, size %d, %d\n", solve_timer.getMs(), new_vars, new_cons);
 
@@ -771,10 +763,9 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
     static int _sc2 = 0;
     if((++_sc2 % 10) == 1) {
       double nrm = 0; for(int i=0;i<12*setup->horizon;i++) nrm += q_soln[i]*q_soln[i];
-      printf("[MPCSOL] |q_soln|=%.4g  first12=%.1f %.1f %.1f  %.1f %.1f %.1f  %.1f %.1f %.1f  %.1f %.1f %.1f\n",
+      shmtrace::logf(0.0, "[MPCSOL] |q_soln|=%.4g  first12=%.1f %.1f %.1f  %.1f %.1f %.1f  %.1f %.1f %.1f  %.1f %.1f %.1f",
              sqrt(nrm), q_soln[0],q_soln[1],q_soln[2], q_soln[3],q_soln[4],q_soln[5],
              q_soln[6],q_soln[7],q_soln[8], q_soln[9],q_soln[10],q_soln[11]);
-      fflush(stdout);
     }
   }
 

@@ -2,6 +2,7 @@
 #include <Utilities/Timer.h>
 #include <eigen3/Eigen/LU>
 #include <eigen3/Eigen/SVD>
+#include "../../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
   template <typename T>
 WBIC<T>::WBIC(size_t num_qdot, const std::vector<ContactSpec<T>*>* contact_list,
@@ -17,7 +18,7 @@ WBIC<T>::WBIC(size_t num_qdot, const std::vector<ContactSpec<T>*>* contact_list,
 template <typename T>
 void WBIC<T>::MakeTorque(DVec<T>& cmd, void* extra_input) {
   if (!WB::b_updatesetting_) {
-    printf("[Wanning] WBIC setting is not done\n");
+    shmtrace::logf(0.0, "[Wanning] WBIC setting is not done");
   }
   if (extra_input) _data = static_cast<WBIC_ExtraData<T>*>(extra_input);
 

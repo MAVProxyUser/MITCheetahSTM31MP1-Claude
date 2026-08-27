@@ -5,6 +5,7 @@
  */
 
 #include "FSM_State_BalanceStand.h"
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
 
 /**
@@ -155,9 +156,8 @@ FSM_StateName FSM_State_BalanceStand<T>::checkTransition() {
       break;
 
     default:
-      std::cout << "[CONTROL FSM] Bad Request: Cannot transition from "
-                << K_BALANCE_STAND << " to "
-                << this->_data->controlParameters->control_mode << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Bad Request: Cannot transition from %d to %d",
+                     (int)K_BALANCE_STAND, (int)this->_data->controlParameters->control_mode);
   }
 
   // Return the next state name to the FSM
@@ -204,8 +204,7 @@ TransitionData<T> FSM_State_BalanceStand<T>::transition() {
       break;
 
     default:
-      std::cout << "[CONTROL FSM] Something went wrong in transition"
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Something went wrong in transition");
   }
 
   // Return the transition data to the FSM

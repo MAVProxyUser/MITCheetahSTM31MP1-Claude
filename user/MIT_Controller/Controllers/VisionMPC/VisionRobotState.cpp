@@ -1,7 +1,9 @@
 #include "VisionRobotState.h"
 #include <eigen3/Eigen/Dense>
 #include <iostream>
+#include <sstream>
 #include <math.h>
+#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 using std::cout;
 using std::endl;
@@ -44,10 +46,12 @@ void VisionRobotState::set(flt* p_, flt* v_, flt* q_, flt* w_, flt* r_,flt yaw_)
 
 void VisionRobotState::print()
 {
-   cout<<"Robot State:"<<endl<<"Position\n"<<p.transpose()
+   std::ostringstream _oss;
+   _oss<<"Robot State:"<<"\n"<<"Position\n"<<p.transpose()
        <<"\nVelocity\n"<<v.transpose()<<"\nAngular Veloctiy\n"
        <<w.transpose()<<"\nRotation\n"<<R<<"\nYaw Rotation\n"
-       <<R_yaw<<"\nFoot Locations\n"<<r_feet<<"\nInertia\n"<<I_body<<endl;
+       <<R_yaw<<"\nFoot Locations\n"<<r_feet<<"\nInertia\n"<<I_body;
+   shmtrace::logf(0.0, "%s", _oss.str().c_str());
 }
 
 
