@@ -267,6 +267,27 @@ class BodyPathPlanner {
 
     const size_t i = nearestIndex(x, y);
     _lastIdx = i;
+    // Bails out (returns false - the caller's `if (planner.follow(...))
+    // nv = pv;` then skips the assignment) once the tracked index is
+    // within 2 points of the path's end - i.e. steering/speed control
+    // hands back to whatever the caller does on its own for the final
+    // approach. TWO THINGS WERE TRIED to make this margin smaller so the
+    // braking-zone tail (which lives in exactly these last few points)
+    // stays under the follower's control longer, and both made a
+    // DIFFERENT failure instead of fixing this one: `i >= size` (no
+    // margin) let the pure-pursuit lookahead run out of path to aim at
+    // once `i` reached the literal last point, so the "pivot when behind
+    // the nose" logic (correct everywhere else) had nothing finite to
+    // converge toward and spun in place forever; `i + 1 >= size` (one
+    // point of margin) still bailed out during the critical final braking
+    // - the tested course's v_min region is concentrated in only the last
+    // handful of points, so even a one-point-earlier handoff loses it.
+    // Left at the original, safe margin. The actual fix for "the decel
+    // ramp starts from a stale, un-braked nv" lives in the CALLER instead
+    // (mit_sim_main.cpp's end-of-mission and dash-interlude decel blocks):
+    // seed the ramp from `plannedSpeed()`, which reads `_path[_lastIdx].v`
+    // and is valid EVEN ON A TICK WHERE follow() BAILED OUT, since
+    // `_lastIdx` is updated unconditionally above, before this check.
     if (i + 2 >= _path.size()) { *vx = 0; *yaw_rate = 0; return false; }
 
     // SPEED LOOKAHEAD - command the plan for where the robot WILL BE.

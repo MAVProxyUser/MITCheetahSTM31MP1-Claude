@@ -6219,6 +6219,81 @@ as a concrete, scoped next step for whoever has time: instrument
 `BodyPathPlanner::plan()`'s backward pass specifically for a 2-3-point
 path and compare against a working 5+ point course.
 
+### `corner:`'s stop bug, actually run to ground (2026-08-27, continuation session)
+
+Per direct "hammer at all the things open" instruction - picked this
+back up rather than leaving it at "deprioritized." Instrumented exactly
+as the note above suggested: `$WP_PLAN_DBG=1` dumps `BodyPathPlanner`'s
+own internal `_path` array after `plan()` runs. Result: the planner's
+OWN speed profile is computed CORRECTLY - a clean, smooth ramp from
+0.502 m/s down to `v_min` (0.250) over the path's last ~20 points, even
+tested against an artificially tiny `a_lon_max=0.05` that should have
+demanded a 22.5 m braking zone (nothing was wrong with the physics or
+the backward pass this file's own earlier note suspected).
+
+**The real bug: `use_planner` was never engaged.** `corner:` has no
+established recipe, so none of tonight's tests ever passed `$WP_PLANNER=1`
+- meaning EVERY earlier "no visible deceleration" observation was `nav`'s
+own separate, simpler distance-based logic driving the whole time, never
+touching `BodyPathPlanner` at all despite `plan()` being called (and
+producing a perfectly good profile nobody was reading).
+
+**With `$WP_PLANNER=1` set, a second real bug surfaced**: `follow()`
+bails out (`return false`, leaving `nv` holding whatever it was on the
+last tick the follower actually ran) once the tracked index comes within
+2 points of the path's end - precisely the resampled points where
+`_endStop`'s `v_min` and the backward pass's braking zone live. On this
+course (497 resampled points from a 2-waypoint, 49.5 m mission) that is
+a large enough fraction of the final approach that `nv` was still
+reading close to cruise when the main loop exited into the end-of-mission
+decel/settle code, which itself ramps down FROM `nv` - so the ramp
+started from an unbraked value and the robot pitched over during/after
+it (`roll=33-53, pitch=51-62` across several attempts).
+
+**Two things tried to loosen `follow()`'s own margin, both regressed
+into a DIFFERENT failure**, recorded so neither gets retried:
+- No margin (`i >= _path.size()`): fixed the speed (visibly reached
+  `v=0.25`) but the pure-pursuit lookahead ran out of path to aim at
+  once `i` hit the literal last point, so the ALREADY-DOCUMENTED "pivot
+  when target is behind the nose" logic (correct everywhere else) had
+  nothing finite to converge toward and spun in place forever instead of
+  arriving.
+- One point of margin (`i + 1 >= _path.size()`): reverted almost
+  completely to the original bug - this course's `v_min` region is
+  concentrated in only the last handful of resampled points, so even one
+  point of early handoff loses the critical part of the braking zone.
+
+**The fix that actually shipped**: left `follow()`'s own margin exactly
+as it was (`i + 2 >= _path.size()`, avoiding both regressions above) and
+instead fixed the two CALLERS in `mit_sim_main.cpp` (the end-of-mission
+decel ramp and the dash-interlude's matching one) to seed their ramp
+from `std::min(nv, planner.plannedSpeed())` rather than `nv` alone.
+`plannedSpeed()` reads `_path[_lastIdx].v`, and `_lastIdx` is updated
+unconditionally at the TOP of `follow()`, before the bailout check - so
+it stays valid and correctly reflects the braked tail speed even on
+ticks where `follow()` itself returns false.
+
+**Measured result: real, partial improvement, not a full fix.** The
+outright violent tip-over is gone (`pitch` dropped from the 51-62 degree
+range to 30.5 during the settle check, `-> BAD` but not a crash) and
+`$SIM_AID`-style instrumentation confirms the ramp now genuinely starts
+near zero (`nv=0.000, plannedSpeed=0.250` at the transition, both
+correctly low). But the mission still does not cleanly PASS - the robot
+is still pitching further than the mission's own "settle" gate allows,
+which points at a DIFFERENT, deeper issue than either bug fixed tonight:
+the ACTUAL, PHYSICAL deceleration happening in the last meter or two of
+the real approach (not the commanded ramp AFTER arrival, which is now
+provably fine) is still steeper than the body can track smoothly -
+`follow()`'s own code comments this exact failure mode elsewhere ("the
+body tracks a commanded deceleration at about 1.2 m/s^2... needs 3-6 m
+of travel to comply") for CORNERS, and this course's braking zone
+(~0.75-2.8 m, sized for a much gentler speed change) may simply be too
+short for a 1.5 -> 0.25 m/s stop specifically, independent of any code
+bug. Not chased further tonight - full regression suite re-run to
+confirm neither fix broke anything else before committing (both changes
+touch shared code every mission's end-of-run and dash-interlude stop
+uses).
+
 ### Cornering-envelope tally, end of session
 
 | gait | angle(s) tested | speed | result |

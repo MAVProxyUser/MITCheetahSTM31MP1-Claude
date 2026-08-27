@@ -283,6 +283,13 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     hold_stop_n[1] = nav.waypoint(nav.count() - 1).north;
     hold_stop_e[1] = nav.waypoint(nav.count() - 1).east;
     planner.plan(wx, wy, 0.10, false, corridor);
+    if (getenv("WP_PLAN_DBG")) {
+      const auto& pp = planner.path();
+      shmtrace::logf(0.0, "[plandbg] path.size()=%zu", pp.size());
+      for (size_t k = pp.size() > 20 ? pp.size() - 20 : 0; k < pp.size(); ++k)
+        shmtrace::logf(0.0, "[plandbg] i=%zu s=%.3f x=%.3f y=%.3f v=%.3f",
+               k, pp[k].s, pp[k].x, pp[k].y, pp[k].v);
+    }
     /*
      * ANALYSE THE MISSION ONCE, HERE, BEFORE THE DOG MOVES.
      *
@@ -924,7 +931,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // has already braked the dog to ~v_min by the time this fires, so the
       // stick is at a creep - ramping "vx down to zero" from here would
       // first SPIKE the command back up to cruise.
-      const float v_at_stop = bridge->driverCommand().leftStickAnalog[1];
+      // Same defense as the end-of-mission ramp below: on a short enough
+      // leg into this stop, follow() could have bailed out on its last
+      // couple of ticks (its own comment explains why) and left the live
+      // stick value stale/unbraked - plannedSpeed() stays valid on those
+      // ticks too, so take whichever is more conservative.
+      const float v_at_stop = use_planner
+          ? std::min(bridge->driverCommand().leftStickAnalog[1],
+                     (float)planner.plannedSpeed())
+          : bridge->driverCommand().leftStickAnalog[1];
       for (int k = 15; k >= 0; --k) {
         /*
          * STEERED deceleration. Zeroing yaw on the ramp's first tick while
@@ -1110,6 +1125,23 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //    where a longer "gentler" ramp turned out to just coast the dog
       //    several metres past the stopping point, unsteered, before
       //    slowing down at all.
+      //
+      // RAMP START, not nv directly. On the last couple of ticks before
+      // arrival, follow() bails out (see its own comment - the braking-
+      // zone tail needs a margin the lookahead can't spare), and nv is
+      // left holding whatever it was on the LAST tick follow() actually
+      // ran - which is fine on a course with room to spare, but a SHORT
+      // course (measured: a 2-waypoint corner: mission) can still be at
+      // full cruise on that last successful tick, so nv itself was never
+      // actually braked. planner.plannedSpeed() reads _path[_lastIdx].v,
+      // which IS updated on every tick including the ones follow() bails
+      // on (_lastIdx is set before the bailout check) - taking the min of
+      // the two means this ramp starts from whatever the plan actually
+      // wanted here, not from a stale, unbraked nv.
+      const float rampStart = use_planner
+          ? std::min(nv, (float)planner.plannedSpeed()) : nv;
+      shmtrace::logf(elapsed(), "[rampdbg] nv=%.3f plannedSpeed=%.3f use_planner=%d rampStart=%.3f",
+             nv, use_planner ? (float)planner.plannedSpeed() : -1.f, (int)use_planner, rampStart);
       for (int k = 15; k >= 0; --k) {
         // STEERED deceleration - same fix and reasoning as the interlude's
         // decel above (a dash=0 oval ends right off the arc exit too).
@@ -1122,7 +1154,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
           double pv2 = 0, pw2 = 0;
           if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
         }
-        bridge->driverCommand().leftStickAnalog[1] = nv * (float)k / 15.f;
+        bridge->driverCommand().leftStickAnalog[1] = rampStart * (float)k / 15.f;
         bridge->driverCommand().rightStickAnalog[0] = w_dec;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
