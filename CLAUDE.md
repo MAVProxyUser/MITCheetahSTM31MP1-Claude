@@ -4861,3 +4861,80 @@ both"), fixed at both:
    from an unrelated manual test interferes with a later `/api/launch`.
 Neither UDP socket sets `SO_REUSEADDR`, on purpose, so a stale occupant is
 detected rather than silently shared - both fixes rely on that.
+
+## PRONKING RE-TESTED ON THE CURRENT CONFIG: strong across corner-broken courses, cannot sustain a long straight
+
+Per direct instruction, re-tested across the mission catalog now that the
+gait-selection bug (above) and the stale-bridge bug are both fixed - this
+is the first time pronking has been tested on the fully-fixed stack
+(qpOASES, WBIC damping, real Go1 model, zeroVelHold, real gait selection).
+`@0.6 m/s` unless noted, real estimator:
+
+| mission | result |
+|---|---|
+| star:10.514:5 | **PASS 114.6s, 6/6 waypoints** |
+| circle:9:8 | **PASS 52.3s, 8/8 waypoints** |
+| expsquare:5:12 | **PASS 163.1s, 10/10 waypoints** |
+| atom:9.0:6 | FELL at wp103/108 (96%), roll=40deg - the atom's own already-documented roll-limited cornering fragility, not a new pronking-specific bug |
+| oval:40:5.0 (WP_ANALYZER=0) | inconclusive - still progressing at 32/93 when the harness's own timeout fired, not a fall |
+| sector:15:3 | FELL early, 6/16 - sector's own tight (120-147deg) corners |
+| parallel:30:5:8 | FELL after 211s, orientation trip |
+| **dash:100** | **decays to a stall, does not complete, at every speed tried (0.6, 1.0)** |
+
+Every one of star/circle/expsquare is a corner-broken course with no single
+uninterrupted straight anywhere close to 100 m. This is a complete reversal
+from every number previously recorded in this file for pronking (`<0.3 m at
+every speed`, `no completion`) - all of it measured before the async-solve
+race fix, the WBIC damping fix, the real Go1 model corrections, zeroVelHold,
+and (this session) the SIM_GAIT fix, stacked together for the first time.
+
+**The dash finding is the important one, and it is NOT a top-speed
+ceiling.** Instrumented at 5 Hz N/t: pronking accelerates cleanly to
+0.7-1.0+ m/s of ACTUAL ground speed for the first ~25-40 m (faster than
+commanded, even), then the rate of progress decays continuously - not a
+step down to a lower stable cruise, an asymptotic crawl toward zero -
+converging to a near-stall around 33-40 m regardless of what speed is
+commanded (0.6 and 1.0 both measured, same shape, same rough distance).
+At 1.0 m/s the same mechanism produced an outright collapse instead of an
+asymptotic stall (`[FALL] roll=0 pitch=0 z=0.037` - FLAT, not a tip-over,
+the same signature this file already documents elsewhere for force/height
+deficits, e.g. the star's 2.5 m/s corner failures).
+
+**Height governor tested and RULED OUT as the cause**, despite
+`HeightGovernor.h`'s own documented history of exactly this failure shape
+for trotRunning (a flight gait's large natural bob spiking the departure
+signal past the derate threshold, "fell at 33.9 m with scale pinned to
+0.68"). Interleaved same-run A/B, both at 0.6 m/s: `CTRL_HGOV=1` (stock)
+stalled at N=35.06 m by t=148s; `CTRL_HGOV=0` stalled at N=33.92 m by
+t=143s - statistically the same stall, at the same rough distance, same
+rough time, with the governor's speed-derate lever completely removed.
+Whatever is decaying pronking's forward progress over a long straight is
+upstream of the governor, not caused by it.
+
+**Working hypothesis, not yet confirmed**: pronking is the one gait here
+with ALL FOUR legs synchronized (offsets (0,0,0,0)), so every single gait
+cycle has a genuine all-airborne flight phase with zero ground support -
+if each cycle bleeds even a few mm of height (force asymmetry, a swing
+that lands a hair short, whatever), a course with NO corners to force a
+re-settle lets that loss compound cycle after cycle until it crosses the
+collapse threshold, while every corner-broken course in the table above is
+short enough between turns that the deficit never accumulates that far.
+This would explain the whole table at once - corner-broken courses pass,
+the one long uninterrupted straight does not - without needing atom's or
+sector's own already-documented, unrelated cornering failures to explain
+anything. NOT root-caused this session (out of priority order - this was
+"determine real max dash speed," not "fix the dash"); the concrete next
+step if resumed is to instrument body height (z) itself over the length
+of a dash run and confirm whether it is monotonically declining, which
+the governor's own `_hgov` state already tracks internally and could be
+tapped for this specific diagnostic without adding new instrumentation.
+
+**Honest answer to "real max speed in a 100m dash": there isn't one to
+give as a single cruise number.** Pronking does not complete the dash at
+any tested speed (0.6, 1.0) - it reaches its best distance (~35-40 m) in
+the first 30-40 s regardless of commanded speed, then stalls or (at 1.0)
+collapses. Contrast every OTHER gait in this file's dash tables, which
+reach a genuine steady-state cruise and either complete or fail cleanly
+at a describable ceiling. Pronking's real characterization is "very good
+on courses with corners every 10-40 m, unreliable on anything longer and
+straighter than that" - the opposite framing from a top-speed number.
