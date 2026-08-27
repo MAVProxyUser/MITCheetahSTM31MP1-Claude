@@ -7063,3 +7063,80 @@ not a stability cost. `parallel`'s 49.4 deg is the gentler of the two
 and has not been re-measured; anyone re-tuning either course should
 re-check with the box in the state they actually intend to run.
 
+
+## THE HOST-LOAD BUDGET, computed up front - and course "complexity" is NOT the variable
+
+Per direct instruction: "based on the complexity and length of the
+mission you can preemptively calculate the load budget on the CPU /
+simulator as part of pre-planning too if we are gonna imply things about
+that host contention theory of yours. You could use that value as a
+weight, and see if any specific combined weight triggers it."
+
+That is the right correction to make. This file has repeatedly blamed
+"host contention" for multi-dog failures AFTER the fact and
+qualitatively, which is unfalsifiable as stated - and has been WRONG
+about it at least three times in one night (the meta-lesson section
+above: pacing's "~50% coin-flip", walking's "120-147.5 deg mid-band
+softness", and part of bounding's "bimodal" all evaporated under solo
+re-testing). A number computed BEFORE launch that predicts which
+combinations should break is testable. A story told afterwards is not.
+
+`stm32mp1/gazebo/conductor/load_budget.py`.
+
+### The intuition was reasonable and the data refutes it
+
+"I assume in context dash is the least complex" - checked against 120
+archived ctrl logs, median control-loop period by mission kind:
+
+| mission | runs | median period | mission | runs | median period |
+|---|---|---|---|---|---|
+| atom | 11 | **2.49 ms** | oval | 16 | **2.48 ms** |
+| circle | 40 | **2.49 ms** | star | 16 | **2.48 ms** |
+| dash | 28 | **2.48 ms** | corner | 9 | 2.94 ms (unvalidated) |
+
+**Per-tick cost is FLAT across every validated mission kind** - identical
+to two decimal places on courses whose waypoint counts differ by 100x
+(dash 1, spiro 503, lissajous 606) and whose geometry ranges from a
+straight line to a 902 m rosette. The architecture predicts exactly this
+once stated plainly: the convex-MPC solve is a fixed-size QP (horizon 10,
+12 decision variables) that knows nothing about course geometry;
+`BodyPathPlanner::follow()`'s nearest-index search is forward-only from
+`_lastIdx`, so amortised O(1) rather than O(path); its lookahead scan is
+bounded by `Ld / resample_step`, a constant; and Gazebo's physics step is
+per-DOG, not per-course.
+
+So geometric complexity is not the load variable. **DURATION is**, and
+the consequence inverts the intuition:
+
+    dash:100 @0.6 m/s   392 dog-seconds  (157,612 control ticks)
+    atom:9.0:6 @2.1     190 dog-seconds
+    star @3.5           129 dog-seconds  ( 52,025 control ticks)
+
+The simplest course in the catalog is the MOST expensive one, because it
+is slow. "You could run more dashes than sectors" is therefore not
+automatically a lighter fleet - at 0.6 m/s one dash outweighs three
+stars. Worth stating plainly since it is the opposite of what the
+qualitative version of the contention story would predict.
+
+### What this changes about experiment design
+
+Every multi-dog batch in this file confounded two variables at once:
+how many dogs, and how much work each was doing. `--equal-load N` inverts
+`dog_seconds()` to solve for the speed that makes each mission cost the
+same, so a contention test can vary CONCURRENCY alone:
+
+    equal-load fleet of 3, target 170 dog-seconds each
+      dash:100        2.00 m/s
+      star:10.514:5   2.00 m/s
+      sector:15:3     3.27 m/s
+
+Two quantities are reported and they answer different questions: total
+dog-seconds is how much work the fleet asks for; PEAK CONCURRENCY is how
+much lands at once, which is what a shared physics thread and a fixed
+core count actually contend over. If a threshold exists it should track
+the second. **Not yet run** - the model and the tool are built and the
+per-tick flatness is measured, but the experiment itself (sweep
+concurrency at equal per-dog load, look for a knee) is the concrete next
+step, and until it runs "host contention" stays a hypothesis with a
+number attached rather than a finding.
+
