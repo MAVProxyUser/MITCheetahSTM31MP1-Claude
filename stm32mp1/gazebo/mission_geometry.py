@@ -16,16 +16,78 @@ import os
 def _shift_first_to_origin(pts):
     """Mirrors WaypointNav::shiftFirstToOrigin() exactly - translate the
     whole course so pts[0] becomes (0,0), the robot's own true local
-    origin/spawn point. SAR search patterns only (circle/sector/parallel/
-    expsquare); star/oval/atom/dash/lissajous never call this - see the
-    C++ field comment on shiftFirstToOrigin() for why star specifically
-    must not shift (its own validated tuning depends on the OLD
-    convention). Pure translation - every corner angle, leg length, and
-    the whole corridor-grading tuning are unaffected."""
+    origin/spawn point. Applied to every mission kind except "dash" and
+    "outback" (a dash's "first waypoint" IS the far end of the sprint by
+    definition - there is no separate pattern centre to shift away from).
+    Pure translation - every corner angle, leg length, and the whole
+    corridor-grading tuning are unaffected. See the C++ field comment on
+    shiftFirstToOrigin() (WaypointNav.hpp) for the full history, including
+    why an earlier, narrower scoping here turned out to be overcautious
+    rather than load-bearing once actually tested."""
     if not pts:
         return pts
     dn, de = pts[0]
     return [(n - dn, e - de) for (n, e) in pts]
+
+
+# The proto go1 model's own base <pose> (worlds/go1_speedway.sdf) spawns
+# every dog at SDF yaw = pi/2 - "body-x points north" - chosen back when
+# every mission's OWN rotation logic (makeStar's "wp00 due north",
+# makeAtom/makeLissajous's tangential-entry alignment) aligned the walk
+# FROM spawn TO wp0 with that fixed heading. Once every mission spawns
+# EXACTLY ON wp0 (see _shift_first_to_origin above), that walk no longer
+# exists - what actually needs aligning is the first REAL leg, wp0->wp1,
+# which for most of these courses is nowhere near due north (star's is a
+# ~160 degree turn from it). A universal fixed spawn heading and a
+# per-mission wp0->wp1 alignment cannot both hold at once any more, so
+# the spawn heading itself now has to be per-mission.
+_NORTH_YAW_RAD = math.pi / 2.0
+
+
+def mission_opening_bearing_rad(spec):
+    """Standard compass bearing (radians, 0=north, positive clockwise
+    toward east) from wp0 to wp1 - the direction of the mission's first
+    REAL leg. Returns 0.0 (north) for anything with fewer than 2
+    waypoints (dash: nothing to aim at besides the one waypoint it
+    already faces by construction) or that mission_waypoints() cannot
+    parse. Both endpoints come from the SAME shifted frame
+    WaypointNav.cpp's real generators use, so this is guaranteed to
+    agree with whatever the robot actually has to do at spawn, not a
+    separate approximation of it.
+
+    This is the one number two independent things need to agree on: it
+    sets the dog's SPAWN heading (mission_spawn_yaw_rad below, consumed
+    by the world-builder) AND has to be fed to the controller itself as
+    WP_SPAWN_BEARING_DEG (see mit_sim_main.cpp's heading-datum comment) -
+    without the second half, nav's own heading math silently assumes
+    spawn-heading-equals-true-north (true only when this bearing is 0),
+    which is exactly the "confidently walks 180 degrees the wrong way"
+    bug this was caught fixing.
+    """
+    try:
+        pts = mission_waypoints(spec)
+    except SystemExit:
+        return 0.0
+    if len(pts) < 2:
+        return 0.0
+    n0, e0 = pts[0]
+    n1, e1 = pts[1]
+    return math.atan2(e1 - e0, n1 - n0)
+
+
+def mission_spawn_yaw_rad(spec):
+    """SDF spawn yaw (radians) so the dog starts facing from wp0 straight
+    at wp1 - no in-place hairpin before the mission's first real leg even
+    begins.
+
+    Derivation: the proto's yaw=pi/2 is defined as "facing due north"
+    (bearing 0), and SDF yaw theta puts the body's local +X along world
+    (cos theta, sin theta) in (east, north) - so theta = pi/2 - bearing
+    reproduces that same convention for any compass bearing, not just
+    north (checked: bearing=0 gives theta=pi/2, matching the proto
+    exactly).
+    """
+    return _NORTH_YAW_RAD - mission_opening_bearing_rad(spec)
 
 
 def mission_waypoints(spec):
@@ -41,7 +103,7 @@ def mission_waypoints(spec):
             v = ((i + 1) * step) % n
             a = 2 * math.pi * v / n - a0
             out.append((r * math.cos(a), r * math.sin(a)))
-        return out
+        return _shift_first_to_origin(out)
     if kind == "circle":
         r, n = float(rest[0]), int(rest[1])
         pts = [(r * math.sin(2 * math.pi * (i + 1) / n),
@@ -87,7 +149,7 @@ def mission_waypoints(spec):
             acc += math.hypot(n - pn, e - pe); pn, pe = n, e
             if acc >= step:
                 acc -= step; out.append((n, e))
-        return out
+        return _shift_first_to_origin(out)
     if kind == "spiro":
         # Mirrors WaypointNav::makeSpirograph - the SAME trochoid formula
         # as "atom" above, at a different point in its own parameter
@@ -122,7 +184,7 @@ def mission_waypoints(spec):
             acc += math.hypot(n - pn, e - pe); pn, pe = n, e
             if acc >= step:
                 acc -= step; out.append((n, e))
-        return out
+        return _shift_first_to_origin(out)
     if kind == "oval":
         # Mirrors WaypointNav::makeOval: north straight, right 180, south
         # straight, right 180 back to the start.
@@ -141,7 +203,7 @@ def mission_waypoints(spec):
             d += step
         if not out or math.hypot(out[-1][0], out[-1][1]) > 0.6 * step:
             out.append((0.0, 0.0))
-        return out
+        return _shift_first_to_origin(out)
     if kind == "sector":
         # Mirrors WaypointNav::makeSectorSearch: alternating full/half legs
         # at 120 deg, bearing 0 = north, (north,east) = (cos,sin)(bearing).
@@ -224,5 +286,5 @@ def mission_waypoints(spec):
                 acc -= step
                 out.append((n, e))
         out.append((px(0.0), py(0.0)))
-        return out
+        return _shift_first_to_origin(out)
     raise SystemExit(f"unknown mission spec: {spec}")

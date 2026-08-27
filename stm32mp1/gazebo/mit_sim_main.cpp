@@ -449,6 +449,37 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   float yaw_ref = NAN;
   int   lastIdx = -1;
   bool  done = false;
+  // The bearing this dog was actually spawned facing, in the SAME compass
+  // convention nav's own "bearing" variable below uses (0=north, positive
+  // toward east) - mission_geometry.py's mission_opening_bearing_rad(),
+  // computed once per launch and threaded through as degrees because that
+  // is what every other env-var knob in this file already uses. Default 0
+  // (north) reproduces the old universal-spawn-heading behaviour exactly
+  // for anything that does not set it. See the "bearing" comment below for
+  // why this is required, not optional, once spawn heading is mission-
+  // dependent (WaypointNav::shiftFirstToOrigin() + mission_spawn_yaw_rad).
+  const float spawn_bearing_rad =
+      (getenv("WP_SPAWN_BEARING_DEG") ? atof(getenv("WP_SPAWN_BEARING_DEG")) : 0.0f)
+      * (float)M_PI / 180.f;
+
+  // ESTOP RECOVERY. See RobotController::isEstopped()'s comment for the
+  // mechanism: MIT's stock FSM latches ESTOP forever on its own (a
+  // deliberate real-hardware fail-safe - no self-reset without something
+  // explicitly asking for one). Per direct instruction, built DELIBERATELY
+  // this time, unlike the earlier host-stall mitigation that reacted to a
+  // mere TIMING signal (a control-period spike that might not even cause a
+  // real problem) and did active harm reacting to ordinary jitter - see
+  // CLAUDE.md's "the stall MITIGATION was worse than the stall". This is
+  // categorically different: it only ever engages on a CONFIRMED, already-
+  // happened safety event (the FSM already cut the motors), never on a
+  // prediction, and it reuses the SAME battle-tested boot sequence mission
+  // start and the dash interlude already use - no new, unvalidated control
+  // behaviour, no abrupt commands.
+  const bool estop_recover_on =
+      !getenv("WP_ESTOP_RECOVER") || atoi(getenv("WP_ESTOP_RECOVER")) != 0;
+  const int max_estop_attempts =
+      getenv("WP_ESTOP_MAX_ATTEMPTS") ? atoi(getenv("WP_ESTOP_MAX_ATTEMPTS")) : 3;
+  int estop_attempts = 0;
 
   while (!done) {
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -460,18 +491,138 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     if (!nav.originSet()) {
       if (aux.gps_lat == 0.0) continue;
       nav.setOrigin(aux.gps_lat, aux.gps_lon);
-      yaw_ref = est.rpy[2];    // the dog always starts facing north
-      printf("[nav] GPS origin set, heading datum %.1f deg\n", yaw_ref * 57.2958f);
+      // Measured, not hardcoded pi/2 - see the "bearing" comment below for
+      // why (works identically whether the estimator zeroes its own yaw or
+      // reports true world yaw). spawn_bearing_rad is the separate
+      // correction that makes this correct again now that spawn heading is
+      // mission-specific rather than always north.
+      yaw_ref = est.rpy[2];
+      printf("[nav] GPS origin set, heading datum %.1f deg (spawn bearing %.1f deg)\n",
+             yaw_ref * 57.2958f, spawn_bearing_rad * 57.2958f);
       fflush(stdout);
+    }
+
+    if (estop_recover_on && bridge->robotRunner() &&
+        bridge->robotRunner()->_robot_ctrl->isEstopped()) {
+      if (estop_attempts >= max_estop_attempts) {
+        // Give up rather than flail forever - leave it ESTOPped and let the
+        // mission end normally (timeout / the harness's own zombie
+        // detection). Retrying a genuinely broken situation N+1 times
+        // buys nothing over N.
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        continue;
+      }
+      ++estop_attempts;
+      printf("[recover] ESTOP detected (attempt %d/%d) - waiting for a safe, "
+             "settled orientation before attempting to stand back up\n",
+             estop_attempts, max_estop_attempts);
+      fflush(stdout);
+
+      // 1. WAIT FOR SAFE AND SETTLED, bounded. A stand-up sequence assumes
+      //    starting from a roughly-upright crouch, not from actually lying
+      //    on its side - attempting one on a genuinely fallen robot is not
+      //    "gentler", it is undefined. 30 deg is well under the debounced
+      //    fall detector's own 50 deg trip and well under checkSafeOrientation's
+      //    own limit, so "settled under 30" is a real margin, not a coin
+      //    flip; held for 1 s so a robot still actively oscillating does
+      //    not get judged safe on one lucky sample.
+      const float SETTLE_DEG = 30.f, SETTLE_HOLD_S = 1.f, SETTLE_TIMEOUT_S = 15.f;
+      const float wait_start = elapsed();
+      float safe_since = -1.f;
+      bool settled = false;
+      while (elapsed() - wait_start < SETTLE_TIMEOUT_S) {
+        if (bridge->robotRunner()) {
+          const auto& es = bridge->robotRunner()->getStateEstimate();
+          const float r = std::fabs(es.rpy[0]) * 57.2958f;
+          const float p = std::fabs(es.rpy[1]) * 57.2958f;
+          if (r < SETTLE_DEG && p < SETTLE_DEG) {
+            if (safe_since < 0.f) safe_since = elapsed();
+            if (elapsed() - safe_since > SETTLE_HOLD_S) { settled = true; break; }
+          } else {
+            safe_since = -1.f;
+          }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      }
+
+      if (!settled) {
+        printf("[recover] gave up after %.0fs - orientation never settled "
+               "under %.0f deg, this looks like a genuine fall rather than "
+               "a transient trip. Leaving it ESTOPped.\n",
+               SETTLE_TIMEOUT_S, SETTLE_DEG);
+        fflush(stdout);
+        continue;
+      }
+
+      // 2. CLEAR THE ESTOP, then run the SAME boot sequence mission start
+      //    and the dash interlude already use (PASSIVE -> STAND_UP ->
+      //    BALANCE_STAND -> LOCOMOTION) - no new control behaviour.
+      //    RobotController::Estop() is MIT_Controller's own existing
+      //    override (_controlFSM->initialize()), which resets operatingMode
+      //    to NORMAL and currentState to PASSIVE - previously only ever
+      //    called by an operator's real E-stop button, never mid-mission.
+      //    Suspend both stall/fall checks around our OWN commanded sequence
+      //    for the identical reason the interlude suspends them around
+      //    its stop/lie-down/stand-up - a transient wobble during the
+      //    stand-up interpolation itself must not re-trip immediately.
+      setFallZEnable(false);
+      setOrientTripEnable(false);
+      bridge->robotRunner()->_robot_ctrl->Estop();
+      setEdamp(0.0);
+      setStandUpHeight(0.25);
+      bridge->setControlMode(1);                 // K_STAND_UP
+      std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+      bridge->setControlMode(3);                 // K_BALANCE_STAND
+      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      bridge->setControlMode(4);                 // K_LOCOMOTION
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+      const auto& es3 = bridge->robotRunner()->getStateEstimate();
+      const float rec_z = es3.position[2];
+      const float rec_roll  = std::fabs(es3.rpy[0]) * 57.2958f;
+      const float rec_pitch = std::fabs(es3.rpy[1]) * 57.2958f;
+      const bool recovered = rec_z > 0.20f && rec_roll < 20.f && rec_pitch < 20.f;
+      setFallZEnable(true);
+      setOrientTripEnable(true);
+
+      if (recovered) {
+        restart_t = elapsed();   // ramp forward speed again from this standstill, not a step
+        printf("[recover] back on its feet at t=%.1fs (z=%.3f roll=%.1f pitch=%.1f) "
+               "- resuming mission at wp%02d of %d\n",
+               elapsed(), rec_z, rec_roll, rec_pitch, nav.activeIndex(), nav.count());
+      } else {
+        printf("[recover] stand-up did not verify (z=%.3f roll=%.1f pitch=%.1f) - "
+               "will retry if attempts remain\n", rec_z, rec_roll, rec_pitch);
+      }
+      fflush(stdout);
+      continue;
     }
 
     float N, E;
     nav.toLocal(aux.gps_lat, aux.gps_lon, &N, &E);
-    // Compass bearing (0 = north, positive toward east) relative to the datum.
-    // Taking it relative to the start makes this work identically whether the
-    // estimator zeroes its yaw (VectorNav path) or reports true world yaw
-    // (cheater path) - the two differ by exactly this constant.
-    const float bearing = -(est.rpy[2] - yaw_ref);
+    // Compass bearing (0 = north, positive toward east). -(rpy[2] - yaw_ref)
+    // alone gives bearing RELATIVE TO SPAWN HEADING, not relative to true
+    // north - deliberately measured rather than a hardcoded pi/2, so this
+    // still works identically whether the estimator zeroes its yaw
+    // (VectorNav path) or reports true world yaw (cheater path), which
+    // differ by exactly this constant. That was invisible for a long time
+    // because every mission used to spawn facing due north, so "relative to
+    // spawn" and "relative to true north" were silently the same number.
+    // They no longer are: WaypointNav::shiftFirstToOrigin() means the robot
+    // now spawns ON wp0 for every mission, and mission_spawn_yaw_rad()
+    // (mission_geometry.py) faces it at wp1 instead of north so the first
+    // real leg needs no in-place hairpin - so spawn heading is mission-
+    // specific now, and nav's OWN target bearings (computed from wp0/wp1
+    // north/east coordinates) are still in the TRUE-NORTH frame regardless.
+    // Caught live: the star mission spawned facing 162 degrees off north,
+    // "relative to spawn" read 0 at t=0 same as always, and the dog walked
+    // a confident, perfectly straight line 180 degrees away from wp1 for
+    // the entire run. spawn_bearing_rad (WP_SPAWN_BEARING_DEG, the exact
+    // same bearing mission_spawn_yaw_rad used to aim the spawn pose) is the
+    // fixed correction: it is 0 for the old universal-north convention (so
+    // this reproduces the previous behaviour exactly when unset) and the
+    // real opening bearing otherwise.
+    const float bearing = spawn_bearing_rad - (est.rpy[2] - yaw_ref);
     const float spd = sqrtf(est.vBody[0] * est.vBody[0] + est.vBody[1] * est.vBody[1]);
 
     float nv = 0.f, nw = 0.f;
@@ -711,7 +862,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
           SimAuxSensors aux2; gazebo_get_aux(&aux2);
           float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
           const auto& es2 = bridge->robotRunner()->getStateEstimate();
-          const float b2 = -(es2.rpy[2] - yaw_ref);
+          const float b2 = spawn_bearing_rad - (es2.rpy[2] - yaw_ref);   // same correction as "bearing" above
           double pv2 = 0, pw2 = 0;
           if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
         }
@@ -889,7 +1040,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
           SimAuxSensors aux2; gazebo_get_aux(&aux2);
           float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
           const auto& es2 = bridge->robotRunner()->getStateEstimate();
-          const float b2 = -(es2.rpy[2] - yaw_ref);
+          const float b2 = spawn_bearing_rad - (es2.rpy[2] - yaw_ref);   // same correction as "bearing" above
           double pv2 = 0, pw2 = 0;
           if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
         }

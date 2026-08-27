@@ -173,25 +173,35 @@ class WaypointNav {
   NavWaypoint _wp[MAXWP];
   /*!
    * Translate the whole course so _wp[0] becomes (0,0) - i.e. the robot's
-   * own local origin/true spawn point, per direct instruction: a SAR
-   * search course should have the robot standing ON its own first
-   * waypoint, not travelling there from a separate reference point.
+   * own local origin/true spawn point, per direct instruction: EVERY
+   * mission should have the robot standing ON its own first waypoint,
+   * always and forever, not travelling there from a separate reference
+   * point.
    *
-   * SCOPED to the SAR search patterns only (makeCircle/makeSectorSearch/
-   * makeParallelTrack/makeExpandingSquare each call this once, at the end
-   * of their own generator) - star/oval/atom/dash/makeLissajous do NOT
-   * call this and are completely unaffected. That line matters: star's
-   * own validated tuning (the "wp00 rotated due north to avoid an opening
-   * pivot" comment in BodyPathPlanner.h, the whole opening-leg speed
-   * profile) depends on the CURRENT convention where the path starts at
-   * the true origin and wp0 sits elsewhere - shifting star's own
-   * coordinates here would silently invalidate all of that.
+   * UNIVERSAL as of the second time this was asked for: every make*()
+   * generator calls this once, at the end of its own body -
+   * makeCircle/makeSectorSearch/makeParallelTrack/makeExpandingSquare
+   * originally (SAR search patterns only), then makeStar/makeOval/
+   * makeAtom/makeSpirograph/makeLissajous extended to match. makeDash is
+   * the one deliberate exception: a dash's "first waypoint" IS the far
+   * end of the sprint by definition, so there is no separate "pattern
+   * centre" to shift away from - shifting it would just move the sprint
+   * itself, not fix a spawn-to-wp0 walk that does not exist there.
+   *
+   * The earlier, narrower scoping here warned that shifting star "would
+   * silently invalidate" BodyPathPlanner.h's "wp00 rotated due north"
+   * opening-leg logic. Re-examined when this was extended: that logic
+   * hard-floors _path[0].v to v_min because the robot is ALWAYS at rest
+   * at the start of plan()'s very first call, regardless of whether wp0
+   * sits at the true origin or somewhere else - a property of "the robot
+   * just spawned", not of this convention. Verified, not just reasoned
+   * about: star's own guard mission was re-run after the shift and holds
+   * its established baseline (see CLAUDE.md). The old warning was
+   * overcautious, not load-bearing.
    *
    * Pure translation, so every corner's angle, every leg's length, every
    * fillet radius and speed the corridor-grading tuning computes are
-   * UNCHANGED - only the (north,east) reference point moves. Safe to
-   * combine with the turn_soft/turn_hard/corridor_scale_min tightening
-   * already shipped for these same four missions.
+   * UNCHANGED - only the (north,east) reference point moves.
    */
   void shiftFirstToOrigin() {
     if (_n < 1) return;

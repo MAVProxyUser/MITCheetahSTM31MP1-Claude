@@ -99,6 +99,7 @@ os.environ["GZ_IP"] = "127.0.0.1"
 # python3 any more.
 sys.path.insert(0, GAZEBO_DIR)
 from trail_daemon import mission_waypoints  # noqa: E402
+from mission_geometry import mission_opening_bearing_rad  # noqa: E402
 import gz.transport13 as _gz_transport      # noqa: E402
 from gz.msgs10.pose_v_pb2 import Pose_V     # noqa: E402
 from gz.msgs10.image_pb2 import Image as _GzImage  # noqa: E402
@@ -958,12 +959,21 @@ class Fleet:
                 # mit_ctrl_sim` simply returns nothing, same as a real crash
                 # would). Raised to 900s, comfortable headroom for even the
                 # much longer 11:9 ratio, while still bounding a genuine hang.
+                # Same bearing fleet_world.py already used to aim this dog's
+                # SPAWN pose (mission_spawn_yaw_rad) - the controller needs
+                # it too, to correct its own heading datum for the same
+                # reason. See mit_sim_main.cpp's "bearing" comment: without
+                # this, nav silently assumes spawn-heading-equals-true-north,
+                # which stopped being true the moment spawn heading became
+                # mission-specific instead of a universal fixed north.
+                spawn_bearing_deg = math.degrees(mission_opening_bearing_rad(s["mission"]))
                 cmd = (
                     "env DYLD_LIBRARY_PATH=. SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
                     "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
-                    "WP_MAX_YAWRATE=1.2 %s timeout 900 ./mit_ctrl_sim 127.0.0.1 "
+                    "WP_MAX_YAWRATE=1.2 WP_SPAWN_BEARING_DEG=%.4f %s timeout 900 ./mit_ctrl_sim 127.0.0.1 "
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"
-                    % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"], s["extra"])
+                    % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"],
+                       spawn_bearing_deg, s["extra"])
                 )
                 archive_log(os.path.join(RUN_DIR, "ctrl_%d.log" % i), self.run_id - 1)
                 clog = open(os.path.join(RUN_DIR, "ctrl_%d.log" % i), "w")

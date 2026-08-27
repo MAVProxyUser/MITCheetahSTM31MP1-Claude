@@ -28,6 +28,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + "/..")
 from make_multi_world import mission_bbox, load_proto, clone_dog  # noqa: E402
+from mission_geometry import mission_spawn_yaw_rad  # noqa: E402
 import terrain  # noqa: E402
 
 MARGIN = 30.0  # m between adjacent slots' bounding boxes
@@ -222,7 +223,8 @@ def main():
     apply_terrain(world, terrain_kind, os.path.dirname(os.path.abspath(out)), slots=slots)
 
     for i, (spec, north, east, bbox) in enumerate(slots):
-        m, name = clone_dog(proto, i, north=north, east=east)
+        yaw = mission_spawn_yaw_rad(spec)
+        m, name = clone_dog(proto, i, north=north, east=east, yaw=yaw)
         cfg = cam_cfgs[i] if cam_cfgs and i < len(cam_cfgs) else DEFAULT_CAM_CFG
         chase_model = apply_camera_config(m, cfg, i, north, east)
         world.append(m)

@@ -60,6 +60,7 @@ void WaypointNav::makeStar(float radius_m, int points, float speed) {
   _wp[points].east  = _wp[0].east;
   _wp[points].speed = speed;
   _n = points + 1;
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] star mission: %d points, r=%.1f m, v=%.2f m/s\n", _n, radius_m, speed);
   for (int i = 0; i < _n; ++i)
@@ -207,6 +208,7 @@ void WaypointNav::makeAtom(float outer_radius_m, int lobes, float depth,
     if (kap > 1e-9f) { const float r = 1.f / kap;
                        if (r < rmin) rmin = r; if (r > rmax) rmax = r; }
   }
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] atom mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
          "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)\n",
@@ -319,6 +321,7 @@ void WaypointNav::makeSpirograph(float outer_radius_m, int lobes, float depth,
     if (kap > 1e-9f) { const float r = 1.f / kap;
                        if (r < rmin) rmin = r; if (r > rmax) rmax = r; }
   }
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] spirograph mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
          "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)\n",
@@ -400,6 +403,7 @@ void WaypointNav::makeOval(float straight_m, float radius_m,
     put(0.f, 0.f);
 
   accept_radius = 0.45f * spacing_m;
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] oval mission: 2 x %.1f m straight + 2 x %.1f m of continuous "
          "R=%.1f m -> %.1f m lap, %d waypoints @ %.2f m (accept %.2f)\n",
@@ -748,6 +752,7 @@ void WaypointNav::makeLissajous(float amplitude_m, int wx, int wy,
     ++_n;
   }
   accept_radius = 0.45f * spacing_m;
+  shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   printf("[nav] lissajous mission: %d:%d ratio, A=%.1f m, %d waypoints @ "
          "%.2f m (accept %.2f), v=%.2f m/s\n",

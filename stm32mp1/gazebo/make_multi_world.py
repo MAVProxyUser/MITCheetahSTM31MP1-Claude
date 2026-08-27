@@ -41,7 +41,7 @@ was spawned.
 import sys
 import copy
 import xml.etree.ElementTree as ET
-from mission_geometry import mission_waypoints
+from mission_geometry import mission_waypoints, mission_spawn_yaw_rad
 
 
 def _numeric_bbox(spec):
@@ -70,13 +70,18 @@ def mission_bbox(spec):
     except ValueError:
         return None
     if kind in ("star", "atom", "spiro"):
-        # Every point lies within radius f[0] of the nucleus/centre by
-        # construction (star: vertices ON the circle, chords stay inside it;
-        # atom/spiro: same trochoid formula, r(t) <= outer_radius_m at every
-        # t - confirmed analytically: |r(t)|^2 = S^2*(1+A^2+2A*cos((k+1)t))
-        # <= S^2*(1+A)^2 = outer_radius_m^2 for any k, A). Safe on both axes.
-        r = f[0]
-        return (-r, r, -r, r)
+        # WaypointNav::makeStar/makeAtom/makeSpirograph all now call
+        # shiftFirstToOrigin() (robot spawns ON wp0, always and forever,
+        # per direct instruction), which re-centres each course around
+        # wp0 instead of its own nucleus/centre. The old closed form
+        # (-r,r,-r,r) was valid for "every point lies within radius r of
+        # the CENTRE" - true before the shift, but the centre is no longer
+        # at (0,0) once wp0 (a point ON the r-radius circle/curve) is.
+        # Numeric, same rationale as circle/sector/parallel/expsquare
+        # below: correct by construction from the same shifted generator
+        # the real course uses, rather than re-deriving a closed form
+        # that depends on exactly where wp0 landed on the old shape.
+        return _numeric_bbox(spec)
     if kind == "circle":
         # WaypointNav::makeCircle now calls shiftFirstToOrigin() (robot
         # spawns ON wp0, per direct instruction), which re-centres the
@@ -88,13 +93,13 @@ def mission_bbox(spec):
         # single source of truth, correct by construction.
         return _numeric_bbox(spec)
     if kind == "oval":
-        # WaypointNav::makeOval: the straight runs along NORTH for S metres,
-        # with a semicircular bulge of radius R at each end - one bulging
-        # further north (to S+R), the other bulging south of the start
-        # (to -R). East spans the two straights, 0 to 2R.
-        S = f[0]
-        R = f[1] if len(f) > 1 else 3.0
-        return (-R, S + R, 0.0, 2.0 * R)
+        # Was a closed form relative to the OLD (near-origin, not exactly
+        # wp0) start point; now stale for the same shiftFirstToOrigin()
+        # reason as circle/sector/parallel/expsquare below - wp0 was
+        # already ~1.2m off true (0,0) before this file's own universal
+        # shift, and is now made EXACTLY (0,0), moving the reference point
+        # this closed form was built around. Numeric, same rationale.
+        return _numeric_bbox(spec)
     if kind in ("outback", "dash"):
         # WaypointNav::makeDash is a single waypoint `d` metres due north;
         # makeOutAndBack adds the return leg along the same line. Both span
@@ -121,11 +126,15 @@ def mission_bbox(spec):
         # non-zero-length leg) - no longer the same point.
         return _numeric_bbox(spec)
     if kind == "lissajous":
-        # WaypointNav::makeLissajous: X=A*sin(...), Y=A*sin(...) are each
-        # exactly bounded in [-A,A] regardless of the frequency ratio -
-        # a property of sine, not something that needs measuring.
-        A = f[0]
-        return (-A, A, -A, A)
+        # X=A*sin(...), Y=A*sin(...) are each exactly bounded in [-A,A]
+        # relative to the curve's OWN centre - true regardless of the
+        # frequency ratio, but that closed form is now stale for the same
+        # shiftFirstToOrigin() reason as everything else on this list:
+        # wp0 (at the curve's own (A,0) by construction) is now (0,0), so
+        # the [-A,A]x[-A,A] box needs to move with it. Numeric rather than
+        # hand-shifting the box, so a future phase/convention change to
+        # the generator cannot silently desync this from it again.
+        return _numeric_bbox(spec)
     return None
 
 
@@ -167,8 +176,17 @@ def load_proto(src):
     return tree, world, proto
 
 
-def clone_dog(proto, index, north, east, height=0.08):
-    """One namespaced, positioned copy of the go1 template."""
+def clone_dog(proto, index, north, east, height=0.08, yaw=None):
+    """One namespaced, positioned copy of the go1 template.
+
+    `yaw` (radians, SDF convention) overrides the proto's own spawn
+    heading when given - None keeps whatever the proto already has (the
+    universal "facing north" default, still correct for anything with no
+    more specific heading to aim at). See
+    mission_geometry.mission_spawn_yaw_rad's own docstring for why this
+    exists: once every mission spawns ON wp0 rather than walking there,
+    the direction worth aligning is wp0->wp1, which is mission-specific,
+    not a fixed universal heading any more."""
     m = copy.deepcopy(proto)
     name = "go1_%d" % index
     m.set("name", name)
@@ -180,6 +198,8 @@ def clone_dog(proto, index, north, east, height=0.08):
     # world is ENU: x = east, y = north (see trail_daemon.py)
     v[0] += east
     v[1] += north
+    if yaw is not None:
+        v[5] = yaw
     pose.text = " ".join("%g" % x for x in v)
     retopic(m, name)
     return m, name
@@ -199,9 +219,10 @@ def main():
         spacing = w + max(15.0, 0.5 * w)
         src_note = "%s (course %.1f m along the spacing axis)" % (arg, w)
 
+    yaw = mission_spawn_yaw_rad(arg) if w is not None else None
     tree, world, proto = load_proto(src)
     for i in range(n):
-        m, name = clone_dog(proto, i, north=i * spacing, east=0.0)
+        m, name = clone_dog(proto, i, north=i * spacing, east=0.0, yaw=yaw)
         world.append(m)
 
     tree.write(out, encoding="utf-8", xml_declaration=True)
