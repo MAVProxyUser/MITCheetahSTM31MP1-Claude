@@ -5297,15 +5297,53 @@ around a graded phase signal that a symmetric gait's schedule already
 represents well - an asymmetric gait's schedule is a much rougher input
 to that same mechanism).
 
-**Concrete next step, not yet done**: confirm this against Gazebo TRUTH
-directly (the existing `SIM_ESTERR`-style ground-truth comparison
-already used elsewhere in this file, not just nav's own GPS-derived
-number) and repeat at least once before trusting the magnitude - this
-session's own small-sample discipline applies here as much as anywhere
-else. But the qualitative finding (estimate diverges hard from reality
-under galloping, in the FORWARD-vs-actual-BACKWARD direction) is a much
-better-targeted lead for whoever picks this up next than "maybe the
-swing leg needs porting" was.
+**CONFIRMED against actual Gazebo ground truth, same session, and it is
+worse than the GPS comparison suggested.** Ran the identical config
+(`galloping @0.5` on `dash:100`) with `$SIM_ESTERR=1` - truth logged
+beside the estimate, never fed to it, exactly the mechanism this file
+already uses elsewhere and RULE ZERO does not prohibit (cheater mode,
+which feeds truth to the controller, is deleted entirely; this only
+logs it). The divergence is real, large, and grows without bound for as
+long as the run was observed:
+
+| t (s) | truth position (world frame) | estimate position (estimator frame) | \|error\| |
+|---|---|---|---|
+| 19.5 | (-0.03, 0.47, 0.27) | (0.57, -0.01, 0.25) | 0.76 m |
+| 51.0 | (0.01, 10.30, 0.25) | (12.91, -0.27, 0.23) | 16.7 m |
+| 111.0 | (0.13, 8.91, 0.25) | (24.27, -1.10, 0.23) | 26.1 m |
+| 171.0 | (0.96, 5.42, 0.27) | (34.28, -2.65, 0.25) | **34.3 m** |
+
+(The two frames are rotated 90 degrees from each other by convention -
+truth's own second axis is world NORTH, the estimate's first axis is
+the estimator's own initial-heading-relative FORWARD - so "truth's
+north" and "estimate's forward" are the columns to compare, and that is
+exactly what the table above does.) Truth's own north position PEAKS
+around 10.8 m near t=60s and then falls back to 5.4 m by t=171s -
+matching the nav/GPS reading exactly, as it should since nav reads a
+third independent source (GPS) that agrees with Gazebo truth, not the
+estimate. The estimate, meanwhile, never stops climbing: from 0.57 m
+at t=19.5s to 34.28 m at t=171s, a nearly linear runaway with no sign
+of correcting itself. **This is an order of magnitude larger than any
+previously documented estimator drift in this file** (worst case
+before now: 4.5 m over an 83 m walk, for a symmetric gait).
+
+This closes out the investigation for tonight with a confirmed, not
+merely suggestive, answer: galloping's dash failure is a leg-odometry /
+state-estimation failure, not a swing-leg placement or gait-control
+problem. The likely mechanism (not yet verified further): the LinearKF
+trusts each stance leg's kinematic velocity estimate according to a
+phase-based ramp tuned against gaits with slow, predictable stance/swing
+transitions - galloping's asymmetric, rapidly-changing per-leg contact
+schedule is a much rougher input to that same mechanism, and if the
+filter over-trusts a leg that is not actually bearing load the way the
+schedule assumes, the resulting velocity bias integrates into exactly
+this kind of unbounded position runaway. NOT yet repeated (this session's
+own small-sample discipline still applies to the exact magnitude), but
+the qualitative finding - and that it is a state-estimation problem, not
+a control or swing-leg one - is solid. This also means the
+runSwingLegControl/runContactLegControl port considered earlier in this
+file was very likely never going to fix galloping's dash failure at all,
+regardless of how it was implemented.
 
 ### Cornering-envelope tally, end of session
 
@@ -5362,9 +5400,11 @@ the cornering-envelope stretch goal. In order of what actually shipped:
    than assuming it was ready to use, found the part that would matter
    (`runSwingLegControl`'s body) was never reduced to pseudocode, and
    made the judgement call not to write speculative code and call it a
-   port. Left a concrete, low-risk instrumentation-first next step
-   instead (log per-leg swing foothold placement through a galloping
-   dash).
+   port. Followed through on the recommended instrumentation-first
+   alternative instead of leaving it as a suggestion, caught a real bug
+   in the diagnostic itself on the first attempt (fixed it), and the
+   corrected data answered a different and more important question than
+   the one asked - see item 7.
 5. **Built and partially debugged a new `corner:` mission** for the
    cornering-envelope stretch goal - found and fixed two real bugs
    (wrong spawn bearing, a general recipe-fallback crash), hit a third,
@@ -5393,6 +5433,22 @@ the cornering-envelope stretch goal. In order of what actually shipped:
    honest scope gap against the original "every gait, 5 degree notches"
    ask - this remains a partial, first-pass characterization (two angle
    extremes per gait, not a continuous sweep).
+7. **Found and CONFIRMED (against Gazebo ground truth) galloping's real
+   dash failure mechanism: the state estimator, not the swing leg.**
+   The per-leg-Raibert-bias hypothesis this diagnostic was built to test
+   turned out incoherent by construction (that correction term is
+   body-level, identical across legs for any uniform-duration gait) -
+   but the same instrumentation showed the state estimator's own
+   position runs away to 34+ meters of error against Gazebo truth over
+   a 171 s galloping dash, an order of magnitude past any previously
+   documented drift in this file, while truth itself shows the robot
+   peaking at ~11 m and drifting back to ~5 m - exactly matching the
+   nav layer's own independent GPS reading. A controller acting on a
+   position belief that wrong has no reason to correct anything, which
+   explains the "no orientation trip, just silent drift" signature far
+   better than a foothold-placement bug would, and means the
+   runSwingLegControl port from item 4 almost certainly would not have
+   fixed this regardless of how it had been implemented.
 
 Every numbered item above has its own detailed section earlier in this
 file with the actual data, the code changes, and (where relevant) the

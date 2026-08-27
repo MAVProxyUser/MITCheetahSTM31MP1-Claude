@@ -239,10 +239,28 @@ Grouped by what it would actually take to close it.
       constants were recovered) and `runContactLegControl`'s only
       non-trivial new content (a per-leg force sign flip) is explicitly
       flagged there as too risky to port on a guess - so no port was
-      attempted. Concrete next step if resumed: instrument per-leg swing
-      foothold placement (`Pf`, ConvexMPCLocomotion.cpp:697-730) through a
-      galloping dash to check for a systematic per-leg bias, before
-      touching any swing-leg code on a guess.
+      attempted. **UPDATE, same night: that instrumentation was built,
+      run, and the per-leg-bias hypothesis was ruled out (the Raibert
+      correction is body-level, identical across legs by construction) -
+      but the same diagnostic found and CONFIRMED against Gazebo ground
+      truth that galloping's real dash failure is the state estimator,
+      not the swing leg or gait control at all.** Over a 171s galloping
+      dash, the estimator's own position ran away to 34+ m of error
+      against truth (truth itself peaks ~11m then settles back to ~5m,
+      matching the nav layer's independent GPS reading exactly) - an
+      order of magnitude past any previously documented drift in this
+      file. See CLAUDE.md "GALLOPING'S REAL CAUSE, CONFIRMED" for the
+      full data. This makes the runSwingLegControl port very likely moot
+      for galloping specifically - a controller acting on a position
+      belief that wrong would misbehave regardless. NOT yet: repeated
+      (small-sample discipline still applies to the exact magnitude),
+      root-caused at the KF level (leading guess: the phase-based
+      stance-leg trust ramp is tuned against gaits with slow, predictable
+      transitions and mishandles galloping's fast asymmetric schedule),
+      or checked on bounding/pronking (bounding's dash failure is a
+      tip-over, a different signature that may or may not share this
+      cause; pronking's is a flat height collapse, also unchecked against
+      this specific mechanism).
 
 ## Cosmetic / lower priority
 
