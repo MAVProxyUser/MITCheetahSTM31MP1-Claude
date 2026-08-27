@@ -59,5 +59,186 @@
   },
   "verdict": "PASS",
   "wall_s": 94.6
+ },
+ {
+  "ts": "2026-08-27 12:41:15",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 94.6
+ },
+ {
+  "ts": "2026-08-27 12:42:55",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 94.6
+ },
+ {
+  "ts": "2026-08-27 12:43:44",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_VSUS=2.4 WP_ANALYZER=1"
+   ]
+  },
+  "verdict": "FAIL",
+  "wall_s": 42.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260827_124343_run300_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-08-27 12:45:02",
+  "case": "dash_trotRunning",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 72.5
+ },
+ {
+  "ts": "2026-08-27 12:46:09",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 60.5
+ },
+ {
+  "ts": "2026-08-27 12:47:31",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 76.5
+ },
+ {
+  "ts": "2026-08-27 12:49:08",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 90.6
+ },
+ {
+  "ts": "2026-08-27 12:57:39",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 94.6
+ },
+ {
+  "ts": "2026-08-27 12:59:13",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 94.6
  }
 ]

@@ -3796,6 +3796,27 @@ The bogus 10.4 s entry is left in `unittests/history.json` rather than
 scrubbed - it is genuine history, and the false-positive is fully
 explained in this section and in the code's own comment.
 
+**Per direct instruction ("fix this once and for all, no more hanging
+bridges and races"), fixed at the ROOT instead of leaving the client-side
+sleep as the only defense.** `Fleet.__init__` now carries
+`self._teardown_done`, a `threading.Event` that is CLEARED the instant a
+teardown starts and only SET once every process from that run is
+CONFIRMED dead - a real `p.wait()` per process (with a bounded SIGKILL
+fallback and a logged warning for a truly stuck pid), not "sent a signal
+and moved on" the way both teardown sites (the natural "all dogs done"
+path and `stop()`) used to. `launch()` now waits on this Event, outside
+`self.lock` so it cannot block unrelated requests, before doing anything
+else - a new launch is now structurally unable to start while a previous
+teardown is still completing, regardless of how fast the caller fires the
+next request. Verified directly, not just argued: star immediately
+followed by atom with the client-side `SETTLE_S` set to **zero** (no
+sleep at all between the two `mission_runner.py` calls) now gives atom a
+real ~60 s completion (`t=60.4s` in the raw log, clean roll/pitch) instead
+of the bogus 10.4 s the same sequence produced before this fix. The
+unittests suite's own `SETTLE_S` is left at 0.0 with a comment explaining
+why - the fix belongs in the server, and now it is there, not papered
+over in every caller.
+
 ```bash
 python3 unittests/test_validated_missions.py                    # everything
 python3 unittests/test_validated_missions.py --only star atom   # by name
@@ -5744,6 +5765,31 @@ parallel's individual corners handle a continuously-curving path just
 fine. Worth remembering when interpreting any future course built from
 this catalog: "circle:R:8" (or any low point-count invocation) is a
 polygon and should be described as one.
+
+**Speed pushed on the smooth circle too**, same 3-dog method as trotting's
+octagon bracket above:
+
+| gait | base speed | +1 rung | result |
+|---|---|---|---|
+| bounding | 1.0 | 1.5 | **PASS 32.5s** |
+| galloping | 0.8 | 1.1 | **PASS 46.5s** |
+| pronking | 0.6 | 0.8 | **PASS 45.7s** |
+| bounding | 1.0 | 2.0 | **PASS 26.1s** |
+| galloping | 0.8 | 1.4 | **PASS 38.8s** |
+| pronking | 0.6 | 1.0 | **PASS 39.0s** |
+
+3/3 clean at BOTH higher rungs - none of these three has found its
+smooth-curvature ceiling yet even at 1.75-2.5x their established base
+speed, in sharp contrast to how quickly they broke on the DISCRETE
+octagon/sector/parallel corners at or below base speed. The gap between
+"continuous curvature: seemingly very forgiving, even well past normal
+cruise" and "discrete sharp corners: fails even below base speed at
+90-147.5 degrees" is now the sharpest, best-evidenced version of tonight's
+headline finding. Not pushed further tonight (diminishing returns relative
+to broadening coverage to the remaining gaits) - the qualitative point is
+solid: whatever breaks bounding/galloping/pronking in a corner is a
+property of the DISCRETE DIRECTION CHANGE itself, not of turning at speed
+in general.
 
 ### `corner:` mission revisited: the ORIGINAL bug appears gone, a DIFFERENT one found in its place
 

@@ -518,6 +518,30 @@ class Fleet:
         self._last_pose = {}         # index -> (x, y, t) for the speed EMA
         self._gz_node = None         # keep the Node alive - gc'ing it drops the subscription
         self._chase_stop = None      # threading.Event - signals _follow_chase_cams to exit
+        # THE ASYNC-TEARDOWN RACE, closed structurally. self.phase = "done"
+        # was being set the INSTANT the poller noticed every dog finished,
+        # while the actual process kill (terminate() -> sleep(1) -> kill())
+        # ran afterward, unlocked, on the same background thread - so a
+        # caller (a human clicking Launch again, or a test harness driving
+        # mission_runner.py back-to-back) could see phase go idle/done and
+        # fire a NEW launch while the OLD gz/bridge/controller processes
+        # were still alive and, critically, still holding open file handles
+        # on the very ctrl_N.log/bridge_N.log files the new launch was about
+        # to truncate - a few of the dying run's last buffered lines could
+        # land AFTER the new run's fresh open(path, "w"), silently
+        # contaminating the new run's own log with old content. Reproduced
+        # directly: a star mission immediately followed by an atom mission
+        # returned a bogus PASS in 10.4s (atom's real floor is 55+s) because
+        # the new ctrl log's tail was actually star's. This Event is SET
+        # whenever no teardown is in flight and CLEARED the moment one
+        # starts; it is only set again once every process from the previous
+        # run has been CONFIRMED dead (a real wait(), not just kill() and
+        # assume) - see _reap_and_confirm(). launch() waits on it before
+        # doing anything else, so a new launch is now structurally unable to
+        # start while a previous teardown is still completing, regardless of
+        # how fast the caller fires the next request.
+        self._teardown_done = threading.Event()
+        self._teardown_done.set()
         # DRAFT config, mutated by /api/slots* and /api/speed_cap. This is
         # what "+ Add dog", editing a field, or dragging the cap slider does
         # in the browser - moved server-side so every one of those actions is
@@ -695,6 +719,22 @@ class Fleet:
         # draft - i.e. exactly what the panel is showing right now. An
         # explicit body still works for direct automation that wants to skip
         # the draft entirely and specify a full config in one call.
+        #
+        # THE ASYNC-TEARDOWN RACE GATE. Deliberately OUTSIDE self.lock and
+        # BEFORE anything else in this method: a previous run's phase can
+        # already read "done"/"idle" while its processes are still being
+        # reaped on another thread (see _teardown_done's own comment for the
+        # exact contamination this produced - a bogus 10.4s PASS on a
+        # mission whose real floor is 55+s). Waiting on the lock instead
+        # would work too but would hold it for the whole wait, blocking
+        # every other request (state polls, slot edits) for no reason - this
+        # Event is normally already set, so the wait is a no-op almost every
+        # time, and only actually blocks during the narrow window a launch
+        # request genuinely races a teardown.
+        if not self._teardown_done.wait(timeout=10.0):
+            self._note("launch: a previous teardown did not confirm within "
+                      "10s - proceeding anyway rather than deadlocking, but "
+                      "this is worth investigating if it ever fires")
         with self.lock:
             if slots is None:
                 slots = self.draft_slots
@@ -1457,6 +1497,7 @@ class Fleet:
                         self._last_pose = {}
                         self._gz_node = None
                         self._gz_cam_nodes = []
+                        self._teardown_done.clear()
                     self._note("fleet run complete")
                     # KILL THE SIM ON DONE. Leaving gz alive "for the next
                     # launch" left it idling at ~a full core simulating an
@@ -1465,24 +1506,63 @@ class Fleet:
                     # stacked a SECOND physics engine under a new launch,
                     # producing upside-down dogs and below-floor estimates
                     # that read exactly like a code regression. A finished
-                    # run owns nothing; tear it all down.
-                    for p in procs:
-                        try:
-                            p.terminate()
-                        except Exception:  # noqa: BLE001
-                            pass
-                    time.sleep(1)
-                    for p in procs:
-                        try:
-                            p.kill()
-                        except Exception:  # noqa: BLE001
-                            pass
+                    # run owns nothing; tear it all down - and CONFIRM it is
+                    # actually down (_reap_and_confirm waits for real exit)
+                    # before the next launch is allowed to proceed at all;
+                    # see the comment on _teardown_done for the race this
+                    # closes.
+                    self._reap_and_confirm(procs)
                     self._note("sim torn down (gz + bridges + controllers)")
                     return
                 time.sleep(1)
         threading.Thread(target=poll, daemon=True).start()
 
     # ---- teardown ----------------------------------------------------------
+    def _reap_and_confirm(self, procs):
+        """terminate() -> brief grace -> kill(), then ACTUALLY WAIT for each
+        process to exit (reaping it) before declaring teardown done - not
+        "sent a signal and hoped". Sets self._teardown_done only once every
+        process is confirmed gone (or definitively unreapable), which is
+        what makes it safe for launch() to treat that Event as a real
+        guarantee rather than an optimistic guess. Bounded per-process so one
+        stuck process cannot hang teardown forever - it is logged and the
+        Event is still set, matching the file's own stance elsewhere that a
+        detected-but-unkillable process is a hardware/OS problem to surface,
+        not something to spin on."""
+        for p in procs:
+            try:
+                p.terminate()
+            except Exception:  # noqa: BLE001
+                pass
+        deadline = time.time() + 1.0
+        for p in procs:
+            remaining = max(0.0, deadline - time.time())
+            try:
+                p.wait(timeout=remaining)
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception:  # noqa: BLE001
+                pass
+        stuck = []
+        for p in procs:
+            if p.poll() is None:
+                try:
+                    p.kill()
+                except Exception:  # noqa: BLE001
+                    pass
+        for p in procs:
+            if p.poll() is None:
+                try:
+                    p.wait(timeout=3.0)
+                except subprocess.TimeoutExpired:
+                    stuck.append(p.pid)
+                except Exception:  # noqa: BLE001
+                    pass
+        if stuck:
+            self._note("teardown: pid(s) %r survived SIGKILL+wait - "
+                       "OS/zombie issue, not retrying further" % stuck)
+        self._teardown_done.set()
+
     def stop(self):
         with self.lock:
             procs = list(self.procs)
@@ -1495,17 +1575,8 @@ class Fleet:
             self.cameras = {}
             if self._chase_stop is not None:
                 self._chase_stop.set()   # tells _follow_chase_cams to exit its loop
-        for p in procs:
-            try:
-                p.terminate()
-            except Exception:  # noqa: BLE001
-                pass
-        time.sleep(1)
-        for p in procs:
-            try:
-                p.kill()
-            except Exception:  # noqa: BLE001
-                pass
+            self._teardown_done.clear()
+        self._reap_and_confirm(procs)
         self._note("fleet stopped")
 
 

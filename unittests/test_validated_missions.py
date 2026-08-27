@@ -181,7 +181,19 @@ FLIGHT_GAIT_CASES = [
 ALL_CASES = {c.name: c for c in CASES + FLIGHT_GAIT_CASES}
 
 
-SETTLE_S = 6.0  # gap between launches - see the false-positive note below
+SETTLE_S = 0.0  # see the false-positive note below - the actual race this
+                # guarded against is now closed IN THE SERVER
+                # (Fleet._teardown_done in conductor/server.py), which
+                # structurally blocks a new launch until the previous
+                # fleet's teardown is CONFIRMED complete, not just reported
+                # "done". Verified directly: star immediately followed by
+                # atom with ZERO delay between the two mission_runner.py
+                # calls now gives atom a real ~60s completion, not the
+                # bogus 10.4s this file used to need a client-side sleep to
+                # avoid. Left as a named constant (not deleted outright) in
+                # case a future, DIFFERENT race is ever found here - but the
+                # fix belongs in the server, not in every caller, and now
+                # it is.
 
 
 def run_case(case: Case, repeats: int) -> bool:
