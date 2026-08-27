@@ -219,6 +219,42 @@ class WaypointNav {
     const float dn = _wp[0].north, de = _wp[0].east;
     for (int i = 0; i < _n; ++i) { _wp[i].north -= dn; _wp[i].east -= de; }
   }
+
+ public:
+  /*
+   * CLOSE THE FINAL LEG - walk back to where the dog started.
+   *
+   * Some courses finish where they began and some just stop wherever their
+   * own parametric math ran out, which is an inconsistency an operator
+   * sees immediately on the panel overlay: a drawn plan whose last leg
+   * simply is not there. Measured gap from home at the last waypoint,
+   * before this existed:
+   *
+   *     lissajous 0.00 m   spiro 0.05 m   atom 0.43 m   oval 1.20 m
+   *     circle    6.89 m   expsquare 18.03 m   sector 15.00 m
+   *     parallel 46.10 m
+   *
+   * The first four close by construction (their curves are periodic); the
+   * last four leave a real, walkable leg undone. makeStar closes itself
+   * explicitly for the same reason, and that precedent is what this
+   * generalises - "closing belongs to the mission itself".
+   *
+   * Skipped, deliberately, in three cases:
+   *   - fewer than 2 waypoints. A dash IS its final leg; sending it home
+   *     would silently double every dash into an out-and-back, which is a
+   *     DIFFERENT mission this file already distinguishes by name.
+   *   - already within min_gap_m of home, so a periodic course does not
+   *     collect a pointless sub-metre stub waypoint that the planner would
+   *     then have to brake for.
+   *   - no room left in _wp (MAXWP), rather than overrunning the array.
+   *
+   * Home is the local-frame ORIGIN, which is exactly where the dog was
+   * standing when the GPS datum was taken - not wp0, which for a course
+   * that never called shiftFirstToOrigin can be somewhere else entirely.
+   */
+  void closeFinalLeg(float min_gap_m = 2.0f);
+
+ private:
   int   _n = 0;
   int   _idx = 0;
   bool  _complete = false;

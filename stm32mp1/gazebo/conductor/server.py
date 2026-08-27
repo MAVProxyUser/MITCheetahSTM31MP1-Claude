@@ -119,6 +119,15 @@ CAM_FLAG_KEYS = {"front_cam": "cam_front", "nadir_cam": "cam_nadir", "chase_cam"
 # checking a box is deliberate.
 DEFAULT_CAM_SLOT = dict(cam_front=False, cam_nadir=False, cam_chase=False,
                          chase_distance=3.0, chase_height=1.2, chase_degree=90.0)
+# "Close final leg" defaults ON, per direct instruction. Some courses end
+# where they started (the periodic curves - lissajous/spiro/atom/oval land
+# 0.00-1.20 m from home) and some just stop wherever their generator's math
+# ran out (circle 6.9 m, sector 15.0, expsquare 18.0, parallel 46.1), which
+# shows up on the overlay as a drawn plan with its last leg missing.
+# Unchecking it restores the raw generator path. It is a no-op for a dash
+# (one waypoint - closing would silently make it an out-and-back) and for
+# an already-closed curve; see WaypointNav::closeFinalLeg.
+DEFAULT_CLOSE_LEG = True
 import terrain  # noqa: E402 - conductor/terrain.py, procedural heightmaps
 
 # ---------------------------------------------------------------------------
@@ -568,11 +577,11 @@ class Fleet:
         # ("side view chase camera... hover over the dogs chasing").
         self.draft_slots = [
             dict(mission="star:10.514:5", gait="trotRunning", speed=3.5, dash=100,
-                 model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
+                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
             dict(mission="oval:40:5.0", gait="trotRunning", speed=3.5, dash=100,
-                 model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
+                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
             dict(mission="atom:9.0:6", gait="trotting", speed=2.1, dash=100,
-                 model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
+                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
         ]
         self.draft_cap = 3.5
         # Terrain, from terrain.py. "flat" reproduces the EXACT ground_plane
@@ -654,7 +663,8 @@ class Fleet:
                 mission={"star": "star:10.514:5", "oval": "oval:40:5.0",
                          "atom": "atom:9.0:6"}.get(nxt, "star:10.514:5"),
                 gait=next(g for g, n in GAITS.items() if n == r["gait"]),
-                speed=r["speed"], dash=100, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT))
+                speed=r["speed"], dash=100, close_leg=DEFAULT_CLOSE_LEG,
+                model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT))
             return True, self.draft_slots
 
     def draft_remove_slot(self, i):
@@ -691,6 +701,8 @@ class Fleet:
                 except (TypeError, ValueError):
                     v = 0.0
                 s["dash"] = max(0.0, min(v, 200.0))
+            if "close_leg" in fields:
+                s["close_leg"] = bool(fields["close_leg"])
             for flag in ("cam_front", "cam_nadir", "cam_chase"):
                 if flag in fields:
                     s[flag] = bool(fields[flag])
@@ -899,6 +911,12 @@ class Fleet:
                            "%s @ %.2f, recipe speed is %.2f" %
                            (i, gait_name, speed, recipe["speed"]))
             extra = (recipe["extra"] + " " + str(s.get("extra") or "")).strip()
+            # Only ever passed to turn it OFF - mit_sim_main.cpp already
+            # defaults it ON when the variable is absent, so the common case
+            # adds nothing to the launch line.
+            close_leg = bool(s.get("close_leg", DEFAULT_CLOSE_LEG))
+            if not close_leg:
+                extra = (extra + " WP_CLOSE_LEG=0").strip()
             dash = float(s.get("dash") or 0.0)
             if dash > 0:
                 # Appended after whatever the recipe's own mission builds -
@@ -908,6 +926,7 @@ class Fleet:
             locked.append(dict(index=i, mission=spec, kind=kind, gait=gait,
                                 gait_name=gait_name, speed=speed, extra=extra,
                                 dash=dash, note=recipe["note"],
+                                close_leg=close_leg,
                                 cam_front=bool(s.get("cam_front", True)),
                                 cam_nadir=bool(s.get("cam_nadir", True)),
                                 cam_chase=bool(s.get("cam_chase", True)),
@@ -962,7 +981,12 @@ class Fleet:
             placed = layout([s["mission"] for s in locked])
             planned = {}
             for s, (spec, north, east, bbox) in zip(locked, placed):
-                pts = mission_waypoints(spec)
+                # close_leg passed through so the DRAWN plan is the path the
+                # robot actually flies - the whole point of this overlay
+                # reading the same generator the controller does. Runs before
+                # the dash append below for the same ordering reason
+                # mit_sim_main.cpp closes before calling appendDash.
+                pts = mission_waypoints(spec, close_leg=s.get("close_leg", True))
                 if s.get("dash") and len(pts) >= 2:
                     # Mirrors WaypointNav::appendDash() exactly (same source
                     # of truth this whole overlay already leans on) so the

@@ -101,8 +101,38 @@ def mission_spawn_yaw_rad(spec):
     return _NORTH_YAW_RAD - mission_opening_bearing_rad(spec)
 
 
-def mission_waypoints(spec):
-    """Mirrors WaypointNav.cpp exactly. Returns [(north, east), ...]."""
+def close_final_leg(pts, min_gap_m=2.0):
+    """Mirrors WaypointNav::closeFinalLeg - append a return-to-home (local
+    frame origin) waypoint when the course stops somewhere else.
+
+    Same three skip conditions as the C++, for the same reasons: fewer than
+    2 points (a dash IS its final leg - closing it would silently turn every
+    dash into an out-and-back), and already within min_gap_m of home (a
+    periodic curve does not need a sub-metre stub). See that method's
+    comment for the measured per-mission gaps this exists to fix.
+    """
+    if len(pts) < 2:
+        return pts
+    if math.hypot(pts[-1][0], pts[-1][1]) <= min_gap_m:
+        return pts
+    return list(pts) + [(0.0, 0.0)]
+
+
+def mission_waypoints(spec, close_leg=False):
+    """Mirrors WaypointNav.cpp exactly. Returns [(north, east), ...].
+
+    close_leg mirrors $WP_CLOSE_LEG (which mit_sim_main.cpp defaults ON).
+    It defaults OFF *here* so every existing caller - bbox computation,
+    baseline sizing, the standalone viz - keeps its current behaviour
+    unless it explicitly asks; the panel overlay passes the slot's own
+    checkbox through so the drawn plan matches what the robot actually
+    flies.
+    """
+    pts = _mission_waypoints_raw(spec)
+    return close_final_leg(pts) if close_leg else pts
+
+
+def _mission_waypoints_raw(spec):
     kind, *rest = spec.split(":")
     if kind == "star":
         r, n = float(rest[0]), int(rest[1])
@@ -114,6 +144,16 @@ def mission_waypoints(spec):
             v = ((i + 1) * step) % n
             a = 2 * math.pi * v / n - a0
             out.append((r * math.cos(a), r * math.sin(a)))
+        # CLOSE THE LOOP - this mirror was MISSING the closing waypoint
+        # WaypointNav::makeStar has appended since the "closing belongs to
+        # the mission itself" fix (`_wp[points] = _wp[0]; _n = points + 1`),
+        # so the panel drew star as an OPEN 5-point path while the robot
+        # actually flew 6 waypoints and closed the pentagram. Exactly the
+        # C++/Python mirror drift this file already documents for
+        # mission_viz.py's own copy losing atom and oval - found by
+        # measuring every mission's last-waypoint distance from home and
+        # noticing star reported 20 m when the C++ ends at 0.
+        out.append(out[0])
         return _shift_first_to_origin(out)
     if kind == "circle":
         r, n = float(rest[0]), int(rest[1])

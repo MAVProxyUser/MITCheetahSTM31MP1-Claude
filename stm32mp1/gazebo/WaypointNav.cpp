@@ -6,6 +6,22 @@
 static const double EARTH_R = 6378137.0;
 static const double DEG2RAD = M_PI / 180.0;
 
+// See the declaration in WaypointNav.hpp for the full rationale and the
+// measured per-mission gaps this exists to close. Lives here rather than
+// inline in the header only because ShmTrace is a .cpp-side dependency.
+void WaypointNav::closeFinalLeg(float min_gap_m) {
+  if (_n < 2 || _n >= MAXWP) return;
+  const float d = std::sqrt(_wp[_n - 1].north * _wp[_n - 1].north +
+                            _wp[_n - 1].east  * _wp[_n - 1].east);
+  if (d <= min_gap_m) return;
+  _wp[_n].north = 0.f;
+  _wp[_n].east  = 0.f;
+  _wp[_n].speed = _wp[_n - 1].speed;
+  _n++;
+  shmtrace::logf(0.0, "[nav] closing the final leg: wp%02d back to home "
+         "(N=0.00 E=0.00), %.2f m from the last waypoint", _n - 1, d);
+}
+
 void WaypointNav::makeCircle(float radius_m, int points, float speed) {
   if (points > MAXWP) points = MAXWP;
   _n = points;

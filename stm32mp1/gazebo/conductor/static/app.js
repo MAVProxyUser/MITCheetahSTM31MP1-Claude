@@ -189,6 +189,9 @@ function renderSlots() {
         <label class="cam-check"><input type="checkbox" data-i="${i}" data-f="dash_toggle"
                ${(s.dash ?? 0) > 0 ? "checked" : ""} ${locked ? "disabled" : ""}
                title="Quick toggle for the field above - checked sets a 100m dash finish, unchecked sets 0 (mission ends at the loop)."> 100m dash when done</label>
+        <label class="cam-check"><input type="checkbox" data-i="${i}" data-f="close_leg"
+               ${s.close_leg !== false ? "checked" : ""} ${locked ? "disabled" : ""}
+               title="Walk the last leg back to the start point. Some courses end where they began (lissajous/spiro/atom/oval land within ~1m); others just stop where their shape ran out - circle 6.9m, sector 15m, expsquare 18m, parallel 46m - leaving a visible unclosed leg on the overlay. No effect on a dash (one waypoint) or an already-closed curve."> Close final leg</label>
       </div>
       <div class="slot-row cam-config-row">
         ${["air", "pro", "edu"].map(m => `

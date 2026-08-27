@@ -655,5 +655,142 @@
   },
   "verdict": "PASS",
   "wall_s": 90.6
+ },
+ {
+  "ts": "2026-08-27 17:53:29",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 94.5
+ },
+ {
+  "ts": "2026-08-27 17:55:03",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 94.6
+ },
+ {
+  "ts": "2026-08-27 17:56:24",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.4
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ANALYZER=0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 80.6
+ },
+ {
+  "ts": "2026-08-27 17:57:36",
+  "case": "dash_trotRunning",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 72.5
+ },
+ {
+  "ts": "2026-08-27 17:58:35",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 58.5
+ },
+ {
+  "ts": "2026-08-27 17:59:52",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 76.6
+ },
+ {
+  "ts": "2026-08-27 18:01:22",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 90.6
  }
 ]

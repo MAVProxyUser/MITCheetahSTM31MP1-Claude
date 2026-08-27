@@ -132,6 +132,29 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   }
   else                                                     nav.makeStar(5.3f, 5, vx);
 
+  /*
+   * CLOSE THE FINAL LEG back to home ($WP_CLOSE_LEG, DEFAULT ON).
+   *
+   * Operator-reported: "some missions never close their path to the home
+   * point, but some do... leaves a final leg unclosed." Measured, and they
+   * are right - the periodic curves (lissajous/spiro/atom/oval) land within
+   * 0.00-1.20 m of home by construction while circle/sector/expsquare/
+   * parallel stop 6.9/15.0/18.0/46.1 m out, purely as an artefact of where
+   * each generator's own math happens to end. makeStar already closes
+   * itself explicitly ("closing belongs to the mission itself"); this
+   * generalises that precedent to every course instead of leaving it
+   * per-generator.
+   *
+   * Runs BEFORE appendDash on purpose: the dash is a finish tacked onto a
+   * COMPLETED loop, and appendDash's own "is this course already closed"
+   * test keys off the last waypoint's distance from wp00 - so closing first
+   * means the dash correctly appends one sprint point to a now-closed
+   * course rather than a redundant return leg. See closeFinalLeg() for why
+   * a 1-waypoint dash and an already-closed curve are both no-ops.
+   */
+  if (!getenv("WP_CLOSE_LEG") || atoi(getenv("WP_CLOSE_LEG")) != 0)
+    nav.closeFinalLeg();
+
   // $WP_DASH=<metres>: append a straight finishing sprint after the loop
   // above closes, continuing along whatever heading the final leg left the
   // dog on. This is the 100 m dash as a FINISH, not a standalone course - the

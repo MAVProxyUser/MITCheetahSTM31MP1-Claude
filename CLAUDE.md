@@ -6988,3 +6988,69 @@ the windup then amplifies. Both remain opt-in; which (if either) belongs
 on by default is a question for a proper interleaved A/B, not for
 tonight.
 
+
+## "Close final leg": some courses walked home, some just stopped where their math ran out
+
+Operator-reported: "some missions never close their path to the home
+point, but some do... leaves a final leg unclosed." Correct, and it split
+cleanly along a line nobody had noticed - measured distance from home at
+each course's LAST waypoint, before any change:
+
+| closes itself | gap | leaves a leg undone | gap |
+|---|---|---|---|
+| lissajous:15:1:2 | 0.00 m | circle:9:8 | **6.89 m** |
+| spiro:9.0:8 | 0.05 m | sector:15:3 | **15.00 m** |
+| atom:9.0:6 | 0.43 m | expsquare:5:12 | **18.03 m** |
+| oval:40:5.0 | 1.20 m | parallel:30:5:8 | **46.10 m** |
+
+The left column closes by construction (periodic curves - they come back
+to their own start), the right column stops wherever its generator's
+parametric math happened to end. Nothing principled distinguished them;
+`makeStar` had already been fixed to close itself explicitly for exactly
+this reason ("closing belongs to the mission itself"), and that precedent
+just never got generalised.
+
+`WaypointNav::closeFinalLeg()` appends one waypoint at the local-frame
+ORIGIN - where the dog actually stood when the GPS datum was taken, NOT
+wp0, which for a course that never called `shiftFirstToOrigin` can be
+somewhere else. Panel checkbox "Close final leg", **default ON** per
+direct instruction, `$WP_CLOSE_LEG=0` to disable. Three deliberate
+no-ops: fewer than 2 waypoints (a dash IS its final leg - closing it
+would silently turn every dash into an out-and-back, a DIFFERENT mission
+this file already distinguishes by name), already within 2 m of home, and
+no room left in `_wp`. Runs BEFORE `appendDash` so the dash correctly
+appends one sprint point to a now-closed course.
+
+### A C++/Python mirror drift found by measuring, not by reading
+
+Building the table above is what exposed it: `mission_geometry.py`'s star
+mirror reported the last waypoint **20 m** from home when the C++ ends at
+0. `WaypointNav::makeStar` appends a closing waypoint (`_wp[points] =
+_wp[0]; _n = points + 1`); the Python mirror never did. So the panel drew
+star as an OPEN 5-point path while the robot flew 6 and closed the
+pentagram. Same drift class this file already documents for
+`mission_viz.py` losing the atom and oval cases - and the same lesson:
+these mirrors drift silently, and the cheap way to catch it is to compute
+a scalar from both sides and compare, not to re-read the code.
+
+### THE TRADEOFF, measured, not hidden: closing can create a sharp corner
+
+Turning for home is a real turn, and on two courses it is a much sharper
+one than anything else on the route. Sharpest interior angle, open vs
+closed:
+
+    expsquare:5:12   90.0 deg -> 33.7 deg   (at the new closing corner)
+    parallel:30:5:8  90.0 deg -> 49.4 deg   (at the new closing corner)
+    sector:15:3      32.5 deg -> 32.5 deg   (unchanged - already had one)
+    circle:9:8      135.0 deg -> 135.0 deg  (unchanged)
+
+The planner does the right thing with that (`tightest corner R=0.04m ->
+0.05m/s` on the closed expsquare) but "the right thing" is braking to a
+crawl for one corner, so a closed expsquare/parallel is slower than its
+open version and its own `WP_TURN_SOFT`/`WP_TURN_HARD` tuning was never
+measured against a corner this sharp. 33.7 deg is comparable to the
+star's own 36 deg vertices, which this robot handles, so it should be
+feasible - but that is an inference, not a measurement, and anyone
+re-tuning those two courses should re-check with the box in the state
+they actually intend to run.
+
