@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdio>
 #include "WaypointNav.hpp"
+#include "ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 static const double EARTH_R = 6378137.0;
 static const double DEG2RAD = M_PI / 180.0;
@@ -20,11 +21,10 @@ void WaypointNav::makeCircle(float radius_m, int points, float speed) {
   }
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] circle mission: %d waypoints, r=%.1f m, v=%.2f m/s\n",
+  shmtrace::logf(0.0, "[nav] circle mission: %d waypoints, r=%.1f m, v=%.2f m/s",
          _n, radius_m, speed);
   for (int i = 0; i < _n; ++i)
-    printf("[nav]   wp%02d  N=%7.2f  E=%7.2f  v=%.2f\n", i, _wp[i].north, _wp[i].east, _wp[i].speed);
-  fflush(stdout);
+    shmtrace::logf(0.0, "[nav]   wp%02d  N=%7.2f  E=%7.2f  v=%.2f", i, _wp[i].north, _wp[i].east, _wp[i].speed);
 }
 
 void WaypointNav::makeStar(float radius_m, int points, float speed) {
@@ -62,10 +62,9 @@ void WaypointNav::makeStar(float radius_m, int points, float speed) {
   _n = points + 1;
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] star mission: %d points, r=%.1f m, v=%.2f m/s\n", _n, radius_m, speed);
+  shmtrace::logf(0.0, "[nav] star mission: %d points, r=%.1f m, v=%.2f m/s", _n, radius_m, speed);
   for (int i = 0; i < _n; ++i)
-    printf("[nav]   wp%02d  N=%7.2f  E=%7.2f\n", i, _wp[i].north, _wp[i].east);
-  fflush(stdout);
+    shmtrace::logf(0.0, "[nav]   wp%02d  N=%7.2f  E=%7.2f", i, _wp[i].north, _wp[i].east);
 }
 
 /*
@@ -210,14 +209,13 @@ void WaypointNav::makeAtom(float outer_radius_m, int lobes, float depth,
   }
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] atom mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
-         "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)\n",
+  shmtrace::logf(0.0, "[nav] atom mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
+         "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)",
          lobes, outer_radius_m, A, total, _n, spacing_m, accept_radius);
-  printf("[nav]   turn radius %.2f - %.2f m  (a_lat 2.5 allows %.2f - %.2f m/s)"
-         "  nucleus hole %.2f m  join at %.2f m due north\n",
+  shmtrace::logf(0.0, "[nav]   turn radius %.2f - %.2f m  (a_lat 2.5 allows %.2f - %.2f m/s)"
+         "  nucleus hole %.2f m  join at %.2f m due north",
          rmin, rmax, sqrtf(2.5f * rmin), sqrtf(2.5f * rmax), S * (1.f - A),
          sqrtf(px(t0) * px(t0) + py(t0) * py(t0)));
-  fflush(stdout);
 }
 
 /*
@@ -323,14 +321,13 @@ void WaypointNav::makeSpirograph(float outer_radius_m, int lobes, float depth,
   }
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] spirograph mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
-         "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)\n",
+  shmtrace::logf(0.0, "[nav] spirograph mission: %d lobes, outer r=%.1f m, depth=%.2f -> "
+         "%.1f m single closed stroke, %d waypoints @ %.2f m (accept %.2f)",
          lobes, outer_radius_m, A, total, _n, spacing_m, accept_radius);
-  printf("[nav]   turn radius %.2f - %.2f m  (a_lat 2.5 allows %.2f - %.2f m/s)"
-         "  join at %.2f m due north\n",
+  shmtrace::logf(0.0, "[nav]   turn radius %.2f - %.2f m  (a_lat 2.5 allows %.2f - %.2f m/s)"
+         "  join at %.2f m due north",
          rmin, rmax, sqrtf(2.5f * rmin), sqrtf(2.5f * rmax),
          sqrtf(px(t0) * px(t0) + py(t0) * py(t0)));
-  fflush(stdout);
 }
 
 /*
@@ -405,13 +402,12 @@ void WaypointNav::makeOval(float straight_m, float radius_m,
   accept_radius = 0.45f * spacing_m;
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] oval mission: 2 x %.1f m straight + 2 x %.1f m of continuous "
-         "R=%.1f m -> %.1f m lap, %d waypoints @ %.2f m (accept %.2f)\n",
+  shmtrace::logf(0.0, "[nav] oval mission: 2 x %.1f m straight + 2 x %.1f m of continuous "
+         "R=%.1f m -> %.1f m lap, %d waypoints @ %.2f m (accept %.2f)",
          S, arc, R, total, _n, spacing_m, accept_radius);
-  printf("[nav]   sustained-curve regime is %.0f%% of the lap and caps at "
-         "%.2f m/s (a_lat 2.5); straights are the other %.0f%%\n",
+  shmtrace::logf(0.0, "[nav]   sustained-curve regime is %.0f%% of the lap and caps at "
+         "%.2f m/s (a_lat 2.5); straights are the other %.0f%%",
          200.f * arc / total, sqrtf(2.5f * R), 200.f * S / total);
-  fflush(stdout);
 }
 
 /*
@@ -435,9 +431,8 @@ void WaypointNav::makeDash(float distance_m, float speed) {
   _n = 1;
   _wp[0] = {distance_m, 0.f, speed};
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] dash mission: %.1f m straight, ending at the final waypoint, "
-         "at %.2f m/s\n", distance_m, speed);
-  fflush(stdout);
+  shmtrace::logf(0.0, "[nav] dash mission: %.1f m straight, ending at the final waypoint, "
+         "at %.2f m/s", distance_m, speed);
 }
 
 void WaypointNav::makeOutAndBack(float distance_m, float speed) {
@@ -445,8 +440,7 @@ void WaypointNav::makeOutAndBack(float distance_m, float speed) {
   _wp[0] = {distance_m, 0.f, speed};
   _wp[1] = {0.f, 0.f, speed};
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] out-and-back mission: %.1f m at %.2f m/s\n", distance_m, speed);
-  fflush(stdout);
+  shmtrace::logf(0.0, "[nav] out-and-back mission: %.1f m at %.2f m/s", distance_m, speed);
 }
 
 void WaypointNav::appendDash(float distance_m, float speed) {
@@ -494,8 +488,8 @@ void WaypointNav::appendDash(float distance_m, float speed) {
     _wp[_n].east  = _wp[_n - 1].east  + de * distance_m;
     _wp[_n].speed = speed;
     ++_n;
-    printf("[nav] dash finish appended: course already closes at wp%02d, "
-           "%.1f m sprint onward to wp%02d  N=%7.2f  E=%7.2f\n",
+    shmtrace::logf(0.0, "[nav] dash finish appended: course already closes at wp%02d, "
+           "%.1f m sprint onward to wp%02d  N=%7.2f  E=%7.2f",
            _n - 2, distance_m, _n - 1, _wp[_n - 1].north, _wp[_n - 1].east);
   } else {
     // OPEN course (e.g. outback): insert the explicit return to wp00 first,
@@ -538,12 +532,11 @@ void WaypointNav::appendDash(float distance_m, float speed) {
     _wp[_n].east  = _wp[return_idx].east  + de * distance_m;
     _wp[_n].speed = speed;
     ++_n;
-    printf("[nav] dash finish appended: return to wp00 (wp%02d N=%7.2f E=%7.2f), "
-           "then %.1f m onward to wp%02d  N=%7.2f  E=%7.2f\n",
+    shmtrace::logf(0.0, "[nav] dash finish appended: return to wp00 (wp%02d N=%7.2f E=%7.2f), "
+           "then %.1f m onward to wp%02d  N=%7.2f  E=%7.2f",
            return_idx, _wp[return_idx].north, _wp[return_idx].east, distance_m,
            _n - 1, _wp[_n - 1].north, _wp[_n - 1].east);
   }
-  fflush(stdout);
 }
 
 void WaypointNav::setOrigin(double lat_deg, double lon_deg) {
@@ -551,8 +544,7 @@ void WaypointNav::setOrigin(double lat_deg, double lon_deg) {
   _lon0 = lon_deg;
   _mPerDegLon = EARTH_R * DEG2RAD * cos(lat_deg * DEG2RAD);
   _originSet = true;
-  printf("[nav] local origin set: %.7f, %.7f\n", lat_deg, lon_deg);
-  fflush(stdout);
+  shmtrace::logf(0.0, "[nav] local origin set: %.7f, %.7f", lat_deg, lon_deg);
 }
 
 void WaypointNav::toLocal(double lat_deg, double lon_deg, float* north, float* east) const {
@@ -625,9 +617,8 @@ void WaypointNav::makeSectorSearch(float leg_m, int reps, float speed) {
   }
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] sector search mission: %d legs (%d cycles of 6), leg=%.1f/%.1f m, "
-         "v=%.2f m/s\n", _n, reps, leg_m, 0.5f * leg_m, speed);
-  fflush(stdout);
+  shmtrace::logf(0.0, "[nav] sector search mission: %d legs (%d cycles of 6), leg=%.1f/%.1f m, "
+         "v=%.2f m/s", _n, reps, leg_m, 0.5f * leg_m, speed);
 }
 
 /*
@@ -660,9 +651,8 @@ void WaypointNav::makeParallelTrack(float width_m, float height_m, int passes,
   }
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] parallel track mission: %d passes, width=%.1f m, step=%.1f m, "
-         "%d waypoints, v=%.2f m/s\n", passes, width_m, height_m, _n, speed);
-  fflush(stdout);
+  shmtrace::logf(0.0, "[nav] parallel track mission: %d passes, width=%.1f m, step=%.1f m, "
+         "%d waypoints, v=%.2f m/s", passes, width_m, height_m, _n, speed);
 }
 
 /*
@@ -691,9 +681,8 @@ void WaypointNav::makeExpandingSquare(float step_m, int legs, float speed) {
   }
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] expanding square mission: %d legs, step=%.1f m, %d waypoints, "
-         "v=%.2f m/s\n", legs, step_m, _n, speed);
-  fflush(stdout);
+  shmtrace::logf(0.0, "[nav] expanding square mission: %d legs, step=%.1f m, %d waypoints, "
+         "v=%.2f m/s", legs, step_m, _n, speed);
 }
 
 /*
@@ -754,10 +743,9 @@ void WaypointNav::makeLissajous(float amplitude_m, int wx, int wy,
   accept_radius = 0.45f * spacing_m;
   shiftFirstToOrigin();   // per direct instruction: robot spawns ON wp0, always
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
-  printf("[nav] lissajous mission: %d:%d ratio, A=%.1f m, %d waypoints @ "
-         "%.2f m (accept %.2f), v=%.2f m/s\n",
+  shmtrace::logf(0.0, "[nav] lissajous mission: %d:%d ratio, A=%.1f m, %d waypoints @ "
+         "%.2f m (accept %.2f), v=%.2f m/s",
          wx, wy, A, _n, spacing_m, accept_radius, speed);
-  fflush(stdout);
 }
 
 bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
@@ -765,6 +753,16 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
   *v_cmd = 0.f;
   *yawrate = 0.f;
   if (_n == 0 || _complete) return false;
+
+  // Elapsed time for this update() call's own logf() sites below - this
+  // class has no other clock (the caller's own `elapsed()` lambda in
+  // mit_sim_main.cpp is not visible here), so accumulate the dt it is
+  // already being handed every tick, same pattern as RobotRunner.cpp's
+  // _shmElapsed. Only meaningful relative to itself (see ShmTrace.h's
+  // note on the tick ring's own clock starting elsewhere) - fine for
+  // ordering events within this file's own trace.
+  static float _elapsed = 0.f;
+  _elapsed += dt;
 
   const NavWaypoint& wp = _wp[_idx];
   float dn = wp.north - n;
@@ -816,8 +814,7 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
   if (dist > eff_accept && !arrived) _dwell = 0.f;
 
   if (arrived) {
-    printf("[nav] reached wp%02d (N=%.2f E=%.2f) dist=%.2f\n", _idx, wp.north, wp.east, dist);
-    fflush(stdout);
+    shmtrace::logf(_elapsed, "[nav] reached wp%02d (N=%.2f E=%.2f) dist=%.2f", _idx, wp.north, wp.east, dist);
     _legFromN = wp.north; _legFromE = wp.east; _legValid = true;
     _dwell = 0.f;
     ++_idx;
@@ -826,7 +823,7 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
         _idx = 0;
       } else {
         _complete = true;
-        printf("[nav] MISSION COMPLETE\n"); fflush(stdout);
+        shmtrace::logf(_elapsed, "[nav] MISSION COMPLETE");
         return false;
       }
     }

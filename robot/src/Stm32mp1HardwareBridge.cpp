@@ -20,6 +20,7 @@
 
 #include "rt/rt_rc_interface.h"
 #include "Math/orientation_tools.h"
+#include "../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 // Defined in RobotRunner.cpp; suspends the z-collapse fall check around
 // known-safe low-height windows (see the sequencer thread below and
@@ -74,35 +75,35 @@ void Stm32mp1HardwareBridge::setupScheduler() {
   // during bring-up we warn and continue rather than abort.
 #ifdef __linux__
   if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1)
-    printf("[stm32mp1] mlockall failed (run as root for RT determinism); continuing\n");
+    shmtrace::logf(0.0, "[stm32mp1] mlockall failed (run as root for RT determinism); continuing");
   struct sched_param params;
   params.sched_priority = 49;
   if (sched_setscheduler(0, SCHED_FIFO, &params) == -1)
-    printf("[stm32mp1] SCHED_FIFO failed (run as root for RT determinism); continuing\n");
+    shmtrace::logf(0.0, "[stm32mp1] SCHED_FIFO failed (run as root for RT determinism); continuing");
 #else
-  printf("[stm32mp1] host build: default scheduling (no mlockall/SCHED_FIFO)\n");
+  shmtrace::logf(0.0, "[stm32mp1] host build: default scheduling (no mlockall/SCHED_FIFO)");
 #endif
 }
 
 void Stm32mp1HardwareBridge::initHardware() {
   if (_backend == Backend::GAZEBO) {
-    printf("[stm32mp1] backend: GAZEBO (UDP to %s cmd:%d sensor:%d)\n",
+    shmtrace::logf(0.0, "[stm32mp1] backend: GAZEBO (UDP to %s cmd:%d sensor:%d)",
            _gazeboCfg.peer_addr, _gazeboCfg.cmd_port, _gazeboCfg.sensor_port);
     if (init_gazebo(_gazeboCfg, &_vectorNavData) != 0)
-      printf("[stm32mp1] Gazebo UDP init failed\n");
+      shmtrace::logf(0.0, "[stm32mp1] Gazebo UDP init failed");
     return;
   }
-  printf("[stm32mp1] init CAN IMU (%s node %d)\n", _canImuCfg.interface, _canImuCfg.imu_node_id);
+  shmtrace::logf(0.0, "[stm32mp1] init CAN IMU (%s node %d)", _canImuCfg.interface, _canImuCfg.imu_node_id);
 #ifdef __linux__
   if (init_can_imu(_canImuCfg, &_vectorNavData) != 0)
 #else
-  printf("[stm32mp1] HARDWARE backend (CAN IMU) is Linux-only\n"); exit(1);
+  shmtrace::logf(0.0, "[stm32mp1] HARDWARE backend (CAN IMU) is Linux-only"); exit(1);
 #endif
-    printf("[stm32mp1] CAN IMU init failed; estimator will run on a stale/identity IMU\n");
+    shmtrace::logf(0.0, "[stm32mp1] CAN IMU init failed; estimator will run on a stale/identity IMU");
 
-  printf("[stm32mp1] init Unitree RS485 (%d bus(es))\n", _unitreeCfg.num_buses);
+  shmtrace::logf(0.0, "[stm32mp1] init Unitree RS485 (%d bus(es))", _unitreeCfg.num_buses);
   if (init_unitree(_unitreeCfg) != 0)
-    printf("[stm32mp1] Unitree RS485 init failed; motors will not respond\n");
+    shmtrace::logf(0.0, "[stm32mp1] Unitree RS485 init failed; motors will not respond");
 }
 
 void Stm32mp1HardwareBridge::runMotors() {
@@ -168,9 +169,8 @@ void Stm32mp1HardwareBridge::runMotors() {
             estOffZ = est.position[2];
           }
           originSet = true;
-          printf("[stm32mp1] abs aiding: origin lat=%.7f lon=%.7f baro=%.2f m\n",
+          shmtrace::logf(0.0, "[stm32mp1] abs aiding: origin lat=%.7f lon=%.7f baro=%.2f m",
                  lat0, lon0, baro0);
-          fflush(stdout);
         }
         if (originSet) {
           // Equirectangular projection about the origin, same as WaypointNav.
@@ -197,7 +197,7 @@ void Stm32mp1HardwareBridge::runMotors() {
 #ifdef __linux__
     unitree_send_receive(&_utCmd, &_utData);
 #else
-    printf("[stm32mp1] HARDWARE backend is Linux-only\n"); exit(1);
+    shmtrace::logf(0.0, "[stm32mp1] HARDWARE backend is Linux-only"); exit(1);
 #endif
   }
   memcpy(&_spiData, &_utData, sizeof(_spiData));
@@ -207,33 +207,33 @@ void Stm32mp1HardwareBridge::run() {
   setupScheduler();
   initHardware();
 
-  printf("[stm32mp1] loading robot parameters from %s\n", _robotYaml.c_str());
+  shmtrace::logf(0.0, "[stm32mp1] loading robot parameters from %s", _robotYaml.c_str());
   try {
     _robotParams.initializeFromYamlFile(_robotYaml);
   } catch (std::exception& e) {
-    printf("[stm32mp1] robot yaml failed: %s\n", e.what());
+    shmtrace::logf(0.0, "[stm32mp1] robot yaml failed: %s", e.what());
     exit(1);
   }
   if (!_robotParams.isFullyInitialized()) {
-    printf("[stm32mp1] robot parameters incomplete in %s\n", _robotYaml.c_str());
+    shmtrace::logf(0.0, "[stm32mp1] robot parameters incomplete in %s", _robotYaml.c_str());
     exit(1);
   }
 
   if (_userControlParameters) {
-    printf("[stm32mp1] loading user parameters from %s\n", _userYaml.c_str());
+    shmtrace::logf(0.0, "[stm32mp1] loading user parameters from %s", _userYaml.c_str());
     try {
       _userControlParameters->initializeFromYamlFile(_userYaml);
     } catch (std::exception& e) {
-      printf("[stm32mp1] user yaml failed: %s\n", e.what());
+      shmtrace::logf(0.0, "[stm32mp1] user yaml failed: %s", e.what());
       exit(1);
     }
     if (!_userControlParameters->isFullyInitialized()) {
-      printf("[stm32mp1] user parameters incomplete in %s\n", _userYaml.c_str());
+      shmtrace::logf(0.0, "[stm32mp1] user parameters incomplete in %s", _userYaml.c_str());
       exit(1);
     }
   }
 
-  printf("[stm32mp1] parameters loaded; starting control\n");
+  shmtrace::logf(0.0, "[stm32mp1] parameters loaded; starting control");
 
   _robotRunner = new RobotRunner(_controller, &_taskManager,
                                  _robotParams.controller_dt, "robot-control");
@@ -245,7 +245,7 @@ void Stm32mp1HardwareBridge::run() {
   _robotRunner->cheaterState = &_cheaterState;
   if (getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0)
   {  _robotRunner->absAiding = &_absAiding;
-     printf("[stm32mp1] absAiding wired: %p\n", (void*)&_absAiding); fflush(stdout); }
+     shmtrace::logf(0.0, "[stm32mp1] absAiding wired: %p", (void*)&_absAiding); }
   // CHEATER MODE IS DELETED. There is no environment variable, no yaml key and
   // no code path that can feed sim ground truth into the state estimator. It is
   // gone deliberately, because merely FIXING it twice did not stop it being used:
@@ -261,8 +261,8 @@ void Stm32mp1HardwareBridge::run() {
   // truth is measurement; feeding truth to the controller is fiction.
   _robotParams.cheater_mode = 0;
   if (_backend == Backend::GAZEBO)
-    printf("[stm32mp1] REAL ESTIMATOR: VectorNav orientation + LinearKF"
-           " (cheater mode does not exist)\n");
+    shmtrace::logf(0.0, "[stm32mp1] REAL ESTIMATOR: VectorNav orientation + LinearKF"
+           " (cheater mode does not exist)");
   _robotRunner->controlParameters = &_robotParams;
   _robotRunner->visualizationData = &_visualizationData;
   _robotRunner->cheetahMainVisualization = &_mainCheetahVisualization;
@@ -306,7 +306,7 @@ void Stm32mp1HardwareBridge::run() {
       setFallZEnable(false);
       usleep(t_stand * 1000000);
       _robotParams.control_mode = 1;                  // K_STAND_UP
-      printf("[sim] control_mode -> STAND_UP\n"); fflush(stdout);
+      shmtrace::logf(t_stand, "[sim] control_mode -> STAND_UP");
       if (final_mode != 1) {
         // Go THROUGH BALANCE_STAND (like MIT's operator flow): it lifts the body
         // from the ~0.20 m stand-up crouch to the 0.29 m locomotion height. Jumping
@@ -315,13 +315,13 @@ void Stm32mp1HardwareBridge::run() {
         if (final_mode == 4 && !getenv("SIM_SKIP_BAL")) {
           usleep((t_bal - t_stand) * 1000000);
           _robotParams.control_mode = 3;              // K_BALANCE_STAND
-          printf("[sim] control_mode -> BALANCE_STAND\n"); fflush(stdout);
+          shmtrace::logf(t_bal, "[sim] control_mode -> BALANCE_STAND");
           usleep((t_loco - t_bal) * 1000000);
         } else {
           usleep((t_loco - t_stand) * 1000000);
         }
         _robotParams.control_mode = final_mode;       // K_LOCOMOTION (4) etc.
-        printf("[sim] control_mode -> %d\n", final_mode); fflush(stdout);
+        shmtrace::logf(t_loco, "[sim] control_mode -> %d", final_mode);
         // Genuinely standing now (STAND_UP -> BALANCE_STAND -> final_mode
         // all completed) - re-arm the z-collapse check for the rest of the
         // mission. See the comment above the matching setFallZEnable(false).
@@ -378,16 +378,14 @@ void Stm32mp1HardwareBridge::run() {
           // +23 deg pitch, roll-over). Real operators do the same thing with
           // the stick: stand, trot in place, then push forward.
           float delay_s = getenv("SIM_VX_DELAY_S") ? atof(getenv("SIM_VX_DELAY_S")) : 3.f;
-          printf("[sim] holding velocity at 0 for %.1f s while the gait engages\n", delay_s);
-          fflush(stdout);
+          shmtrace::logf(t_loco, "[sim] holding velocity at 0 for %.1f s while the gait engages", delay_s);
           usleep((useconds_t)(delay_s * 1e6f));
           usleep(3000000);
           float vx = haveVx ? atof(getenv("SIM_VX")) : 0.f;
           float wz = haveWz ? atof(getenv("SIM_WZ")) : 0.f;
           float ramp_s = getenv("SIM_VX_RAMP_S") ? atof(getenv("SIM_VX_RAMP_S")) : 3.f;
-          printf("[sim] ramping vx -> %.2f m/s, wz -> %.2f rad/s over %.1f s\n",
+          shmtrace::logf(t_loco + delay_s + 3.0, "[sim] ramping vx -> %.2f m/s, wz -> %.2f rad/s over %.1f s",
                  vx, wz, ramp_s);
-          fflush(stdout);
           const int steps = (int)(ramp_s * 10.f);
           for (int s = 1; s <= steps; ++s) {
             _gamepadCommand.leftStickAnalog[1]  =  vx * s / steps;
@@ -396,7 +394,7 @@ void Stm32mp1HardwareBridge::run() {
           }
           _gamepadCommand.leftStickAnalog[1]  =  vx;
           _gamepadCommand.rightStickAnalog[0] = -wz;
-          printf("[sim] command -> vx=%.2f m/s wz=%.2f rad/s\n", vx, wz); fflush(stdout);
+          shmtrace::logf(t_loco + delay_s + 3.0 + ramp_s, "[sim] command -> vx=%.2f m/s wz=%.2f rad/s", vx, wz);
 
           // $SIM_PROFILE: drive SPEED and GAIT changes DURING a run, to test
           // that the parameter scheduler transitions seamlessly rather than
@@ -423,7 +421,7 @@ void Stm32mp1HardwareBridge::run() {
                   ControlParameterValue cv; cv.d = (double)gg;
                   _userControlParameters->collection.lookup("cmpc_gait")
                       .set(cv, ControlParameterValueKind::DOUBLE);
-                  printf("[profile] t=%.1fs GAIT -> %d\n", tt, gg);
+                  shmtrace::logf(tt, "[profile] t=%.1fs GAIT -> %d", tt, gg);
                 }
                 // ramp the speed over 2 s so the scheduler, not a step, is what
                 // is under test
@@ -433,7 +431,7 @@ void Stm32mp1HardwareBridge::run() {
                   usleep(100000);
                 }
                 _gamepadCommand.leftStickAnalog[1] = vv;
-                printf("[profile] t=%.1fs vx -> %.2f\n", tt, vv); fflush(stdout);
+                shmtrace::logf(tt, "[profile] t=%.1fs vx -> %.2f", tt, vv);
                 vPrev = vv; tPrev = tt + 2.f;
               }
               pos = end + 1;
@@ -451,14 +449,15 @@ void Stm32mp1HardwareBridge::run() {
     }).detach();
   }
 
+  double _healthElapsed = 0.0;   // this loop's own clock - see ShmTrace.h's note
   for (;;) {
     usleep(1000000);
+    _healthElapsed += 1.0;
     if (_robotRunner) {
-      printf("[stm32mp1] ctrl loop: maxRuntime=%.2f ms  maxPeriod=%.2f ms  (period target %.1f ms)\n",
+      shmtrace::logf(_healthElapsed, "[stm32mp1] ctrl loop: maxRuntime=%.2f ms  maxPeriod=%.2f ms  (period target %.1f ms)",
              _robotRunner->getMaxRuntime() * 1000.f,
              _robotRunner->getMaxPeriod() * 1000.f,
              _robotParams.controller_dt * 1000.f);
-      fflush(stdout);
       _robotRunner->clearMax();
     }
   }

@@ -9,6 +9,7 @@
 
 #include "SafetyChecker.h"
 #include <cstdlib>
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * @return safePDesFoot true if safe desired foot placements
@@ -48,20 +49,18 @@ bool SafetyChecker<T>::checkSafeOrientation() {
     ++over_ticks;
     if (worst > peak) peak = worst;
     if (over_ticks > hold_ticks) {
-      printf("Orientation safety check failed! (roll=%.1f pitch=%.1f deg, "
-             "peak %.1f, held %d ms)\n",
+      shmtrace::logf(0.0, "Orientation safety check failed! (roll=%.1f pitch=%.1f deg, "
+             "peak %.1f, held %d ms)",
              roll * 57.2958f, pitch * 57.2958f, peak * 57.2958f,
              over_ticks * 2);
-      fflush(stdout);
       over_ticks = 0; peak = 0.f;
       return false;
     }
     return true;               // inside the hold - still recoverable
   }
   if (over_ticks) {            // recovered: report what it survived
-    printf("[orient] transient %.1f deg for %d ms - RECOVERED\n",
+    shmtrace::logf(0.0, "[orient] transient %.1f deg for %d ms - RECOVERED",
            peak * 57.2958f, over_ticks * 2);
-    fflush(stdout);
   }
   over_ticks = 0; peak = 0.f;
   return true;
@@ -83,44 +82,36 @@ bool SafetyChecker<T>::checkPDesFoot() {
   for (int leg = 0; leg < 4; leg++) {
     // Keep the foot from going too far from the body in +x
     if (data->_legController->commands[leg].pDes(0) > maxPDes) {
-      std::cout << "[CONTROL FSM] Safety: PDes leg: " << leg
-                << " | coordinate: " << 0 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].pDes(0)
-                << " | modified: " << maxPDes << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: PDes leg: %d | coordinate: 0 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].pDes(0), (double)maxPDes);
       data->_legController->commands[leg].pDes(0) = maxPDes;
       safePDesFoot = false;
     }
 
     // Keep the foot from going too far from the body in -x
     if (data->_legController->commands[leg].pDes(0) < -maxPDes) {
-      std::cout << "[CONTROL FSM] Safety: PDes leg: " << leg
-                << " | coordinate: " << 0 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].pDes(0)
-                << " | modified: " << -maxPDes << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: PDes leg: %d | coordinate: 0 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].pDes(0), (double)-maxPDes);
       data->_legController->commands[leg].pDes(0) = -maxPDes;
       safePDesFoot = false;
     }
 
     // Keep the foot from going too far from the body in +y
     if (data->_legController->commands[leg].pDes(1) > maxPDes) {
-      std::cout << "[CONTROL FSM] Safety: PDes leg: " << leg
-                << " | coordinate: " << 1 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].pDes(1)
-                << " | modified: " << maxPDes << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: PDes leg: %d | coordinate: 1 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].pDes(1), (double)maxPDes);
       data->_legController->commands[leg].pDes(1) = maxPDes;
       safePDesFoot = false;
     }
 
     // Keep the foot from going too far from the body in -y
     if (data->_legController->commands[leg].pDes(1) < -maxPDes) {
-      std::cout << "[CONTROL FSM] Safety: PDes leg: " << leg
-                << " | coordinate: " << 1 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].pDes(1)
-                << " | modified: " << -maxPDes << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: PDes leg: %d | coordinate: 1 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].pDes(1), (double)-maxPDes);
       data->_legController->commands[leg].pDes(1) = -maxPDes;
       safePDesFoot = false;
     }
@@ -129,12 +120,10 @@ bool SafetyChecker<T>::checkPDesFoot() {
     // module)
     if (data->_legController->commands[leg].pDes(2) >
         -data->_quadruped->_maxLegLength / 4) {
-      std::cout << "[CONTROL FSM] Safety: PDes leg: " << leg
-                << " | coordinate: " << 2 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].pDes(2)
-                << " | modified: " << -data->_quadruped->_maxLegLength / 4
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: PDes leg: %d | coordinate: 2 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].pDes(2),
+             (double)(-data->_quadruped->_maxLegLength / 4));
       data->_legController->commands[leg].pDes(2) =
           -data->_quadruped->_maxLegLength / 4;
       safePDesFoot = false;
@@ -143,12 +132,10 @@ bool SafetyChecker<T>::checkPDesFoot() {
     // Keep the foot within the kinematic limits
     if (data->_legController->commands[leg].pDes(2) <
         -data->_quadruped->_maxLegLength) {
-      std::cout << "[CONTROL FSM] Safety: PDes leg: " << leg
-                << " | coordinate: " << 2 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].pDes(2)
-                << " | modified: " << -data->_quadruped->_maxLegLength
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: PDes leg: %d | coordinate: 2 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].pDes(2),
+             (double)(-data->_quadruped->_maxLegLength));
       data->_legController->commands[leg].pDes(2) =
           -data->_quadruped->_maxLegLength;
       safePDesFoot = false;
@@ -186,11 +173,10 @@ bool SafetyChecker<T>::checkForceFeedForward() {
     // Limit the lateral forces in +x body frame
     if (data->_legController->commands[leg].forceFeedForward(0) >
         maxLateralForce) {
-      std::cout << "[CONTROL FSM] Safety: Force leg: " << leg
-                << " | coordinate: " << 0 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].forceFeedForward(0)
-                << " | modified: " << maxLateralForce << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: Force leg: %d | coordinate: 0 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].forceFeedForward(0),
+             (double)maxLateralForce);
       data->_legController->commands[leg].forceFeedForward(0) = maxLateralForce;
       safeForceFeedForward = false;
     }
@@ -198,11 +184,10 @@ bool SafetyChecker<T>::checkForceFeedForward() {
     // Limit the lateral forces in -x body frame
     if (data->_legController->commands[leg].forceFeedForward(0) <
         -maxLateralForce) {
-      std::cout << "[CONTROL FSM] Safety: Force leg: " << leg
-                << " | coordinate: " << 0 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].forceFeedForward(0)
-                << " | modified: " << -maxLateralForce << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: Force leg: %d | coordinate: 0 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].forceFeedForward(0),
+             (double)-maxLateralForce);
       data->_legController->commands[leg].forceFeedForward(0) =
           -maxLateralForce;
       safeForceFeedForward = false;
@@ -211,11 +196,10 @@ bool SafetyChecker<T>::checkForceFeedForward() {
     // Limit the lateral forces in +y body frame
     if (data->_legController->commands[leg].forceFeedForward(1) >
         maxLateralForce) {
-      std::cout << "[CONTROL FSM] Safety: Force leg: " << leg
-                << " | coordinate: " << 1 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].forceFeedForward(1)
-                << " | modified: " << maxLateralForce << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: Force leg: %d | coordinate: 1 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].forceFeedForward(1),
+             (double)maxLateralForce);
       data->_legController->commands[leg].forceFeedForward(1) = maxLateralForce;
       safeForceFeedForward = false;
     }
@@ -223,11 +207,10 @@ bool SafetyChecker<T>::checkForceFeedForward() {
     // Limit the lateral forces in -y body frame
     if (data->_legController->commands[leg].forceFeedForward(1) <
         -maxLateralForce) {
-      std::cout << "[CONTROL FSM] Safety: Force leg: " << leg
-                << " | coordinate: " << 1 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].forceFeedForward(1)
-                << " | modified: " << -maxLateralForce << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: Force leg: %d | coordinate: 1 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].forceFeedForward(1),
+             (double)-maxLateralForce);
       data->_legController->commands[leg].forceFeedForward(1) =
           -maxLateralForce;
       safeForceFeedForward = false;
@@ -236,11 +219,10 @@ bool SafetyChecker<T>::checkForceFeedForward() {
     // Limit the vertical forces in +z body frame
     if (data->_legController->commands[leg].forceFeedForward(2) >
         maxVerticalForce) {
-      std::cout << "[CONTROL FSM] Safety: Force leg: " << leg
-                << " | coordinate: " << 2 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].forceFeedForward(2)
-                << " | modified: " << -maxVerticalForce << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: Force leg: %d | coordinate: 2 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].forceFeedForward(2),
+             (double)-maxVerticalForce);
       data->_legController->commands[leg].forceFeedForward(2) =
           maxVerticalForce;
       safeForceFeedForward = false;
@@ -249,11 +231,10 @@ bool SafetyChecker<T>::checkForceFeedForward() {
     // Limit the vertical forces in -z body frame
     if (data->_legController->commands[leg].forceFeedForward(2) <
         -maxVerticalForce) {
-      std::cout << "[CONTROL FSM] Safety: Force leg: " << leg
-                << " | coordinate: " << 2 << "\n";
-      std::cout << "   commanded: "
-                << data->_legController->commands[leg].forceFeedForward(2)
-                << " | modified: " << maxVerticalForce << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Safety: Force leg: %d | coordinate: 2 | "
+             "commanded: %f | modified: %f", leg,
+             (double)data->_legController->commands[leg].forceFeedForward(2),
+             (double)maxVerticalForce);
       data->_legController->commands[leg].forceFeedForward(2) =
           -maxVerticalForce;
       safeForceFeedForward = false;

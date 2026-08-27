@@ -53,6 +53,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 namespace planning {
 
@@ -252,11 +253,11 @@ class MissionAnalyzer {
 
   //! Human-readable mission brief - the preplanned map of gains and losses.
   void print() const {
-    if (_seg.empty()) { printf("[mission] no segments\n"); return; }
+    if (_seg.empty()) { shmtrace::logf(0.0, "[mission] no segments"); return; }
     static const char* NAME[3] = {"straight", "transient", "SUSTAINED"};
     double lost = 0;
-    printf("[mission] %zu segments over %.1f m\n", _seg.size(), _total);
-    printf("[mission] %6s %7s  %-10s %8s %7s %7s %6s %7s %8s %8s\n",
+    shmtrace::logf(0.0, "[mission] %zu segments over %.1f m", _seg.size(), _total);
+    shmtrace::logf(0.0, "[mission] %6s %7s  %-10s %8s %7s %7s %6s %7s %8s %8s",
            "s0", "len", "regime", "Rmin", "v_cap", "v_plan", "gait", "h_bias",
            "cost_s", "blame_s");
     char rb[16];
@@ -264,7 +265,7 @@ class MissionAnalyzer {
       lost += g.time_cost;
       if (g.radius_min > 999.0) snprintf(rb, sizeof rb, "%8s", "straight");
       else                      snprintf(rb, sizeof rb, "%8.2f", g.radius_min);
-      printf("[mission] %6.1f %7.1f  %-10s %8s %7.2f %7.2f %6d %7.3f %+8.2f %+8.2f\n",
+      shmtrace::logf(0.0, "[mission] %6.1f %7.1f  %-10s %8s %7.2f %7.2f %6d %7.3f %+8.2f %+8.2f",
              g.s0, g.length(), NAME[g.regime], rb,
              g.v_cap, g.v_plan_min, g.gait, g.height_bias, g.time_cost, g.blame_cost);
     }
@@ -277,13 +278,12 @@ class MissionAnalyzer {
       if (prev >= 0 && g.gait != prev) ++nsw;
       prev = g.gait;
     }
-    printf("[mission] %.2f s lost to constraints; costliest FEATURE %+.2f s "
-           "at s=%.1f (%s, R=%.2f m) once its braking zone is charged to it\n",
+    shmtrace::logf(0.0, "[mission] %.2f s lost to constraints; costliest FEATURE %+.2f s "
+           "at s=%.1f (%s, R=%.2f m) once its braking zone is charged to it",
            lost, worst->blame_cost, worst->s0,
            NAME[worst->regime], worst->radius_min);
-    printf("[mission] %d sustained-curve segments, %d gait changes planned\n",
+    shmtrace::logf(0.0, "[mission] %d sustained-curve segments, %d gait changes planned",
            nsus, nsw);
-    fflush(stdout);
   }
 
  private:

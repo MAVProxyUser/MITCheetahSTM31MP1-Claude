@@ -10,6 +10,7 @@
 #include <Utilities/Timer.h>
 #include <algorithm>
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 //#include <rt/rt_interface_lcm.h>
 
 /**
@@ -93,7 +94,7 @@ void FSM_State_Locomotion<T>::onEnter() {
   this->transitionData.zero();
   cMPCOld->initialize();
   this->_data->_gaitScheduler->gaitData._nextGait = GaitType::TROT;
-  printf("[FSM LOCOMOTION] On Enter\n");
+  shmtrace::logf(0.0, "[FSM LOCOMOTION] On Enter");
 }
 
 /**
@@ -158,9 +159,8 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
         break;
 
       default:
-        std::cout << "[CONTROL FSM] Bad Request: Cannot transition from "
-                  << K_LOCOMOTION << " to "
-                  << this->_data->controlParameters->control_mode << std::endl;
+        shmtrace::logf(0.0, "[CONTROL FSM] Bad Request: Cannot transition from %d to %d",
+                       (int)K_LOCOMOTION, (int)this->_data->controlParameters->control_mode);
     }
   } else {
     this->nextStateName = FSM_StateName::RECOVERY_STAND;
@@ -216,8 +216,7 @@ TransitionData<T> FSM_State_Locomotion<T>::transition() {
 
 
     default:
-      std::cout << "[CONTROL FSM] Something went wrong in transition"
-                << std::endl;
+      shmtrace::logf(0.0, "[CONTROL FSM] Something went wrong in transition");
   }
 
   // Return the transition data to the FSM
@@ -232,19 +231,19 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
   const T max_pitch = 40;
 
   if(std::fabs(seResult.rpy[0]) > ori::deg2rad(max_roll)) {
-    printf("Unsafe locomotion: roll is %.3f degrees (max %.3f)\n", ori::rad2deg(seResult.rpy[0]), max_roll);
+    shmtrace::logf(0.0, "Unsafe locomotion: roll is %.3f degrees (max %.3f)", (double)ori::rad2deg(seResult.rpy[0]), (double)max_roll);
     return false;
   }
 
   if(std::fabs(seResult.rpy[1]) > ori::deg2rad(max_pitch)) {
-    printf("Unsafe locomotion: pitch is %.3f degrees (max %.3f)\n", ori::rad2deg(seResult.rpy[1]), max_pitch);
+    shmtrace::logf(0.0, "Unsafe locomotion: pitch is %.3f degrees (max %.3f)", (double)ori::rad2deg(seResult.rpy[1]), (double)max_pitch);
     return false;
   }
 
   for(int leg = 0; leg < 4; leg++) {
     auto p_leg = this->_data->_legController->datas[leg].p;
     if(p_leg[2] > 0) {
-      printf("Unsafe locomotion: leg %d is above hip (%.3f m)\n", leg, p_leg[2]);
+      shmtrace::logf(0.0, "Unsafe locomotion: leg %d is above hip (%.3f m)", leg, (double)p_leg[2]);
       return false;
     }
 
@@ -266,14 +265,14 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     const T max_pleg_y = 0.18;
 #endif
     if(std::fabs(p_leg[1]) > max_pleg_y) {
-      printf("Unsafe locomotion: leg %d's y-position is bad (%.3f m, max %.3f)\n",
-             leg, p_leg[1], max_pleg_y);
+      shmtrace::logf(0.0, "Unsafe locomotion: leg %d's y-position is bad (%.3f m, max %.3f)",
+             leg, (double)p_leg[1], (double)max_pleg_y);
       return false;
     }
 
     auto v_leg = this->_data->_legController->datas[leg].v.norm();
     if(std::fabs(v_leg) > 9.) {
-      printf("Unsafe locomotion: leg %d is moving too quickly (%.3f m/s)\n", leg, v_leg);
+      shmtrace::logf(0.0, "Unsafe locomotion: leg %d is moving too quickly (%.3f m/s)", leg, (double)v_leg);
       return false;
     }
   }
