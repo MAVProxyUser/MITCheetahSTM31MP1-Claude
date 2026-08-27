@@ -345,7 +345,11 @@ RECIPES = {
     "lissajous": dict(gait=20, speed=1.5, extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.1 WP_ALON=0.4",
                        note="walking @ 1.5 m/s - PASS 1:2 96.2s, 5:7 345.9s, 11:9 561.7s"),
 }
-GAITS = {"trotting": 9, "trotRunning": 5, "walking": 20, "walking2": 21, "pacing": 8}
+GAITS = {"trotting": 9, "trotRunning": 5, "walking": 20, "walking2": 21, "pacing": 8,
+         # Flight gaits, added to run the pronk/gallop/bound re-test across the
+         # mission catalog now that qpOASES+WBIC damping is the shipped config -
+         # not part of any recipe's default, opt in explicitly via --gait.
+         "pronking": 2, "galloping": 22, "bounding": 1}
 GAIT_NAMES = {v: k for k, v in GAITS.items()}
 
 
@@ -731,6 +735,33 @@ class Fleet:
                 pass
             self.log = []
             self.procs = []
+            # STALE BRIDGE/CONTROLLER GATE: a bridge or controller left running
+            # from an earlier manual test (no gz sim behind it, or no
+            # controller behind it) can still hold a dog's UDP port pair -
+            # neither side sets SO_REUSEADDR, on purpose, so a stale occupant
+            # is detected rather than silently shared. This is what silently
+            # corrupted an entire pronking speed-ladder sweep once: every run
+            # looked like an identical, reproducible physics failure (frozen
+            # roll/z) until the stale pid on port 9100 was found by hand. The
+            # bridge now clears its own port on its own startup too
+            # (cheetah_gazebo_bridge.py's _clear_stale_port) - this is the
+            # second, redundant check, at the one place that knows the FULL
+            # port list for the fleet about to launch, before ANY process for
+            # this run exists yet.
+            for i in range(len(slots)):
+                for port in (9100 + 10 * i, 9101 + 10 * i):
+                    try:
+                        out = subprocess.run(["lsof", "-ti", "udp:%d" % port],
+                                              capture_output=True, text=True,
+                                              timeout=5).stdout
+                        for pid_s in out.split():
+                            pid = int(pid_s)
+                            self._note("stale process pid %d held port %d "
+                                       "(dog%d) from a previous run - killing "
+                                       "it before launch" % (pid, port, i))
+                            os.kill(pid, 9)
+                    except Exception:  # noqa: BLE001 - lsof missing/slow never blocks
+                        pass
 
         # Freeze the configuration NOW. Nothing below this point reads the
         # request again - a second call while running is refused above.

@@ -18,7 +18,7 @@ Run (needs gz python bindings):
 Joints, flat Cheetah order (index = leg*3 + joint), leg 0..3 = FR,FL,RR,RL,
 joint 0=abad(hip),1=hip(thigh),2=knee(calf).
 """
-import os, sys, socket, struct, threading, time
+import os, sys, socket, struct, subprocess, signal, threading, time
 
 import gz.transport13 as transport
 from gz.msgs10.imu_pb2 import IMU
@@ -191,6 +191,34 @@ def apply_torque(tau_gz):
         force_pub[jn].publish(d)
 
 # ---- UDP ----
+def _clear_stale_port(port):
+    """A bridge left running from an earlier manual test (no gz sim behind
+    it any more) can still hold this exact UDP port - no SO_REUSEADDR is set
+    below, on purpose, so a stale occupant is detected rather than silently
+    shared. Once it bit a whole speed-ladder sweep: the fresh bridge below
+    never got a chance to bind, this port's OLD owner kept answering with
+    frozen/stale sensor data, and every run in the sweep looked like an
+    identical, reproducible physics failure until the stale pid was found by
+    hand. This process starting up is authoritative for this port - anything
+    already on it is leftover, never a peer to share with - so find and kill
+    it before we bind."""
+    try:
+        out = subprocess.run(["lsof", "-ti", "udp:%d" % port],
+                              capture_output=True, text=True, timeout=5).stdout
+        pids = {int(p) for p in out.split()} - {os.getpid()}
+    except Exception as e:  # noqa: BLE001 - lsof missing/slow must not block startup
+        print("[bridge] stale-port check on %d failed (%s) - continuing" % (port, e), flush=True)
+        return
+    for pid in pids:
+        print("[bridge] port %d already held by stale pid %d - killing it" % (port, pid), flush=True)
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    if pids:
+        time.sleep(0.3)  # let the kernel release the port before we bind it
+
+_clear_stale_port(CMD_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", CMD_PORT))
 sock.settimeout(0.1)

@@ -524,6 +524,37 @@ stm32mp1/gazebo/run_gazebo_sim.sh            # --gui to watch the Go1
 ssh $BOARD "cd /usr/local/cheetah-mp1 && ./stand_sim $MAC"       # holds/squats a Go1 stance (clean demo)
 ssh $BOARD "cd /usr/local/cheetah-mp1 && ./jpos_ctrl_sim $MAC"   # JPos sine sweep
 ```
+
+### Stale bridge/controller processes: check for them at BOTH ends, always
+
+Neither `cheetah_gazebo_bridge.py` nor `rt_gazebo.cpp` sets `SO_REUSEADDR` on
+their UDP ports (9100/9101 + 10*instance), on purpose - a stale occupant is
+meant to be caught, not silently shared. A bridge left running from an
+earlier manual test, with no `gz sim` behind it any more, has actually done
+real damage: it kept answering a fresh controller with frozen/stale sensor
+data while looking, from the outside, like a genuine and reproducible
+physics failure - it took hours to trace and invalidated an entire pronking
+speed-ladder sweep before the stale pid on port 9100 was finally found by
+hand with `lsof`.
+
+**This is now checked automatically in two places, and both should stay in
+place - do not remove either on the assumption the other one covers it:**
+1. **At bridge start** - `cheetah_gazebo_bridge.py`'s `_clear_stale_port()`
+   runs before its own `sock.bind()`, `lsof -ti udp:<port>`s its own CMD_PORT
+   and kills whatever it finds (this process starting up is authoritative for
+   that port; anything already on it is leftover, never a peer).
+2. **At test/launch start** - `server.py`'s `launch()` sweeps every port pair
+   for every dog slot about to launch (`9100+10*i` / `9101+10*i`) and kills
+   any stale occupant, BEFORE building the fleet world or starting any
+   process for the new run. This is the one place that knows the full port
+   list for the fleet up front, and it also catches a stale `mit_ctrl_sim`
+   squatting `SENSOR_PORT`, which the bridge-side check cannot see.
+
+If you ever bring a dog up by hand OUTSIDE the conductor (`sim_up.sh`,
+`sim_up_multi.sh`, a direct `mit_ctrl_sim` invocation), these two checks do
+not run for you automatically the same way - `lsof -i :9100 -i :9101` (and
+the `+10*i` ports for any instance beyond 0) before trusting a "frozen
+state"/"identical failure every run" result from a manual session.
 Regenerate the world after editing `make_world.py`:
 ```bash
 cd stm32mp1/gazebo

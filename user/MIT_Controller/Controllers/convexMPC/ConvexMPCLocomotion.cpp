@@ -334,13 +334,26 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
 
   // Command Setup
   _SetupCommand(data);
-  gaitNumber = data.userParameters->cmpc_gait;
-  // $SIM_GAIT overrides the yaml so a gait matrix can be swept without editing
-  // (and re-deploying) a config file per run.
+  // $SIM_GAIT overrides the yaml's initial cmpc_gait so a gait matrix can be
+  // swept without editing (and re-deploying) a config file per run. Applied
+  // ONCE, into cmpc_gait itself, on firstRun - NOT re-applied every tick.
+  // The original form of this override (`if (gait_env >= 0) gaitNumber =
+  // gait_env;`, unconditional, every tick) silently discarded every runtime
+  // cmpc_gait.set() write - exactly the mechanism the mission analyzer's
+  // mid-course gait changes use (WP_ANALYZER=1): the analyzer's own
+  // "[mission] gait X -> Y" print fired correctly (the write happened), but
+  // the change never reached the robot because this override put gaitNumber
+  // right back every single tick afterward, forever. Note firstRun is reset
+  // by initialize() on every LOCOMOTION entry (not just mission start), so a
+  // dash-finish interlude that re-enters LOCOMOTION after a mid-course
+  // analyzer switch will re-seed cmpc_gait back to SIM_GAIT's value - treated
+  // as correct here (the sprint should run the recipe's base gait), not as a
+  // bug to chase.
   {
     static const int gait_env = getenv("SIM_GAIT") ? atoi(getenv("SIM_GAIT")) : -1;
-    if (gait_env >= 0) gaitNumber = gait_env;
+    if (gait_env >= 0 && firstRun) data.userParameters->cmpc_gait = gait_env;
   }
+  gaitNumber = data.userParameters->cmpc_gait;
   // 20+ are this port's additions (walking / walking2 / galloping); they must
   // bypass MIT's omni rewrite, which would otherwise turn 20/21/22 into
   // 10/11/12 and then into 0/1/2.
