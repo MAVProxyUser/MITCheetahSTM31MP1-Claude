@@ -117,6 +117,15 @@ def mission_waypoints(spec):
         # ending AT that waypoint (no return leg, unlike outback).
         d = float(rest[0])
         return [(d, 0.0)]
+    if kind == "corner":
+        # Mirrors WaypointNav::makeCorner - one isolated corner of angle_deg
+        # at the end of a leg_m approach, then a leg_m exit at that new
+        # bearing. Built for the per-gait/per-angle cornering envelope.
+        leg_m, angle_deg = float(rest[0]), float(rest[1])
+        theta = math.radians(angle_deg)
+        wp0 = (leg_m, 0.0)
+        wp1 = (wp0[0] + leg_m * math.cos(theta), wp0[1] + leg_m * math.sin(theta))
+        return [wp0, wp1]
     if kind == "atom":
         # Mirrors WaypointNav::makeAtom, including the tangential entry: the
         # curve is JOINED where its tangent is radial (roots of p x v = 0 with

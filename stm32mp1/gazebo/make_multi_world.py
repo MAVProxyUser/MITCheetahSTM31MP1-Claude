@@ -109,6 +109,11 @@ def mission_bbox(spec):
         # extent rather than guessing at the finish.)
         d = f[0]
         return (0.0, d, 0.0, 0.0)
+    if kind == "corner":
+        # WaypointNav::makeCorner: one approach leg due north, one exit leg
+        # at the turn angle. Not a shiftFirstToOrigin() mission (wp0 is ahead
+        # of spawn, same convention as dash/star) - numeric, straightforward.
+        return _numeric_bbox(spec)
     if kind == "sector":
         # Was a closed form relative to the OLD (tangent-to-start) origin;
         # now stale for the same shiftFirstToOrigin() reason as circle

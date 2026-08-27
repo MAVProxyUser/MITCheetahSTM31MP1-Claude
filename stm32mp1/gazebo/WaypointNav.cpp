@@ -435,6 +435,20 @@ void WaypointNav::makeDash(float distance_m, float speed) {
          "at %.2f m/s", distance_m, speed);
 }
 
+void WaypointNav::makeCorner(float leg_m, float angle_deg, float speed) {
+  _n = 2;
+  _wp[0] = {leg_m, 0.f, speed};
+  const float theta = (float)(angle_deg * DEG2RAD);
+  // Bearing convention matches the rest of this file: (north, east) = leg_m *
+  // (cos(bearing), sin(bearing)), bearing measured clockwise from north (i.e.
+  // positive toward east) - same sense as makeStar's own corners.
+  _wp[1] = {_wp[0].north + leg_m * cosf(theta),
+            _wp[0].east  + leg_m * sinf(theta), speed};
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  shmtrace::logf(0.0, "[nav] corner mission: %.1f m approach, %.1f deg turn, "
+         "%.1f m exit, at %.2f m/s", leg_m, angle_deg, leg_m, speed);
+}
+
 void WaypointNav::makeOutAndBack(float distance_m, float speed) {
   _n = 2;
   _wp[0] = {distance_m, 0.f, speed};

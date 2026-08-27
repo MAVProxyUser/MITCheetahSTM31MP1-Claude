@@ -98,6 +98,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   else if (sscanf(mission, "circle:%f:%d", &r, &pts) >= 1) nav.makeCircle(r, pts, vx);
   else if (sscanf(mission, "dash:%f", &d) == 1)            nav.makeDash(d, vx);
   else if (sscanf(mission, "outback:%f", &d) == 1)         nav.makeOutAndBack(d, vx);
+  else if (sscanf(mission, "corner:%f:%f", &d, &r) == 2)   nav.makeCorner(d, r, vx);
   // Four SAR patterns (International Aeronautical and Maritime Search and
   // Rescue Manual) plus Lissajous search curves - see WaypointNav.cpp for
   // the source and the geometry. Circle search is the "circle:" branch above.

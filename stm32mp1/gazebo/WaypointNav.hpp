@@ -43,6 +43,17 @@ class WaypointNav {
   //! Straight sprint of `distance_m` due north, ending at that waypoint.
   void makeDash(float distance_m, float speed);
   void makeOutAndBack(float distance_m, float speed);
+  /*! ONE isolated corner: a straight approach leg of `leg_m`, due north from
+   *  spawn (so nav takes the stick already aimed correctly, same convention
+   *  as makeDash/makeStar), then a single direction change of `angle_deg`
+   *  (0 = straight through, 180 = full reversal) into a straight exit leg of
+   *  the same length. Built for the per-gait/per-angle cornering envelope:
+   *  a controlled, isolated corner at a known angle and a known approach/exit
+   *  speed, with no other course geometry to confound the measurement. Angles
+   *  above ~150 deg fall into BodyPathPlanner's existing reversal-registered-
+   *  as-a-stop path (see CLAUDE.md) - a different maneuver, not a failure of
+   *  this mission type. */
+  void makeCorner(float leg_m, float angle_deg, float speed);
   /*! Append ONE more waypoint after whatever mission is already built, so a
    *  closed loop (star/oval/atom) gets a straight finishing sprint instead of
    *  ending back where it started. Direction continues along the FINAL leg's
