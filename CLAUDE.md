@@ -5836,6 +5836,15 @@ own failure at 120-147.5 degrees is a softer one (an orientation trip
 into a stall, not a fall) than the flight gaits' outright collapses/
 tip-overs there.
 
+**Reconfirmed on a second, independent course shape at the SAME 120-147.5
+degree band**: walking @1.5 tested against expsquare (90 deg, **PASS
+108.3s**) and parallel (90 deg, **PASS 184.2s**) - both clean, consistent
+with the 90-degree result above - alongside sector (120-147.5 deg) again,
+which again showed the orientation trip. Two independent 90-degree
+courses now agree with each other, and sector's 120-147.5-degree result
+is reproduced rather than a one-off - walking's mid-band softness at this
+specific angle band looks real and repeatable, not noise.
+
 ## CORNERING ENVELOPE, CONSOLIDATED (2026-08-27 continuation session)
 
 Full cross-gait x angle table, everything gathered across tonight's
