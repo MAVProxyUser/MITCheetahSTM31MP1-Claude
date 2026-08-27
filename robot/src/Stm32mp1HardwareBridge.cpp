@@ -142,14 +142,17 @@ void Stm32mp1HardwareBridge::runMotors() {
     {
       static const bool aidOn = getenv("SIM_ABS_AIDING") &&
                                 atoi(getenv("SIM_ABS_AIDING")) != 0;
-      if (aidOn) {
+      // Independent of aidOn on purpose - see the velocity block below.
+      static const bool velAidOn = getenv("SIM_VEL_AIDING") &&
+                                   atoi(getenv("SIM_VEL_AIDING")) != 0;
+      if (aidOn || velAidOn) {
         SimAuxSensors aux;
         gazebo_get_aux(&aux);
         static bool  originSet = false;
         static double lat0 = 0, lon0 = 0, mPerDegLon = 0;
         static float  baro0 = 0;
         static float  estOffX = 0, estOffY = 0, estOffZ = 0.08f;
-        if (!originSet && aux.gps_lat != 0.0) {
+        if (aidOn && !originSet && aux.gps_lat != 0.0) {
           lat0 = aux.gps_lat; lon0 = aux.gps_lon; baro0 = aux.baro_alt;
           mPerDegLon = 111320.0 * std::cos(lat0 * M_PI / 180.0);
           // FRAME ALIGNMENT. The estimator's position origin is the robot's
@@ -172,7 +175,7 @@ void Stm32mp1HardwareBridge::runMotors() {
           shmtrace::logf(0.0, "[stm32mp1] abs aiding: origin lat=%.7f lon=%.7f baro=%.2f m",
                  lat0, lon0, baro0);
         }
-        if (originSet) {
+        if (aidOn && originSet) {
           // Equirectangular projection about the origin, same as WaypointNav.
           // Gazebo world is ENU: x = East, y = North, z = up.
           const float north = (float)((aux.gps_lat - lat0) * 111320.0);
@@ -190,6 +193,22 @@ void Stm32mp1HardwareBridge::runMotors() {
           const float baro_sig = getenv("SIM_BARO_SIGMA")
                                ? atof(getenv("SIM_BARO_SIGMA")) : 0.10f;
           _absAiding.sigma << gps_sig, gps_sig, baro_sig;
+        }
+        // ---- GPS VELOCITY AIDING ($SIM_VEL_AIDING=1), independent opt-in ---
+        // Separate flag from SIM_ABS_AIDING above: this corrects the KF's
+        // VELOCITY estimate, not position, and the two have different (and
+        // previously separately-measured) risk profiles - see the comment on
+        // AbsolutePositionAiding::haveVel. aux.gps_vel is NED (north, east,
+        // down); the estimator's world frame is (x=East, y=North, z=up), same
+        // convention as the position mapping just above. Does NOT need the
+        // lat/lon origin capture above - velocity is already in the right
+        // units/frame directly from the sensor, no reference point needed.
+        if (velAidOn) {
+          _absAiding.velocity << aux.gps_vel[1], aux.gps_vel[0], -aux.gps_vel[2];
+          _absAiding.haveVel = true;
+          const float vel_sig = getenv("SIM_GPS_VEL_SIGMA")
+                              ? atof(getenv("SIM_GPS_VEL_SIGMA")) : 0.1f;
+          _absAiding.velSigma << vel_sig, vel_sig, vel_sig;
         }
       }
     }

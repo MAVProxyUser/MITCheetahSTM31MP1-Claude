@@ -81,6 +81,24 @@ struct AbsolutePositionAiding {
   bool  haveZ  = false;          //!< barometric altitude
   Vec3<T> position = Vec3<T>::Zero();   //!< world frame, metres (x=E, y=N, z=up)
   Vec3<T> sigma = Vec3<T>::Ones();      //!< 1-sigma measurement noise per axis
+  // GPS VELOCITY (Doppler-derived, from the same NavSat fix as position above -
+  // gps_vel[3] has been carried in the sim_sensor_packet and read by
+  // gazebo_get_aux() since this port's earliest UDP bridge work, but nothing
+  // ever consumed it - "not consumed by Cheetah yet" in rt_gazebo.h). This is
+  // a DIFFERENT correction from position aiding above, not a redundant one:
+  // position aiding was found to be harmful to locomotion (see CLAUDE.md,
+  // "position drift does not destabilize walking; CORRECTING it does") because
+  // absolute position is never used by the controller's own tracking cost, so
+  // stepping it only confuses the MPC. VELOCITY is different - it feeds the
+  // Raibert foothold formula and the MPC's own velocity-tracking cost directly,
+  // and it is NOT covariance-suppressed the way position is (MIT's
+  // `_P.block(0,0,2,2) /= 10` hack only ever touches the position indices).
+  // So a real Kalman correction here has genuine authority, and correcting a
+  // WRONG velocity belief is fixing the actual bad feedback, not fighting a
+  // harmless one.
+  bool  haveVel = false;
+  Vec3<T> velocity = Vec3<T>::Zero();   //!< world frame, m/s (x=E, y=N, z=up)
+  Vec3<T> velSigma = Vec3<T>::Ones();   //!< 1-sigma measurement noise per axis
 };
 
 template <typename T>

@@ -451,6 +451,54 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     }
   }
 
+  // ---- GPS VELOCITY AIDING ---------------------------------------------
+  // A textbook sequential Kalman update, same structure as the position
+  // aiding above, but deliberately NOT the same code path - see the
+  // derivation in the header comment on AbsolutePositionAiding::haveVel for
+  // why this is expected to behave differently, not just "more of the same
+  // fix". The short version: MIT's covariance-suppression hack
+  // (`_P.block(0,0,2,2) /= 10`, a few dozen lines up) targets indices 0-1
+  // (x,y POSITION) exclusively - the velocity block (indices 3-5) is never
+  // touched by it, so its covariance evolves normally and a real Kalman
+  // gain here has genuine authority, unlike position aiding's K ~ 0 problem.
+  //
+  //   z = v_abs (from GPS Doppler),  H = [0 I3 0 ...],  K = P H^T (H P H^T + R)^-1
+  //
+  // This is the exactness/structural claim worth stating plainly per the
+  // control-math-verification discipline: this update does not correct
+  // POSITION at all (H has zero columns there), so it cannot reproduce the
+  // "GPS position aiding destabilizes locomotion" failure mode already
+  // measured and documented - a genuinely different mechanism, not an
+  // unverified hope that it is different.
+  {
+    auto* aid = this->_stateEstimatorData.absAiding;
+    if (aid && aid->haveVel) {
+      for (int ax = 0; ax < 3; ++ax) {
+        const T sig = aid->velSigma[ax] > T(1e-4) ? aid->velSigma[ax] : T(1e-4);
+        const T R_ax = sig * sig;
+        const int si = 3 + ax;  // velocity state index in _xhat/_P
+        const T innov = aid->velocity[ax] - _xhat[si];
+        if (!std::isfinite(innov)) continue;
+        const T S_ax = _P(si, si) + R_ax;
+        if (!(S_ax > T(1e-12)) || !std::isfinite(S_ax)) continue;
+        Eigen::Matrix<T, 18, 1> K = _P.col(si) / S_ax;
+        _xhat += K * innov;
+        _P -= K * _P.row(si);
+        if (getenv("SIM_AID_DBG")) {
+          static int dbg = 0;
+          if (ax == 0 && (dbg++ % 500) == 0) {
+            printf("[VELAID] axis=%d est=%.3f meas=%.3f innov=%.3f P=%.6f K=%.4f\n",
+                   ax, (double)_xhat[si], (double)aid->velocity[ax],
+                   (double)innov, (double)_P(si, si), (double)K[si]);
+            fflush(stdout);
+          }
+        }
+      }
+      Eigen::Matrix<T, 18, 18> Pv = _P.transpose();
+      _P = (_P + Pv) / T(2);
+    }
+  }
+
   this->_stateEstimatorData.result->position = _xhat.block(0, 0, 3, 1);
   this->_stateEstimatorData.result->vWorld = _xhat.block(3, 0, 3, 1);
   this->_stateEstimatorData.result->vBody =

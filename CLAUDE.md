@@ -3756,6 +3756,130 @@ for any future harness against this same server:
   already warns about elsewhere, caught immediately by comparing the
   runner's own verdict against the raw log rather than trusting it blind.
 
+## `unittests/`: a repeatable regression suite over the validated missions, and a false positive found on its first real use
+
+Per direct request for "a concise repeatable set of unit tests... so when
+we need to you don't have to burn tokens thinking about regression tests."
+`unittests/test_validated_missions.py` runs real Gazebo SITL missions
+(there is no meaningful way to unit-test this controller without the sim)
+through the conductor's own `mission_runner.py`, each case citing the exact
+CLAUDE.md section its config comes from so a future failure can be checked
+against real prior evidence instead of re-argued from scratch. `unittests/
+run_history.py` is a ring-buffer archive (same capped/evict-oldest shape
+this project already uses elsewhere - `TRAIL_MAX`, `server.py`'s own
+`self.log[-60:]`) of every run: verdict, timing, and for a failure, both a
+short signature (grepped from the runner's own output) and a reference to
+the FULL per-tick forensic ShmTrace archive the conductor already writes
+on every fall (`archive/shm_trace/*_FALL.json` - tens of MB, tens of
+thousands of tick records) rather than duplicating that data into the
+lightweight history file.
+
+**Found a real, serious bug on the very first multi-case run**: launching
+one case immediately after the previous one's `mission_runner.py` process
+exits is NOT the same as waiting for the SERVER to finish tearing the
+previous fleet down - `server.py`'s teardown (`terminate()` -> `sleep(1)`
+-> `kill()` on gz/bridge/controller) runs on a background thread and can
+still be in flight for a second-plus after the previous run already
+reported its verdict and exited. `star` (real PASS) immediately followed
+by `atom` returned a bogus PASS in 10.4 s - atom's real baseline is 55+ s -
+because the new run's ctrl log picked up a few lines of star's own tail
+before truncation caught up (the exact same class of bug as the earlier-
+documented stale-tail-text-reaper contamination, just triggered by
+machine-speed back-to-back launches rather than a slow teardown race). The
+identical atom case, given a 6 s settle gap, passed correctly in a normal
+~95 s. Fixed with a `SETTLE_S` sleep between every case/repeat in the
+suite - a pragmatic mitigation in the TEST HARNESS, not a server.py fix,
+but "a harness that can emit a false PASS is worse than no harness" is
+this project's own already-learned lesson (see the standalone-dash mission
+section above), so this was not optional to fix before trusting the suite.
+The bogus 10.4 s entry is left in `unittests/history.json` rather than
+scrubbed - it is genuine history, and the false-positive is fully
+explained in this section and in the code's own comment.
+
+```bash
+python3 unittests/test_validated_missions.py                    # everything
+python3 unittests/test_validated_missions.py --only star atom   # by name
+python3 unittests/test_validated_missions.py --list             # see the tribal knowledge without running anything
+python3 unittests/test_validated_missions.py --history           # the ring-buffer archive
+```
+
+## GPS VELOCITY AIDING: implemented, tested, and it made things WORSE - a real frame-convention lead, not confirmed
+
+Direct challenge, and a good one: "the controller thinks it's still
+accelerating forward while it's actually drifted backward... we literally
+have GPS and magnetometer available." Checked first whether this repeats
+the already-known-harmful GPS/baro POSITION aiding (`$SIM_ABS_AIDING`,
+documented above as net-harmful to locomotion) - it does not, structurally:
+position aiding corrects a state the controller's own tracking cost never
+reads (which is WHY correcting it destabilizes things - see the hierarchical-
+estimation paper's own principle), while velocity feeds the Raibert
+foothold formula and the MPC's velocity-tracking cost directly, and is NOT
+covariance-suppressed the way position is (MIT's `_P.block(0,0,2,2)/=10`
+hack only ever touches indices 0-1). So real GPS velocity aiding is a
+genuinely different, better-motivated intervention, not a repeat of a known
+failure - worth building and testing on its own merits.
+
+**What was built.** `gps_vel[3]` (NED, Doppler-derived from Gazebo's real
+NavSat sensor) was ALREADY fully wired end-to-end - the bridge reads it,
+the UDP packet carries it, `gazebo_get_aux()` delivers it - and simply
+never consumed ("not consumed by Cheetah yet" in `rt_gazebo.h`'s own
+comment). Extended `AbsolutePositionAiding<T>` with `haveVel`/`velocity`/
+`velSigma`, populated independently of `$SIM_ABS_AIDING` via a new
+`$SIM_VEL_AIDING=1` flag in `Stm32mp1HardwareBridge.cpp`, and implemented
+a real textbook sequential Kalman update on the velocity states (indices
+3-5) in `PositionVelocityEstimator.cpp` - not the same "time-constant"
+workaround position aiding needed, because velocity's covariance isn't
+artificially crushed, so a real Kalman gain has genuine authority here.
+
+**Tested against galloping's dash - the one case with a confirmed,
+ground-truth-verified root cause - and it made things WORSE, not better.**
+With `$SIM_VEL_AIDING=1` (galloping @ 0.5 m/s, dash:100, `$SIM_ESTERR=1`
+to compare against Gazebo truth directly):
+
+| t (s) | true north position | estimate (own frame) | true height |
+|---|---|---|---|
+| 19.9 | 0.009 m | 0.796 m | 0.279 m |
+| 252.1 | **4.111 m** | **47.292 m** | 0.257 m |
+
+The robot NEVER fell (no `[FALL]` line anywhere in the log, height stayed
+a normal 0.257-0.307 m the entire 252 s) - but its TRUE position barely
+moved at all (4.1 m in 252 s at a commanded 0.5 m/s, which should cover
+~126 m), while its own velocity ESTIMATE ran away to a WORSE divergence
+than the unaided baseline ever showed (47 m vs. the unaided case's ~29 m
+frame-corrected drift over a comparable dash). So this is not a crash -
+it is the robot standing its ground, upright, essentially failing to
+translate, while genuinely believing it is moving briskly.
+
+**Leading hypothesis, NOT yet confirmed**: a frame-convention mismatch.
+The GPS velocity was injected using the same "x=East, y=North, z=up"
+convention the existing position-aiding code assumes for the KF's own
+`_xhat` states - but that convention was never actually verified for the
+MIT-stack estimator, and this file's own `[ESTERR]` investigation earlier
+tonight found the ESTIMATE lives in a frame rotated relative to Gazebo's
+world ENU (documented under "the backward-walk investigation, continued").
+If that rotation also affects the KF's internal velocity-state axes,
+position aiding's identical assumption would have been WRONG THE WHOLE
+TIME and simply never surfaced, because position aiding's own Kalman gain
+is ~0 (masked by the covariance-suppression hack) - a wrong-frame
+injection into a near-zero-gain update is a silent no-op. Velocity aiding
+has REAL gain by design (that is the whole reason it was worth building),
+so the same frame error, if present, is no longer silent - it actively
+drags the state in the wrong direction instead.
+
+**Honest status**: a well-motivated, correctly-differentiated idea (not
+the same failure as position aiding, verified structurally), implemented
+as real code with real gain, tested against the exact confirmed failure
+case - and it made that failure case measurably worse. Left in the tree,
+default OFF (`$SIM_VEL_AIDING`, `$SIM_GPS_VEL_SIGMA`), documented rather
+than silently reverted. NOT fixed tonight - the concrete next step is to
+verify the KF's actual world-frame convention directly (log `_xhat[3:6]`
+against Gazebo truth `vworld` with NO aiding active, at t=0 with the robot
+stationary and then during a known, single-axis translation, to see
+whether they agree axis-for-axis or are rotated/swapped) BEFORE trying a
+second frame convention by guesswork - guessing a second rotation without
+first confirming the first one was wrong would repeat the exact mistake
+pattern this file has flagged multiple times already tonight.
+
 ## Two more found via the new launcher: a missing dash overlay, and a real panel bug behind an atom spin-out
 
 **The dash overlay was not drawing.** `mission_waypoints("dash:100")`
@@ -5599,6 +5723,27 @@ mid-band vulnerability remains real and unexplained, but it is not
 simply about which legs share the airborne phase - both explanations
 tried so far (has-a-flight-phase, and now leg-sync symmetry) have been
 directly tested and refuted rather than left as untested guesses.
+
+### Naming correction, and a real circle test
+
+`circle:R:N` with N=8 (used throughout the table above) is a regular
+OCTAGON - 8 vertices, exactly 45 degrees of direction change at each one
+by construction - not a smooth curve, and it should not have been
+described as "circle" in the reporting above without that caveat. The
+underlying generator (`WaypointNav::makeCircle`) is fine and correctly
+named for what it is; the issue was calling an 8-gon a circle in prose.
+
+Added a genuine test of continuous curvature at comparable severity:
+`circle:9:36` (36 vertices, ~10 degrees each - functionally smooth at
+this port's corridor/lookahead scale). Bounding, galloping and pronking
+at their base speeds: **3/3 PASS** (46.7s / 62.7s / 57.3s), no falls.
+This confirms the 90-147.5 degree finding above is specific to DISCRETE
+sharp direction changes, not to sustained curvature of comparable
+turning severity - the same three gaits that fail hard on sector's or
+parallel's individual corners handle a continuously-curving path just
+fine. Worth remembering when interpreting any future course built from
+this catalog: "circle:R:8" (or any low point-count invocation) is a
+polygon and should be described as one.
 
 ### `corner:` mission revisited: the ORIGINAL bug appears gone, a DIFFERENT one found in its place
 
