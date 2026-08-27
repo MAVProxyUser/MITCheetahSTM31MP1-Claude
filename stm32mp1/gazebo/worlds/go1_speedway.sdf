@@ -502,12 +502,16 @@
         </sensor>
         <sensor name="cheetah_gps" type="navsat">
           <always_on>1</always_on>
-          <!-- GPS_HZ default, matching make_world.py: u-blox ZED-F9P's
-               documented standalone/DGNSS nav rate (20 Hz; RTK-fixed mode
-               is 10 Hz, not modeled here) - was a flat, uncited 10 Hz,
-               which combined with the 500 Hz control loop to create the
-               staleness bug in CLAUDE.md's "GPS VELOCITY AIDING" section. -->
-          <update_rate>20</update_rate>
+          <!-- GPS_HZ default, matching make_world.py: u-blox NEO-M9V's
+               documented nav update rate ("Up to 50 Hz (4 concurrent GNSS)",
+               NEO-M9V product summary/datasheet, no priority mode required) -
+               a real, faster, still-cited spec superseding the ZED-F9P's
+               20 Hz DGNSS rate used here previously (kept selectable via
+               $GPS_HZ for that or any other regression comparison). The
+               original 10 Hz default was a flat, uncited guess, which
+               combined with the 500 Hz control loop to create the staleness
+               bug in CLAUDE.md's "GPS VELOCITY AIDING" section. -->
+          <update_rate>50</update_rate>
           <topic>navsat</topic>
         </sensor>
       </link>

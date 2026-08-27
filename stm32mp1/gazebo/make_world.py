@@ -65,13 +65,14 @@ if imu_link is not None:
     # cause of the staleness bug documented in CLAUDE.md's "GPS VELOCITY
     # AIDING" section (a 500 Hz control loop re-applying the same
     # zero-order-held reading ~49 times per real sample). Default now
-    # matches a real, commonly-used fast GPS module rather than a guess:
-    # the u-blox ZED-F9P's documented max navigation rate is 20 Hz (10 Hz
-    # in RTK-fixed mode, 20 Hz standalone/DGNSS - this project has no RTK
-    # base station modeled, so the standalone figure is what applies).
-    # Kept selectable via GPS_HZ for regression against the old behavior,
-    # or to model a cheaper/slower receiver deliberately.
-    ET.SubElement(g, "update_rate").text = os.environ.get("GPS_HZ", "20")
+    # matches a real, fast GPS module's documented spec: the u-blox
+    # NEO-M9V's nav update rate is "Up to 50 Hz (4 concurrent GNSS)" per its
+    # datasheet/product summary, with no special priority mode required -
+    # a real improvement over the u-blox ZED-F9P's 20 Hz standalone/DGNSS
+    # rate this project used previously (also a real, cited spec, kept
+    # selectable below). Kept selectable via GPS_HZ for regression against
+    # either older figure, or to model a cheaper/slower receiver deliberately.
+    ET.SubElement(g, "update_rate").text = os.environ.get("GPS_HZ", "50")
     ET.SubElement(g, "topic").text = "navsat"
 
 # helper to append a system plugin

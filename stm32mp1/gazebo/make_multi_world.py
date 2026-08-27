@@ -209,11 +209,11 @@ def clone_dog(proto, index, north, east, height=0.08, yaw=None):
     pose.text = " ".join("%g" % x for x in v)
     retopic(m, name)
     # GPS_HZ override, applied at clone time so the proto file's own baked-
-    # in default (20 Hz, a real u-blox ZED-F9P standalone/DGNSS rate - see
-    # the sensor's own comment in worlds/go1_speedway.sdf) can be dialed
-    # down per-launch for regression against the old flat-10-Hz behavior,
-    # or to deliberately model a slower/cheaper receiver, without needing
-    # to hand-edit or regenerate the SDF proto itself.
+    # in default (50 Hz, a real u-blox NEO-M9V nav rate - see the sensor's
+    # own comment in worlds/go1_speedway.sdf) can be dialed down per-launch
+    # for regression against the older 20 Hz (ZED-F9P) or flat-10-Hz
+    # behavior, or to deliberately model a slower/cheaper receiver, without
+    # needing to hand-edit or regenerate the SDF proto itself.
     gps_hz = os.environ.get("GPS_HZ")
     if gps_hz:
         rate_el = m.find(".//sensor[@name='cheetah_gps']/update_rate")
