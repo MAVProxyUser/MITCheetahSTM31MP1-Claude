@@ -762,6 +762,42 @@ class Fleet:
                             os.kill(pid, 9)
                     except Exception:  # noqa: BLE001 - lsof missing/slow never blocks
                         pass
+            # STALE TAIL-TEXT REAPER GATE. shm_reaper.py --tail-text holds NO
+            # network port at all - it is a pure file-tailing process - so the
+            # port sweep above can never see it. Found by direct evidence: a
+            # fleet's natural "done" path clears self.procs/self.phase to
+            # idle IMMEDIATELY (inside the lock), then does terminate() ->
+            # sleep(1) -> kill() on a background thread - so /api/state can
+            # report "idle" a full second or more before the old tail-text
+            # reaper (and possibly the old bridge/controller too) actually
+            # receives its kill signal. A launch that lands in that window
+            # races the old reaper: it re-opens whatever file now sits at
+            # ctrl_%d.log on its next 0.2s poll (rather than holding one fd
+            # for its whole life) and keeps appending the PREVIOUS run's text
+            # into the NEW run's fresh log - old and new content simply
+            # concatenate in file order, no visible corruption, just a wrong
+            # verdict. Reproduced live: a trotRunning dash launched moments
+            # after a galloping run's fall showed the galloping run's own
+            # "[SCHED] gait changed 22 -> 4" tail before the new mission's own
+            # "[nav] dash mission" line ever printed. Kill by COMMAND LINE
+            # PATTERN, not port, and do it for every dog index about to
+            # launch, same as the controller itself doing this on the wrong
+            # SIM_INSTANCE would (this call is intentionally broader than
+            # just this fleet's own indices, since a stale process from an
+            # entirely different prior slot count could still be at index 0).
+            for i in range(len(slots)):
+                try:
+                    out = subprocess.run(
+                        ["pgrep", "-f", "shm_reaper.py.*--tail-text %d\\b" % i],
+                        capture_output=True, text=True, timeout=5).stdout
+                    for pid_s in out.split():
+                        pid = int(pid_s)
+                        self._note("stale tail-text reaper pid %d for dog%d "
+                                   "from a previous run - killing it before "
+                                   "launch" % (pid, i))
+                        os.kill(pid, 9)
+                except Exception:  # noqa: BLE001 - pgrep missing/slow never blocks
+                    pass
 
         # Freeze the configuration NOW. Nothing below this point reads the
         # request again - a second call while running is refused above.
@@ -788,6 +824,26 @@ class Fleet:
             # Slot-level overrides go AFTER the recipe's own extra: with
             # `env A=1 A=2 cmd` the later assignment wins, so a slot can
             # override a recipe knob (WP_VSUS etc.) for A/B work.
+            # Bubble the panel's own "not this course's validated combo"
+            # mismatch warning into the orchestration log too, at the one
+            # moment it actually matters (about to launch) - the browser-only
+            # version (app.js's renderSlots) is silent to anything driving
+            # this via mission_runner.py/curl/another tab, and even in the
+            # browser it is easy to miss sitting quietly on a slot card. This
+            # is the same comparison app.js makes (recipe gait/speed vs the
+            # slot's actual gait/speed), just server-side and logged, so a
+            # mismatch is visible wherever this run's log is - live panel,
+            # streamed mission_runner.py output, or the archived file.
+            recipe_gait_name = next((g for g, n in GAITS.items() if n == recipe.get("gait")), None)
+            if recipe_gait_name and gait_name != recipe_gait_name:
+                self._note("dog%d: NOT this course's validated combo - running "
+                           "%s @ %.2f, recipe is %s @ %.2f%s" %
+                           (i, gait_name, speed, recipe_gait_name, recipe["speed"],
+                            " (" + recipe["extra"] + ")" if recipe["extra"] else ""))
+            elif isinstance(recipe.get("speed"), (int, float)) and abs(speed - recipe["speed"]) > 0.05:
+                self._note("dog%d: NOT this course's validated combo - running "
+                           "%s @ %.2f, recipe speed is %.2f" %
+                           (i, gait_name, speed, recipe["speed"]))
             extra = (recipe["extra"] + " " + str(s.get("extra") or "")).strip()
             dash = float(s.get("dash") or 0.0)
             if dash > 0:

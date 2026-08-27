@@ -335,23 +335,48 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // Command Setup
   _SetupCommand(data);
   // $SIM_GAIT overrides the yaml's initial cmpc_gait so a gait matrix can be
-  // swept without editing (and re-deploying) a config file per run. Applied
-  // ONCE, into cmpc_gait itself, on firstRun - NOT re-applied every tick.
-  // The original form of this override (`if (gait_env >= 0) gaitNumber =
-  // gait_env;`, unconditional, every tick) silently discarded every runtime
-  // cmpc_gait.set() write - exactly the mechanism the mission analyzer's
-  // mid-course gait changes use (WP_ANALYZER=1): the analyzer's own
-  // "[mission] gait X -> Y" print fired correctly (the write happened), but
-  // the change never reached the robot because this override put gaitNumber
-  // right back every single tick afterward, forever. Note firstRun is reset
-  // by initialize() on every LOCOMOTION entry (not just mission start), so a
-  // dash-finish interlude that re-enters LOCOMOTION after a mid-course
-  // analyzer switch will re-seed cmpc_gait back to SIM_GAIT's value - treated
-  // as correct here (the sprint should run the recipe's base gait), not as a
-  // bug to chase.
+  // swept without editing (and re-deploying) a config file per run.
+  //
+  // FIRST FIX (reverted - caused a real regression, see below): applied
+  // gait_env into cmpc_gait ONCE, on firstRun, trusting it to persist for
+  // the rest of the process. Live-tested: a plain "dash:100" mission with
+  // no analyzer and no mid-course writer at all (trotRunning @0.6, which
+  // has an extensive prior record of completing this exact dash cleanly)
+  // instead walked BACKWARD past its own start point - N climbed to ~19 m
+  // then declined monotonically past zero to -19.7 m by t=173s, with the
+  // control loop clean the entire time (maxPeriod 2.48-2.49 ms, no
+  // stalls). Something resets cmpc_gait back toward the yaml default
+  // later in a run even with nothing legitimate (analyzer, RC) ever
+  // writing to it - not yet root-caused, but real and reproducible.
+  //
+  // ORIGINAL BUG (still true, still needs fixing): the pre-session form
+  // of this override (`if (gait_env >= 0) gaitNumber = gait_env;`,
+  // unconditional, every tick, never touching cmpc_gait itself) silently
+  // discarded every runtime cmpc_gait.set() write - the mechanism the
+  // mission analyzer's mid-course gait switching (WP_ANALYZER=1) depends
+  // on.
+  //
+  // CURRENT FIX: re-assert gait_env into cmpc_gait EVERY TICK (matching
+  // the original code's robustness against cmpc_gait resetting itself for
+  // whatever reason), but track the last value WE forced and back off the
+  // instant cmpc_gait no longer equals it - i.e. something else (the
+  // analyzer) has legitimately changed it, and that write should stick
+  // rather than being immediately stomped on the very next tick the way
+  // the original bug did it.
   {
     static const int gait_env = getenv("SIM_GAIT") ? atoi(getenv("SIM_GAIT")) : -1;
-    if (gait_env >= 0 && firstRun) data.userParameters->cmpc_gait = gait_env;
+    static bool haveForced = false;
+    static double lastForced = -1.0;
+    if (gait_env >= 0) {
+      const double cur = data.userParameters->cmpc_gait;
+      if (!haveForced || cur == lastForced) {
+        data.userParameters->cmpc_gait = gait_env;
+        lastForced = gait_env;
+        haveForced = true;
+      }
+      // else: cmpc_gait changed to something other than what we last forced
+      // it to - a legitimate external write (the analyzer) - respect it.
+    }
   }
   gaitNumber = data.userParameters->cmpc_gait;
   // 20+ are this port's additions (walking / walking2 / galloping); they must

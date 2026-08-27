@@ -5454,3 +5454,138 @@ Every numbered item above has its own detailed section earlier in this
 file with the actual data, the code changes, and (where relevant) the
 git commit it shipped in. Nothing here is a new claim - this is the
 index.
+
+## CORRECTION, same night: the dash failure is NOT gait-specific, and NOT something this session introduced
+
+Directly challenged ("you just flat out broke the dash via some weird
+regression") - the right response was to test the claim, not defend the
+earlier writeup. It led to a real finding this file's own "three
+different mechanisms per gait" framing above was wrong about.
+
+**The A/B that settles it.** trotRunning has an extensive, repeatedly-
+confirmed prior record of completing the standalone `dash:100` cleanly
+(186.1s at 0.6 m/s is the number quoted earlier in this file). Re-run
+tonight at the same speed: it walks BACKWARD past its own start point,
+reaching N=-19.7 m by t=173s, with the control loop clean throughout
+(maxPeriod 2.48-2.49 ms, zero stalls) - the identical shape already
+documented above for pronking/galloping/bounding. Two hypotheses were
+live: (a) something in tonight's session broke it, or (b) the log was
+contaminated by a stale process (see the very next section) and the
+result was never real. Both were tested directly rather than argued:
+
+1. **A genuine log-contamination bug was found and fixed** (next
+   section) - but the CLEAN, verified-single-launch re-test still showed
+   the identical backward-walk.
+2. **The decisive test**: swapped `ConvexMPCLocomotion.cpp` back to its
+   EXACT pre-session state (commit `29cd8db`, the parent of every commit
+   this session touched in that file) and re-ran the identical clean
+   test. The baseline showed the SAME failure - N peaking at 18.24 m at
+   t=45.5s (current-session code: 18.23 m at t=35-46s, statistically the
+   same run) before declining. **This is conclusive: none of tonight's
+   code changes caused this.** It is a pre-existing behavior of the
+   codebase that predates this entire session, and the "186.1s" number
+   was never re-verified with a clean, long-timeout, watched-the-whole-
+   trajectory test after whatever combination of the many later fixes in
+   this file (WBIC damping, the real Go1 model, zeroVelHold, WBC
+   decimation, gain changes) actually produced it. It was carried forward
+   as fact across all of them without anyone re-running it.
+
+**What the failure actually is, corrected from the "three mechanisms"
+framing above**: re-running trotRunning's dash with `$SIM_ESTERR=1` (the
+existing ground-truth-logged-but-never-fed-to-the-controller mechanism,
+not cheater mode - see RULE ZERO) shows the estimate tracking truth
+closely for the first ~35-40 s, then diverging - by t=97-99s the
+estimate's own position has stalled near a fixed value while its own
+velocity readout has become internally inconsistent with that (large,
+noisy velocity samples against an almost-flat position trace, the
+signature of a filter whose state has stopped being self-consistent),
+while GROUND TRUTH shows the body's real, physical, BODY-FRAME forward
+velocity has gone NEGATIVE (-0.3 to -0.35 m/s) - the robot is genuinely,
+physically walking backward, not just misreporting its position. This
+is the same general shape as galloping's own confirmed divergence
+earlier in this file, just with a later onset and a different local
+signature (stall+noise vs. runaway) - strong evidence this is ONE
+general vulnerability in the existing `LinearKFPositionVelocityEstimator`
+under sustained, long-duration locomotion, not a separate mechanism per
+gait as first framed. Correcting the record: the "flat height collapse /
+delayed tip-over / silent positional drift" framing earlier in this file
+undersold how related these probably are - all three may trace back to
+the same estimator eventually losing self-consistency given enough time,
+manifesting differently depending on which state (height for pronking,
+position for galloping/trotRunning) the resulting bad feedback disturbs
+first. **Also worth being honest about the `[ESTERR]` metric itself**:
+its printed `dp` field computes `(estimate.position - truth.position).norm()`
+without first rotating one into the other's frame (truth is world ENU;
+the estimate is in the estimator's own initial-heading-relative frame,
+rotated ~90 degrees from world) - so `dp`'s raw NUMBER overstates the
+true along-track error by conflating swapped axes. The earlier-reported
+"34.3 m" galloping divergence is still real and still large by the
+CORRECT frame-aware comparison (truth's north axis vs. the estimate's
+forward axis: ~29 m at t=171s), but the exact figure quoted there was
+inflated by this frame mismatch and should be read as "roughly 29 m,"
+not literally 34.3.
+
+**Not yet done**: root-causing WHY the LinearKF loses self-consistency
+after ~35-90s of sustained locomotion (leading candidate, per this
+file's own prior contact-detection work: the phase-based stance-leg
+trust ramp degrading under long-duration integration, independent of
+gait - needs the actual estimator source read and a proper derivation
+before touching it, not a guess). This is now understood to be the
+single most consequential open item in this file - it plausibly explains
+every "gait can't finish a long course" finding from tonight at once,
+and likely several already-suspect historical dash numbers besides
+trotRunning's.
+
+## A second stale-process bug found chasing the above: the tail-text log bridge
+
+While investigating the dash regression, found that `shm_reaper.py
+--tail-text`'s bridge process holds NO network port at all (it is a
+pure file-tailing process) - so the launch-time port-based stale-process
+guard added earlier tonight can never see it. The natural "done" and
+`/api/stop` teardown paths both clear `self.procs`/`self.phase` to
+idle/done IMMEDIATELY (inside the lock), then do `terminate()` ->
+`sleep(1)` -> `kill()` on a background thread - so `/api/state` can
+report the fleet as finished a full second or more before the old
+tail-text reaper (and possibly the bridge/controller too) actually
+receives its kill signal. A launch landing in that window races the old
+reaper: it re-opens whatever file now sits at `ctrl_%d.log` on its next
+0.2s poll (rather than holding one fd for its whole life) and keeps
+appending the PREVIOUS run's text into the NEW run's fresh log.
+Reproduced live: a trotRunning dash launched moments after a galloping
+run's fall showed the galloping run's own `[SCHED] gait changed 22 -> 4`
+tail-end appearing before the new mission's own `[nav] dash mission`
+line ever printed - old and new content simply concatenate in file
+order, no visible corruption, just silently wrong data feeding whatever
+conclusion gets drawn from it. Fixed with a THIRD stale-process gate in
+`launch()`, alongside the port-based one: kill any `shm_reaper.py
+--tail-text <i>` process by command-line pattern (not port) for every
+dog index about to launch. **Practical implication for any future rapid
+back-to-back testing**: always let a fleet reach a state where its
+processes are confirmed gone (`ps aux | grep mit_ctrl_sim` etc.), not
+just `phase: idle`/`done`, before trusting the next run's log - or rely
+on this new gate, but verify the log's own opening line
+(`"[nav] ... mission:"` should appear exactly once) before trusting a
+result that matters.
+
+## Two panel bugs fixed from live operator feedback
+
+1. **The slots panel only ever synced from the server's draft ONCE**, on
+   initial page load (`let _synced = false` gating the whole adoption
+   block). Anything that changed the server's draft afterward - this
+   session's own `mission_runner.py`/curl calls, another browser tab -
+   never appeared without a manual page refresh (which re-runs the
+   one-time branch via a fresh page load). Fixed to re-sync on every poll
+   tick whenever the incoming draft actually differs from what is
+   showing, guarded against clobbering an in-progress edit by skipping
+   the sync entirely while focus is inside a slot control.
+2. **The "not this course's validated combo" mismatch warning was
+   browser-only and easy to miss** - a silent `<p>` on a slot card,
+   invisible to anything driving the panel via the REST API and easy to
+   overlook even when watching the page (this is the exact class of gap
+   that let the atom-spin-out incident earlier in this file happen
+   silently). The identical comparison now also runs server-side, in
+   `launch()`, and logs a `dog%d: NOT this course's validated combo -
+   running X @ Y, recipe is Z @ W` line into the orchestration log the
+   moment a mismatched config is about to launch - visible in the live
+   panel, in any `mission_runner.py` stream, and in the archived log
+   file, not just a UI element that can go unwatched.

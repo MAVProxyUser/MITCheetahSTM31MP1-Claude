@@ -521,15 +521,27 @@ async function poll() {
   try {
     const r = await fetch("/api/state");
     state = await r.json();
-    // One-time: adopt the SERVER's draft (which an external REST call may
-    // already have edited before this page ever opened) instead of the
-    // browser's hardcoded defaults. After this, local edits are the source
-    // of truth for the page and are themselves what pushes to the server.
-    if (!_synced && state.draft_slots) {
-      slots = state.draft_slots;
-      document.getElementById("capSlider").value = state.draft_cap ?? 3.5;
-      if (state.draft_terrain) document.getElementById("terrainSelect").value = state.draft_terrain;
-      renderSlots();
+    // Adopt the SERVER's draft whenever it differs from what this page is
+    // showing - not just once on load. The one-time-only version left the
+    // page permanently stale the moment ANYTHING else touched the draft
+    // after initial sync (mission_runner.py, curl against /api/slots/{i},
+    // another browser tab) - "recipe: trotRunning @ 3 m/s" mismatch
+    // warnings from an external change never appeared without a manual
+    // page refresh, which is exactly what re-runs this one-time branch.
+    // Guarded two ways so it cannot fight the user's own typing: skip
+    // entirely while focus is inside a slot control (mid-edit), and skip
+    // the render when the incoming draft is byte-identical to what is
+    // already showing (the common case, every 400ms, must stay a no-op).
+    const editingASlot = document.activeElement &&
+      document.activeElement.closest && document.activeElement.closest(".play-card");
+    if (state.draft_slots && !editingASlot) {
+      const incoming = JSON.stringify(state.draft_slots);
+      if (!_synced || incoming !== JSON.stringify(slots)) {
+        slots = state.draft_slots;
+        document.getElementById("capSlider").value = state.draft_cap ?? 3.5;
+        if (state.draft_terrain) document.getElementById("terrainSelect").value = state.draft_terrain;
+        renderSlots();
+      }
       _synced = true;
     }
   } catch (e) { /* server restarting - ignore this tick */ }
