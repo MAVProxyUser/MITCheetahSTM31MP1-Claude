@@ -1,5 +1,5 @@
 /*! @file ShmTrace.h
- *  @brief Lock-free, single-writer shared-memory ring buffer for per-tick
+ *  @brief Lock-free, single-writer shared-memory ring buffers for
  *  control-loop tracing, built to root-cause the fleet-only fast-fall
  *  mystery (sector:15:3 tipping over within seconds, only in a 3-dog
  *  fleet, with clean control-loop timing - so the cause is somewhere in
@@ -15,9 +15,14 @@
  *  itself - a writer that also has to drain its own buffer is not a
  *  cheap writer any more), and a persistent archive/"oracle" of confirmed
  *  crashes gets built from it so failures accumulate evidence instead of
- *  each one vanishing when the process exits.
+ *  each one vanishing when the process exits. Per a SECOND direct
+ *  instruction, every printf/fprintf debug call site in RobotRunner.cpp
+ *  and mit_sim_main.cpp is now ALSO routed through here rather than
+ *  stdio, so printf is fully retired as a debug mechanism from those two
+ *  files - see the TEXT RING section below for why that needed a second,
+ *  separate ring rather than overloading the numeric Record above.
  *
- *  Design:
+ *  Design (numeric/tick ring):
  *   - POSIX shm_open()/mmap(), one named segment per dog
  *     ("/cheetah_trace_<instance>"), sized for RING_CAPACITY fixed-size
  *     records (65536 @ 98 bytes = ~6.4 MB - about 131 s of history at
@@ -32,11 +37,37 @@
  *   - Every field is a POD scalar the Python reaper can parse with a
  *     fixed struct.unpack format string - no pointers, no STL, nothing
  *     that only means something inside this process.
+ *
+ *  Design (text ring, for the printf replacement):
+ *   - A SECOND, separate named segment per dog
+ *     ("/cheetah_trace_text_<instance>") of fixed-size, pre-FORMATTED
+ *     message records - not a generic structured-log redesign of Record
+ *     above. The application-level printf call sites this replaces
+ *     (nav progress, mission result, gait changes, FALL/STALL/recover,
+ *     estimator debug, ...) each carry their own unrelated set of
+ *     arguments (waypoint index, N/E, a gait name string, a corner
+ *     radius, ...) that do not fit any one fixed numeric schema the way
+ *     the tick ring's per-tick physical state does; formatting each
+ *     message ONCE at the call site (a single vsnprintf into a stack
+ *     buffer, same cost printf already paid for its OWN formatting, just
+ *     without the stdio buffering/locking/potential-flush after it) and
+ *     storing the finished string is far simpler than inventing a
+ *     type-tagged variadic wire format for a Python reader to decode.
+ *   - `logf()` below intentionally mirrors printf's own signature
+ *     (format string + varargs) so every existing call site converts by
+ *     replacing the function name and dropping the trailing "\n" (the
+ *     text-tailing bridge re-adds it when it appends a record to the
+ *     log file downstream tooling already parses - see
+ *     shm_reaper.py's tail_text_to_log()).
+ *   - Same lock-free single-writer / release-ordered write_seq scheme
+ *     as the tick ring, and the same Header layout (capacity/record_size
+ *     tell a generic reader which ring it is looking at).
  */
 #ifndef CHEETAH_SHM_TRACE_H
 #define CHEETAH_SHM_TRACE_H
 
 #include <atomic>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -106,6 +137,32 @@ struct Ring {
   Record records[RING_CAPACITY];
 };
 
+// ---- text ring: the printf replacement -----------------------------------
+#pragma pack(push, 1)
+struct TextRecord {
+  double   t;         // elapsed mission time, seconds - same clock as Record
+  uint64_t seq;
+  char     msg[200];   // NUL-padded, pre-formatted (vsnprintf'd at the call
+                       // site). 200 comfortably covers the longest existing
+                       // call site's expansion (the [mission] gait-change
+                       // line, ~150 chars worst case with a long gait name).
+};
+#pragma pack(pop)
+// 216 bytes (8+8+200), measured consistent with pack(1)'s no-padding
+// guarantee - unlike Record this was designed to a round input size rather
+// than measured after the fact, but the Python side still asserts it.
+static_assert(sizeof(TextRecord) == 216, "TextRecord layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
+
+constexpr uint32_t TEXT_RING_CAPACITY = 8192;
+// Lower rate than the tick ring by design (event lines, not 500 Hz physical
+// state) - 8192 is generous headroom (many minutes at any real event rate)
+// at a total size (~1.8 MB) that costs nothing to keep mapped.
+
+struct TextRing {
+  Header header;
+  TextRecord records[TEXT_RING_CAPACITY];
+};
+
 // One writer per process. Lazily opened on first log() call so a process
 // that never logs never pays for the mmap at all; the segment name is
 // derived from SIM_INSTANCE so each dog in a fleet gets its own, matching
@@ -142,9 +199,39 @@ class Writer {
     ring_->header.write_seq.store(seq + 1, std::memory_order_release);
   }
 
+  // The printf replacement: same call-site shape as printf (format string +
+  // varargs), formatted ONCE here via vsnprintf into the record itself - no
+  // stdio buffering/locking, no possible fflush stall, and (unlike printf)
+  // this never blocks even if the eventual consumer (the tail-to-log bridge)
+  // is slow or not running at all - a lagging reader just loses old ring
+  // history, the writer never waits on it. Takes the va_list directly (not
+  // `...`) because C has no way to forward one variadic call's `...` into
+  // another - both the member-call convenience below and the free function
+  // at the bottom of this file extract their own va_list and land here.
+  void vlogf(double t, const char* fmt, va_list args) {
+    ensure_text_open();
+    if (!text_ring_) return;
+    const uint64_t seq = text_ring_->header.write_seq.load(std::memory_order_relaxed);
+    TextRecord& r = text_ring_->records[seq % TEXT_RING_CAPACITY];
+    r.t = t;
+    r.seq = seq;
+    vsnprintf(r.msg, sizeof(r.msg), fmt, args);
+    // Publish LAST - same ordering note as log() above.
+    text_ring_->header.write_seq.store(seq + 1, std::memory_order_release);
+  }
+
+  void logf(double t, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vlogf(t, fmt, args);
+    va_end(args);
+  }
+
   ~Writer() {
     if (ring_) munmap(ring_, sizeof(Ring));
     if (fd_ >= 0) close(fd_);
+    if (text_ring_) munmap(text_ring_, sizeof(TextRing));
+    if (text_fd_ >= 0) close(text_fd_);
     // Deliberately NOT shm_unlink()ing here: the whole point is for the
     // reaper (a separate process) to read this AFTER the writer exits,
     // e.g. a crash that _exit()s mid-write. The launcher/reaper unlinks
@@ -201,9 +288,53 @@ class Writer {
            name, RING_CAPACITY, (double)sizeof(Ring) / 1e6);
   }
 
+  void ensure_text_open() {
+    if (text_opened_) return;
+    text_opened_ = true;
+    const char* inst = getenv("SIM_INSTANCE");
+    char name[64];
+    snprintf(name, sizeof(name), "/cheetah_trace_text_%s", inst ? inst : "0");
+    // Same shm_unlink()-first reasoning as ensure_open() above - a stale
+    // segment from an earlier run on this instance number must not silently
+    // reuse a not-fresh ftruncate(), and a reader must never see a mix of
+    // this run's and a previous run's text.
+    shm_unlink(name);
+    text_fd_ = shm_open(name, O_CREAT | O_RDWR, 0666);
+    if (text_fd_ < 0) {
+      perror("[shmtrace] text shm_open failed - text logging disabled for this process");
+      return;
+    }
+    if (ftruncate(text_fd_, sizeof(TextRing)) != 0) {
+      perror("[shmtrace] text ftruncate failed - text logging disabled");
+      close(text_fd_); text_fd_ = -1;
+      return;
+    }
+    void* mem = mmap(nullptr, sizeof(TextRing), PROT_READ | PROT_WRITE, MAP_SHARED, text_fd_, 0);
+    if (mem == MAP_FAILED) {
+      perror("[shmtrace] text mmap failed - text logging disabled");
+      close(text_fd_); text_fd_ = -1;
+      return;
+    }
+    text_ring_ = reinterpret_cast<TextRing*>(mem);
+    text_ring_->header.write_seq.store(0, std::memory_order_relaxed);
+    text_ring_->header.capacity = TEXT_RING_CAPACITY;
+    text_ring_->header.record_size = sizeof(TextRecord);
+    text_ring_->header.magic = MAGIC;
+    text_ring_->header.writer_pid = static_cast<uint32_t>(getpid());
+    // Deliberately no printf here (unlike ensure_open() above): this path
+    // exists SPECIFICALLY to retire printf from the application's own
+    // call sites, so announcing its own success via printf would be the
+    // one line this whole mechanism failed to convert. The tick ring's
+    // init line stays on printf as a bootstrap diagnostic for the tracing
+    // system itself, which cannot log its own failure through itself.
+  }
+
   bool opened_ = false;
   int fd_ = -1;
   Ring* ring_ = nullptr;
+  bool text_opened_ = false;
+  int text_fd_ = -1;
+  TextRing* text_ring_ = nullptr;
 };
 
 // Free-function convenience wrapper - every call site just says
@@ -214,6 +345,21 @@ inline void log(const char* tag, double t, float roll, float pitch, float yaw,
                  const float contact[4]) {
   Writer::instance().log(tag, t, roll, pitch, yaw, wx, wy, wz, vx, vy, vz,
                           z, period_ms, op_mode, finite, contact);
+}
+
+// The printf replacement call sites actually use: shmtrace::logf(t, "...",
+// args...) drops in wherever printf("...\n", args...) used to be - same
+// format string (minus the trailing newline, which the downstream
+// tail-to-log bridge adds back) and same argument list, just with an
+// explicit elapsed-time as the first argument (mirroring log() above)
+// since a formatted message string carries no separate time field of its
+// own for the archive/bridge to sort or correlate against the tick ring by.
+__attribute__((format(printf, 2, 3)))
+inline void logf(double t, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Writer::instance().vlogf(t, fmt, args);
+  va_end(args);
 }
 
 }  // namespace shmtrace

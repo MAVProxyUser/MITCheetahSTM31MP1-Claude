@@ -71,6 +71,19 @@ assert RECORD_SIZE == 98, f"Record format drifted from ShmTrace.h's Record (got 
 RING_CAPACITY = 65536
 MAGIC = 0x43484554  # "CHET", little-endian bytes happen to spell nothing readable - just a sentinel
 
+# ---- text ring: the printf replacement -----------------------------------
+# Companion to ShmTrace.h's TextRecord/TextRing/logf() - see that file's own
+# header for why this is a SEPARATE ring rather than a generic redesign of
+# Record above. Same Header layout as the numeric ring (capacity/record_size
+# differ, which is how a generic reader would tell the two apart, though in
+# practice each is read by name - "/cheetah_trace_<instance>" vs
+# "/cheetah_trace_text_<instance>").
+TEXT_RECORD_FMT = "<dQ200s"
+TEXT_RECORD_SIZE = struct.calcsize(TEXT_RECORD_FMT)
+assert TEXT_RECORD_SIZE == 216, f"TextRecord format drifted from ShmTrace.h (got {TEXT_RECORD_SIZE}, want 216)"
+
+TEXT_RING_CAPACITY = 8192
+
 # Field names, in the SAME order as RECORD_FMT's unpacked tuple - used to
 # turn each decoded record into a dict for JSON archiving / easy grepping.
 _FIELDS = ["t", "seq", "tag", "roll", "pitch", "yaw", "wx", "wy", "wz",
@@ -94,6 +107,10 @@ O_RDONLY = 0
 
 def _shm_name(instance):
     return f"/cheetah_trace_{instance}".encode()
+
+
+def _text_shm_name(instance):
+    return f"/cheetah_trace_text_{instance}".encode()
 
 
 def attach(instance):
@@ -147,6 +164,104 @@ def read_all(instance):
         os.close(fd)
 
 
+def attach_text(instance):
+    """Same as attach() above, but for the TEXT ring
+    ("/cheetah_trace_text_<instance>") - the printf replacement's segment,
+    written by ShmTrace.h's logf(). Returns (fd, mmap_obj, ring_size) or
+    (None, None, None) if it does not exist yet."""
+    fd = _libc.shm_open(_text_shm_name(instance), O_RDONLY, 0o666)
+    if fd < 0:
+        return None, None, None
+    ring_size = HEADER_SIZE + TEXT_RING_CAPACITY * TEXT_RECORD_SIZE
+    try:
+        m = mmap.mmap(fd, ring_size, prot=mmap.PROT_READ)
+    except Exception:
+        os.close(fd)
+        return None, None, None
+    magic = struct.unpack_from(HEADER_FMT, m, 0)[3]
+    if magic != MAGIC:
+        m.close()
+        os.close(fd)
+        return None, None, None
+    return fd, m, ring_size
+
+
+def read_all_text(instance):
+    """Every currently-valid text record in the ring, oldest first, as a
+    list of {"t", "seq", "msg"} dicts - the human-readable event trail
+    ([nav]/[mission]/[gait]/[FALL]/[recover]/... lines) alongside
+    read_all()'s numeric physical-state trail."""
+    fd, m, _ = attach_text(instance)
+    if m is None:
+        return []
+    try:
+        write_seq = struct.unpack_from("<Q", m, 0)[0]
+        first_seq = max(0, write_seq - TEXT_RING_CAPACITY)
+        out = []
+        for seq in range(first_seq, write_seq):
+            off = HEADER_SIZE + (seq % TEXT_RING_CAPACITY) * TEXT_RECORD_SIZE
+            t, s, msg = struct.unpack_from(TEXT_RECORD_FMT, m, off)
+            out.append({"t": t, "seq": s,
+                        "msg": msg.split(b"\x00", 1)[0].decode("utf-8", "replace")})
+        return out
+    finally:
+        m.close()
+        os.close(fd)
+
+
+def tail_text_to_log(instance, log_path, poll_s=0.2):
+    """Continuously append new text-ring records for `instance` to
+    `log_path`, in the order they were written - this IS the printf
+    replacement's other half: RobotRunner.cpp/mit_sim_main.cpp no longer
+    write these lines to stdout at all (see ShmTrace.h's file header), so
+    without this running, server.py's/mission_runner.py's existing regex
+    parsing of ctrl_%d.log (waypoint progress, mission result, FALL,
+    gait changes, ...) would see nothing from those two files ever again.
+    Opens `log_path` in APPEND mode and never truncates it - server.py
+    still opens the SAME path itself in "w" mode to capture the
+    controller process's own raw stdout/stderr (whatever printf survives
+    in files this pass did not convert, plus any crash output), so the
+    two writers interleave onto one growing file exactly like two
+    processes tailing -f into the same target; each write here is one
+    line, one write() syscall, which POSIX guarantees is atomic against
+    the other writer's own line-buffered appends.
+    Runs until interrupted - meant to be launched once per dog alongside
+    that dog's controller process and torn down with it (see server.py's
+    launch/stop, which now spawns and tracks this next to the controller
+    Popen). Same cross-run writer_pid reset logic as watch() below (see
+    that function's own comment for why write_seq alone cannot detect a
+    new process reusing this instance number).
+    """
+    last_seq = 0
+    last_pid = None
+    with open(log_path, "a", buffering=1) as f:   # line-buffered
+        while True:
+            fd, m, _ = attach_text(instance)
+            if m is None:
+                time.sleep(poll_s)
+                continue
+            try:
+                write_seq, writer_pid = struct.unpack_from("<Q12xI", m, 0)
+                if writer_pid != last_pid:
+                    last_pid = writer_pid
+                    last_seq = 0
+                if write_seq != last_seq:
+                    start = max(last_seq, write_seq - TEXT_RING_CAPACITY)
+                    for seq in range(start, write_seq):
+                        off = HEADER_SIZE + (seq % TEXT_RING_CAPACITY) * TEXT_RECORD_SIZE
+                        msg = struct.unpack_from("200s", m, off + 16)[0]
+                        msg = msg.split(b"\x00", 1)[0].decode("utf-8", "replace")
+                        f.write(msg + "\n")
+                    last_seq = write_seq
+            finally:
+                # fd/m are only ever set right above (never carried over
+                # from a previous iteration), so this always closes exactly
+                # what THIS iteration opened - no double-close, no leak,
+                # regardless of which branch above ran.
+                m.close(); os.close(fd)
+            time.sleep(poll_s)
+
+
 def dump_snapshot(instance, reason, archive_dir="/tmp/cheetah_conductor/archive/shm_trace",
                    run_id=None):
     """Write the CURRENT full contents of dog `instance`'s ring to a
@@ -161,6 +276,15 @@ def dump_snapshot(instance, reason, archive_dir="/tmp/cheetah_conductor/archive/
     records = read_all(instance)
     if not records:
         return None
+    # The human-readable event trail alongside the numeric one - "here's
+    # everything around the crash" in one bundle, rather than needing a
+    # second manual pull of the text ring right after this archives the
+    # numeric one. Best-effort: a dog that fell before ever calling logf()
+    # (impossible in practice - the FIRST logf() call site is the boot
+    # banner - but the text ring not existing must never block archiving
+    # the numeric trace, which is the one this function's caller actually
+    # cares about) just gets an empty list here instead of failing.
+    text_records = read_all_text(instance)
     os.makedirs(archive_dir, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     run_tag = f"run{run_id}_" if run_id is not None else ""
@@ -174,17 +298,21 @@ def dump_snapshot(instance, reason, archive_dir="/tmp/cheetah_conductor/archive/
             "n_records": len(records),
             "span_s": (records[-1]["t"] - records[0]["t"]) if len(records) > 1 else 0.0,
             "records": records,
+            "n_text_records": len(text_records),
+            "text_log": text_records,
         }, f)
     print(f"[shm_reaper] archived {len(records)} records ({records[-1]['t']-records[0]['t']:.1f}s span) "
-          f"for dog{instance} ({reason}) -> {path}", flush=True)
+          f"+ {len(text_records)} text lines for dog{instance} ({reason}) -> {path}", flush=True)
     return path
 
 
 def unlink(instance):
-    """Remove the segment once its archive (if any) has been captured -
-    otherwise POSIX shm segments on macOS/Linux persist across process
-    exits indefinitely and accumulate across every run in a session."""
+    """Remove BOTH the numeric and text segments once their archive (if
+    any) has been captured - otherwise POSIX shm segments on macOS/Linux
+    persist across process exits indefinitely and accumulate across every
+    run in a session."""
     _libc.shm_unlink(_shm_name(instance))
+    _libc.shm_unlink(_text_shm_name(instance))
 
 
 def watch(instances, archive_dir, poll_s=0.5):
@@ -269,17 +397,27 @@ def main():
     ap.add_argument("--dump", type=int, help="dump a single instance's current ring once and exit")
     ap.add_argument("--reason", default="manual", help="tag for --dump's archive filename")
     ap.add_argument("--archive-dir", default="/tmp/cheetah_conductor/archive/shm_trace")
-    ap.add_argument("--poll", type=float, default=0.5, help="watch poll interval, seconds")
+    ap.add_argument("--poll", type=float, default=0.5, help="watch/tail-text poll interval, seconds")
+    ap.add_argument("--tail-text", type=int, metavar="INSTANCE",
+                     help="continuously append INSTANCE's text ring to --append-to "
+                          "(the printf replacement's bridge - see tail_text_to_log())")
+    ap.add_argument("--append-to", metavar="PATH",
+                     help="log file --tail-text appends to, e.g. ctrl_<i>.log")
     args = ap.parse_args()
 
     if args.dump is not None:
         path = dump_snapshot(args.dump, args.reason, args.archive_dir)
         sys.exit(0 if path else 1)
+    if args.tail_text is not None:
+        if not args.append_to:
+            ap.error("--tail-text needs --append-to")
+        tail_text_to_log(args.tail_text, args.append_to, args.poll)
+        return
     if args.watch:
         instances = [int(x) for x in args.watch.split(",")]
         watch(instances, args.archive_dir, args.poll)
         return
-    ap.error("need --watch or --dump")
+    ap.error("need --watch, --dump, or --tail-text")
 
 
 if __name__ == "__main__":

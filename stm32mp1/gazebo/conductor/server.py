@@ -976,11 +976,34 @@ class Fleet:
                     % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"],
                        spawn_bearing_deg, s["extra"])
                 )
-                archive_log(os.path.join(RUN_DIR, "ctrl_%d.log" % i), self.run_id - 1)
-                clog = open(os.path.join(RUN_DIR, "ctrl_%d.log" % i), "w")
+                ctrl_log_path = os.path.join(RUN_DIR, "ctrl_%d.log" % i)
+                archive_log(ctrl_log_path, self.run_id - 1)
+                clog = open(ctrl_log_path, "w")
                 cp = subprocess.Popen(["bash", "-c", cmd], cwd=HOST_RUN,
                                        env=cenv, stdout=clog, stderr=subprocess.STDOUT)
                 self.procs.append(cp)
+                # THE PRINTF REPLACEMENT'S OTHER HALF. RobotRunner.cpp and
+                # mit_sim_main.cpp no longer write their debug/event lines
+                # to stdout at all (see ShmTrace.h) - they go into a SHM
+                # text ring instead, cheap enough to run at any rate with
+                # no stdio locking/buffering/fflush cost. Without this
+                # bridge tailing that ring back into ctrl_%d.log, every
+                # regex/substring match this file already does against
+                # that log (waypoint progress, gait changes, "[FALL]",
+                # "[mission] RESULT", "MISSION COMPLETE", ...) would see
+                # NOTHING from those two files ever again. Started right
+                # after clog's truncating open above (never before it -
+                # the bridge only APPENDS, so it must not race a
+                # concurrent truncation of the same path), spawned
+                # unconditionally alongside the controller since the text
+                # ring is the ONLY place those lines exist now, not an
+                # optional extra. Torn down with every other process on
+                # stop/done (self.procs is killed as one list).
+                tbp = subprocess.Popen(
+                    ["python3", os.path.join(GAZEBO_DIR, "shm_reaper.py"),
+                     "--tail-text", str(i), "--append-to", ctrl_log_path,
+                     "--poll", "0.2"])
+                self.procs.append(tbp)
                 dash_note = (" +dash %.0fm" % s["dash"]) if s.get("dash") else ""
                 self._note("dog%d LOCKED: %s gait=%s cmd=%.2f m/s (cap %.2f) %s%s"
                             % (i, s["mission"], s["gait_name"], s["speed"],
@@ -1246,7 +1269,27 @@ class Fleet:
                                     text)
                     if m:
                         wp, tot, d, v = m[-1]
-                        st["waypoints"] = "%s/%s" % (wp, tot)
+                        wp, tot = int(wp), int(tot)
+                        # The PERIODIC status line above is 0-indexed and
+                        # stops updating once the dog reaches its last
+                        # waypoint - the arrival itself prints as a
+                        # DIFFERENT line ("[nav] reached wpN ..."), which
+                        # this regex does not match. Left alone, the last
+                        # few seconds of every mission display "wp N-1/N"
+                        # even after the Nth (final) waypoint has genuinely
+                        # been captured - not a skip, just this counter
+                        # freezing one index early (confirmed live: raw
+                        # logs show every "reached wpNN" in sequence with
+                        # no gaps, and "[mission] RESULT" always reports
+                        # the full N/N). Catch the arrival line too and
+                        # take whichever implies MORE progress - "reached
+                        # wpK" (0-indexed) means K+1 waypoints are now
+                        # done, matching the 1-based count the final
+                        # RESULT/MISSION COMPLETE lines already use.
+                        rm = re.findall(r"\[nav\] reached wp(\d+)", text)
+                        if rm:
+                            wp = max(wp, int(rm[-1]) + 1)
+                        st["waypoints"] = "%d/%d" % (wp, tot)
                         st["text"] = "d=%sm v=%sm/s" % (d, v)
                     if "[mission] RESULT" in text:
                         # A dog is DONE at its JUDGE line, not at "MISSION

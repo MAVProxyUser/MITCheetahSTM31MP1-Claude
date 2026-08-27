@@ -251,8 +251,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       const auto& stopw = nav.waypoint(dash_wp_index - 1);
       planner.addStopXY(stopw.north, stopw.east);
       hold_stop_n[0] = stopw.north; hold_stop_e[0] = stopw.east;
-      printf("[plan] mid-path stop registered at the loop closure "
-             "(wp%02d N=%.2f E=%.2f) for the dash interlude\n",
+      shmtrace::logf(0.0, "[plan] mid-path stop registered at the loop closure "
+             "(wp%02d N=%.2f E=%.2f) for the dash interlude",
              dash_wp_index - 1, stopw.north, stopw.east);
     }
     /*
@@ -274,8 +274,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       const double cosd = (ax*bx + ay*by) / (la * lb);
       if (cosd < -0.87) {          // direction change > 150 deg
         planner.addStopXY(wx[k], wy[k]);
-        printf("[plan] reversal at (%.1f, %.1f) registered as a stop "
-               "(%.0f deg turn - curvature cannot see it)\n",
+        shmtrace::logf(0.0, "[plan] reversal at (%.1f, %.1f) registered as a stop "
+               "(%.0f deg turn - curvature cannot see it)",
                wx[k], wy[k], std::acos(std::max(-1.0, cosd)) * 57.2958);
       }
     }
@@ -315,11 +315,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     analyzer.print();
 
     double kk, vv; planner.tightestCorner(&kk, &vv);
-    printf("[plan] %zu pts, %.1f m, tightest R=%.2f m -> %.2f m/s "
-           "(cruise %.2f, a_lat %.2f, corridor %.2f)\n",
+    shmtrace::logf(0.0, "[plan] %zu pts, %.1f m, tightest R=%.2f m -> %.2f m/s "
+           "(cruise %.2f, a_lat %.2f, corridor %.2f)",
            planner.path().size(), planner.path().empty() ? 0.0 : planner.path().back().s,
            kk > 1e-6 ? 1.0/kk : 0.0, vv, lim.v_cruise, lim.a_lat_max, corridor);
-    fflush(stdout);
   }
 
   /*
@@ -340,9 +339,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   {
     float settle_s = getenv("SIM_VX_DELAY_S") ? atof(getenv("SIM_VX_DELAY_S")) : 3.f;
-    printf("[nav] LOCOMOTION engaged - holding %.1f s for the gait to settle "
-           "before nav takes the stick\n", settle_s);
-    fflush(stdout);
+    shmtrace::logf(0.0, "[nav] LOCOMOTION engaged - holding %.1f s for the gait to settle "
+           "before nav takes the stick", settle_s);
     std::this_thread::sleep_for(std::chrono::milliseconds((long)(settle_s * 1000.f)));
   }
 
@@ -350,8 +348,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   auto elapsed = [&t0]() {
     return std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
   };
-  printf("[nav] taking the stick at t=%.1fs (mission %s)\n", elapsed(), mission);
-  fflush(stdout);
+  shmtrace::logf(elapsed(), "[nav] taking the stick at t=%.1fs (mission %s)", elapsed(), mission);
   /*
    * Anchor for the forward-speed ramp below - NOT armed on the initial
    * takeover (restart_t starts a full ramp window in the past, so vscale is
@@ -498,9 +495,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // correction that makes this correct again now that spawn heading is
       // mission-specific rather than always north.
       yaw_ref = est.rpy[2];
-      printf("[nav] GPS origin set, heading datum %.1f deg (spawn bearing %.1f deg)\n",
+      shmtrace::logf(elapsed(), "[nav] GPS origin set, heading datum %.1f deg (spawn bearing %.1f deg)",
              yaw_ref * 57.2958f, spawn_bearing_rad * 57.2958f);
-      fflush(stdout);
     }
 
     if (estop_recover_on && bridge->robotRunner() &&
@@ -514,10 +510,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         continue;
       }
       ++estop_attempts;
-      printf("[recover] ESTOP detected (attempt %d/%d) - waiting for a safe, "
-             "settled orientation before attempting to stand back up\n",
+      shmtrace::logf(elapsed(), "[recover] ESTOP detected (attempt %d/%d) - waiting for a safe, "
+             "settled orientation before attempting to stand back up",
              estop_attempts, max_estop_attempts);
-      fflush(stdout);
       {
         const auto& re = est;   // the SAME estimate that triggered isEstopped() above
         const float rc4[4] = {(float)re.contactEstimate[0], (float)re.contactEstimate[1],
@@ -556,11 +551,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       }
 
       if (!settled) {
-        printf("[recover] gave up after %.0fs - orientation never settled "
+        shmtrace::logf(elapsed(), "[recover] gave up after %.0fs - orientation never settled "
                "under %.0f deg, this looks like a genuine fall rather than "
-               "a transient trip. Leaving it ESTOPped.\n",
+               "a transient trip. Leaving it ESTOPped.",
                SETTLE_TIMEOUT_S, SETTLE_DEG);
-        fflush(stdout);
         if (bridge->robotRunner()) {
           const auto& rg = bridge->robotRunner()->getStateEstimate();
           const float rc4[4] = {(float)rg.contactEstimate[0], (float)rg.contactEstimate[1],
@@ -615,14 +609,13 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       }
       if (recovered) {
         restart_t = elapsed();   // ramp forward speed again from this standstill, not a step
-        printf("[recover] back on its feet at t=%.1fs (z=%.3f roll=%.1f pitch=%.1f) "
-               "- resuming mission at wp%02d of %d\n",
+        shmtrace::logf(elapsed(), "[recover] back on its feet at t=%.1fs (z=%.3f roll=%.1f pitch=%.1f) "
+               "- resuming mission at wp%02d of %d",
                elapsed(), rec_z, rec_roll, rec_pitch, nav.activeIndex(), nav.count());
       } else {
-        printf("[recover] stand-up did not verify (z=%.3f roll=%.1f pitch=%.1f) - "
-               "will retry if attempts remain\n", rec_z, rec_roll, rec_pitch);
+        shmtrace::logf(elapsed(), "[recover] stand-up did not verify (z=%.3f roll=%.1f pitch=%.1f) - "
+               "will retry if attempts remain", rec_z, rec_roll, rec_pitch);
       }
-      fflush(stdout);
       continue;
     }
 
@@ -739,11 +732,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       ControlParameterValue cv; cv.d = (double)seg->gait;
       bridge->userParams()->collection.lookup("cmpc_gait")
           .set(cv, ControlParameterValueKind::DOUBLE);
-      printf("[mission] gait %d -> %d entering %s at s=%.1f (R=%.2f, cost %+.2f s) t=%.1fs\n",
+      shmtrace::logf(elapsed(), "[mission] gait %d -> %d entering %s at s=%.1f (R=%.2f, cost %+.2f s) t=%.1fs",
              cur_gait, seg->gait,
              seg->regime == 2 ? "SUSTAINED" : (seg->regime == 1 ? "transient" : "straight"),
              seg->s0, seg->radius_min, seg->time_cost, elapsed());
-      fflush(stdout);
       cur_gait = seg->gait;
     }
 
@@ -800,24 +792,22 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       const bool may_switch = going_down ? true : (spd < decide_v);
       { static int gdbg = 0;
         if ((++gdbg % 50) == 0)
-          printf("[gaitdbg] vplan=%.2f want=%d cur=%d spd=%.2f down=%d may=%d\n",
-                 vplan, want, cur_gait, spd, (int)going_down, (int)may_switch),
-          fflush(stdout); }
+          shmtrace::logf(elapsed(), "[gaitdbg] vplan=%.2f want=%d cur=%d spd=%.2f down=%d may=%d",
+                 vplan, want, cur_gait, spd, (int)going_down, (int)may_switch);
+      }
       if (want != cur_gait && may_switch) {
         ControlParameterValue cv; cv.d = (double)want;
         bridge->userParams()->collection.lookup("cmpc_gait")
             .set(cv, ControlParameterValueKind::DOUBLE);
-        printf("[gait] %d -> %d at v=%.2f (planned %.2f) t=%.1fs\n",
+        shmtrace::logf(elapsed(), "[gait] %d -> %d at v=%.2f (planned %.2f) t=%.1fs",
                cur_gait, want, spd, vplan, elapsed());
-        fflush(stdout);
         cur_gait = want;
       }
     }
 
     if (nav.activeIndex() != lastIdx) {
       lastIdx = nav.activeIndex();
-      printf("[nav] -> wp%02d of %d  t=%.1fs\n", lastIdx, nav.count(), elapsed());
-      fflush(stdout);
+      shmtrace::logf(elapsed(), "[nav] -> wp%02d of %d  t=%.1fs", lastIdx, nav.count(), elapsed());
     }
 
     /*
@@ -833,9 +823,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
      */
     if (dash_pending && lastIdx == dash_wp_index) {
       dash_pending = false;
-      printf("[nav] loop complete at t=%.1fs - stop, lie down, stand back up "
-             "before the %s dash\n", elapsed(), mission);
-      fflush(stdout);
+      shmtrace::logf(elapsed(), "[nav] loop complete at t=%.1fs - stop, lie down, stand back up "
+             "before the %s dash", elapsed(), mission);
 
       // STOP WINDOW OPENS: forward command is being taken to zero on
       // purpose. Suspend the zero-debounce orientation ESTOP for the whole
@@ -1015,9 +1004,8 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
           ControlParameterValue cv2; cv2.d = (double)segNow->gait;
           bridge->userParams()->collection.lookup("cmpc_gait")
               .set(cv2, ControlParameterValueKind::DOUBLE);
-          printf("[mission] held gait change applied while standing: "
-                 "%d -> %d for the dash\n", cur_gait, segNow->gait);
-          fflush(stdout);
+          shmtrace::logf(elapsed(), "[mission] held gait change applied while standing: "
+                 "%d -> %d for the dash", cur_gait, segNow->gait);
           cur_gait = segNow->gait;
         }
       }
@@ -1027,13 +1015,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       setOrientTripEnable(true);
 
       restart_t = elapsed();   // ramp forward speed again from this standstill
-      printf("[nav] back up at t=%.1fs - dashing the final leg\n", elapsed());
-      fflush(stdout);
+      shmtrace::logf(elapsed(), "[nav] back up at t=%.1fs - dashing the final leg", elapsed());
     }
 
     if (!running) {
-      printf("[nav] MISSION COMPLETE t=%.1fs  (%d waypoints)\n", elapsed(), nav.count());
-      fflush(stdout);
+      shmtrace::logf(elapsed(), "[nav] MISSION COMPLETE t=%.1fs  (%d waypoints)", elapsed(), nav.count());
       bridge->driverCommand().leftStickAnalog[1]  = 0.f;
       bridge->driverCommand().rightStickAnalog[0] = 0.f;
       done = true;
@@ -1149,14 +1135,13 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //    level on the ground - a topple registers as attitude, not height.
       const bool ok_stand = (stand_z > 0.20f && stand_roll < 15.f && stand_pitch < 15.f);
       const bool ok_down  = (down_z < stand_z - 0.06f && down_roll < 20.f && down_pitch < 20.f);
-      printf("[mission] settle: z=%.3f roll=%.1f pitch=%.1f -> %s\n",
+      shmtrace::logf(elapsed(), "[mission] settle: z=%.3f roll=%.1f pitch=%.1f -> %s",
              stand_z, stand_roll, stand_pitch, ok_stand ? "ok" : "BAD");
-      printf("[mission] laydown: z=%.3f roll=%.1f pitch=%.1f -> %s\n",
+      shmtrace::logf(elapsed(), "[mission] laydown: z=%.3f roll=%.1f pitch=%.1f -> %s",
              down_z, down_roll, down_pitch, ok_down ? "ok" : "BAD");
-      printf("[mission] RESULT: %s  (waypoints %d/%d, settle %s, laydown %s)\n",
+      shmtrace::logf(elapsed(), "[mission] RESULT: %s  (waypoints %d/%d, settle %s, laydown %s)",
              (ok_stand && ok_down) ? "PASS" : "FAIL",
              nav.count(), nav.count(), ok_stand ? "ok" : "bad", ok_down ? "ok" : "bad");
-      fflush(stdout);
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
       /*
        * _exit, NOT exit - THIS WAS THE "Abort trap: 6".
@@ -1208,10 +1193,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       static bool noted = false;
       if (!noted) {
         noted = true;
-        printf("[nav] host stall seen at t=%.1fs (wp%d/%d, v=%.2f) - "
-               "NOT intervening, run continues\n",
+        shmtrace::logf(elapsed(), "[nav] host stall seen at t=%.1fs (wp%d/%d, v=%.2f) - "
+               "NOT intervening, run continues",
                elapsed(), nav.activeIndex(), nav.count(), nv);
-        fflush(stdout);
       }
     }
 
@@ -1221,10 +1205,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
 
     static int navlog = 0;
     if ((++navlog % 50) == 0) {   // 1 Hz
-      printf("[nav] wp%d/%d N=%.2f E=%.2f hdg=%.0f d=%.2f v=%.2f w=%.2f t=%.1fs\n",
+      shmtrace::logf(elapsed(), "[nav] wp%d/%d N=%.2f E=%.2f hdg=%.0f d=%.2f v=%.2f w=%.2f t=%.1fs",
              nav.activeIndex(), nav.count(), N, E, bearing * 57.2958f,
              nav.lastDistance(), nv, nw, elapsed());
-      fflush(stdout);
     }
   }
 }
@@ -1239,7 +1222,7 @@ int main(int argc, char** argv) {
   std::string robot_yaml = (argc > 2) ? argv[2] : "stm32mp1-defaults.yaml";
   std::string user_yaml  = (argc > 3) ? argv[3] : "mc-mit-ctrl-user-parameters.yaml";
 
-  printf("[mit-sim] Gazebo SITL | peer=%s robot=%s user=%s\n",
+  shmtrace::logf(0.0, "[mit-sim] Gazebo SITL | peer=%s robot=%s user=%s",
          g_peer.c_str(), robot_yaml.c_str(), user_yaml.c_str());
 
   MIT_Controller* ctrl = new MIT_Controller();

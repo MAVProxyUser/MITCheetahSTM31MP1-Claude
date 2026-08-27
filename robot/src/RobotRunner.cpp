@@ -59,7 +59,7 @@ RobotRunner::RobotRunner(RobotController* robot_ctrl,
  * robot data, and any control logic specific data.
  */
 void RobotRunner::init() {
-  printf("[RobotRunner] initialize\n");
+  shmtrace::logf(0.0, "[RobotRunner] initialize");
 
   // Build the appropriate Quadruped object
   if (robotType == RobotType::MINI_CHEETAH) {
@@ -82,7 +82,7 @@ void RobotRunner::init() {
       cheaterState, vectorNavData, _legController->datas,
       &_stateEstimate, controlParameters);
   initializeStateEstimator(false);
-  printf("[RobotRunner] absAiding at init = %p\n", (void*)absAiding); fflush(stdout);
+  shmtrace::logf(0.0, "[RobotRunner] absAiding at init = %p", (void*)absAiding);
   if (absAiding) _stateEstimator->setAbsoluteAiding(absAiding);
 
   memset(&rc_control, 0, sizeof(rc_control_settings));
@@ -171,8 +171,7 @@ void RobotRunner::run() {
       _shmFiniteOk = false;
       static int nanCount = 0;
       ++nanCount;
-      printf("[stm32mp1] STATE ESTIMATE WENT NON-FINITE (%d) - reinitialising\n", nanCount);
-      fflush(stdout);
+      shmtrace::logf(_shmElapsed, "[stm32mp1] STATE ESTIMATE WENT NON-FINITE (%d) - reinitialising", nanCount);
       initializeStateEstimator(_cheaterModeEnabled);
       _stateEstimator->run();
     }
@@ -196,13 +195,13 @@ void RobotRunner::run() {
         const auto& e = _stateEstimate;
         Vec3<float> pT = cheaterState->position.template cast<float>();
         Vec3<float> vT = cheaterState->vBody.template cast<float>();
-        printf("[ESTERR] t=%.2f pT=%.3f,%.3f,%.3f pE=%.3f,%.3f,%.3f "
-               "vT=%.3f,%.3f,%.3f vE=%.3f,%.3f,%.3f dvx=%+.3f dp=%.3f\n",
+        shmtrace::logf(_shmElapsed,
+               "[ESTERR] t=%.2f pT=%.3f,%.3f,%.3f pE=%.3f,%.3f,%.3f "
+               "vT=%.3f,%.3f,%.3f vE=%.3f,%.3f,%.3f dvx=%+.3f dp=%.3f",
                n * 0.002f,
                pT[0], pT[1], pT[2], e.position[0], e.position[1], e.position[2],
                vT[0], vT[1], vT[2], e.vBody[0], e.vBody[1], e.vBody[2],
                e.vBody[0] - vT[0], (e.position - pT).norm());
-        fflush(stdout);
       }
     }
   }
@@ -234,12 +233,12 @@ void RobotRunner::run() {
         }
         lastTrueYaw = trueYaw; haveLast = true;
         const float wzCmd = driverCommand ? driverCommand->rightStickAnalog[0] : 0.f;
-        printf("[YAW] t=%.2f wzCmd=%+.3f wzEst=%+.3f wzTrue=%+.3f "
-               "yawEst=%+.3f yawTrue=%+.3f roll=%+.1f pitch=%+.1f z=%.3f\n",
+        shmtrace::logf(_shmElapsed,
+               "[YAW] t=%.2f wzCmd=%+.3f wzEst=%+.3f wzTrue=%+.3f "
+               "yawEst=%+.3f yawTrue=%+.3f roll=%+.1f pitch=%+.1f z=%.3f",
                ny * 0.002f, wzCmd, e.omegaBody[2], trueRate,
                e.rpy[2], trueYaw,
                e.rpy[0] * 57.2958f, e.rpy[1] * 57.2958f, e.position[2]);
-        fflush(stdout);
       }
     }
   }
@@ -297,9 +296,8 @@ void RobotRunner::run() {
       if (dt_ms > sick_ms) {
         clean = 0;
         if (!g_hostStall.exchange(true)) {
-          printf("[STALL] control period %.1f ms (limit %.1f) - host stalled, "
-                 "mission entering safe hold\n", dt_ms, sick_ms);
-          fflush(stdout);
+          shmtrace::logf(_shmElapsed, "[STALL] control period %.1f ms (limit %.1f) - host stalled, "
+                 "mission entering safe hold", dt_ms, sick_ms);
           const auto& rs = _stateEstimate;
           const float c4[4] = {(float)rs.contactEstimate[0], (float)rs.contactEstimate[1],
                                 (float)rs.contactEstimate[2], (float)rs.contactEstimate[3]};
@@ -310,8 +308,7 @@ void RobotRunner::run() {
         }
       } else if (g_hostStall.load() && ++clean >= clear_ticks) {
         g_hostStall = false;
-        printf("[STALL] clear after %d clean ticks - safe to resume\n", clean);
-        fflush(stdout);
+        shmtrace::logf(_shmElapsed, "[STALL] clear after %d clean ticks - safe to resume", clean);
       }
     }
   }
@@ -375,12 +372,12 @@ void RobotRunner::run() {
       else
         fallen_for = 0.f;
       if (fallen_for >= fall_hold) {
-        printf("[FALL] %s: roll=%.0f deg pitch=%.0f deg z=%.3f m held %.2f s - "
-               "robot is down, stopping (legs go limp via the bridge watchdog)\n",
+        shmtrace::logf(_shmElapsed,
+               "[FALL] %s: roll=%.0f deg pitch=%.0f deg z=%.3f m held %.2f s - "
+               "robot is down, stopping (legs go limp via the bridge watchdog)",
                tipped ? "tipped over" : "collapsed",
                _stateEstimate.rpy[0] * 57.2958f, _stateEstimate.rpy[1] * 57.2958f,
                bodyZ, fallen_for);
-        fflush(stdout);
         // Tag the ring buffer with the confirmed-crash marker BEFORE the
         // _exit() below - the write itself survives an unclean exit (the
         // shm segment is not torn down by _exit skipping destructors), but
@@ -412,12 +409,12 @@ void RobotRunner::run() {
   if (getenv("STM32MP1_EST_DBG")) {
     static int _estdbg = 0;
     if ((++_estdbg % 25) == 0) {   // 20 Hz at 500 Hz
-      printf("[EST] rpy=%.3f %.3f %.3f pos=%.3f %.3f %.3f vB=%.3f %.3f %.3f wB=%.3f %.3f %.3f\n",
+      shmtrace::logf(_shmElapsed,
+             "[EST] rpy=%.3f %.3f %.3f pos=%.3f %.3f %.3f vB=%.3f %.3f %.3f wB=%.3f %.3f %.3f",
              _stateEstimate.rpy[0], _stateEstimate.rpy[1], _stateEstimate.rpy[2],
              _stateEstimate.position[0], _stateEstimate.position[1], _stateEstimate.position[2],
              _stateEstimate.vBody[0], _stateEstimate.vBody[1], _stateEstimate.vBody[2],
              _stateEstimate.omegaBody[0], _stateEstimate.omegaBody[1], _stateEstimate.omegaBody[2]);
-      fflush(stdout);
     }
   }
 
@@ -436,7 +433,7 @@ void RobotRunner::run() {
     _legController->setEnabled(true);
 
     if( (rc_control.mode == 0) && controlParameters->use_rc ) {
-      if(count_ini%1000 ==0)   printf("ESTOP!\n");
+      if(count_ini%1000 ==0)   shmtrace::logf(_shmElapsed, "ESTOP!");
       for (int leg = 0; leg < 4; leg++) {
         _legController->commands[leg].zero();
       }
@@ -480,14 +477,14 @@ void RobotRunner::run() {
               const float reach = std::sqrt(d.p[0]*d.p[0] + d.p[1]*d.p[1] + d.p[2]*d.p[2]);
               const float reachDes = std::sqrt(c.pDes[0]*c.pDes[0] +
                                                c.pDes[1]*c.pDes[1] + c.pDes[2]*c.pDes[2]);
-              printf("[LEG%d] q=%.2f %.2f %.2f p=%.3f %.3f %.3f |p|=%.3f "
-                     "pDes=%.3f %.3f %.3f |pDes|=%.3f tff=%.2f %.2f %.2f\n",
+              shmtrace::logf(_shmElapsed,
+                     "[LEG%d] q=%.2f %.2f %.2f p=%.3f %.3f %.3f |p|=%.3f "
+                     "pDes=%.3f %.3f %.3f |pDes|=%.3f tff=%.2f %.2f %.2f",
                      leg, d.q[0], d.q[1], d.q[2],
                      d.p[0], d.p[1], d.p[2], reach,
                      c.pDes[0], c.pDes[1], c.pDes[2], reachDes,
                      c.tauFeedForward[0], c.tauFeedForward[1], c.tauFeedForward[2]);
             }
-            fflush(stdout);
           }
         }
         cheetahMainVisualization->p = _stateEstimate.position;
@@ -561,7 +558,7 @@ void RobotRunner::setupStep() {
   // state estimator
   // check transition to cheater mode:
   if (!_cheaterModeEnabled && controlParameters->cheater_mode) {
-    printf("[RobotRunner] Transitioning to Cheater Mode...\n");
+    shmtrace::logf(_iterations * 0.002, "[RobotRunner] Transitioning to Cheater Mode...");
     initializeStateEstimator(true);
     // todo any configuration
     _cheaterModeEnabled = true;
@@ -569,7 +566,7 @@ void RobotRunner::setupStep() {
 
   // check transition from cheater mode:
   if (_cheaterModeEnabled && !controlParameters->cheater_mode) {
-    printf("[RobotRunner] Transitioning from Cheater Mode...\n");
+    shmtrace::logf(_iterations * 0.002, "[RobotRunner] Transitioning from Cheater Mode...");
     initializeStateEstimator(false);
     // todo any configuration
     _cheaterModeEnabled = false;
@@ -650,12 +647,12 @@ void RobotRunner::attitudeTrace() {
   static int n = 0;
   if (++n % every) return;
   const auto& r = _stateEstimate;
-  printf("[ATT] t=%.3f roll=%+.4f pitch=%+.4f wx=%+.3f wy=%+.3f wz=%+.3f "
-         "z=%.3f vx=%+.2f vy=%+.2f\n",
+  shmtrace::logf(_iterations * 0.002,
+         "[ATT] t=%.3f roll=%+.4f pitch=%+.4f wx=%+.3f wy=%+.3f wz=%+.3f "
+         "z=%.3f vx=%+.2f vy=%+.2f",
          _iterations * 0.002, r.rpy[0], r.rpy[1],
          r.omegaBody[0], r.omegaBody[1], r.omegaBody[2],
          r.position[2], r.vBody[0], r.vBody[1]);
-  fflush(stdout);
 }
 
 /*!
