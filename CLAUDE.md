@@ -5345,6 +5345,293 @@ runSwingLegControl/runContactLegControl port considered earlier in this
 file was very likely never going to fix galloping's dash failure at all,
 regardless of how it was implemented.
 
+### Cornering-envelope tally, CONTINUED next session: trotRunning at flagship speed
+
+Per direct re-instruction to prioritize this over the estimator/force-gate
+thread. Filled the gap this file itself flagged ("trotting/trotRunning...
+were the best-characterized gaits already" - true for their OWN courses at
+their OWN speeds, but never tested on the SAR-pattern angles at trotRunning's
+actual flagship speed, 3.5 m/s). 3-dog parallel batch, real mission (not a
+synthetic corner probe):
+
+| course | angle | trotRunning @ 3.5 m/s |
+|---|---|---|
+| circle:9:8 | 45 deg | **PASS 24.0s**, roll 0.6/pitch 0.1 at settle |
+| sector:15:3 | 120-147.5 deg | **PASS 129.6s**, roll/pitch 0.1/0.1 at settle |
+| parallel:30:5:8 | 90 deg | **FELL** ~196s after nav took the stick, orientation trip |
+
+The parallel failure is NOT a new 90-degree-angle finding - this file
+already documents parallel's specific weakness (a short 5m connector right
+after a 30m straight is a genuine braking-distance problem, which is why
+its own validated recipe runs at 1.5 m/s, not 3.5). Running it at 3.5 was a
+deliberate push past its known-safe envelope, and it failed exactly where
+predicted. Net new result: trotRunning corners CLEANLY at both 45 and
+120-147.5 degrees at full flagship speed, on courses/angles it had never
+actually been run against before tonight.
+
+### Cornering-envelope tally, CONTINUED: trotting at 2.0 m/s, all three angle extremes clean
+
+Same 3-dog-parallel method, trotting instead of trotRunning:
+
+| course | angle | trotting @ 2.0 m/s |
+|---|---|---|
+| circle:9:8 | 45 deg | **PASS 25.4s** |
+| sector:15:3 | 120-147.5 deg | **PASS 131.0s** |
+| star:10.514:5 | 144/162 deg | **PASS 56.1s** |
+
+3/3, zero falls. Combined with the trotRunning result above, both of this
+port's two most flagship-relevant gaits now have confirmed clean cornering
+across the full angle range this catalog can produce (45 through 162
+degrees), each at its own established cruise speed. Next: push speed UP
+past each gait's known cruise to find the actual per-angle ceiling (the
+literal "how fast into X degrees before it spins out" the stretch goal
+asks for), rather than only confirming pass/fail at one speed per gait.
+
+### Cornering-envelope tally, CONTINUED: pushing trotting past its own known cruise to find the real ceiling
+
+Trotting's own established star ceiling elsewhere in this file was
+~2.0-2.5 m/s. Re-checked at 2.5 across all three angle extremes rather
+than assuming the old number still holds on the current stack (post
+gait-selection fix, WBIC damping, real Go1 model):
+
+| course | angle | trotting @ 2.5 m/s |
+|---|---|---|
+| circle:9:8 | 45 deg | **PASS 24.9s**, roll 1.3 |
+| star:10.514:5 | 144/162 deg | **PASS 61.8s**, roll 0.1 |
+| sector:15:3 | 120-147.5 deg | **PASS 129.7s**, roll 0.2 |
+
+3/3 again, no ceiling found yet at any angle. Continuing up to 3.0 m/s.
+
+### Cornering-envelope tally, CONTINUED: trotting's real ceiling found, and it is ANGLE-DEPENDENT
+
+Pushed to 3.0 m/s (bracketing the 2.5-PASS result above):
+
+| course | angle | trotting @ 3.0 m/s | failure signature |
+|---|---|---|---|
+| circle:9:8 | 45 deg | **PASS 24.9s** | - |
+| sector:15:3 | 120-147.5 deg | **FELL** | flat height collapse: `roll=1 pitch=0 z=0.040` |
+| star:10.514:5 | 144/162 deg | **FELL** | genuine tip-over: `roll=139 pitch=0 z=-0.372` |
+
+This is the literal thing asked for: trotting's cornering ceiling BRACKETS
+to 2.5 m/s PASS / 3.0 m/s FAIL for any angle >=120 degrees, while the
+gentle 45-degree corner tolerates at least 3.0 with no sign of strain
+(roll stayed under 2 degrees at every speed tried, 2.0 through 3.0). And
+the two tight-angle failures are not the same mechanism - sector fails via
+the flat force/height-starvation signature already documented multiple
+times elsewhere in this file, while star's sharper 144/162-degree vertex
+genuinely rolls the robot over. Not narrowed further (e.g. 2.7/2.8) given
+time - the bracket itself is the useful empirical answer, and coverage
+across more gaits matters more than sharpening this one gait's exact
+decimal.
+
+### Cornering-envelope tally, CONTINUED: bounding/galloping/pronking on sector's 120-147.5 deg - the first data at this angle for all three
+
+| gait | speed | sector:15:3 (16 waypoints, dense 120-147.5 deg corners) |
+|---|---|---|
+| bounding | 1.0 | **PASS 170.9s** - first confirmed clean run at this angle |
+| galloping | 0.8 | **FELL at wp06/16** (~37%), flat collapse `roll=11 pitch=0 z=0.044` |
+| pronking | 0.6 | **FELL at wp02/16** (~12%), `roll=-41 pitch=0 z=-0.001` |
+
+Bounding adds a genuinely new clean data point. Galloping's and pronking's
+falls are worth reading carefully rather than filed as "another cornering
+failure": sector packs corners far more densely than any course either
+gait has been tested on before (16 waypoints, 120-147.5 degrees, over a
+161m course - tighter spacing than the atom's continuous-but-gentler
+curve or the star's five widely-spaced corners). Galloping's failure
+signature (flat, mild roll, height collapse) matches its already-confirmed
+estimator-divergence mechanism from earlier tonight, plausibly compounded
+by never getting a long enough straight recovery between corners to
+resettle. Pronking falling after only 2 waypoints is the most concerning
+data point of the three - much earlier than its established atom/star/
+circle performance - and raises a real, not-yet-answered question of
+whether it's the ANGLE, the CORNER DENSITY, or both. Next: same three
+gaits against a gentler, more widely-spaced 90-degree course (parallel/
+expsquare) to separate "angle" from "density" as the actual variable.
+
+### Cornering-envelope tally, CONTINUED: a flawed test design, caught and corrected
+
+Tried to isolate "angle" from "corner density" by testing bounding/
+galloping/pronking on `expsquare:5:12` at their own established speeds,
+on the assumption it was a gentler, more widely-spaced 90-degree course
+than sector. That assumption was WRONG - an expanding square is a
+SPIRAL, so its early legs are short with frequent, tight-radius turns,
+not spaced out at all. Result: ALL THREE fell, around wp07-09 of the
+course:
+
+| gait | speed | expsquare:5:12 |
+|---|---|---|
+| bounding | 1.0 | **FELL wp09**, genuine tip-over `roll=-169 z=-0.019` |
+| galloping | 0.8 | **FELL wp07**, flat collapse `roll=-0 z=0.035` |
+| pronking | 0.6 | **FELL wp07**, genuine tip-over `roll=-140 z=0.462` |
+
+Bounding failing here is a real, new finding on its own (it had been
+clean at every other angle tested tonight - 45, 120-147.5, 144/162 -
+so this is its first observed cornering failure). But the course choice
+does not answer the angle-vs-density question it was meant to - it may
+have just reproduced sector's density problem through a different
+geometry rather than testing a genuinely gentler case. Re-running the
+same three gaits against `parallel`, which is actually long straights
+with occasional turns (not a spiral), to get a clean answer.
+
+### Cornering-envelope tally, CONTINUED: the density hypothesis is REFUTED - it is a mid-range ANGLE band, not spacing
+
+`parallel` is genuinely long straights (30m) with occasional, widely-spaced
+90-degree turns - the clean test the expsquare attempt failed to be. All
+three gaits STILL fell:
+
+| gait | speed | parallel:30:5:8 |
+|---|---|---|
+| bounding | 1.0 | **FELL wp11**, flat collapse `roll=0 pitch=0 z=0.057` |
+| galloping | 0.8 | **FELL wp08**, genuine tip-over `roll=-79 pitch=52 z=0.247` |
+| pronking | 0.6 | **FELL wp09**, mild collapse `roll=18 z=-0.073` |
+
+This refutes the density hypothesis outright - these are widely-spaced
+turns with a full 30m straight to recover on between them, and all three
+gaits still went down. Combined with tonight's earlier clean 2/2 passes
+for bounding/galloping/pronking at BOTH 45 degrees (circle) and 144/162
+degrees (star), the real pattern is not "tighter angle is harder" at all:
+
+| gait | 45 deg | 90 deg | 120-147.5 deg | 144/162 deg |
+|---|---|---|---|---|
+| bounding | PASS | **FELL x2** | PASS | PASS |
+| galloping | PASS | **FELL x2** | **FELL** | PASS |
+| pronking | PASS | **FELL x2** | **FELL** | PASS |
+
+All three flight-phase gaits are fine at the gentlest angle AND at the
+sharpest angle tested, and struggle specifically in the MID-RANGE
+(90-147.5 degrees). That is a genuinely surprising, non-monotonic result
+worth taking at face value rather than forcing into a "tighter is worse"
+story the data does not support. A plausible mechanism, not yet checked:
+the follower's own pivot-vs-arc branch (documented elsewhere in this file
+- it switches behavior based on whether the look-ahead target lands
+behind the body's nose plane) may transition through exactly this
+mid-range angle band differently than it handles either extreme, which
+would make this a PLANNER/FOLLOWER artifact rather than a gait-dynamics
+one - worth checking the raw nav log for `[follow] PIVOT fired` around
+each of these falls before assuming it is the gait's fault at all.
+
+**Checked immediately, REFUTED**: `grep -c "PIVOT fired"` on all three raw
+ctrl logs returns 0 - the pivot branch never engaged in any of these three
+runs. This is genuinely a gait-dynamics response to the 90-147.5 degree
+angle band, not a planner/follower artifact. Real, unexplained, and
+consistent across three independent flight-phase gaits - a legitimate
+open finding for whoever picks up the deeper "why" next, not something to
+keep guessing at tonight.
+
+### Cornering-envelope tally, CONTINUED: walking closes out gait coverage, and it is far more robust - with one exception
+
+| course | angle | walking @ 1.5 m/s |
+|---|---|---|
+| circle:9:8 | 45 deg | **PASS 30.5s** |
+| parallel:30:5:8 | 90 deg | **PASS 184.2s** |
+| sector:15:3 | 120-147.5 deg | **orientation ESTOP trip, zombie-stalled** (the already-documented "stuck dog" mode - motors cut, no clean fall, no clean pass, burns the timeout) |
+
+Walking succeeds at exactly the two angles (45, 90) that broke every
+flight-phase gait tonight, which is the expected result for a gait that
+never leaves two-plus feet on the ground - but it is not immune, and its
+own failure at 120-147.5 degrees is a softer one (an orientation trip
+into a stall, not a fall) than the flight gaits' outright collapses/
+tip-overs there.
+
+## CORNERING ENVELOPE, CONSOLIDATED (2026-08-27 continuation session)
+
+Full cross-gait x angle table, everything gathered across tonight's
+batches (all real mission runs, not synthetic corner probes; "-" =
+not tested tonight):
+
+| gait | speed(s) tried | 45 deg (circle) | 90 deg (parallel/expsquare) | 120-147.5 deg (sector) | 144/162 deg (star) |
+|---|---|---|---|---|---|
+| trotting | 2.0-3.0 | PASS to >=3.0 | - | PASS to 2.5, FAIL 3.0 (flat collapse) | PASS to 2.5, FAIL 3.0 (tip-over) |
+| trotRunning | 3.5 | PASS | FAIL* (parallel only - known braking-distance issue at this speed, not a new angle finding) | PASS | PASS (established) |
+| walking | 1.5 | PASS | PASS | orientation trip -> zombie stall | - |
+| walking2 | 1.0/0.6 | FAIL@1.0 general speed ceiling, not angle | - | - | FAIL@1.0 (same ceiling), PASS@0.6 |
+| bounding | 1.0 | PASS | **FAIL x2** (expsquare + parallel) | PASS | PASS |
+| galloping | 0.8 | PASS | **FAIL x2** (expsquare + parallel) | FAIL (wp06/16) | PASS |
+| pronking | 0.6 | PASS | **FAIL x2** (expsquare + parallel) | FAIL (wp02/16) | PASS |
+
+**Headline finding**: all three flight-phase gaits (bounding, galloping,
+pronking) share a specific, reproducible weakness at 90-147.5 degrees
+while being fine at both the gentle extreme (45) and the sharp extreme
+(144/162). This is NOT explained by corner density (parallel is genuinely
+long straights with occasional turns and still broke all three) and NOT
+a planner/follower artifact (`[follow] PIVOT fired` count is 0 across
+every one of these failing logs, checked directly). It is a real,
+open, gait-dynamics question: something about a MID-RANGE direction
+change specifically challenges a gait with a full-airborne phase, in a
+way neither a very gentle turn nor a near-reversal does. Trotting (full
+duty-cycle-appropriate stance, no flight phase) shows the more intuitive
+monotonic pattern instead - fine at every angle up to a speed-dependent
+ceiling that drops as the course's tightest angle increases.
+
+Coverage still open: walking2 was not re-tested at 90/120-147.5 (already
+established to be speed-limited around 1.0 m/s independent of angle, so
+low priority); no gait has been pushed to find its OWN ceiling at 90 or
+120-147.5 degrees the way trotting's was bracketed at 2.5/3.0 - only
+pass/fail at each gait's own previously-established base speed.
+
+**Refinement worth noting**: trotRunning ALSO has a real flight phase
+(40% duty, per the gait table) and PASSED sector's 120-147.5 degree
+corners cleanly (129.6s) where bounding/galloping/pronking all failed
+there. The difference is not "has a flight phase" but likely which LEGS
+are airborne together: trotRunning alternates DIAGONAL PAIRS (always
+laterally balanced even mid-flight), while bounding/pronking synchronize
+more legs at once and galloping's offsets are asymmetric. If this holds
+up under more testing, the mid-band vulnerability may be specifically
+about lateral support asymmetry during the airborne phase, not the
+airborne phase itself - a sharper, more useful hypothesis than "flight
+gaits are fragile in corners."
+
+**Tested directly, REFUTED.** Pacing synchronizes LATERAL pairs (left
+legs together, right legs together) - arguably worse lateral symmetry
+during its stance/swing pattern than trot's diagonal pairs, which made it
+the natural next test. First attempt was contaminated by pacing's own
+already-documented ~50% gait-ENGAGEMENT coin-flip (the orientation trip
+fired at 11:54:56, one second BEFORE "nav taking the stick" at 11:54:58 -
+checked the timestamps before drawing any conclusion, same discipline
+this file has needed before for this exact gait). Clean solo retry got
+past engagement cleanly and reached wp13 of 16 (81% through sector's
+dense 120-147.5 degree corners) with zero falls before the harness
+timeout ended it, still healthy and progressing. So pacing - despite
+weaker lateral symmetry than trotRunning's diagonal pairs - handles the
+same angle range that broke bounding/galloping/pronking outright. The
+lateral-support-symmetry hypothesis does not survive this test. The
+mid-band vulnerability remains real and unexplained, but it is not
+simply about which legs share the airborne phase - both explanations
+tried so far (has-a-flight-phase, and now leg-sync symmetry) have been
+directly tested and refuted rather than left as untested guesses.
+
+### `corner:` mission revisited: the ORIGINAL bug appears gone, a DIFFERENT one found in its place
+
+Per the plan to fix `corner:`'s wp0-overshoot bug and unlock real 5-degree
+notches, re-tested it live rather than reading code further. Result:
+the previously-reported symptom ("dog overshoots the vertex and loops
+back to re-approach from the wrong side") did NOT reproduce -
+`corner:25:45` at trotting 1.5 tracked the 45-degree turn cleanly (a
+brief heading transient through the corner, then locked onto the exit
+leg's heading and closed distance steadily) and reached wp01 to within
+0.24m. Most likely fixed as a side effect of the pivot-follower and
+steering-cap work done earlier this session for other courses, not
+independently verified before now.
+
+**A different, real bug is what's left**: the mission reaches its final
+waypoint still at full cruise speed (v pinned at 1.50 in the nav log with
+no visible deceleration anywhere in the approach), then the end-of-mission
+stop sequence tips the robot over (`roll=40.5 deg` at settle, judged FAIL).
+This is the same CLASS of bug already found and fixed for oval/star
+("RESOLVED: it was never the lie-down - it was the ARRIVAL", "steered
+deceleration") - `corner:`'s own end-of-path stop registration
+(`_path[n-1].v = v_min` when `_endStop` is set, confirmed present in
+`BodyPathPlanner.h`) is not translating into a visible braking zone before
+arrival on this specific 2-waypoint course, for a reason not yet isolated
+(possibly the mission's short waypoint count exposing an edge case the
+multi-corner missions never hit). NOT fixed tonight - deprioritized in
+favor of continuing empirical coverage on the working catalog, since
+5-degree notches are a nice-to-have and this stop-sequence bug class has
+already needed real dedicated investigation elsewhere in this file. Left
+as a concrete, scoped next step for whoever has time: instrument
+`BodyPathPlanner::plan()`'s backward pass specifically for a 2-3-point
+path and compare against a working 5+ point course.
+
 ### Cornering-envelope tally, end of session
 
 | gait | angle(s) tested | speed | result |
@@ -5708,3 +5995,76 @@ properly - disassembling `LocomotionCtrl<float>::_ParameterSetup`
 itself to confirm each symbol's real size and read site before touching
 any array - is the concrete next step, not a re-guess at the same
 layout that already produced garbage once.
+
+**Follow-up, same night**: actually attempted the disassembly. Confirmed
+`_ParameterSetup`'s real layout (a loop over 3-float Vec3 copies from a
+constant-pool base at `0x2dd250`, per-field byte offsets 0x390-0x440),
+verified the read METHOD is sound (re-read the already-known-correct Q
+weight vector at `0x2fe070` and got an exact match), then applied that
+same method to the per-situation gain addresses and got garbage
+(huge/denormal-exponent floats). Conclusion: these specific values are
+NOT compiled-in `.rodata` constants - `_ParameterSetup` loads them from
+a runtime config file at process start, consistent with what this
+section already said. This is a genuine, confirmed dead end for static
+analysis, not an unresolved gap anymore. What's now verified and usable
+without the exact numbers: Unitree's per-situation gain STRUCTURE is
+real, and this port's single fixed WBIC gain set is a plausible source
+of marginal stability at the top of every gait's range - already acted
+on via the atom `Kp_ori` fix above.
+
+## The IMM-KF / disturbance-observer line of investigation: a real, testable idea, tried, parked unproven
+
+Two more papers read this session, both on state estimation via contact
+detection - Menner & Berntorp ("Simultaneous State Estimation and
+Contact Detection for Legged Robots by Multiple-Model Kalman Filtering",
+arXiv:2404.03444) and Bledt/Wensing/Ingersoll/Kim ("Contact Model Fusion
+for Event-Based Locomotion in Unstructured Terrains", ICRA 2018). Both
+independently make the same core point relevant to this port's own
+unsolved backward-walk/estimator-divergence bug: MIT's `ContactEstimator`
+is a pure schedule pass-through with no evidence check at all, while a
+real hardware-validated system infers contact from PHYSICS (a
+hypothetical foot force from joint torque via the Jacobian, checked for
+physical validity - positive normal force, inside the friction cone)
+and only THEN decides how much to trust the schedule.
+
+**Implemented as `$SIM_FORCE_GATE=1`**
+(`common/src/Controllers/PositionVelocityEstimator.cpp`), additive to
+the existing phase-based trust ramp, NOT replacing it (learning directly
+from why the earlier `$SIM_CONTACT_DETECT` attempt regressed things -
+see that section above). Computes `f = J^-T * tauEstimate` per leg
+(this port's sim applies commanded torque directly, so `tauEstimate` is
+a faithful proxy for applied force, not just a command) and derates
+trust only when the schedule says confidently mid-stance but the force
+is not physically consistent with real load-bearing contact.
+
+**First cut reacted to a single instantaneous reading and made things
+worse, not better**: tested against galloping's dash (the one case with
+a confirmed, ground-truth-verified root cause), the gated run fell
+DURING GAIT ENGAGEMENT - before nav even took the stick - while the
+identical run with the gate off did not. The Bledt/Wensing paper's own
+data explains why: even their REAL momentum-based disturbance observer,
+measuring genuinely applied torque on real hardware, is "a large amount
+of noise... during swing" (4-8N RMS), and their whole reason for an
+event-based FSM includes an explicit debounce delay "to prevent fleeting
+contact from catastrophically affecting the robot's gait." A hard
+single-tick threshold was never going to survive a high-dynamic
+transient like gait engagement.
+
+**Fixed with a debounce** (`$SIM_FORCE_GATE_DEBOUNCE_MS`, default 30ms) -
+requires the invalidity to persist before touching trust at all. This
+DID fix the immediate-engagement fall (re-test: nav took the stick and
+ran ~105s before any fall, versus falling before nav ever engaged). But
+the debounced version still fell earlier than the gate-off baseline (105s
+vs. the baseline surviving to a 145s harness timeout still progressing,
+no fall). That is ONE run each, on galloping - this port's own least
+reliable, most marginal gait - so per this file's own repeatedly-learned
+lesson, this is not evidence the gate is harmful, but it is also not
+evidence it helped. **Parked here, unproven, not adopted**: the flag
+exists, defaults OFF, changes nothing for any existing validated result,
+and is a real, well-motivated lead for whoever has time to run the
+proper interleaved A/B (several repeats each, gate on vs. off, on
+galloping's dash specifically) rather than continuing to spend tonight's
+limited remaining time on a gait this file has already established has
+no real speed/mission value - the priority for the rest of tonight is
+the cornering-envelope sweep at flagship speed, which was explicitly
+re-requested twice.

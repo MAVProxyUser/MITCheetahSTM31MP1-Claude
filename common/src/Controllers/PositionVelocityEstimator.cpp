@@ -174,6 +174,79 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     //T high_suspect_number(1000);
     T high_suspect_number(100);
 
+    // FORCE-VALIDITY GATE ($SIM_FORCE_GATE=1), opt-in. Per the IMM-KF paper
+    // (Menner & Berntorp, "Simultaneous State Estimation and Contact
+    // Detection for Legged Robots", arXiv:2404.03444) - their Eq. 11 computes
+    // a "hypothetical" foot force from joint torque via the Jacobian
+    // (f = J^-T tau) and uses its physical validity (positive normal force,
+    // inside the friction cone) to bias which contact mode is believed,
+    // INSTEAD of trusting a fixed schedule. This port's sim applies commanded
+    // torque directly (no actuator dynamics), so LegController's tauEstimate
+    // is a faithful proxy for applied torque, not just a command - the same
+    // ingredient the paper needs, already computed for every leg.
+    //
+    // This does NOT replace the existing phase-based trust ramp the way the
+    // earlier $SIM_CONTACT_DETECT attempt did (that one overwrote the smooth
+    // ramp with a two-level signal and regressed walking2 from 21m to 5.6m -
+    // see CLAUDE.md). It only additionally derates trust when the SCHEDULE
+    // says "confidently mid-stance" but the commanded force is NOT physically
+    // consistent with real load-bearing contact (non-positive normal force,
+    // or grossly outside a friction cone).
+    //
+    // DEBOUNCED, not single-tick - per Bledt/Wensing/Ingersoll/Kim ("Contact
+    // Model Fusion for Event-Based Locomotion", ICRA 2018), even a REAL
+    // momentum-based disturbance observer measuring actual applied torque is
+    // "a large amount of noise from the force estimate" during high-dynamic
+    // transients (their Fig 3: 4-8 N RMS error during swing on real hardware),
+    // and their own event-based FSM adds an explicit delay specifically "to
+    // prevent fleeting contact from catastrophically affecting the robot's
+    // gait" from a single bad reading. First cut of this gate reacted to one
+    // instantaneous reading and immediately cut trust 80% - tested against
+    // galloping's dash, it fell during gait ENGAGEMENT (before nav even took
+    // the stick), while the identical run with the gate off did not. One
+    // sample each is not proof, but the timing matches exactly the failure
+    // mode this paper's own data predicts, so the gate is fixed to require
+    // the invalidity to PERSIST for $SIM_FORCE_GATE_DEBOUNCE_MS (default 30 ms,
+    // roughly this port's own control-loop equivalent of the paper's 4-5ms
+    // hardware detection delay, scaled up for this being commanded torque at
+    // the port's own state-estimator rate rather than a filtered observer)
+    // before touching trust at all, rather than a single-tick threshold.
+    {
+      static const bool forceGate =
+          getenv("SIM_FORCE_GATE") && atoi(getenv("SIM_FORCE_GATE")) != 0;
+      static const T debounceS =
+          T((getenv("SIM_FORCE_GATE_DEBOUNCE_MS")
+                 ? atof(getenv("SIM_FORCE_GATE_DEBOUNCE_MS"))
+                 : 30.0) /
+            1000.0);
+      static T invalidFor[4] = {0, 0, 0, 0};
+      if (forceGate && trust > T(0.5)) {
+        const Mat3<T>& J = this->_stateEstimatorData.legControllerData[i].J;
+        const Vec3<T>& tau =
+            this->_stateEstimatorData.legControllerData[i].tauEstimate;
+        // f (body frame) solves J^T f = tau, the inverse of the assembly
+        // LegController::updateCommand uses to turn a commanded foot force
+        // into joint torque (legTorque += J^T * footForce).
+        Vec3<T> f_body = J.transpose().fullPivHouseholderQr().solve(tau);
+        Vec3<T> f_world = Rbod * f_body;
+        T fz = f_world(2);
+        T fxy = std::sqrt(f_world(0) * f_world(0) + f_world(1) * f_world(1));
+        const T fzMin = T(2.0);   // N - well below any real stance load
+        const T muGate = T(2.0); // matches this port's own sim foot friction
+        bool physicallyValid = (fz > fzMin) && (fxy < muGate * fz);
+        if (physicallyValid) {
+          invalidFor[i] = T(0);
+        } else {
+          invalidFor[i] += this->_dtUsed;
+          if (invalidFor[i] > debounceS) {
+            trust *= T(0.2);
+          }
+        }
+      } else {
+        invalidFor[i] = T(0);
+      }
+    }
+
     // printf("Trust %d: %.3f\n", i, trust);
     Q.block(qindex, qindex, 3, 3) =
         (T(1) + (T(1) - trust) * high_suspect_number) * Q.block(qindex, qindex, 3, 3);
