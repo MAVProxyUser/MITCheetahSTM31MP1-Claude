@@ -34,6 +34,16 @@ extern std::atomic<bool> g_hostStall;
 #include "Utilities/Timer.h"
 #include "Controllers/PositionVelocityEstimator.h"
 //#include "rt/rt_interface_lcm.h"
+// Per-tick SHM tracing, built to root-cause the fleet-only fast-fall
+// mystery (clean control-loop timing rules out a scheduling stall, so
+// whatever is happening lives in the control DATA at a resolution the
+// existing 1-in-50-tick printf logging cannot see). Lives under
+// stm32mp1/gazebo/ rather than robot/include/ because it is a SITL
+// debugging tool, not part of the hardware-facing interface - lazily
+// opens shared memory only on first log() call, so a board build that
+// never calls it never pays for the mmap. See ShmTrace.h's own header
+// for the full design (lock-free ring buffer, separate reaper process).
+#include "../../stm32mp1/gazebo/ShmTrace.h"
 
 RobotRunner::RobotRunner(RobotController* robot_ctrl, 
     PeriodicTaskManager* manager, 
@@ -119,6 +129,12 @@ void RobotRunner::run() {
       : std::chrono::duration<double, std::milli>(_nowTickTime - _lastTickTime).count();
   _lastTickTime = _nowTickTime;
   _firstTick = false;
+  // Elapsed mission time by NOMINAL dt accumulation (matches every other
+  // "t=%.1fs" printed elsewhere in this port, e.g. RobotRunner's own [YAW]/
+  // [ESTERR] traces use n*0.002f) - shared by every shmtrace::log() call
+  // site in this function so the whole trace uses ONE consistent clock.
+  static double _shmElapsed = 0.0;
+  _shmElapsed += controlParameters->controller_dt;
 
   // Run the state estimator step
   //_stateEstimator->run(cheetahMainVisualization);
@@ -142,6 +158,7 @@ void RobotRunner::run() {
   // going into update_problem_data_floats - and out again as NaN joint torques,
   // which Gazebo rejects and which are undefined behaviour on real hardware.
   // Reinitialising the estimator is far better than propagating NaN.
+  bool _shmFiniteOk = true;   // fed to the per-tick SHM trace at the end of run()
   {
     const auto& r = _stateEstimate;
     bool bad = false;
@@ -151,6 +168,7 @@ void RobotRunner::run() {
     for (int i = 0; i < 4 && !bad; ++i)
       if (!std::isfinite(r.orientation[i])) bad = true;
     if (bad) {
+      _shmFiniteOk = false;
       static int nanCount = 0;
       ++nanCount;
       printf("[stm32mp1] STATE ESTIMATE WENT NON-FINITE (%d) - reinitialising\n", nanCount);
@@ -282,6 +300,13 @@ void RobotRunner::run() {
           printf("[STALL] control period %.1f ms (limit %.1f) - host stalled, "
                  "mission entering safe hold\n", dt_ms, sick_ms);
           fflush(stdout);
+          const auto& rs = _stateEstimate;
+          const float c4[4] = {(float)rs.contactEstimate[0], (float)rs.contactEstimate[1],
+                                (float)rs.contactEstimate[2], (float)rs.contactEstimate[3]};
+          shmtrace::log("STALL", _shmElapsed, rs.rpy[0], rs.rpy[1], rs.rpy[2],
+                        rs.omegaBody[0], rs.omegaBody[1], rs.omegaBody[2],
+                        rs.vBody[0], rs.vBody[1], rs.vBody[2], rs.position[2],
+                        (float)dt_ms, 0, 1, c4);
         }
       } else if (g_hostStall.load() && ++clean >= clear_ticks) {
         g_hostStall = false;
@@ -356,6 +381,20 @@ void RobotRunner::run() {
                _stateEstimate.rpy[0] * 57.2958f, _stateEstimate.rpy[1] * 57.2958f,
                bodyZ, fallen_for);
         fflush(stdout);
+        // Tag the ring buffer with the confirmed-crash marker BEFORE the
+        // _exit() below - the write itself survives an unclean exit (the
+        // shm segment is not torn down by _exit skipping destructors), but
+        // this record has to actually land first. This is the event the
+        // reaper watches for to decide "archive this dog's trace now."
+        {
+          const auto& rf = _stateEstimate;
+          const float c4[4] = {(float)rf.contactEstimate[0], (float)rf.contactEstimate[1],
+                                (float)rf.contactEstimate[2], (float)rf.contactEstimate[3]};
+          shmtrace::log("FALL", _shmElapsed, rf.rpy[0], rf.rpy[1], rf.rpy[2],
+                        rf.omegaBody[0], rf.omegaBody[1], rf.omegaBody[2],
+                        rf.vBody[0], rf.vBody[1], rf.vBody[2], bodyZ,
+                        (float)fallen_for, tipped ? 2 : 0, 1, c4);
+        }
         for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
         finalizeStep();
         // _exit, not exit: this runs on the control thread while the MPC worker
@@ -476,6 +515,29 @@ void RobotRunner::run() {
 
   // Sets the leg controller commands for the robot appropriate commands
   finalizeStep();
+
+  // PER-TICK SHM TRACE. See ShmTrace.h's own header for why this exists
+  // (root-causing the fleet-only fast-fall mystery needs per-tick
+  // resolution the existing printf logging cannot give without itself
+  // perturbing the timing being investigated). $SIM_SHM_TRACE=0 disables
+  // it entirely - default ON since the whole design point is "cheap
+  // enough to always run", but an explicit escape hatch costs nothing.
+  {
+    static const bool shm_trace_on =
+        !getenv("SIM_SHM_TRACE") || atoi(getenv("SIM_SHM_TRACE")) != 0;
+    if (shm_trace_on) {
+      const auto& r = _stateEstimate;
+      const uint8_t opMode = (_robot_ctrl && _robot_ctrl->isEstopped()) ? 2 : 0;
+      const float contact4[4] = {(float)r.contactEstimate[0], (float)r.contactEstimate[1],
+                                  (float)r.contactEstimate[2], (float)r.contactEstimate[3]};
+      shmtrace::log("tick", _shmElapsed,
+                    r.rpy[0], r.rpy[1], r.rpy[2],
+                    r.omegaBody[0], r.omegaBody[1], r.omegaBody[2],
+                    r.vBody[0], r.vBody[1], r.vBody[2],
+                    r.position[2], (float)dt_ms_actual, opMode,
+                    _shmFiniteOk ? 1 : 0, contact4);
+    }
+  }
 }
 
 /*!

@@ -68,6 +68,11 @@ import time
 import urllib.error
 import urllib.request
 
+# shm_reaper has no gz dependency (plain ctypes/mmap/struct), unlike
+# trail_daemon/mission_geometry above - safe to import unconditionally.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import shm_reaper  # noqa: E402 - "even the launcher itself can reap"
+
 BASE = "http://127.0.0.1:8420"
 REPORT_DIR = "/tmp/cheetah_conductor/reports"
 
@@ -342,6 +347,18 @@ def harness_timeout(reason, run_id, slots, state, all_lines):
         print("[runner] lines. This IS a real failure (a fallen-motors freeze the", flush=True)
         print("[runner] mission's own [FALL] detector cannot see), just not one the", flush=True)
         print("[runner] mission itself reported - see find_zombies()'s docstring.", flush=True)
+        # Archive each zombie's shm trace NOW - it is the run's own oracle
+        # entry, and the process (or its next launch on the same
+        # SIM_INSTANCE) could still be alive and about to overwrite the
+        # ring the moment this script's own /api/stop lands.
+        for i in zombies:
+            try:
+                path = shm_reaper.dump_snapshot(i, "zombie_estop", run_id=run_id)
+                if path:
+                    print("[runner] dog%d: shm trace archived -> %s" % (i, path), flush=True)
+            except Exception as e:  # noqa: BLE001 - archiving must never mask
+                print("[runner] dog%d: shm archive failed: %r" % (i, e), flush=True)
+                # the timeout diagnosis already printed above
     else:
         print("[runner] This does NOT mean the mission failed, fell, or the sim", flush=True)
         print("[runner] hung - it means THIS SCRIPT stopped waiting. The most", flush=True)

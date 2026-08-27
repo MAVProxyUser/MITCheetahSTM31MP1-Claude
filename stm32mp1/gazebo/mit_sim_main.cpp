@@ -19,6 +19,7 @@
 #include "Planning/BodyPathPlanner.h"
 #include "Planning/MissionAnalyzer.h"
 #include "rt/rt_gazebo.h"      // gazebo_get_aux(): GPS, the same data the real dog gets over CAN
+#include "ShmTrace.h"          // per-tick trace + tagged events, see its own header
 
 //! Defined in FSM_State_StandUp.cpp - lets the mission lower the stance target
 //! so re-entering STAND_UP performs a controlled lie-down.
@@ -517,6 +518,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
              "settled orientation before attempting to stand back up\n",
              estop_attempts, max_estop_attempts);
       fflush(stdout);
+      {
+        const auto& re = est;   // the SAME estimate that triggered isEstopped() above
+        const float rc4[4] = {(float)re.contactEstimate[0], (float)re.contactEstimate[1],
+                               (float)re.contactEstimate[2], (float)re.contactEstimate[3]};
+        shmtrace::log("recover_wait", elapsed(), re.rpy[0], re.rpy[1], re.rpy[2],
+                      re.omegaBody[0], re.omegaBody[1], re.omegaBody[2],
+                      re.vBody[0], re.vBody[1], re.vBody[2], re.position[2],
+                      (float)estop_attempts, 2, 1, rc4);
+      }
 
       // 1. WAIT FOR SAFE AND SETTLED, bounded. A stand-up sequence assumes
       //    starting from a roughly-upright crouch, not from actually lying
@@ -551,6 +561,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
                "a transient trip. Leaving it ESTOPped.\n",
                SETTLE_TIMEOUT_S, SETTLE_DEG);
         fflush(stdout);
+        if (bridge->robotRunner()) {
+          const auto& rg = bridge->robotRunner()->getStateEstimate();
+          const float rc4[4] = {(float)rg.contactEstimate[0], (float)rg.contactEstimate[1],
+                                 (float)rg.contactEstimate[2], (float)rg.contactEstimate[3]};
+          shmtrace::log("recover_giveup", elapsed(), rg.rpy[0], rg.rpy[1], rg.rpy[2],
+                        rg.omegaBody[0], rg.omegaBody[1], rg.omegaBody[2],
+                        rg.vBody[0], rg.vBody[1], rg.vBody[2], rg.position[2],
+                        SETTLE_TIMEOUT_S, 2, 1, rc4);
+        }
         continue;
       }
 
@@ -585,6 +604,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       setFallZEnable(true);
       setOrientTripEnable(true);
 
+      {
+        const float rc4[4] = {(float)es3.contactEstimate[0], (float)es3.contactEstimate[1],
+                               (float)es3.contactEstimate[2], (float)es3.contactEstimate[3]};
+        shmtrace::log(recovered ? "recover_ok" : "recover_fail", elapsed(),
+                      es3.rpy[0], es3.rpy[1], es3.rpy[2],
+                      es3.omegaBody[0], es3.omegaBody[1], es3.omegaBody[2],
+                      es3.vBody[0], es3.vBody[1], es3.vBody[2], rec_z,
+                      (float)estop_attempts, recovered ? 0 : 2, 1, rc4);
+      }
       if (recovered) {
         restart_t = elapsed();   // ramp forward speed again from this standstill, not a step
         printf("[recover] back on its feet at t=%.1fs (z=%.3f roll=%.1f pitch=%.1f) "

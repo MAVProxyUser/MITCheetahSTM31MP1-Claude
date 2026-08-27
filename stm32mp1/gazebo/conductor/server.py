@@ -100,6 +100,7 @@ os.environ["GZ_IP"] = "127.0.0.1"
 sys.path.insert(0, GAZEBO_DIR)
 from trail_daemon import mission_waypoints  # noqa: E402
 from mission_geometry import mission_opening_bearing_rad  # noqa: E402
+import shm_reaper  # noqa: E402 - "even the launcher itself can reap"
 import gz.transport13 as _gz_transport      # noqa: E402
 from gz.msgs10.pose_v_pb2 import Pose_V     # noqa: E402
 from gz.msgs10.image_pb2 import Image as _GzImage  # noqa: E402
@@ -1279,6 +1280,19 @@ class Fleet:
                         st["phase"] = "fell"
                         done.add(i)
                         self._note("dog%d FELL" % i)
+                        # Grab the SHM trace NOW, before this dog's next
+                        # launch reuses SIM_INSTANCE=i and shm_unlink()s the
+                        # very segment that has the fall we want to keep -
+                        # this is the launcher-as-reaper path (no separate
+                        # `shm_reaper.py --watch` process needed for the
+                        # conductor's own fleet runs).
+                        try:
+                            path = shm_reaper.dump_snapshot(i, "FALL", run_id=self.run_id)
+                            if path:
+                                self._note("dog%d: shm trace archived -> %s" % (i, path))
+                        except Exception as e:  # noqa: BLE001 - archiving must
+                            self._note("dog%d: shm archive failed: %r" % (i, e))
+                            # never mask the real FALL event above it
                     elif "MISSION COMPLETE" in text:
                         # Loop+dash finished; lie-down/judge still running -
                         # show it, but do NOT count it done yet.

@@ -82,6 +82,50 @@ Grouped by what it would actually take to close it.
       fall the mechanism is deliberately built NOT to act on. It has NOT
       yet been observed completing a full recovery cycle on an actual
       case-(a) zombie - verified safe, not yet verified successful.
+      **A SHM-based per-tick trace + crash oracle now exists** to gather
+      the fine-grained data needed to actually isolate case (b)'s cause
+      (`stm32mp1/gazebo/ShmTrace.h` writer, `shm_reaper.py` reader/
+      archiver): a lock-free single-writer ring buffer (65536 records,
+      500 Hz, one named segment per dog instance) logs `t`, full rpy/
+      omega/vBody/z, control period, per-leg contact, op_mode and a
+      finite-state-estimate flag on every tick plus a tagged event on
+      `STALL`/`FALL`/`recover_*`, cheap enough to run every tick with no
+      syscalls or formatting on the hot path. `RobotRunner.cpp` and
+      `mit_sim_main.cpp` both call `shmtrace::log()` at their existing
+      STALL/FALL/recover-* print sites. The archiver ("even the launcher
+      itself can reap") is wired into BOTH detection paths that already
+      existed before this: `server.py`'s poller calls
+      `shm_reaper.dump_snapshot(i, "FALL", run_id=...)` the instant its
+      own `[FALL]`-in-raw-log check fires (case b), and
+      `mission_runner.py`'s `harness_timeout()` calls it for every dog
+      `find_zombies()` flags (case a) - so BOTH manifestations in this
+      entry now get an automatic, timestamped JSON archive under
+      `/tmp/cheetah_conductor/archive/shm_trace/` with the full trace
+      leading up to the event, without anyone needing to have a
+      `shm_reaper.py --watch` process already running. Verified
+      end-to-end: a live healthy run's "tick" stream decodes with
+      physically sensible values throughout (vx≈3 m/s matching commanded
+      cruise, z≈0.27m matching stance height); a synthetic FALL-tagged
+      trace round-trips correctly through both the manual
+      `dump_snapshot()` call and the standalone `watch()` poll loop; and
+      a real bug in `watch()`'s cross-run change-detection (write_seq
+      alone cannot tell "a new process reused this instance number" from
+      "the same process kept ticking" - it can land above OR below the
+      previous run's count by coincidence, and macOS reports `st_ino=0`
+      for every POSIX shm fd so that could not help either) was found and
+      fixed by adding a `writer_pid` field to the wire format, stamped in
+      `ensure_open()` and verified against the real running
+      `mit_ctrl_sim` PID. **Not yet exercised against a genuine live
+      case-(b) fast-fall** - two more 3-dog `sector:15:3` fleet attempts
+      this session both came back a clean 3/3 PASS (consistent with the
+      already-documented ~50% intermittent rate, not evidence the bug is
+      gone) - so the tooling is verified and armed, but the actual root
+      cause investigation this was built to unblock has not yet had a
+      real specimen to examine. Next session: keep launching
+      `sector:15:3` fleet mixes (and try `parallel:30:5:8`, an equally
+      tightly-tuned SAR mission, as a second candidate) until one falls,
+      then read the archived trace's per-tick roll/omega/period in the
+      seconds before the FALL tag.
 - [ ] **Four or more dogs in one fleet always fail at boot** with `STATE
       ESTIMATE WENT NON-FINITE`. Ruled out: real-time factor, loop
       starvation, sensor topic wiring, a startup race (readiness gate didn't
