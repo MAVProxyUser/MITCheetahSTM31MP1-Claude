@@ -5043,6 +5043,17 @@ foothold-placement hypothesis with real evidence before any swing-leg
 code is touched, exactly the kind of ground-truth check this file has
 insisted on everywhere else.
 
+**UPDATE, same session**: that instrumentation was built and run - see
+"GALLOPING'S REAL CAUSE, CONFIRMED" further down. The per-leg-bias
+hypothesis this section proposed turned out not to be a coherent one
+(the Raibert correction is body-level, identical across legs by
+construction, for any uniform-duration gait), but the same
+instrumentation surfaced something more useful: the state estimator
+itself appears to diverge hard from GPS truth under galloping. The
+swing-leg port question is likely moot either way - a controller acting
+on a wrong self-position would misbehave regardless of how correct its
+foothold placement is.
+
 ## THE "corner:" MISSION: built for the cornering-envelope stretch goal, has an unresolved planner bug on wp0
 
 Added `WaypointNav::makeCorner(leg_m, angle_deg, speed)` (commit
@@ -5219,6 +5230,82 @@ gentle end. Combined with the dash findings earlier in this file
 cornering or top-speed problem), galloping's overall picture is now
 well characterized in this session: excellent on any course with
 corners, structurally unable to sustain an uninterrupted straight.
+
+### GALLOPING'S REAL CAUSE, CONFIRMED: the state estimator, not the swing leg
+
+Followed through on the concrete next step recommended above (log
+per-leg swing foothold `Pf`/`pfx_rel`/`pfy_rel` through a galloping dash)
+rather than leaving it purely as a suggestion, and it took two attempts
+to get right - both attempts, and what changed the conclusion, are worth
+keeping.
+
+**Attempt 1 had a real instrumentation bug and no real answer.** The
+rate-limit counter (`static int nsw`, `if ((nsw++ % 20) == 0)`)
+incremented once per (leg, tick) in the loop's fixed 4-leg-per-tick
+order; since 20 is a multiple of 4, every sample landed on the same
+phase of that cycle - all of it was `leg=0`, and the per-leg comparison
+this existed to run was never actually possible from that data. Fixed
+with a per-leg counter array and a real elapsed-time accumulator
+(the first attempt logged `t=0.0` by mistake, losing the ability to
+line results up against the nav layer's own timestamps).
+
+**Attempt 2, with the fix, answers a DIFFERENT and more important
+question than the one asked.** `pfx_rel`/`pfy_rel` (the Raibert
+correction terms) turned out to be STRUCTURALLY IDENTICAL across all
+four legs, confirmed numerically (mean `pfx_rel=0.00203`,
+`pfy_rel=-0.00085`, to 5 decimal places, on every leg) - not a
+coincidence, a property of the formula: it depends only on
+`seResult.vWorld`, `seResult.position`, `_yaw_turn_rate` and
+`stance_time` (identical across legs whenever the gait's durations are
+uniform, true of galloping/pronking/bounding/trotting alike). **The
+per-leg-Raibert-bias hypothesis this diagnostic was built to test was
+never a coherent one to begin with** - only the NOMINAL hip-offset term
+(`getHipLocation`/`side_sign`) and each leg's own `swingTimeRemaining`
+vary by leg, not the correction itself. Recorded so nobody re-derives
+this and re-builds the same diagnostic a second time.
+
+**What the fixed data actually shows is the real finding.** `Pf[0]`
+(tracks the state estimator's own body position within a few tens of
+cm) climbs MONOTONICALLY and `vWorld[0]` stays CONSISTENTLY POSITIVE
+for the entire logged run - `Pf[0]`: 10.8, 11.7, 12.5, 13.3, 14.0, 14.7,
+15.3, 15.9, 16.7, 17.2, 17.9, 18.4, 19.1, 19.6, 20.2, 20.8 m, with
+`vWorld[0]` never once going negative in this stretch (0.42, 0.22, 0.36,
+0.19, 0.27, 0.22, 0.17, 0.17, 0.18, 0.20, 0.15, 0.26, 0.17, 0.23, 0.17,
+0.21 m/s). Over the SAME real time window, the nav layer's own
+GPS-derived readout - a completely independent position source, read
+from the SAME log, this time actually comparable now that both carry
+real timestamps - shows N **peaking at 10.81 m and then DECLINING**:
+10.81, 10.54, 9.85, 9.05, 8.05, 6.96, 5.88 m.
+
+**The controller's own belief about where it is, and how fast it is
+going, is simply wrong - it thinks it is accelerating steadily forward
+while GPS truth says it turned around.** This is not a swing-leg
+placement bug at all: the controller has no reason to correct anything,
+because its own state estimate says everything is working. It also
+explains the failure signature better than a foothold bug would -
+galloping's dash failure never trips the orientation safety check
+(unlike bounding's), which is exactly what a mis-LOCALIZED but
+attitude-stable robot would produce. If real (a single run, not yet
+independently repeated), this would be a FAR larger drift than any
+previously recorded in this file (worst case before now: 4.5 m over an
+83 m walk) - consistent with, and a plausible root cause for, the
+already-documented general concern that leg-odometry-based estimation
+degrades under the kind of rapidly-changing, asymmetric contact pattern
+an asymmetric gait like galloping produces (this file's own
+contact-detection work found the estimator's KF trust ramp is tuned
+around a graded phase signal that a symmetric gait's schedule already
+represents well - an asymmetric gait's schedule is a much rougher input
+to that same mechanism).
+
+**Concrete next step, not yet done**: confirm this against Gazebo TRUTH
+directly (the existing `SIM_ESTERR`-style ground-truth comparison
+already used elsewhere in this file, not just nav's own GPS-derived
+number) and repeat at least once before trusting the magnitude - this
+session's own small-sample discipline applies here as much as anywhere
+else. But the qualitative finding (estimate diverges hard from reality
+under galloping, in the FORWARD-vs-actual-BACKWARD direction) is a much
+better-targeted lead for whoever picks this up next than "maybe the
+swing leg needs porting" was.
 
 ### Cornering-envelope tally, end of session
 

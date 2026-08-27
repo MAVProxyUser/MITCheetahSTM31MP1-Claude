@@ -729,6 +729,37 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     //Pf[2] = 0.0;
     footSwingTrajectories[i].setFinalPosition(Pf);
 
+    // Diagnostic for the runSwingLegControl question (see CLAUDE.md,
+    // "THE runSwingLegControl/runContactLegControl PORT"): does an
+    // asymmetric gait (galloping/bounding) produce a systematic per-leg
+    // bias in this Raibert correction, which would explain galloping's
+    // observed silent backward+lateral drift on a straight dash without
+    // needing any swing-leg code changed on a guess? pfx_rel/pfy_rel are
+    // the correction terms themselves - a genuine bug would show up as a
+    // consistent nonzero MEAN for one specific leg index across many
+    // cycles, not the cycle-to-cycle noise every leg has.
+    {
+      static const bool swingDbg = getenv("SIM_SWING_DBG") && atoi(getenv("SIM_SWING_DBG")) != 0;
+      if (swingDbg) {
+        // FIXED (was broken the first time this ran): a single shared
+        // counter incrementing once per (leg, tick) in this loop's fixed
+        // 4-leg-per-tick order always lands on the same leg when the
+        // sample period is a multiple of 4 - every sample from the first
+        // attempt was leg=0, and the per-leg bias question this exists to
+        // answer was never actually testable from that data. Per-leg
+        // counters fix it; a real elapsed-time accumulator (this run() has
+        // none of its own) replaces the earlier `t=0.0` that made it
+        // impossible to line this up against the nav layer's own log.
+        static int nsw[4] = {0, 0, 0, 0};
+        static double swingElapsed = 0.0;
+        if (i == 0) swingElapsed += dt;
+        if ((nsw[i]++ % 20) == 0) {
+          shmtrace::logf(swingElapsed, "[SWING] leg=%d pfx_rel=%.4f pfy_rel=%.4f Pf=%.3f,%.3f,%.3f vWorld=%.3f,%.3f",
+                 i, pfx_rel, pfy_rel, Pf[0], Pf[1], Pf[2],
+                 seResult.vWorld[0], seResult.vWorld[1]);
+        }
+      }
+    }
   }
 
   // calc gait
