@@ -5845,6 +5845,16 @@ courses now agree with each other, and sector's 120-147.5-degree result
 is reproduced rather than a one-off - walking's mid-band softness at this
 specific angle band looks real and repeatable, not noise.
 
+**Speed ceiling pushed on the passing angles**: 3/3 PASS at 2.0 m/s
+(expsquare 26.0s, parallel 95.6s, octagon 160.1s - the wall-time spread
+tracks each course's own length, not a stability difference). At 2.5,
+**3/3 FELL** - flat collapses (`roll~0, z=0.036-0.078`), spread over 33s
+wall-clock (not the identical-second host-artifact signature this file
+has learned to distinguish elsewhere), following a clean-then-uniform-
+fail pattern that reads as a genuine speed wall, not host noise. Walking's
+cornering speed ceiling across 45/90-degree courses brackets to **2.0
+PASS / 2.5 FAIL**.
+
 ## CORNERING ENVELOPE, CONSOLIDATED (2026-08-27 continuation session)
 
 Full cross-gait x angle table, everything gathered across tonight's
