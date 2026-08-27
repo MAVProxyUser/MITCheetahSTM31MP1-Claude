@@ -97,19 +97,25 @@ CASES = [
     ),
     Case(
         name="oval",
-        slots=["oval:40:5.0"], gaits=["trotRunning"], speeds=[3.5],
-        extras=["WP_VSUS=2.4 WP_ANALYZER=1"],
-        min_s=60, max_s=110,
+        slots=["oval:40:5.0"], gaits=["trotting"], speeds=[2.4],
+        extras=["WP_ANALYZER=0"],
+        min_s=35, max_s=70,
         why=(
-            "CLAUDE.md 'THE OVAL: a course where a gait switch can pay' and "
-            "the later VSUS re-sweep after the planner lineage changed: "
-            "WP_VSUS=2.4 (NOT the campaign-era 2.6, which was re-measured "
-            "~50% marginal on the current planner/follower) is what clears "
-            "the sustained 180s reliably. The oval's own stop sequence is "
-            "separately documented as ~80% reliable even when the curves "
-            "are clean (a steering-through-the-decel fix, not fully closed) - "
-            "a stop-window tip on this one case specifically is a known, "
-            "already-documented residual, not necessarily a new regression."
+            "CLAUDE.md 'THE OVAL'S MID-COURSE FALL: not the gait switch at "
+            "all - trotRunning itself can't hold this curve': the older "
+            "trotRunning+analyzer-switch config (3.5 m/s straights, switch "
+            "to trotting for the R=4.47m sustained curve) was investigated "
+            "at length - three different fixes to the SWITCH's timing/"
+            "gating all failed, and the decisive test (WP_ANALYZER=0, no "
+            "switch at all) showed trotRunning CANNOT hold this radius "
+            "regardless of switching, even down to 1.8 m/s. The validated "
+            "fix is trotting for the WHOLE course, no analyzer - slower "
+            "(~46s vs the old best-case ~30.5s) but actually reliable (2/2 "
+            "clean in the investigation, vs. the old config's own "
+            "documented ~1-in-3 failure rate at this exact spot). Do not "
+            "revert this case to trotRunning+WP_ANALYZER=1 without first "
+            "re-reading that section - it looks like a plausible speed "
+            "win and was measured, repeatedly, to not be one."
         ),
     ),
     Case(

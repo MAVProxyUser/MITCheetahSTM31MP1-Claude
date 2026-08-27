@@ -157,8 +157,22 @@ RECIPES = {
     # marginal, the old 6/6 belongs to a much older build. 2.4 is the
     # re-measured envelope: its first run under the operator's own eyes ran
     # the curves clean AND the full stop/lie-down/stand-up/dash sequence.
-    "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.4",
-                 note="trotRunning, analyzer, sustained cap 2.4 (re-swept 2026-08-24; 2.6 is past the current envelope)"),
+    # CHANGED 2026-08-27: the trotRunning+analyzer-switch config below this
+    # comment (kept in history, not deleted) was investigated at length
+    # after a direct challenge not to accept its ~1-in-3 failure rate as
+    # unfixable. Three separate fixes to the SWITCH's own timing/dynamics
+    # gating all failed; the decisive test (disabling the switch entirely)
+    # showed trotRunning cannot hold this course's R=4.47m sustained curve
+    # AT ALL, independent of switching, down to 1.8 m/s. See CLAUDE.md
+    # "THE OVAL'S MID-COURSE FALL" for the full investigation. trotting for
+    # the whole course is slower (~46s vs the old ~30.5s best case) but
+    # PASSED 2/2 clean where the old config's own documented history was
+    # marginal. Do not revert without re-reading that section first.
+    "oval": dict(gait=9, speed=2.4, extra="WP_ANALYZER=0",
+                 note="trotting, whole course, no analyzer - trotRunning cannot hold this curve at any tested speed (see CLAUDE.md)"),
+    # OLD (marginal, ~1-in-3 failure at the sustained-curve entry):
+    # "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.4",
+    #              note="trotRunning, analyzer, sustained cap 2.4 (re-swept 2026-08-24; 2.6 is past the current envelope)"),
     # THE ATOM'S FAILURE IS PITCH, NOT ROLL - so the lever is LONGITUDINAL.
     # Every trip measured on this course reads pitch-dominant: 30.5, 33.0,
     # 35.6, 35.9, 36.6, 36.9 deg of PITCH with roll in the teens. Lowering

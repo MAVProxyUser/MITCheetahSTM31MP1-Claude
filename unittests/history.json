@@ -240,5 +240,26 @@
   },
   "verdict": "PASS",
   "wall_s": 94.6
+ },
+ {
+  "ts": "2026-08-27 13:22:22",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.4
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ANALYZER=0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 80.5
  }
 ]

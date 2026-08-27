@@ -3756,6 +3756,70 @@ for any future harness against this same server:
   already warns about elsewhere, caught immediately by comparing the
   runner's own verdict against the raw log rather than trusting it blind.
 
+## THE OVAL'S MID-COURSE FALL: not the gait switch at all - trotRunning itself can't hold this curve
+
+Challenged directly on treating this as an acceptable ~1-in-3 residual
+rather than actually fixing it, given how well atom/spirograph/lissajous
+(all continuous, non-trivial curvature) run. Fair challenge - investigated
+for real rather than re-citing the old note.
+
+**Three targeted fixes to the pre-planned gait switch, each tested against
+the exact failing case, each measured to NOT fix it:**
+1. Defer the switch while roll/yaw-rate are elevated (a genuine mid-turn-
+   destabilization hypothesis) - switch fired with `calm=true` logged, no
+   forced/safety-valve suffix, and it still fell with the same signature.
+2. Also require current speed within 0.3 m/s of the segment's own planned
+   floor (`seg->v_plan_min`) before switching, since the raw log showed the
+   switch firing while still decelerating through ~2.7-3.0 m/s - fired
+   correctly gated this time (spd already near the cap), still fell, this
+   time via a flat collapse (`roll=-5 z=0.041`) rather than a tip-over.
+3. `WP_ANALYZER_LEAD=15` (vs. the 4 m default) to give trotting a long
+   straight-line runway to settle onto before the curve even starts - fell
+   at essentially the same wall-clock offset from nav taking the stick as
+   every previous attempt.
+
+**The decisive test, and the one that should have been run first**:
+`WP_ANALYZER=0` - NO gait switch at all, trotRunning held for the entire
+course. It STILL fell entering the exact same curve. The gait switch was
+never the cause; every fix aimed at it was correcting a correlation, not
+the mechanism. Confirmed further: even dropping the sustained-curve speed
+cap to 1.8 m/s (WP_VSUS=1.8, no switch) did not save it either - two
+orientation trips, the second one landing outside any stop-window
+protection and latching the FSM into ESTOP (the already-documented "stuck
+dog" zombie, motors cut, sits until the timeout). trotRunning genuinely
+cannot hold R=4.47 m reliably on this course, independent of gait-
+switch timing, dynamics-at-switch, or approach speed within the range
+tested.
+
+**The actual fix, found by testing the obvious alternative rather than
+continuing to patch the switch**: trotting - the same all-rounder gait
+that already handled every discrete-corner and smooth-circle cornering
+test tonight up to 2.5 m/s cleanly - for the WHOLE course, no analyzer, no
+switch. `oval:40:5.0` @ trotting 2.4 m/s, `WP_ANALYZER=0`: **PASS x2**
+(45.9s, 46.1s), clean settles both times (roll/pitch under 1.2 degrees).
+This is a config choice, not a code fix - the oval's own established
+recipe (trotRunning on the straights, switching to trotting for the
+curves, chasing extra straight-line speed) was the thing built on a false
+premise: that trotRunning could handle this specific radius at all, given
+enough care about WHEN to hand it off. It cannot, so there was never a
+switch-timing fix to find.
+
+**Honest trade-off, not hidden**: trotting-only is slower (2.4 m/s
+throughout vs. trotRunning's 3.5 m/s on the straights) - roughly 46 s
+against the mixed-gait approach's best-case ~30.5 s when that approach
+happened to work. Reliable-but-slower vs. fast-but-genuinely-broken at
+this exact radius. The three switch-timing code changes
+(`pending_gait_since`, the roll/yaw-rate + speed defer gate in
+`mit_sim_main.cpp`) are left in place as reasonable general hardening
+(deferring a gait change during a genuinely violent transient is still a
+sound principle for OTHER courses/segments, and costs nothing when the
+gate is rarely engaged) - but they should not be credited with fixing the
+oval, because they did not. If oval's speed is worth chasing further, the
+real next step is investigating WHY trotRunning cannot hold R=4.47 m at
+even 1.8 m/s (WBIC gains, follower steering-cap math at this specific
+radius - similar in spirit to the star hairpin fix, not yet attempted
+here), not more gait-switch tuning.
+
 ## `unittests/`: a repeatable regression suite over the validated missions, and a false positive found on its first real use
 
 Per direct request for "a concise repeatable set of unit tests... so when

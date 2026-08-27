@@ -432,6 +432,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   int cur_gait = bridge->userParams()
       ? (int)((MIT_UserParameters*)bridge->userParams())->cmpc_gait
       : gait_corner;
+  // Negative = no pre-planned gait switch currently pending/deferred -
+  // see the defer-while-calm logic around the analyzer's segmentAhead().
+  double pending_gait_since = -1.0;
   /*
    * LOOKAHEAD: switch on the curvature AHEAD, not underfoot. An animal changes
    * gait BEFORE the corner, while it still has time; deciding from the speed at
@@ -730,14 +733,65 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     else if (running) setOrientTripEnable(true);
 
     if (seg && bridge->userParams() && seg->gait != cur_gait && !near_stop) {
-      ControlParameterValue cv; cv.d = (double)seg->gait;
-      bridge->userParams()->collection.lookup("cmpc_gait")
-          .set(cv, ControlParameterValueKind::DOUBLE);
-      shmtrace::logf(elapsed(), "[mission] gait %d -> %d entering %s at s=%.1f (R=%.2f, cost %+.2f s) t=%.1fs",
-             cur_gait, seg->gait,
-             seg->regime == 2 ? "SUSTAINED" : (seg->regime == 1 ? "transient" : "straight"),
-             seg->s0, seg->radius_min, seg->time_cost, elapsed());
-      cur_gait = seg->gait;
+      /*
+       * DON'T SWITCH GAITS MID-MANEUVER. This is the pre-planned analyzer
+       * switch, fired purely off arc-length progress with no regard for
+       * what the robot is actually doing at that instant - measured on the
+       * oval, real: a trotRunning->trotting switch entering the sustained
+       * curve tripped the orientation ESTOP ~2s later, ~30% of runs. The
+       * existing R_HOLD/near_stop guard only protects a stop; nothing
+       * protected an ordinary in-motion switch from landing while the
+       * robot was mid-turn-in, still carrying real roll/yaw-rate from the
+       * approach. Defer the switch while either is elevated - a swapped
+       * gait's very first tick reinitializes swing/stance phase state
+       * (zeroVelHold/gait scheduler), which is exactly the wrong moment to
+       * ask for if the body is already actively rolling or yawing hard.
+       * `seg` is a LOOKAHEAD query recomputed every tick from the robot's
+       * current arc-length position, so deferring costs nothing - the same
+       * pending switch keeps re-offering itself every 20ms until either
+       * the robot calms down or the bounded safety valve below fires, it
+       * is never missed.
+       */
+      /*
+       * FIRST CUT (roll/yaw-rate gate alone) DID NOT FIX IT - measured, not
+       * assumed: the switch fired with calm=true (no forced/safety-valve
+       * suffix in the log) and the robot still tripped ~1s later. Checked
+       * the actual commanded speed at the switch instant instead of
+       * guessing again: v=~2.9-3.0 m/s, braking toward the segment's own
+       * 2.4 m/s cap but NOT THERE YET - trotting was engaged well above
+       * its own measured ceiling for a real curve (this port's own
+       * cornering-envelope work tonight bracketed trotting to 2.5 PASS /
+       * 3.0 FAIL at radii tighter than ~9m; this segment's R=4.47m is
+       * tighter still). The arc-length trigger fires the instant the
+       * SEGMENT boundary is crossed, with no regard for whether the SPEED
+       * PROFILE'S OWN deceleration into that segment has actually
+       * finished yet - so add that as the primary gate, keeping the
+       * roll/yaw-rate check as cheap defense-in-depth for the mechanism
+       * that motivated it originally (mid-turn destabilization), even
+       * though it was not what broke THIS case.
+       */
+      const float defer_roll_deg = 12.0f, defer_yawrate = 0.5f;
+      const float speed_margin = 0.3f;  // m/s above the segment's own planned floor
+      const bool calm = (std::fabs(est.rpy[0]) * 57.2958f < defer_roll_deg) &&
+                         (std::fabs(est.omegaBody[2]) < defer_yawrate) &&
+                         (spd < (float)seg->v_plan_min + speed_margin);
+      if (pending_gait_since < 0.0) pending_gait_since = elapsed();
+      const float pending_s = elapsed() - pending_gait_since;
+      const float max_defer_s = 1.5f;  // safety valve - never block a needed switch forever
+      if (calm || pending_s > max_defer_s) {
+        ControlParameterValue cv; cv.d = (double)seg->gait;
+        bridge->userParams()->collection.lookup("cmpc_gait")
+            .set(cv, ControlParameterValueKind::DOUBLE);
+        shmtrace::logf(elapsed(), "[mission] gait %d -> %d entering %s at s=%.1f (R=%.2f, cost %+.2f s) t=%.1fs%s",
+               cur_gait, seg->gait,
+               seg->regime == 2 ? "SUSTAINED" : (seg->regime == 1 ? "transient" : "straight"),
+               seg->s0, seg->radius_min, seg->time_cost, elapsed(),
+               (pending_s > max_defer_s && !calm) ? " (forced - defer safety valve)" : "");
+        cur_gait = seg->gait;
+        pending_gait_since = -1.0;
+      }
+    } else {
+      pending_gait_since = -1.0;
     }
 
     if (gait_decider && !use_analyzer && use_planner && bridge->userParams()) {
