@@ -136,6 +136,32 @@ CASES = [
         ),
     ),
     Case(
+        name="dash_long_duration",
+        slots=["dash:100"], gaits=["trotRunning"], speeds=[0.6],
+        extras=["CTRL_XDRAG_CLAMP=1.0"],
+        min_s=120, max_s=260,
+        why=(
+            "CLAUDE.md 'SOLVED: the backward-walk is x_comp_integral windup'. "
+            "THIS CASE EXISTS BECAUSE THE SUITE MISSED THAT BUG ENTIRELY, and "
+            "the reason is worth keeping: dash_trotRunning above runs at 2.5 "
+            "m/s and finishes in 25-60 s, but the windup needs ~35-60 s of "
+            "UNINTERRUPTED cruise before it dominates - so the fast dash "
+            "structurally cannot reach the failing regime, and neither can "
+            "star/oval/atom (their corners drop speed through the |vx|>0.3 "
+            "accumulation gate every few seconds). A bug that only appears "
+            "after a sustained duration needs a case that actually SPENDS "
+            "that duration; covering a mission shape is not the same as "
+            "covering its failure modes. 0.6 m/s over 100 m is ~150 s of "
+            "continuous cruise, which is what reproduces it. Archive tally "
+            "before the fix: 20 m dashes 4/4 completed, 100 m dashes 2/20. "
+            "After (CTRL_XDRAG_CLAMP=1.0): PASS t=149.6 s with Gazebo truth "
+            "confirming 99.82 m of 100 m genuinely travelled. If this case "
+            "fails, check whether the clamp is still being passed BEFORE "
+            "hunting a new bug - without it this is expected to fail, since "
+            "the clamp is deliberately opt-in (unset = stock MIT)."
+        ),
+    ),
+    Case(
         name="corner_octagon_45deg",
         slots=["circle:9:8"], gaits=["trotting"], speeds=[2.5],
         min_s=15, max_s=40,
