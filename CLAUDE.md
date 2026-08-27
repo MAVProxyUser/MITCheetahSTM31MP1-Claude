@@ -7047,10 +7047,19 @@ closed:
 The planner does the right thing with that (`tightest corner R=0.04m ->
 0.05m/s` on the closed expsquare) but "the right thing" is braking to a
 crawl for one corner, so a closed expsquare/parallel is slower than its
-open version and its own `WP_TURN_SOFT`/`WP_TURN_HARD` tuning was never
-measured against a corner this sharp. 33.7 deg is comparable to the
-star's own 36 deg vertices, which this robot handles, so it should be
-feasible - but that is an inference, not a measurement, and anyone
-re-tuning those two courses should re-check with the box in the state
-they actually intend to run.
+open version, and its own `WP_TURN_SOFT`/`WP_TURN_HARD` tuning was never
+measured against a corner this sharp.
+
+**Measured, so this is no longer an inference.** `expsquare:5:12` with
+the box ticked: **PASS, t=121.3 s**, 11 waypoints, `reached wp10 (N=0.00
+E=0.00) dist=1.48` - the dog genuinely walks home - settling clean
+(roll 0.7, pitch 1.8) and lying down ok. Against this file's own
+open-leg baseline of 109.0-109.2 s that is **+12 s, about 11%**, which
+is the price of one hard-braked corner and a walk home, exactly as
+predicted. So the sharp closing corner IS feasible at 33.7 deg (it was
+predicted feasible by comparison with the star's 36 deg vertices, and
+that prediction now has a measurement behind it) - it is a time cost,
+not a stability cost. `parallel`'s 49.4 deg is the gentler of the two
+and has not been re-measured; anyone re-tuning either course should
+re-check with the box in the state they actually intend to run.
 
