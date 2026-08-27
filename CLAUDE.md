@@ -5652,3 +5652,59 @@ that internal reference diverges from where the robot actually needs to
 go, faster than the visible command itself would predict, that is the
 next thread to pull. This is a more valuable place to end an
 investigation than a fix built on an unverified guess would have been.
+
+## THE ATOM CORNERING FIX: raised the roll WBIC gain, actually tested this time
+
+Per direct instruction ("it is is known fragile... fix it") rather than
+cataloging the atom's roll-limited cornering fragility again. The
+IJRR paper read tonight (Park/Wensing/Kim, "High-Speed Bounding with
+the MIT Cheetah 2") gives the real hardware's lateral/roll stabilization
+law directly: `tau_x = -k_psi^P * psi - k_psi^D * psi_dot` - a plain
+roll-angle PD producing a correcting torque, structurally the SAME
+mechanism this port's WBIC already uses (`Kp_ori`/`Kd_ori` feeding the
+whole-body QP). Checking the deployed gain: `Kp_ori: [40, 70, 70]` -
+the ROLL axis (index 0) is weaker than pitch/yaw for no principled
+reason found in either the literature or this file's own history.
+Raised to `[70, 70, 70]`, matching the other two axes.
+
+**Tested against the exact failing case, not assumed.** The most
+concrete, reproducible roll failure from tonight was pronking on the
+atom at 0.6 m/s, which fell at wp103/108 (96%) with `roll=40deg`. With
+the gain change: PASS at 138.4s. Repeated once more alongside a star
+regression check (in case raising a WBIC gain globally destabilized
+something else): atom PASS again (138.0s, matching the first run to
+within 0.4s), star PASS 60.3s, no regression. 2/2 on the fix, 2/2 on the
+regression check.
+
+**Scope, stated honestly**: this is 2 repeats on ONE course/gait/speed
+combination and ONE regression check, not the kind of large interleaved
+A/B this file's own small-sample discipline usually insists on before
+calling something proven - the atom's own documented history includes
+bimodal/coin-flip behavior at exactly this kind of marginal boundary
+(see bounding's 1.0 m/s coin-flip elsewhere in this file), so a false
+confirmation from two lucky runs is a real risk this file has hit
+before. Applied to both `host-run/` and `stm32mp1/deploy_pkg/` yaml
+copies (matching the precedent from the earlier Kd_body/Kd_ori
+increase), `config/` left untouched (already documented elsewhere as a
+separately-drifted copy pending its own reconciliation). Worth a wider
+sweep (more speeds, more repeats, the other flight gaits) before this
+is trusted as a general fix rather than "helped in the one case
+checked."
+
+## A real audit gap, called out directly: the WBIC per-situation gains were flagged but never actually read
+
+Earlier in this file, the note on Unitree's `_ParameterSetup` gain
+symbols (`Kp_body_stance`, `Kp_body_running`, `Kp_ori_stairs`, etc.)
+stops at "flagged as a genuine gap rather than a guess" - the symbol
+NAMES were confirmed to exist, but the actual VALUES were never safely
+read after a first attempt misread the array layout (assumed an 8-float
+Kp+Kd block where the real layout is 4 floats, reading into the next
+symbol's memory and producing nonsense). That gap sat unaddressed. The
+binary is still present on this machine
+(`/Users/kfinisterre/Desktop/Cheetah/pi/Unitree_latest/autostart/
+sportMode/bin/Legged_sport`, and two more copies alongside it) and the
+extraction tooling (`tools/reversing/`) still works. Continuing this
+properly - disassembling `LocomotionCtrl<float>::_ParameterSetup`
+itself to confirm each symbol's real size and read site before touching
+any array - is the concrete next step, not a re-guess at the same
+layout that already produced garbage once.
