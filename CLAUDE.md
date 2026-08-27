@@ -5094,3 +5094,108 @@ wiring are left in the tree (commits `5551e78` and this session's fix)
 rather than reverted - the spawn-bearing fix is correct and worth
 keeping regardless, and a future session chasing the wp0-overshoot bug
 starts from a mission that is at least correctly oriented at spawn.
+
+## CORNERING ENVELOPE (partial, first pass): walking2 on the star's 144-162 deg corners
+
+Pivoted here (previous section) to the existing catalog's own angles
+rather than the still-broken `corner:` mission. Time-boxed to a small,
+genuinely useful first pass rather than the full 5-degree/all-gait sweep
+originally scoped - walking2 had the least existing per-corner-angle data
+of any working gait, so it went first.
+
+**A 3-dog fleet result was caught and correctly discarded rather than
+trusted.** `walking2 @1.0` on `circle:9:8` / `sector:15:3` /
+`star:10.514:5` simultaneously: all three FELL within 1-2 seconds of each
+other - the exact "identical simultaneous failure" shape this file has
+flagged as host-suspect many times before. Checked properly this time
+BEFORE writing anything down: `maxPeriod` was clean (2.75-3.00 ms) on all
+three at the moment of failure, ruling out the usual control-loop-stall
+signature - but the close-set timing across three different courses of
+different lengths was still suspicious enough to demand a solo re-test
+rather than being taken as three independent confirmations.
+
+**Solo re-test: the failure is real, not a host artifact.** `walking2 @
+1.0 m/s` on `star:10.514:5` ALONE fell 1 second after nav took the stick
+- immediate, at the very first corner, reproducing the fleet result
+exactly. `walking2 @ 0.6 m/s` on the same course, solo: 2 of 5 waypoints
+reached cleanly, no fall, still progressing when the harness's own
+timeout (130s, too tight for this course's real ~200s budget) ended the
+script - a TIMEOUT verdict, not a FAIL, per this project's own harness
+discipline.
+
+| gait | course | corner angle | speed | result |
+|---|---|---|---|---|
+| walking2 | star:10.514:5 | 144/162 deg | 1.0 m/s | **FELL immediately, solo-confirmed** |
+| walking2 | star:10.514:5 | 144/162 deg | 0.6 m/s | **no fall through 2/5 waypoints** (harness timeout, not a verdict) |
+
+So walking2's cornering ceiling on the star's sharp corners sits
+somewhere between 0.6 and 1.0 m/s - new information; walking2 does not
+appear in this file's own existing star gait table (only plain
+`walking` does), so this is the first data point for it specifically.
+
+**Scope, stated honestly**: this is ONE gait on ONE course shape at TWO
+speeds, not the "every usable gait, angles in 5 degree notches" sweep
+originally asked for. The `corner:` mission built for that sweep has an
+unresolved bug (previous section); doing the full sweep properly needs
+either that bug fixed or a lot more of this same manual, per-cell,
+solo-when-suspicious methodology repeated across circle (45deg)/
+parallel/expsquare (90deg)/sector (120-147.5deg)/star (144/162deg) for
+every gait in the usable set (trotting, trotRunning, walking, walking2,
+pacing, bounding, galloping, pronking - noting pronking/galloping/
+bounding's OWN dash findings above already show their real constraint on
+a straight is duration, not cornering, so their cornering ceiling is a
+genuinely separate question from their dash one). Flagged here as the
+concrete continuation point rather than claimed complete.
+
+## SESSION SUMMARY (2026-08-27, autonomous overnight run)
+
+Everything in this file from "THE REAL GAIT-SELECTION BUG" down was one
+continuous autonomous session, working through a priority order set in
+advance: fix what's blocking valid measurement, re-test pronking/gallop/
+bound on the current stack, decide on the swing-leg-control port, then
+the cornering-envelope stretch goal. In order of what actually shipped:
+
+1. **Fixed a real gait-selection bug**: `$SIM_GAIT` was unconditionally
+   overwriting `gaitNumber` every tick, silently discarding every runtime
+   `cmpc_gait.set()` write - the exact mechanism the mission analyzer's
+   mid-course gait switching depends on. Added ground-truth `[SCHED] gait
+   changed A -> B` logging at the real selection site (not
+   `GaitScheduler`'s disconnected print) to verify the fix live.
+2. **Fixed the stale bridge/controller port bug at both ends** (bridge
+   self-check at its own startup, launch-time port sweep in `server.py`)
+   per direct instruction, after it silently corrupted an entire pronking
+   speed-ladder sweep earlier in the session.
+3. **Re-characterized pronking, galloping, and bounding** on the fully-
+   fixed stack (qpOASES, WBIC damping, real Go1 model, zeroVelHold, the
+   gait fix above) - a complete reversal from every number previously in
+   this file for pronking, and a durable, well-evidenced new finding for
+   all three: none of them is limited by top speed on a corner-broken
+   course (all pass star; pronking/circle/expsquare also pass), and all
+   three instead fail a 100m uninterrupted dash via three DIFFERENT
+   mechanisms (height collapse / delayed tip-over / silent positional
+   drift) - a duration/distance effect, not a speed ceiling.
+4. **Investigated, then declined, the runSwingLegControl/
+   runContactLegControl port** - read the actual RE documentation rather
+   than assuming it was ready to use, found the part that would matter
+   (`runSwingLegControl`'s body) was never reduced to pseudocode, and
+   made the judgement call not to write speculative code and call it a
+   port. Left a concrete, low-risk instrumentation-first next step
+   instead (log per-leg swing foothold placement through a galloping
+   dash).
+5. **Built and partially debugged a new `corner:` mission** for the
+   cornering-envelope stretch goal - found and fixed two real bugs
+   (wrong spawn bearing, a general recipe-fallback crash), hit a third,
+   deeper planner bug (wp0 overshoot) that was not resolved under time
+   pressure, and made the call to pivot the envelope work onto the
+   existing, proven mission catalog instead of continuing to debug a new
+   primitive.
+6. **Delivered one genuine cornering-envelope data point** (walking2 on
+   the star, ceiling between 0.6 and 1.0 m/s) with the full methodology
+   (fleet result treated as suspect, solo-confirmed before trusting)
+   this file has insisted on everywhere else, and documented the honest
+   scope gap against the original "every gait, 5 degree notches" ask.
+
+Every numbered item above has its own detailed section earlier in this
+file with the actual data, the code changes, and (where relevant) the
+git commit it shipped in. Nothing here is a new claim - this is the
+index.
