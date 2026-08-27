@@ -292,6 +292,24 @@ void LinearKFPositionVelocityEstimator<T>::run() {
   // stalling while velocity readout becomes internally inconsistent/noisy).
   // A valid covariance matrix can never have a negative diagonal entry -
   // this is an objective, no-judgment-call test, not a heuristic.
+  //
+  // EXTENDED to also print the VELOCITY block (indices 3-5), never checked
+  // before now. The position block (0-1) is KNOWN to collapse toward zero -
+  // that is MIT's own deliberate /=10 suppression a few dozen lines down,
+  // not a bug. Velocity has no such suppression, so if IT ALSO collapses
+  // toward zero over a long enough run, that is a genuine, unintended
+  // covariance-starvation bug: once P's velocity block is tiny, the Kalman
+  // gain on every subsequent leg-odometry velocity measurement
+  // (K = P/(P+R), computed fresh every tick from the CURRENT _xhat/_P, not
+  // cached) is also tiny, so the filter stops listening to new evidence and
+  // free-runs on whatever velocity belief it already had - consistent with
+  // this file's own ESTERR finding that the estimate stays positive for the
+  // whole run while ground truth shows real velocity going negative: an
+  // over-confident filter has no mechanism to notice it is wrong. approxGain
+  // is the STEADY-STATE single-axis gain a fresh scalar KF would have at
+  // this P and the CURRENT per-tick effective R (post trust-derating) - not
+  // the literal 18x28 gain actually used, but enough to see whether it is
+  // heading toward zero.
   {
     static const bool kfHealth = getenv("SIM_KF_HEALTH") && atoi(getenv("SIM_KF_HEALTH")) != 0;
     if (kfHealth) {
@@ -302,16 +320,72 @@ void LinearKFPositionVelocityEstimator<T>::run() {
       for (int d = 1; d < 18; ++d) {
         if (_P(d, d) < minDiag) { minDiag = _P(d, d); minIdx = d; }
       }
+      const T pvx = _P(3, 3), pvy = _P(4, 4), pvz = _P(5, 5);
+      // Representative effective velocity measurement noise for a TRUSTED
+      // (trust=1) foot: R.block(rindex2,...) with the (1-trust)*100 term
+      // zeroed out, i.e. just sensor_noise_vimu_rel_foot itself.
+      const T r_trusted =
+          this->_stateEstimatorData.parameters->foot_sensor_noise_velocity;
+      const T approxGainVx = pvx / (pvx + r_trusted);
       static int nkf = 0;
       const bool bad = minDiag < T(0);
       if (bad || (nkf++ % 500) == 0) {
         shmtrace::logf(kfElapsed,
                "[KFHEALTH] minDiag=%.6e at idx=%d trace=%.4f p00=%.6f p11=%.6f "
-               "p00_p11=%.4e%s",
+               "pvx=%.6f pvy=%.6f pvz=%.6f approxGainVx=%.6f p00_p11=%.4e%s",
                (double)minDiag, minIdx, (double)_P.trace(),
                (double)_P(0, 0), (double)_P(1, 1),
+               (double)pvx, (double)pvy, (double)pvz, (double)approxGainVx,
                (double)(_P(0, 0) * _P(1, 1) - _P(0, 1) * _P(1, 0)),
                bad ? " *** NEGATIVE DIAGONAL - COVARIANCE IS INVALID ***" : "");
+      }
+    }
+  }
+
+  // VELOCITY COVARIANCE FLOOR ($SIM_KF_VFLOOR=<value>, units (m/s)^2), opt-in.
+  //
+  // $SIM_KF_HEALTH above showed WHY the estimate stays positive for an
+  // entire long straight-line run while ESTERR ground truth shows real
+  // velocity going negative and never gets corrected: P's velocity block
+  // (indices 3-5) collapses from its fresh-start ~0.02-0.2 to ~0.0007-0.002
+  // within roughly ONE SECOND of a run starting (measured directly, not
+  // inferred), and stays there - not a gradual 35-90s numerical drift as
+  // first guessed. This is the filter's own genuine algebraic steady state,
+  // not corruption: up to 4 legs supply near-simultaneous, low-noise
+  // (foot_sensor_noise_velocity=0.1) velocity pseudo-measurements at 500 Hz
+  // against a small per-tick process noise (imu_process_noise_velocity=0.02,
+  // Q_vel/tick ~= dt*9.8/20*0.02 ~= 2e-5), and the scalar-KF steady-state
+  // relation P^2 ~= Q*(P+R) predicts P_ss ~= sqrt(Q*R_eff) ~= 0.001 for this
+  // Q/R pair - matching the measured collapse almost exactly. So this is
+  // MIT's own stock tuning doing exactly what it is mathematically supposed
+  // to do; the mismatch is that a P this small was only ever exercised on
+  // MIT's short real-hardware tests, not on a run long enough (tens of
+  // seconds to minutes) for a small UNMODELED bias (foot slip, an imperfect
+  // swing/stance transition, whatever) to compound past what a near-zero
+  // Kalman gain can ever claw back. Once collapsed, EVERY subsequent
+  // measurement's gain is tiny (measured approxGainVx falling from ~0.20 to
+  // ~0.007-0.017) and the filter has no built-in mechanism to ever revisit
+  // its own belief - this is classic Kalman-filter overconfidence, the same
+  // failure class the IMM-KF paper (Menner & Berntorp, arXiv:2404.03444) and
+  // the event-based re-triggering in Bledt/Wensing/Ingersoll/Kim (ICRA 2018)
+  // both exist to avoid, just via a full multiple-model/event architecture
+  // rather than this filter's single fixed model.
+  //
+  // The standard, minimal fix for this specific failure mode is covariance
+  // inflation: floor the velocity diagonal after every update so the filter
+  // always retains SOME minimum ongoing authority to correct toward new leg-
+  // odometry evidence, no matter how long it has already been running - at
+  // the cost of a slightly noisier tick-to-tick estimate. Opt-in and off by
+  // default (0 = MIT's stock behaviour, bit-for-bit unchanged) specifically
+  // so this can be A/B tested against the exact confirmed failure case
+  // (trotRunning's dash, real ESTERR ground truth) before ever being
+  // considered for promotion - see CLAUDE.md for the measured result.
+  {
+    static const T vFloor =
+        getenv("SIM_KF_VFLOOR") ? (T)atof(getenv("SIM_KF_VFLOOR")) : T(0);
+    if (vFloor > T(0)) {
+      for (int ax = 3; ax < 6; ++ax) {
+        if (_P(ax, ax) < vFloor) _P(ax, ax) = vFloor;
       }
     }
   }

@@ -6833,3 +6833,109 @@ limited remaining time on a gait this file has already established has
 no real speed/mission value - the priority for the rest of tonight is
 the cornering-envelope sweep at flagship speed, which was explicitly
 re-requested twice.
+
+## SOLVED: the backward-walk is `x_comp_integral` windup - a 2019 stock-MIT bug, and the dash now completes
+
+**This is the root cause of the "commanded velocity constant, real
+velocity decays toward zero and eventually goes negative" failure** that
+this file has chased across several sections and attributed, in turn, to
+the swing leg, the estimator, numerical breakdown, and MIT's covariance
+suppression. All of those were tested and refuted (each is recorded
+above and stays recorded - the refutations are real). The actual
+mechanism, found by instrumenting the MPC's own commanded FORWARD force
+rather than reasoning further about the estimator:
+
+```
+ConvexMPCLocomotion.cpp (stock MIT, unchanged since the 2019 import):
+  if(vxy[0] > 0.3 || vxy[0] < -0.3)
+    x_comp_integral += _parameters->cmpc_x_drag * pz_err * dtMPC / vxy[0];
+```
+
+`x_comp_integral` is a bare class member (`float x_comp_integral = 0;`,
+ConvexMPCLocomotion.h:242), `+=`'d every qualifying MPC tick and **never
+reset, clamped, or decayed anywhere in the tree** (confirmed by grepping
+every reference). It divides a small, persistently-SIGNED height error
+(`pz_err = z - _body_height`; a trotting body sits ~4-5 cm BELOW its
+height reference the entire run - measured: z=0.246-0.252 against
+zref=0.300) by the CURRENT forward velocity. So as velocity shrinks for
+any reason, the SAME height error produces a LARGER increment. It feeds
+`update_x_drag()` -> `SolverMPC.cpp`'s `ct_ss_mats()`: `A(11,9) = x_drag`
+- a coupling term in the MPC's own linearized dynamics claiming forward
+velocity (state 9) drives vertical velocity (state 11). Wound up
+negative, the model believes moving forward costs height, and since the
+QP weights z 250x more than vx (`Q = {...,2,2,50, 0,0,0.3, 0.2,...}`,
+index 5 vs index 9) it sacrifices - then REVERSES - forward velocity to
+protect a height prediction that was never real.
+
+**Measured, the runaway is unmistakable** ($SIM_MPCZ extended to print
+net commanded stance Fx, which is what finally isolated this - the
+existing diagnostic only printed VERTICAL force):
+
+| t | vx (est) | commanded net forward Fx |
+|---|---|---|
+| 6 s | +0.61 | **+21.9 N** |
+| 20 s | +0.61 | -2.5 N |
+| 36 s | +0.61 | -48.3 N |
+| 46 s | +0.45 | -85.6 N |
+| 55 s | +0.21 | **-110.2 N** |
+
+The controller is not going passive - it is actively commanding ~1x
+bodyweight of BACKWARD force. That is why "no environmental force and it
+still drifts backward" looked absurd: nothing external was pushing it,
+the controller was.
+
+**Why v=0 station-keeping is immune, and why this hid for so long.**
+The accumulation is gated on `|vxy[0]| > 0.3`, so a standing/trot-in-place
+hold never accumulates at all - exactly matching the operator's own
+observation that position hold is rock solid while cruise decays.
+
+And the honest correction to a first, wrong explanation of the hiding:
+"only a long uninterrupted straight exposes it" is NOT sufficient, since
+this project HAS run the dash for days. Checking the archive settles it -
+it is DURATION past ~35-60 s of sustained cruise, and the dashes that
+were passing were **20 m**, finishing in ~23 s, well under the threshold:
+
+```
+20 m dashes:   4 runs, 4 completed
+100 m dashes: 20 runs, 2 completed
+```
+
+Star/oval/atom are immune for a different reason: their frequent corners
+and stops repeatedly drop speed through the 0.3 gate, so the integral
+never gets an uninterrupted run at winding up.
+
+**THE FIX, and the result.** `$CTRL_XDRAG_CLAMP=<value>` bounds
+`|x_comp_integral|` (opt-in; unset = stock MIT, bit-for-bit unchanged).
+Clamping rather than deleting preserves whatever short-timescale
+compensation MIT intended while removing the unbounded part. At
+`CTRL_XDRAG_CLAMP=1.0`, the identical previously-failing case:
+
+    dash:100, trotRunning @0.6    PASS, t=149.6s
+    settle z=0.288 roll=1.0 pitch=0.4 -> ok    laydown -> ok
+    GROUND TRUTH (pT north): 99.82 m of 100 m actually travelled
+
+Same timestamps that previously showed decay now hold vx=+0.60 with Fx
+POSITIVE (+8 to +24 N). **This is the first verified 100 m dash
+completion in this investigation**, and it is confirmed against Gazebo
+truth via $SIM_ESTERR, not against the robot's own belief.
+
+**Scope, stated honestly**: one gait, one speed, one course, one run so
+far, plus a regression check. Per this file's own repeatedly-learned
+small-sample discipline that is a strong, mechanism-backed result - the
+mechanism is derived from the source and confirmed by a dose-response in
+commanded force, not just an outcome flip - but it is NOT yet a
+multi-rep proof, and the clamp is deliberately left OFF by default until
+it has one.
+
+**What this does NOT retract**: the KF velocity-covariance collapse
+found the same night is real and independently measured ($SIM_KF_HEALTH:
+the velocity block falls from ~0.025 to ~0.0007 within about one second
+of any run, taking the effective Kalman gain on new leg-odometry
+evidence from ~0.20 to ~0.007). `$SIM_KF_VFLOOR` floors it, and on its
+own measurably delayed the failure (upright past t=313 s vs falling at
+t=112 s) without preventing the physical reversal - consistent with it
+being a real but SECONDARY contributor: it degrades the velocity signal
+the windup then amplifies. Both remain opt-in; which (if either) belongs
+on by default is a question for a proper interleaved A/B, not for
+tonight.
+

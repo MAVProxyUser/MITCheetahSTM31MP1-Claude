@@ -1044,15 +1044,28 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     if (mpcz) {
       static int nz = 0;
       if ((nz++ % 50) == 0) {
-        float fzTot = 0.f; int nStance = 0;
+        float fzTot = 0.f, fxTot = 0.f; int nStance = 0;
         for (int foot = 0; foot < 4; ++foot) {
-          if (Fr_des[foot][2] > 1.0f) { fzTot += Fr_des[foot][2]; ++nStance; }
+          if (Fr_des[foot][2] > 1.0f) {
+            fzTot += Fr_des[foot][2];
+            // fxTot ADDED for the "commanded velocity constant, real velocity
+            // decays" investigation: does the MPC's own net FORWARD (world-x)
+            // stance force fade toward zero as real velocity fades, which
+            // would point at the reference/cost pipeline (something making
+            // the perceived error shrink even as real tracking gets worse),
+            // or does it stay commanded while real velocity fades anyway,
+            // which would point downstream, at execution (WBIC/leg tracking
+            // not delivering the commanded force, foot slip, contact-timing
+            // mismatch) instead. See CLAUDE.md's "backward-walk" section.
+            fxTot += Fr_des[foot][0];
+            ++nStance;
+          }
         }
         const float mg = 12.859f * 9.81f;             // corrected Go1 total mass
-        shmtrace::logf(0.0, "[MPCZ] t=%.2f z=%.3f zref=%.3f vz=%+.3f nSt=%d Fz=%.1f mg=%.1f "
+        shmtrace::logf(0.0, "[MPCZ] t=%.2f z=%.3f zref=%.3f vz=%+.3f vx=%+.3f nSt=%d Fz=%.1f Fx=%+.2f mg=%.1f "
                "Fz/mg=%.2f need=%.2f",
                nz * 0.002f, seResult.position[2], _body_height, seResult.vWorld[2],
-               nStance, fzTot, mg, fzTot / mg,
+               seResult.vWorld[0], nStance, fzTot, fxTot, mg, fzTot / mg,
                nStance > 0 ? 4.0f / (float)nStance : 0.f);
       }
     }
@@ -1404,7 +1417,40 @@ void ConvexMPCLocomotion::updateMPCIfNeeded(int *mpcTable, ControlFSMData<float>
 
     else
     {
-      const float max_pos_error = .1;
+      // STOCK MIT: clamps the MPC's own position REFERENCE to within
+      // max_pos_error of the CURRENT STATE ESTIMATE every MPC tick - an
+      // anti-windup guard so a brief real stumble does not leave the
+      // reference chasing a target that ran too far ahead. Reasonable when
+      // the estimate is a faithful proxy for true position, which is the
+      // implicit assumption MIT's own short-duration hardware tests never
+      // had to violate.
+      //
+      // That assumption breaks on this port's long, low-excitation runs:
+      // PositionVelocityEstimator's own leg-odometry KF has a genuine,
+      // measured ($SIM_KF_HEALTH) velocity-covariance collapse within ~1s
+      // of any run starting, after which its Kalman gain on NEW evidence is
+      // tiny and a small unmodeled bias compounds into real, unbounded
+      // estimate drift (measured via $SIM_ESTERR: the estimate stays
+      // positive/marches forward for an entire run while Gazebo ground
+      // truth shows real body velocity has gone SUSTAINED NEGATIVE). Once
+      // that drift exists, THIS clamp is what defeats the controller's own
+      // ability to react to it: because xStart/yStart are re-glued to
+      // within max_pos_error=0.1 of the (wrong) estimate every tick, the
+      // position-tracking error the MPC's QP cost actually sees is
+      // perpetually near-zero BY CONSTRUCTION, regardless of what the real,
+      // physical robot is doing - so nothing ever commands the extra force
+      // real velocity tracking would need. This is the second half of a
+      // two-part mechanism (see the KF velocity floor a few files over in
+      // PositionVelocityEstimator.cpp for the first half); see CLAUDE.md's
+      // "the backward-walk investigation" for the measured chain.
+      //
+      // $CTRL_MAX_POS_ERR overrides the stock 0.1 for A/B testing whether
+      // giving the MPC a genuine (larger) tracking-error signal restores
+      // real velocity correction. Opt-in, defaults to MIT's own stock
+      // value so nothing changes underneath any already-validated mission
+      // until this is tested against the full regression suite.
+      static const float max_pos_error =
+          getenv("CTRL_MAX_POS_ERR") ? atof(getenv("CTRL_MAX_POS_ERR")) : .1f;
       float xStart = world_position_desired[0];
       float yStart = world_position_desired[1];
 
@@ -1590,6 +1636,54 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   if(vxy[0] > 0.3 || vxy[0] < -0.3) {
     //x_comp_integral += _parameters->cmpc_x_drag * pxy_err[0] * dtMPC / vxy[0];
     x_comp_integral += _parameters->cmpc_x_drag * pz_err * dtMPC / vxy[0];
+  }
+
+  // X_COMP_INTEGRAL CLAMP ($CTRL_XDRAG_CLAMP=<value>), opt-in, off (unbounded,
+  // stock MIT) by default.
+  //
+  // STOCK MIT BUG, found chasing "commanded velocity constant, real velocity
+  // decays toward zero and can go sustained-negative on a long straight
+  // run" (measured via $SIM_MPCZ: commanded net forward force Fx swings from
+  // mildly positive to -100N of active BRAKING by t=55-58s of a dash, tracking
+  // the estimate's own velocity decay exactly). x_comp_integral is a bare
+  // class member (`float x_comp_integral = 0;`, ConvexMPCLocomotion.h:242),
+  // `+=`'d every qualifying MPC tick above and NEVER reset, clamped, or
+  // decayed anywhere in this file or any caller - confirmed by grepping every
+  // reference in the tree. It divides a small, persistently-signed height
+  // error (pz_err = actual height minus reference, normally a few cm negative
+  // during ordinary trotting - a body run sits BELOW its height reference) by
+  // the CURRENT estimated forward velocity, so as that velocity shrinks for
+  // ANY reason (gait transient, minor tracking lag, the KF's own drift - see
+  // the velocity-covariance-collapse finding in PositionVelocityEstimator.cpp)
+  // the SAME height error produces a LARGER magnitude increment. The result
+  // feeds update_x_drag() -> SolverMPC.cpp's ct_ss_mats(): `A(11,9) = x_drag`,
+  // i.e. a coupling term in the MPC's OWN linearized dynamics model saying
+  // "continued forward velocity (state 9) affects vertical velocity (state
+  // 11)". Once x_comp_integral has wound up very negative, the model believes
+  // continuing to move forward will hurt height - and because the QP's cost
+  // weights z 250x more than vx (Q = {...,2,2,50,...,0.2,...}, index 5 vs 9),
+  // it happily sacrifices - and eventually REVERSES - forward velocity to
+  // protect a height prediction that was never real, a genuine unbounded
+  // integrator-windup divergence: less real velocity -> smaller vxy[0] ->
+  // larger next increment -> even less velocity commanded. This can ONLY
+  // engage during SUSTAINED non-zero cruise (the |vxy[0]|>0.3 gate), which is
+  // exactly why a station-keeping v=0 hold is immune and why this shows up on
+  // a long uninterrupted dash but is masked on star/oval/atom-style missions
+  // whose frequent stops and corners repeatedly gate the accumulation off
+  // before it can run away. See CLAUDE.md's "backward-walk investigation".
+  //
+  // Clamping (rather than disabling) preserves whatever short-timescale
+  // compensation MIT intended this for while removing the UNBOUNDED part of
+  // the bug. Off by default so nothing changes under any already-validated
+  // mission until this is A/B tested against the exact failing case and the
+  // full regression suite.
+  {
+    static const float xdragClamp =
+        getenv("CTRL_XDRAG_CLAMP") ? atof(getenv("CTRL_XDRAG_CLAMP")) : -1.f;
+    if (xdragClamp >= 0.f) {
+      if (x_comp_integral >  xdragClamp) x_comp_integral =  xdragClamp;
+      if (x_comp_integral < -xdragClamp) x_comp_integral = -xdragClamp;
+    }
   }
 
   //printf("pz err: %.3f, pz int: %.3f\n", pz_err, x_comp_integral);
