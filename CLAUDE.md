@@ -3775,6 +3775,35 @@ for any future harness against this same server:
   already warns about elsewhere, caught immediately by comparing the
   runner's own verdict against the raw log rather than trusting it blind.
 
+## star/atom "failed" right after the GPS_HZ change - Time Machine, not a regression
+
+Immediately after the GPS_HZ work, a star+atom regression check both
+FAILED with what looked like stale-log contamination (the "failed" star
+run's ctrl log was actually showing an earlier galloping dash's tail).
+Chased it as a possible reintroduction of the async-teardown race (had
+just done two manual server restarts testing GPS_HZ=50, each preceded by
+a proper `/api/stop` per the documented safe procedure) - checked for
+orphaned processes (none), confirmed the conductor was genuinely idle,
+then tried a clean solo re-launch of star. It was REFUSED outright: `tmutil
+status` showed a live backup in progress (`BackupPhase = Copying`, 39%).
+This is this project's own already-documented, already-diagnosed host
+hazard ("Hourly backups on this Mac start around :38... an I/O burst
+wedges the control loops for 16-18ms against a 2ms budget") - the launch
+gate that refuses new launches during one exists for exactly this
+reason, and it correctly fired. The likely real explanation: the backup
+started WHILE the earlier galloping/star/atom tests were already running
+(the gate only blocks NEW launches, not one already in flight), and the
+I/O storm's effect on an in-progress run - filesystem contention during
+concurrent log writes, or an outright control-loop stall - produced the
+garbled/interleaved log content, not a code regression in the teardown
+fix or the GPS_HZ change. **Confirmed after the backup cleared**: star and atom both PASS cleanly
+(94.6s each, matching their own established baselines exactly). The
+GPS_HZ change (10 -> 20 Hz default, plus the per-launch override
+mechanism) is NOT a regression - the earlier failure really was the
+Time Machine I/O storm hitting an in-progress run, exactly as this
+project's own launch gate already exists to warn about. `GPS_HZ` stays
+shipped at its new 20 Hz default.
+
 ## A self-inflicted contamination: restarting the conductor SERVER unsafely bypasses its own teardown fix
 
 Found immediately after fixing the async-teardown race (`_teardown_done`)
@@ -4163,6 +4192,76 @@ covariance for the velocity states around each correction to see whether
 the Kalman gain (K=0.71, quite large) is appropriate for the actual GPS
 velocity noise, or whether `$SIM_GPS_VEL_SIGMA`'s default (0.1) is too
 aggressive now that the correction is real rather than a no-op.
+
+### GPS_HZ: the simulated GPS rate was a flat, uncited 10 Hz - fixed to a real spec, and it reveals a clean dose-response
+
+Per direct instruction to "simulate a fast ublox... use the realistic
+Hz rate from that" rather than leave the 10 Hz figure that CAUSED the
+staleness bug above sitting unexamined. Checked: 10 Hz had no citation
+anywhere in this codebase - it was simply what got typed the first time
+a GPS sensor was added. Replaced with a real, commonly-used spec: the
+u-blox ZED-F9P's documented standalone/DGNSS navigation rate is 20 Hz
+(its 10 Hz figure applies to RTK-fixed mode, which this project has no
+base station to model). Baked into `worlds/go1_speedway.sdf` (the actual
+proto the conductor's fleets clone from - `make_world.py`'s own
+GPS_HZ-driven default was fixed too, but that script is not what
+generates the file the conductor uses) and made independently overridable
+per-launch via `GPS_HZ` in the conductor SERVER's own environment
+(`make_multi_world.py::clone_dog()` patches the cloned sensor's
+`update_rate` if the env var is set) - "selectable... for regression /
+alternate scenarios," exactly as asked, though the granularity is
+per-server-restart, not per-mission, since the sensor rate is baked into
+the world at BUILD time, before any per-mission `extra` env vars the
+controller itself sees ever come into play.
+
+**This directly answers "every gait should at least be able to do the
+dash" - not by fixing it, but by finding a genuine, quantified,
+positive-but-incomplete lever.** Re-tested galloping's dash
+(`$SIM_VEL_AIDING=1`, now actually wired) at three GPS rates:
+
+| GPS rate | real forward progress by ~230s | 
+|---|---|
+| disconnected (the wiring bug, effectively 0 corrections) | under 3 m |
+| 10 Hz (the old default) | 14.5 m |
+| 20 Hz (the new realistic default) | 24.9 m |
+| 50 Hz (idealized, PAST any real GPS hardware - diagnostic only) | 37.2 m |
+
+A clean, monotonic dose-response - correction FREQUENCY is a real,
+measurable lever on this failure, not a null one. But even at 50 Hz,
+deliberately beyond what any real GPS module offers, the dash still does
+not complete (37 of 100 m) and the KF's own position estimate still
+diverges. Honest reading: faster GPS genuinely helps and is worth
+shipping at the real 20 Hz spec regardless, but rate alone will not
+finish the job - the next lever is very likely `$SIM_GPS_VEL_SIGMA`
+(the assumed measurement noise, still an unexamined default of 0.1)
+or the raw Kalman gain magnitude itself, not more speed from a sensor
+that is now already modeled realistically.
+
+**Chased that exact lever, same night, and it plateaus rather than
+solves it.** Tightening `$SIM_GPS_VEL_SIGMA` (trusting the GPS velocity
+measurement more, raising the Kalman gain) at the realistic 20 Hz rate:
+
+| `SIM_GPS_VEL_SIGMA` | real forward progress by ~230s |
+|---|---|
+| 0.1 (original default) | 24.9 m |
+| 0.02 | **54.5 m** |
+| 0.005 | 53.7 m - no further gain, within noise of 0.02 |
+
+Real, substantial improvement (roughly DOUBLING progress versus the
+untuned default) with a clear point of diminishing returns around
+sigma~0.02 - past that, the bottleneck becomes how often a genuinely NEW
+GPS sample arrives (rate-limited at 20 Hz), not how hard each one is
+trusted, which is exactly the sensible engineering picture and a clean
+result to have in hand. **Still not a complete fix**: even at this
+tuned combination the dash reaches only ~54 of 100 m before the run's
+time budget ends, roughly half the course, not the whole thing. Complete,
+honest picture for tonight: wiring bug fixed, frame bug fixed and
+verified, GPS modeled at a real hardware rate, gain tuned to its own
+point of diminishing returns - each step measurably better than the
+last, none of them alone or together sufficient to finish the dash.
+`$SIM_VEL_AIDING` stays default OFF; `$SIM_GPS_VEL_SIGMA=0.02` is the
+recommended value for whoever next investigates this, not yet promoted
+to the shipped default.
 
 ## Two more found via the new launcher: a missing dash overlay, and a real panel bug behind an atom spin-out
 

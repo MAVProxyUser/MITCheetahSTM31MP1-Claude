@@ -38,6 +38,7 @@ Navigation is unaffected by the offset: each dog's nav sets its local origin
 from its own first GPS fix, so every mission is relative to wherever that dog
 was spawned.
 """
+import os
 import sys
 import copy
 import xml.etree.ElementTree as ET
@@ -207,6 +208,17 @@ def clone_dog(proto, index, north, east, height=0.08, yaw=None):
         v[5] = yaw
     pose.text = " ".join("%g" % x for x in v)
     retopic(m, name)
+    # GPS_HZ override, applied at clone time so the proto file's own baked-
+    # in default (20 Hz, a real u-blox ZED-F9P standalone/DGNSS rate - see
+    # the sensor's own comment in worlds/go1_speedway.sdf) can be dialed
+    # down per-launch for regression against the old flat-10-Hz behavior,
+    # or to deliberately model a slower/cheaper receiver, without needing
+    # to hand-edit or regenerate the SDF proto itself.
+    gps_hz = os.environ.get("GPS_HZ")
+    if gps_hz:
+        rate_el = m.find(".//sensor[@name='cheetah_gps']/update_rate")
+        if rate_el is not None:
+            rate_el.text = gps_hz
     return m, name
 
 

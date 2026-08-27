@@ -61,7 +61,17 @@ if imu_link is not None:
     ET.SubElement(ap, "reference_altitude").text = "0"
     g = ET.SubElement(imu_link, "sensor", {"name": "cheetah_gps", "type": "navsat"})
     ET.SubElement(g, "always_on").text = "1"
-    ET.SubElement(g, "update_rate").text = "10"
+    # GPS_HZ: was a flat 10 Hz with no citation - arbitrary, and the direct
+    # cause of the staleness bug documented in CLAUDE.md's "GPS VELOCITY
+    # AIDING" section (a 500 Hz control loop re-applying the same
+    # zero-order-held reading ~49 times per real sample). Default now
+    # matches a real, commonly-used fast GPS module rather than a guess:
+    # the u-blox ZED-F9P's documented max navigation rate is 20 Hz (10 Hz
+    # in RTK-fixed mode, 20 Hz standalone/DGNSS - this project has no RTK
+    # base station modeled, so the standalone figure is what applies).
+    # Kept selectable via GPS_HZ for regression against the old behavior,
+    # or to model a cheaper/slower receiver deliberately.
+    ET.SubElement(g, "update_rate").text = os.environ.get("GPS_HZ", "20")
     ET.SubElement(g, "topic").text = "navsat"
 
 # helper to append a system plugin
