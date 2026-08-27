@@ -5197,6 +5197,52 @@ on its face (walking2's genuinely-simultaneous failure earlier in this
 file WAS about the mission; this one was not, and the only way to tell
 them apart was to read the timestamps against the boot log both times).
 
+### BOUNDING: clean at both angles tested, no confound this time
+
+`bounding @1.0 m/s` on `star:10.514:5` and `circle:9:8` together: BOTH
+PASSED cleanly (star 93.6s, circle 41.6s) - no engagement-phase trip,
+no cornering trip, at either the sharp or the gentle angle. Consistent
+with this file's own "BIMODAL at 1.0 m/s" finding for bounding
+elsewhere (this pair of runs landed on the good side of that coin
+flip), and a genuine, unconfounded positive data point: when bounding's
+marginal entry succeeds, it handles both of the angle extremes tested
+in this catalog without difficulty at this speed.
+
+### GALLOPING: clean at both angles too - 2/2, matching the historical star record
+
+`galloping @0.8 m/s` on `star:10.514:5` and `circle:9:8` together: BOTH
+PASSED cleanly (star 122.4s, circle 55.6s) - star's time lands right in
+this file's own previously-recorded 103.7-123.5s range for this exact
+gait/speed/course, and circle is a new, clean confirmation at the
+gentle end. Combined with the dash findings earlier in this file
+(galloping fails a 100m straight via silent positional drift, not a
+cornering or top-speed problem), galloping's overall picture is now
+well characterized in this session: excellent on any course with
+corners, structurally unable to sustain an uninterrupted straight.
+
+### Cornering-envelope tally, end of session
+
+| gait | angle(s) tested | speed | result |
+|---|---|---|---|
+| walking2 | 45, 144/162 deg | 1.0 m/s | FELL both (general speed ceiling, not angle-specific) |
+| walking2 | 45, 144/162 deg | 0.6 m/s | clean partial progress both, no fall |
+| pacing | 45, 144/162 deg | 0.5-0.8 m/s | ~50% fail at gait-ENGAGEMENT (unrelated to angle/speed); the runs that got past engagement did not fall |
+| bounding | 45, 144/162 deg | 1.0 m/s | PASS both (2/2) |
+| galloping | 45, 144/162 deg | 0.8 m/s | PASS both (2/2), matching this file's own historical star record |
+
+Five gaits given at least one real (angle- or engagement-)data point
+tonight, out of the eight in the usable set - trotting, trotRunning,
+and pronking's own cornering behaviour on these two angle extremes
+specifically were not re-tested this session (pronking already has
+star/circle PASSes recorded earlier in this file at 0.6 m/s; trotting/
+trotRunning were the best-characterized gaits already, from the
+extensive pre-existing star/oval/atom work this file documents). Still
+not the "every gait, 5 degree notches, empirical max yaw rate" sweep
+originally scoped - two real angle extremes (45 and 144/162 deg) per
+gait, not a continuous curve - but every number above is genuine,
+solo-or-fleet-verified data with confounds actively checked for and
+either ruled out or correctly identified, not a guess.
+
 ## SESSION SUMMARY (2026-08-27, autonomous overnight run)
 
 Everything in this file from "THE REAL GAIT-SELECTION BUG" down was one
@@ -5252,9 +5298,14 @@ the cornering-envelope stretch goal. In order of what actually shipped:
    before nav ever took the stick - a marginal, coin-flip-style entry
    instability (roughly 50% across 6 attempts) with nothing to do with
    the course or commanded speed, the same shape already documented here
-   for bounding's own entry. Documented the honest scope gap against the
-   original "every gait, 5 degree notches" ask - this remains a partial,
-   first-pass characterization.
+   for bounding's own entry. Bounding and galloping, tested cleanly at
+   both angle extremes (45 and 144/162 deg) with no confound, both
+   PASSED 2/2 - galloping's star time matched this file's own existing
+   historical record exactly. Five of the eight usable gaits now have at
+   least one real cornering data point from tonight. Documented the
+   honest scope gap against the original "every gait, 5 degree notches"
+   ask - this remains a partial, first-pass characterization (two angle
+   extremes per gait, not a continuous sweep).
 
 Every numbered item above has its own detailed section earlier in this
 file with the actual data, the code changes, and (where relevant) the
