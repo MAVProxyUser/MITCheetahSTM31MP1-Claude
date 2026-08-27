@@ -5730,6 +5730,54 @@ on its face (walking2's genuinely-simultaneous failure earlier in this
 file WAS about the mission; this one was not, and the only way to tell
 them apart was to read the timestamps against the boot log both times).
 
+**CORRECTION (2026-08-27, continuation session): the "~50% coin-flip" was
+itself the host-load artifact this section's own lesson warns about.**
+Per direct "hammer at all the things open" instruction, went back to
+actually test this rather than leave it filed as an accepted, unexplained
+residual. Every one of the six earlier attempts that produced the ~50%
+figure was run as PART OF A 3-DOG BATCH - none were solo. Ran pacing on
+star at the exact same 0.8 m/s, SOLO, four times: **4/4 clean passes, zero
+engagement trips.** Also confirmed earlier tonight: 3-4/4 clean on a short
+solo dash at the same speed. That is 7-8 consecutive solo passes against
+a claimed ~50% failure rate - a coin flip landing heads 7-8 times running
+is vanishingly unlikely (under 1% for 8 flips). The far more likely
+explanation, consistent with this project's own repeated finding
+elsewhere in this file ("identical simultaneous failure across
+independent processes = the HOST, never the controller"): pacing's own
+gait-engagement transition is NOT marginally unstable in isolation - the
+~50% figure was measuring 3-dog SHARED-HOST contention during the exact
+moment three controllers simultaneously hit their own settle-hold/
+gait-engage transition together, not a property of pacing itself.
+Bounding's own similarly-described "bimodal... roughly a coin flip" entry
+instability (cited above as the same shape) has NOT been re-checked solo
+yet and should not be assumed confirmed just because this one wasn't -
+same next step, not yet done.
+
+**Checked immediately after, same session: bounding's own bimodal claim
+is also obsolete, though for a different reason than pacing's.** That
+finding is genuinely old (from a session well before most of this file's
+locomotion fixes) and described near-INSTANT collapses (3-4 cm of travel,
+~18 s) alternating with clean ~5.4 m runs. Re-tested solo on the CURRENT
+codebase: 4/4 short attempts showed real, healthy, sustained progress
+(36 m by t=33s at a commanded 1.0 m/s, tracking the command closely) -
+zero instant collapses. A full-length re-test DID eventually fail, but
+via a completely different, already-characterized mechanism: a flat
+force/height collapse (`roll=0 pitch=-0 z=0.037`) at 44.77 m, not an
+engagement-time crash. So the specific OLD claim ("bimodal at
+engagement") does not reproduce at all on the current build - it was
+superseded by the many fixes since (WBIC damping, the real Go1 model,
+zeroVelHold, the async-MPC-race fix, etc.), consistent with this
+session's own repeated finding that "documented as marginal" often just
+means "measured a long time ago, before the codebase that fixed it."
+What DOES remain, and is a genuinely NEW, more precise finding: bounding
+at 1.0 m/s does not reliably complete a 100 m dash, failing partway
+through via the same flat force/height-starvation signature this file
+already documents for OTHER gaits under sustained straight-line load -
+a distance/duration ceiling, not an engagement coin-flip. Worth a proper
+bracket (does it hold at 0.8? does the failure point move with speed?)
+if this thread is picked up again, but that is a different, better-posed
+question than the one this section originally raised.
+
 ### BOUNDING: clean at both angles tested, no confound this time
 
 `bounding @1.0 m/s` on `star:10.514:5` and `circle:9:8` together: BOTH
