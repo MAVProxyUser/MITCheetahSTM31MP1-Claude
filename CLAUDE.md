@@ -1805,6 +1805,25 @@ Both are precise when they run - a 0.1-0.2 s spread across a 100 m five-corner
 mission - which says the remaining failures are a threshold being crossed, not
 noise accumulating.
 
+### `unittests/path_analysis.py` validated against real data, and it earned its keep immediately
+
+Applied to the trotRunning-on-smooth-circle fall from earlier tonight
+(pulled `planned`/`positions[0].trail` straight from a still-warm
+`/api/state` before anything else launched and overwrote it) rather than
+only the synthetic self-test. Result: corners 1-9 read CLEAN (0.01-0.09m
+closest approach), corners 10-12 flip to **HAIRPIN** (overshoot 0.27-0.35m
+- a real overshoot-and-correct signature), and corner 13 onward shows
+monotonically GROWING "closest approach" distances tracing the shape of
+the still-unwalked remainder of the circle - exactly what a STATIONARY
+fallen robot compared against a moving sequence of planned vertices should
+produce, not a bug in the tool. The fall itself happened right where the
+hairpinning starts: the follower was already overshooting and correcting
+for 2-3 corners before the actual tip-over, which is a genuinely useful,
+specific diagnostic lead for the still-open "why does trotRunning fail
+continuous curvature" question two sections up - worth checking whether
+this same overshoot-then-correct pattern precedes trotRunning's other
+smooth-circle fall too, before guessing at a cause.
+
 ### BANK INTO THE TURN - the first thing to touch the actual failure
 
 Every running animal drops its shoulder and LEANS into a corner. That is not
