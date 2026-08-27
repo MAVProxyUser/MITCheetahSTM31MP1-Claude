@@ -4033,6 +4033,24 @@ python3 unittests/test_validated_missions.py --history           # the ring-buff
 
 ## GPS VELOCITY AIDING: implemented, tested, and it made things WORSE - a real frame-convention lead, not confirmed
 
+> **READ THE `x_comp_integral` SECTION AT THE END OF THIS FILE BEFORE
+> SPENDING ANY MORE TIME ON THIS ONE.** Everything below is factually
+> accurate about GPS velocity aiding itself (three real bugs found and
+> fixed, a real measured dose-response on GPS rate and sigma), but the
+> PROBLEM it was chasing - "the robot's real velocity decays to zero and
+> reverses on a long straight" - was NOT primarily an estimator problem.
+> It is `x_comp_integral` windup in stock MIT's own `ConvexMPCLocomotion`
+> actively commanding the robot backward at up to ~1x bodyweight. That is
+> root-caused, fixed, and verified against Gazebo truth (100 m dash
+> completes, 99.82 m actually travelled). So the "partial, real effect"
+> results below - galloping's dash progress moving 3 m -> 14.5 -> 24.9 ->
+> 54.5 m across the wiring fix, GPS rate and sigma tuning - are best read
+> as this feature partially COMPENSATING for a control bug by feeding the
+> estimator better data, not as evidence about how much aiding this robot
+> needs. Re-measure the whole dose-response with `$CTRL_XDRAG_CLAMP` set
+> before drawing any conclusion about GPS aiding's real value; the honest
+> status of that question right now is UNKNOWN, not "partially effective".
+
 Direct challenge, and a good one: "the controller thinks it's still
 accelerating forward while it's actually drifted backward... we literally
 have GPS and magnetometer available." Checked first whether this repeats
@@ -6509,6 +6527,20 @@ index.
 
 ## CORRECTION, same night: the dash failure is NOT gait-specific, and NOT something this session introduced
 
+> **CONFIRMED AND ROOT-CAUSED - see the `x_comp_integral` windup section
+> at the end of this file.** Both of this section's central claims held
+> up exactly: the failure is NOT gait-specific (it is in
+> `ConvexMPCLocomotion`, which every gait shares) and was NOT introduced
+> by that session (the offending line dates to the 2019 MIT import,
+> `git log -S` -> `c54e50b`). Its "one general vulnerability, not a
+> separate mechanism per gait" reading was right too - just about the
+> wrong subsystem: the shared mechanism is a control-side integrator
+> windup, not the LinearKF. The KF velocity-covariance collapse is real
+> and independently measured but SECONDARY. One more thing this section
+> got right and is worth repeating: the `[ESTERR]` `dp` field conflates
+> two differently-rotated frames and overstates error - always compare
+> truth's north axis against the estimate's forward axis by hand.
+
 Directly challenged ("you just flat out broke the dash via some weird
 regression") - the right response was to test the claim, not defend the
 earlier writeup. It led to a real finding this file's own "three
@@ -6643,6 +6675,23 @@ result that matters.
    file, not just a UI element that can go unwatched.
 
 ## The backward-walk investigation, continued: two hypotheses tested and REFUTED, fault localized but not found
+
+> **SOLVED - see the `x_comp_integral` windup section at the end of this
+> file.** This section's own closing instruction ("log
+> `world_position_desired` itself and compare its drift against the
+> achieved trajectory") was followed and led to the answer, so the
+> narrowing below did its job: the fault really was downstream of a
+> demonstrably correct command, and really was not numerical breakdown or
+> MIT's covariance suppression (both refutations still stand and are
+> still worth not re-testing). What it was: `x_comp_integral`, a
+> never-reset integrator in stock MIT's `ConvexMPCLocomotion`, winding up
+> until the MPC actively commanded ~1x bodyweight of BACKWARD force. One
+> correction to this section's framing, though: it says "the fault is
+> most likely in the MPC's own internal trajectory reference
+> (`world_position_desired`)" - close, but the reference itself was fine.
+> Disabling its `max_pos_error` clamp entirely was tested and did NOT fix
+> the decay. The bug was one layer further in, in the MPC's own
+> LINEARIZED DYNAMICS MODEL (`A(11,9) = x_drag`), not in its reference.
 
 Per the control-math-verification discipline this session was pointed
 at ("don't oversell, verify or say so" - report a contradicted
