@@ -3756,6 +3756,33 @@ for any future harness against this same server:
   already warns about elsewhere, caught immediately by comparing the
   runner's own verdict against the raw log rather than trusting it blind.
 
+## A self-inflicted contamination: restarting the conductor SERVER unsafely bypasses its own teardown fix
+
+Found immediately after fixing the async-teardown race (`_teardown_done`)
+and applying it via a raw `kill $PID` + relaunch of `server.py` itself,
+twice in one session (once for the fix, once for the oval recipe change).
+That is exactly the unsafe pattern the fix exists to prevent, just one
+level up: `_teardown_done`/`_reap_and_confirm` only run when the SERVER
+PROCESS is alive to run them - a bare `kill` on the server itself is a
+plain SIGTERM with no registered cleanup handler, so any gz/bridge/
+controller child still active at that exact instant is immediately
+orphaned with nobody left to reap it. The NEXT server instance starts
+with `self.procs = []`, structurally blind to those orphans, and a
+subsequent launch's own stale-process sweep (port/pgrep-based) does
+eventually kill them - but not before a few of their last buffered log
+lines can land in the freshly-truncated ctrl log of an unrelated later
+run. Reproduced exactly this way: a solo trotting/circle:9:36 run showed
+a `[FALL] roll=163` sandwiched inside ~140 repeated
+`[FSM LOCOMOTION] On Enter` lines, then MORE fresh FSM initialization
+after it - two runs' content interleaved in one file, not a real gait
+failure. An immediate clean re-run of the identical config PASSED (23.6s,
+roll 0.7/pitch 0.8) - the "failure" was purely an artifact of restarting
+the server the wrong way. Lesson for any future restart to load a code
+change: `curl -X POST :8420/api/stop` FIRST (routes through the real
+`_reap_and_confirm`, confirms every child dead) and only then kill/
+relaunch the server process - never kill the server itself while it
+might own live children.
+
 ## THE OVAL'S MID-COURSE FALL: not the gait switch at all - trotRunning itself can't hold this curve
 
 Challenged directly on treating this as an acceptable ~1-in-3 residual
@@ -3819,6 +3846,45 @@ real next step is investigating WHY trotRunning cannot hold R=4.47 m at
 even 1.8 m/s (WBIC gains, follower steering-cap math at this specific
 radius - similar in spirit to the star hairpin fix, not yet attempted
 here), not more gait-switch tuning.
+
+## Smooth-circle coverage completed: trotting/walking clean, trotRunning genuinely fails (0/2), correcting an earlier mixed-up claim
+
+Filling the last gap (trotting/trotRunning/walking on `circle:9:36`, the
+smooth 36-vertex circle) hit a real contamination artifact first: a
+3-gait batch showed all three "failing," but investigation traced it to
+MY OWN unsafe restart of the conductor server minutes earlier (see the
+section above) - a stale process's tail landed in a fresh run's log. A
+clean re-test cleared trotting immediately (PASS 23.6s). But re-testing
+trotRunning genuinely, solo, twice, gave **0/2 real falls** (tip-overs,
+`roll=-75` and similar) - not contamination, not variance rescuing a
+mistaken claim. Correcting the record: an earlier message in this session
+claimed trotRunning had "already passed the smooth circle twice tonight
+(46.7s, 62.7s)" - those numbers actually belong to bounding/galloping/
+pronking's own passes on this same course, not trotRunning, which had
+never been tested here before this investigation. There was no prior
+pass to contradict.
+
+**Final, corrected smooth-circle (`circle:9:36`) tally:**
+
+| gait | speed | result |
+|---|---|---|
+| bounding | 1.0-2.0 | PASS at every speed tried (up to 2.0, no ceiling found) |
+| galloping | 0.8-1.4 | PASS at every speed tried (up to 1.4, no ceiling found) |
+| pronking | 0.6-1.0 | PASS at every speed tried (up to 1.0, no ceiling found) |
+| trotting | 2.5 | PASS 23.6s |
+| walking | 1.5 | PASS 33.8s |
+| **trotRunning** | **3.5** | **FELL 0/2** (both solo, clean, genuine tip-overs) |
+
+A genuinely interesting reversal of the discrete-corner pattern from
+earlier tonight, where trotRunning was often the MOST robust gait
+(clean on the octagon and every discrete angle tested). On sustained,
+continuous curvature specifically, it is the one gait that struggles,
+while the fully-synchronized/asymmetric flight gaits (bounding/galloping/
+pronking) and the always-multi-support gaits (trotting/walking) all
+handle it comfortably. Not root-caused - flagged as a real, open
+observation for whoever next has time, and a caution against assuming a
+gait's discrete-corner performance predicts its continuous-curvature
+performance, or vice versa.
 
 ## `unittests/`: a repeatable regression suite over the validated missions, and a false positive found on its first real use
 
