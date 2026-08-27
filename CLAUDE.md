@@ -3883,7 +3883,27 @@ switch-timing fix to find.
 throughout vs. trotRunning's 3.5 m/s on the straights) - roughly 46 s
 against the mixed-gait approach's best-case ~30.5 s when that approach
 happened to work. Reliable-but-slower vs. fast-but-genuinely-broken at
-this exact radius. The three switch-timing code changes
+this exact radius.
+
+**Follow-up, per "hammer at all the things open": re-checked reliability
+with more reps, and it is real improvement, not perfect.** Four more
+solo runs of the trotting-only config: 3/4 PASS, clean settles (roll
+0.2-0.3 deg) - but one FELL, and NOT in the stop/settle window at all.
+The archived log shows a genuine MID-COURSE collapse at wp43/93 (~46%
+through the lap, t=22.4s), `roll=-36 pitch=9`, during the curved section
+- a lateral/roll failure while cornering, not the pitch-forward stop
+crash this whole investigation was originally chasing. So: trotting-only
+is a real, substantial reliability win over the old trotRunning+analyzer
+config (which failed essentially every time at the mid-course curve
+entry) but is not 100% reliable either - roughly 75-80% across 6 total
+reps tonight (2 earlier + 4 now), with a residual, different failure
+mode (mid-course roll during the sustained curve, not a stop-window tip)
+that the earlier "~1-in-5 stop tip" framing does not actually describe.
+That older finding was measured on the NOW-REPLACED trotRunning+analyzer
+config and should be considered superseded, not confirmed, by this
+result - the mechanism is different, even if the rough failure rate
+happens to land in a similar range. Not chased further tonight; a real,
+open, honestly-scoped residual for whoever continues this course. The three switch-timing code changes
 (`pending_gait_since`, the roll/yaw-rate + speed defer gate in
 `mit_sim_main.cpp`) are left in place as reasonable general hardening
 (deferring a gait change during a genuinely violent transient is still a
