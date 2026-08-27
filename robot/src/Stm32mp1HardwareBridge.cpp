@@ -525,15 +525,36 @@ void Stm32mp1HardwareBridge::run() {
     }).detach();
   }
 
+  // SELF-IDENTIFYING LOGS. $SIM_RUN_ID/$SIM_INSTANCE were already passed to
+  // every controller process (server.py's launch command line) but never
+  // actually READ by this binary - meaning no ctrl log line, anywhere in
+  // the file, ever said which run produced it. That is a real, repeatedly-
+  // costly gap: a stale process's tail landing in a fresh run's freshly-
+  // truncated log (the async-teardown race, and separately an unsafe manual
+  // server restart, both documented in CLAUDE.md) produced garbled,
+  // misattributed content that took real debugging effort to recognize as
+  // contamination rather than a code regression, MULTIPLE times in one
+  // session - and every time, the only way to tell was indirect (comparing
+  // waypoint coordinates against a DIFFERENT mission, or noticing an
+  // impossible timestamp gap), never a direct check of the data itself.
+  // Stamping [RUNID] onto the SAME once-a-second line every ctrl log
+  // already carries means any tool (or person) reading ANY point in a log
+  // - not just its first line, which a contaminated tail may have
+  // overwritten differently than its middle - can directly verify which
+  // run they are actually looking at, rather than trusting a filename or a
+  // timing assumption.
+  const int simRunId = getenv("SIM_RUN_ID") ? atoi(getenv("SIM_RUN_ID")) : -1;
+  const int simInst   = getenv("SIM_INSTANCE") ? atoi(getenv("SIM_INSTANCE")) : 0;
   double _healthElapsed = 0.0;   // this loop's own clock - see ShmTrace.h's note
   for (;;) {
     usleep(1000000);
     _healthElapsed += 1.0;
     if (_robotRunner) {
-      shmtrace::logf(_healthElapsed, "[stm32mp1] ctrl loop: maxRuntime=%.2f ms  maxPeriod=%.2f ms  (period target %.1f ms)",
+      shmtrace::logf(_healthElapsed, "[stm32mp1] ctrl loop: maxRuntime=%.2f ms  maxPeriod=%.2f ms  (period target %.1f ms)  [RUNID] run=%d instance=%d",
              _robotRunner->getMaxRuntime() * 1000.f,
              _robotRunner->getMaxPeriod() * 1000.f,
-             _robotParams.controller_dt * 1000.f);
+             _robotParams.controller_dt * 1000.f,
+             simRunId, simInst);
       _robotRunner->clearMax();
     }
   }
