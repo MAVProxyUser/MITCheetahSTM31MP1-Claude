@@ -221,11 +221,28 @@ Grouped by what it would actually take to close it.
       round-number clamp, and the permissive SDK bound); the worlds use the
       mechanical set, but the middle, controller-side operational clamp
       that real hardware presumably applies has never been added.
-- [ ] **Unitree's `runSwingLegControl`/`runContactLegControl` split (and
-      `trajPlanner` proper) was only reversed structurally, never ported.**
-      This is the leading remaining candidate for why pronking and
-      galloping still fail (galloping now completes a mission at 0.8 m/s,
-      but pronking has never crossed at any speed tried).
+- [ ] **UPDATED, see CLAUDE.md "GALLOPING/BOUNDING RESOLVE ATTEMPTS" and
+      "THE runSwingLegControl/runContactLegControl PORT" (2026-08-27):**
+      pronking/galloping/bounding all now PASS corner-broken courses
+      (star/circle/expsquare) on the current stack - the stale claim here
+      that pronking "never crossed at any speed" predates the async-solve
+      race fix, WBIC damping, the real Go1 model, zeroVelHold, and this
+      session's SIM_GAIT fix, all stacked together for the first time.
+      What's actually still open is a 100m-straight-dash-only failure, a
+      different mechanism per gait (pronking: flat height collapse;
+      bounding: delayed tip-over; galloping: silent backward+lateral
+      drift, no trip at all) - a DURATION/DISTANCE effect, not a speed
+      ceiling, invisible on any course with corners or waypoint
+      corrections often enough to interrupt whatever is compounding.
+      `runSwingLegControl`'s actual body was never reduced to pseudocode
+      in `docs/LEGGED_SPORT_REVERSE.md` (only its entry block and unrelated
+      constants were recovered) and `runContactLegControl`'s only
+      non-trivial new content (a per-leg force sign flip) is explicitly
+      flagged there as too risky to port on a guess - so no port was
+      attempted. Concrete next step if resumed: instrument per-leg swing
+      foothold placement (`Pf`, ConvexMPCLocomotion.cpp:697-730) through a
+      galloping dash to check for a systematic per-leg bias, before
+      touching any swing-leg code on a guess.
 
 ## Cosmetic / lower priority
 

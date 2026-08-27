@@ -4938,3 +4938,107 @@ reach a genuine steady-state cruise and either complete or fail cleanly
 at a describable ceiling. Pronking's real characterization is "very good
 on courses with corners every 10-40 m, unreliable on anything longer and
 straighter than that" - the opposite framing from a top-speed number.
+
+## GALLOPING/BOUNDING RESOLVE ATTEMPTS: same DURATION pattern as pronking, different mechanism each time
+
+Per direct instruction ("the pronk gallop resolve attempts... start there"),
+re-tested on the current fully-fixed config, on the same two mission
+shapes as pronking above (a corner-broken course and the uninterrupted
+100 m dash), to see whether either now closes the gap this file has
+called "the asymmetric-swing-sequencing gap."
+
+**Corner-broken course: both confirmed working.** `galloping @0.8` on
+`star:10.514:5` - **PASS 123.5s** (matches this file's own earlier
+103.7s record within normal run-to-run variance). Not re-litigated
+further; already established.
+
+**The dash exposes a real, distinct failure for BOTH, and it is not
+speed.** Tested `galloping`/`bounding` on `dash:100` at two speed tiers:
+
+| gait | speed | result |
+|---|---|---|
+| galloping | 0.8 | FELL ~t=94s, orientation trip (tip-over) |
+| bounding | 1.0 | FELL ~t=47s, orientation trip (tip-over) |
+| galloping | 0.5 | did not fall - drifted to **N=-0.37 E=3.72** by t=254s (net BACKWARD and sideways from its own start point) |
+| bounding | 0.6 | FELL ~t=163s, orientation trip (tip-over) - same failure, just slower to arrive |
+| galloping | 0.4 | did not fall - drifted to **N=-5.54 E=4.12** by t=244s (worse: further backward, further sideways) |
+
+Lowering speed did NOT fix bounding (still tips, just takes ~3.5x longer)
+and did not "fix" galloping either - it just swapped a fast tip-over for a
+slow, silent backward-and-sideways drift that never trips the orientation
+check at all. **This is a DURATION/DISTANCE failure, not a speed
+ceiling** - the same shape as pronking's dash finding above, but via
+three DIFFERENT physical mechanisms across the three flight-adjacent
+gaits tested tonight:
+
+| gait | dash failure mode |
+|---|---|
+| pronking (synchronized, all 4 legs together) | flat height/force collapse (`roll=0 pitch=0`) |
+| bounding (near-synchronized pairs) | orientation tip-over, delayed by lowering speed but not prevented |
+| galloping (fully asymmetric offsets) | no trip at all - a silent, compounding BACKWARD+LATERAL positional drift |
+
+None of these three courses (star/circle/expsquare/atom/sector/parallel)
+is long and straight enough to expose any of this - every one of them is
+short enough between corners, or has frequent-enough waypoint-tracking
+corrections, that whatever is accumulating never gets the distance to
+matter. A 100 m uninterrupted dash is the one course shape that lets a
+small per-cycle bias compound into a real failure, regardless of which
+of the three different mechanisms is actually producing that bias.
+
+## THE runSwingLegControl/runContactLegControl PORT: NOT attempted, and why
+
+Went back to `docs/LEGGED_SPORT_REVERSE.md` before touching any code,
+per this project's own stated conclusion that these two functions were
+"the leading remaining candidate" - and found the RE work itself already
+draws the honest line:
+
+- **`runContactLegControl`'s pseudocode IS fully reduced** (§7c) - and it
+  is MIT's OWN existing stance branch, split into its own function, with
+  exactly ONE non-trivial difference: a per-leg force sign flip
+  (`f[0]` negated on the rear pair, `f[1]` negated on the right pair).
+  The RE author's own words on that one new piece: "most likely reflects
+  Unitree's leg-frame convention rather than a control improvement, and
+  getting a force sign wrong per leg is exactly the kind of change that
+  silently destroys a gait" - explicitly NOT ported, on purpose.
+  Structurally splitting the function WITHOUT that flip would be a
+  zero-behavior-change refactor - it would not touch tonight's dash
+  failures at all, because it would produce bit-identical stance
+  commands to what `ConvexMPCLocomotion::run()` already computes inline.
+- **`runSwingLegControl`'s actual body was NEVER reduced to pseudocode.**
+  Only its entry block (the swing/stance split test, and the per-leg
+  `getCurrentSwingTime`/`getCurrentStanceTime` calls - both of which this
+  port already has, confirmed independently) and a handful of constants
+  (9.81, 0.07, three filter time-constant pairs, two unplaced antisymmetric
+  per-leg arrays) were recovered. The doc's own words: "producing
+  statement-level pseudocode for the remainder would be a large amount of
+  work with a real risk of confident-looking errors, and speculative
+  pseudocode in a reference document is worse than an acknowledged gap."
+
+**Decision: did not write an original implementation and call it a "port"
+of a function whose real content was never actually recovered.** Doing so
+tonight, informed only by a guess at what a per-leg-aware Raibert
+placement "should" look like, would carry exactly the risk the RE author
+already flagged - a confidently-wrong swing-leg change is the single
+easiest way to silently destroy a gait, and there is no way to
+distinguish "fixed it" from "moved the bug" without the kind of careful,
+isolated A/B this session's own history warns is easy to get wrong on a
+first try (see the zero-velocity-hold false starts and the trot-in-place
+settle reversal elsewhere in this file).
+
+**What tonight's data actually adds, for whoever picks this up next**:
+galloping's backward-and-sideways drift (not just a tip-over) is a
+genuinely new, concrete data point - a directional, silent, compounding
+bias is a different and MORE diagnostic signature than an eventual
+orientation trip, because a trip could come from many things but a
+consistent backward+lateral drift over a perfectly straight commanded
+path points quite specifically at the swing foothold placement itself
+computing a systematically wrong `Pf` for at least one leg under this
+gait's asymmetric offsets. The concrete, low-risk next step is
+instrumentation before any code change: log the swing-leg placement
+`Pf` (already computed at ConvexMPCLocomotion.cpp:697-730) per leg
+through a galloping dash and check whether one specific leg's realized
+foothold is systematically short/long/off-axis relative to where the
+Raibert formula intends it - that would confirm or rule out the
+foothold-placement hypothesis with real evidence before any swing-leg
+code is touched, exactly the kind of ground-truth check this file has
+insisted on everywhere else.
