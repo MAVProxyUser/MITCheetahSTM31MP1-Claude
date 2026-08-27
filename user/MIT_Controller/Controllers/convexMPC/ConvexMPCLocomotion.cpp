@@ -636,6 +636,16 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     world_position_desired[2] = seResult.rpy[2];
     _yaw_des = seResult.rpy[2];      // lock the heading reference on entry
     _yaw_rate_ff = 0.f;
+    // RESET THE X-DRAG INTEGRATOR on every locomotion entry, matching how
+    // MIT treats its own sibling integrator (rpy_int, zeroed in the
+    // constructor alongside rpy_comp). x_comp_integral was reset NOWHERE -
+    // so whatever it wound up to during one locomotion episode carried
+    // straight into the next, which this port hits for real: the dash
+    // interlude stops, lies down, stands back up and RE-ENTERS locomotion
+    // mid-mission, and every end-of-mission stop does the same. Zeroing an
+    // integrator when the thing it integrates over restarts is ordinary
+    // hygiene, and it is what the accompanying clamp is protecting.
+    x_comp_integral = 0;
 
     for(int i = 0; i < 4; i++)
     {
@@ -1677,6 +1687,25 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   // the bug. Off by default so nothing changes under any already-validated
   // mission until this is A/B tested against the exact failing case and the
   // full regression suite.
+  //
+  // THIS IS AN OVERSIGHT IN MIT'S CODE, NOT A DESIGN CHOICE - and the proof
+  // is 100 lines up in this same function. `rpy_int` is the SAME PATTERN:
+  //
+  //     if(fabs(v_robot[0]) > .2)                       // divide-by-zero guard
+  //       rpy_int[1] += dt*(_pitch_des - rpy[1])/v_robot[0];   // err/velocity
+  //     ...
+  //     rpy_int[0] = fminf(fmaxf(rpy_int[0], -.25), .25);      // CLAMPED
+  //     rpy_int[1] = fminf(fmaxf(rpy_int[1], -.25), .25);      // CLAMPED
+  //
+  // An error integral divided by the current velocity, gated on a minimum
+  // speed for exactly the same reason - and MIT bounds it to +-0.25 AND
+  // zeroes it in the constructor (rpy_int[0..2] = 0, beside rpy_comp).
+  // x_comp_integral, built the same way two dozen lines below it, got
+  // NEITHER. So the treatment applied here is not an invention: it is
+  // MIT's own established handling of this exact pattern, applied to the
+  // one instance of it that was missed. (The matching reset now lives in
+  // the firstRun block - see its comment for why re-entering locomotion
+  // mid-mission makes that reset load-bearing in this port specifically.)
   {
     static const float xdragClamp =
         getenv("CTRL_XDRAG_CLAMP") ? atof(getenv("CTRL_XDRAG_CLAMP")) : -1.f;

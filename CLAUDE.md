@@ -7140,3 +7140,39 @@ concurrency at equal per-dog load, look for a knee) is the concrete next
 step, and until it runs "host contention" stays a hypothesis with a
 number attached rather than a finding.
 
+
+### The clamp is MIT's own treatment, not an invention - proof is 100 lines up
+
+Worth recording because it settles whether the missing bound on
+`x_comp_integral` was a deliberate design choice or an oversight, and it
+is the latter. `rpy_int`, in the SAME function, is the identical pattern:
+
+```cpp
+if(fabs(v_robot[0]) > .2)                                  // divide-by-zero guard
+  rpy_int[1] += dt*(_pitch_des - seResult.rpy[1])/v_robot[0];   // error / velocity
+if(fabs(v_robot[1]) > 0.1)
+  rpy_int[0] += dt*(_roll_des  - seResult.rpy[0])/v_robot[1];
+rpy_int[0] = fminf(fmaxf(rpy_int[0], -.25), .25);          // CLAMPED
+rpy_int[1] = fminf(fmaxf(rpy_int[1], -.25), .25);          // CLAMPED
+```
+
+An error integral divided by the current velocity, gated on a minimum
+speed for exactly the same reason `x_comp_integral` is gated on
+`|vxy[0]| > 0.3` - and MIT bounds it to +-0.25 **and** zeroes it in the
+constructor (`rpy_int[0..2] = 0`, right beside `rpy_comp`).
+`x_comp_integral`, written the same way two dozen lines further down, got
+NEITHER. A systematic grep for accumulators in the control path found
+exactly one unbounded one, and this is it.
+
+So the fix is not a new idea imposed on MIT's controller - it is MIT's
+own handling of this exact construct, applied to the single instance that
+was missed.
+
+**The missing RESET is a second, separate defect, and it bites this port
+specifically.** `x_comp_integral` was zeroed nowhere at all, so whatever
+it wound up to in one locomotion episode carried into the next - and this
+port re-enters LOCOMOTION mid-mission for real, twice: the dash
+interlude's stop/lie-down/stand-back-up, and every end-of-mission stop.
+Now reset in the `firstRun` block beside `world_position_desired` and
+`_yaw_des`, which are reset there for the same reason.
+
