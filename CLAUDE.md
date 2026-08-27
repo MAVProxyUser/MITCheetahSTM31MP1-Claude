@@ -5127,11 +5127,30 @@ discipline.
 |---|---|---|---|---|
 | walking2 | star:10.514:5 | 144/162 deg | 1.0 m/s | **FELL immediately, solo-confirmed** |
 | walking2 | star:10.514:5 | 144/162 deg | 0.6 m/s | **no fall through 2/5 waypoints** (harness timeout, not a verdict) |
+| walking2 | circle:9:8 | 45 deg | 1.0 m/s | **FELL immediately, solo** |
+| walking2 | circle:9:8 | 45 deg | 0.6 m/s | **no fall through 3/8 waypoints** (harness timeout, not a verdict) |
 
-So walking2's cornering ceiling on the star's sharp corners sits
-somewhere between 0.6 and 1.0 m/s - new information; walking2 does not
-appear in this file's own existing star gait table (only plain
-`walking` does), so this is the first data point for it specifically.
+**CORRECTION to the read given two paragraphs up**: the original 3-dog
+fleet result (all three falling within 1-2s of each other) was flagged
+as host-suspect and set aside pending a solo check - the right instinct,
+but the conclusion drawn from the solo star check alone (treating it as
+confirmation the fleet result was real, full stop) was still incomplete.
+Testing circle - 45 degrees, nothing like the star's sharp corners -
+shows the IDENTICAL immediate failure at 1.0 m/s, and the identical
+clean pass through several waypoints at 0.6. **This is not a cornering
+ceiling at all - it is a general walking2 speed ceiling around 1.0 m/s
+that shows up on literally any course with real curvature**, gentle or
+sharp alike, consistent with this file's own older dash-table finding
+that walking2 already failed at 1.0 m/s in a straight line (`ms22`
+config: "fails at 5.6 m"). The three-dog fleet's near-simultaneous
+failure across three different course shapes was therefore genuine all
+along, for a boring and unglamorous reason (all three independently hit
+the same speed ceiling at roughly the same elapsed time) - not a host
+artifact, but also not the angle-dependent result it was first framed
+as. Left both readings in rather than silently editing the first one
+out, because the correction - and how it was reached (test the gentlest
+angle available, not just confirm the original suspicious data point) -
+is the actual lesson.
 
 **Scope, stated honestly**: this is ONE gait on ONE course shape at TWO
 speeds, not the "every usable gait, angles in 5 degree notches" sweep
