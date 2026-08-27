@@ -31,6 +31,17 @@ public:
   virtual void updateVisualization() = 0;
   virtual ControlParameters* getUserControlParameters() = 0;
   virtual void Estop() {}
+  //! True if the underlying FSM (if any) is latched in its own ESTOP mode -
+  //! MIT's stock ControlFSM has NO path back to NORMAL from there on its
+  //! own (safetyPreCheck() only ever SETS operatingMode to ESTOP, never
+  //! clears it - a deliberate real-hardware fail-safe: no self-reset
+  //! without something explicitly asking for one). Default false for any
+  //! controller with no such concept. See MIT_Controller::isEstopped() and
+  //! mit_sim_main.cpp's ESTOP-recovery sequence, which polls this to decide
+  //! when to call Estop() (which, for MIT_Controller, re-initializes the
+  //! FSM back to PASSIVE/NORMAL - already existed, just never had a reason
+  //! to be called mid-mission before).
+  virtual bool isEstopped() { return false; }
 
 protected:
   Quadruped<float>* _quadruped = nullptr;

@@ -72,6 +72,12 @@ class ControlFSM {
   // Initializes the Control FSM instance
   void initialize();
 
+  //! Read-only peek at the current operating mode - see RobotController::
+  //! isEstopped()'s comment for why this exists (MIT's stock FSM has no
+  //! self-clearing path out of ESTOP; something outside has to notice and
+  //! explicitly call initialize() again, which is what this makes possible).
+  FSM_OperatingMode getOperatingMode() const { return operatingMode; }
+
   // Runs the FSM logic and handles the state transitions and normal runs
   void runFSM();
 

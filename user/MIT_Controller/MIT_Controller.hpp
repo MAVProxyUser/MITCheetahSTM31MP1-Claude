@@ -20,6 +20,9 @@ public:
     return &userParameters;
   }
   virtual void Estop(){ _controlFSM->initialize(); }
+  virtual bool isEstopped() {
+    return _controlFSM->getOperatingMode() == FSM_OperatingMode::ESTOP;
+  }
 
 
 protected:
