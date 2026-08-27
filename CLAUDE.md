@@ -5589,3 +5589,66 @@ result that matters.
    moment a mismatched config is about to launch - visible in the live
    panel, in any `mission_runner.py` stream, and in the archived log
    file, not just a UI element that can go unwatched.
+
+## The backward-walk investigation, continued: two hypotheses tested and REFUTED, fault localized but not found
+
+Per the control-math-verification discipline this session was pointed
+at ("don't oversell, verify or say so" - report a contradicted
+hypothesis honestly rather than re-explain it away): read the actual
+`LinearKFPositionVelocityEstimator` source
+(`common/src/Controllers/PositionVelocityEstimator.cpp`) rather than
+guessing, formed two concrete hypotheses about it, and tested both
+directly.
+
+**Hypothesis 1, numerical breakdown - REFUTED.** The filter uses the
+simple (non-Joseph-form) covariance update in single-precision `float`
+for tens of thousands of ticks per run - a plausible setup for `_P` to
+lose positive-semi-definiteness to round-off. Added a `$SIM_KF_HEALTH=1`
+diagnostic checking `_P`'s diagonal for negative entries (objectively
+impossible for a valid covariance, not a judgment call) plus trace/
+determinant tracking. Result: no negative diagonal ever appeared. What
+it found instead was unexpected - `_P`'s trace collapses from its
+initial ~1800 down to ~0.005-0.02 almost immediately and stays there,
+i.e. the filter becomes extremely (over)confident very early, not
+numerically unstable.
+
+**Hypothesis 2, MIT's covariance-suppression hack starving the
+leg-odometry Kalman gain - REFUTED.** The collapsed covariance from
+Hypothesis 1 pointed at `_P.block(0,0,2,2) /= 10` (applied every tick,
+already documented elsewhere in this file for a DIFFERENT reason - it
+is what makes GPS aiding inert) as a plausible cause: if it also starves
+the ALWAYS-AVAILABLE leg-odometry correction, not just GPS, the estimate
+would drift as near-uncorrected IMU dead-reckoning over a long enough
+run. Directly testable with the EXISTING `$SIM_KF_UNCAP=1` flag (already
+in the code, already used for the GPS question). Result: identical
+failure, same peak-then-reverse shape, all the way to N=-20.94m by
+t=170s. This matches this file's own older, already-recorded verdict on
+that flag ("solved a problem that does not exist") - which should have
+been weighted more heavily before re-deriving a new theory against it.
+
+**What DID come out of tonight's testing: the command path is completely
+clean.** Using the existing `$STM32MP1_EST_DBG=1` diagnostic (already in
+the code, not written for this): `xcmd`/`xdes` (the velocity actually
+handed to the MPC, at every stage: pad -> stick -> xcmd -> xdes),
+`yawrate`, and the body-height reference all stayed rock-steady at
+0.600 m/s / ~0 rad/s / 0.300 m for the ENTIRE run, including well past
+the point where ground truth shows the robot already reversing. This
+rules out nav, the command smoothing filter, the height governor's
+speed-scale, and the sprawl guard's speed-scale all at once - none of
+them touch `_x_vel_des` at any point in this failure. **The fault is
+downstream of a demonstrably correct command**, most likely in the MPC's
+own internal trajectory reference (`world_position_desired`, which
+integrates the velocity command into a FUTURE position target the cost
+function tracks - not logged tonight) or in force delivery not matching
+what was solved for, not in anything upstream of the MPC.
+
+**Honestly, not fixed.** Two well-reasoned hypotheses were tested and
+died; the failure is narrowed considerably (clean command in, wrong
+physical motion out, no numerical or covariance-suppression cause) but
+not root-caused. **Concrete next step, for whoever picks this up**: log
+`world_position_desired` itself over the course of a long dash and
+compare its drift against the achieved (ground-truth) trajectory - if
+that internal reference diverges from where the robot actually needs to
+go, faster than the visible command itself would predict, that is the
+next thread to pull. This is a more valuable place to end an
+investigation than a fix built on an unverified guess would have been.

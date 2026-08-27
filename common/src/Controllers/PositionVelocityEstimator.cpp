@@ -8,8 +8,10 @@
  */
 
 #include <cmath>
+#include <cstdlib>
 
 #include "Controllers/PositionVelocityEstimator.h"
+#include "../../../stm32mp1/gazebo/ShmTrace.h"   // [KFHEALTH] diagnostic only
 
 /*!
  * Initialize the state estimator
@@ -207,6 +209,39 @@ void LinearKFPositionVelocityEstimator<T>::run() {
 
   Eigen::Matrix<T, 18, 18> Pt = _P.transpose();
   _P = (_P + Pt) / T(2);
+
+  // DIAGNOSTIC ($SIM_KF_HEALTH=1) for the "estimator diverges after ~35-90s
+  // regardless of gait" investigation (see CLAUDE.md). This filter uses the
+  // simple (non-Joseph-form) covariance update in single precision (T=float)
+  // for tens of thousands of ticks per run - a well-known setup for _P to
+  // lose positive-semi-definiteness to accumulated round-off over a long
+  // enough run, which would produce exactly the observed signature (position
+  // stalling while velocity readout becomes internally inconsistent/noisy).
+  // A valid covariance matrix can never have a negative diagonal entry -
+  // this is an objective, no-judgment-call test, not a heuristic.
+  {
+    static const bool kfHealth = getenv("SIM_KF_HEALTH") && atoi(getenv("SIM_KF_HEALTH")) != 0;
+    if (kfHealth) {
+      static double kfElapsed = 0.0;
+      kfElapsed += _dtUsed;
+      T minDiag = _P(0, 0);
+      int minIdx = 0;
+      for (int d = 1; d < 18; ++d) {
+        if (_P(d, d) < minDiag) { minDiag = _P(d, d); minIdx = d; }
+      }
+      static int nkf = 0;
+      const bool bad = minDiag < T(0);
+      if (bad || (nkf++ % 500) == 0) {
+        shmtrace::logf(kfElapsed,
+               "[KFHEALTH] minDiag=%.6e at idx=%d trace=%.4f p00=%.6f p11=%.6f "
+               "p00_p11=%.4e%s",
+               (double)minDiag, minIdx, (double)_P.trace(),
+               (double)_P(0, 0), (double)_P(1, 1),
+               (double)(_P(0, 0) * _P(1, 1) - _P(0, 1) * _P(1, 0)),
+               bad ? " *** NEGATIVE DIAGONAL - COVARIANCE IS INVALID ***" : "");
+      }
+    }
+  }
 
   // MIT SUPPRESSES THE x,y POSITION COVARIANCE EVERY TICK.
   //
