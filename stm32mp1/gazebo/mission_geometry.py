@@ -64,6 +64,17 @@ def mission_opening_bearing_rad(spec):
     which is exactly the "confidently walks 180 degrees the wrong way"
     bug this was caught fixing.
     """
+    # "corner" (and "dash"/"outback") spawn AWAY from wp0, not ON it - the
+    # dog's true origin is behind wp0 on a fixed north heading (same
+    # convention dash uses), so wp0->wp1's bearing (the TURN angle itself
+    # for a corner mission) is the wrong thing to aim the spawn at. This bit
+    # a real test: "corner:25:45" spawned the dog facing 45 deg - the turn
+    # angle, not north - because this function has no kind-based exclusion,
+    # only the length-based one below (which "corner" doesn't trigger, since
+    # it genuinely has 2 waypoints, unlike dash's 1).
+    kind = spec.split(":", 1)[0]
+    if kind == "corner":
+        return 0.0
     try:
         pts = mission_waypoints(spec)
     except SystemExit:

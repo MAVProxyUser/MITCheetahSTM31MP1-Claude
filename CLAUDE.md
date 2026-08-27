@@ -5042,3 +5042,55 @@ Raibert formula intends it - that would confirm or rule out the
 foothold-placement hypothesis with real evidence before any swing-leg
 code is touched, exactly the kind of ground-truth check this file has
 insisted on everywhere else.
+
+## THE "corner:" MISSION: built for the cornering-envelope stretch goal, has an unresolved planner bug on wp0
+
+Added `WaypointNav::makeCorner(leg_m, angle_deg, speed)` (commit
+`5551e78`) for the stretch goal - an empirical per-gait, per-angle
+cornering envelope. One real bug was found and fixed cleanly along the
+way: `mission_opening_bearing_rad()` (`mission_geometry.py`) assumed
+EVERY mission with >=2 waypoints now spawns ON wp0 (true for
+circle/sector/parallel/expsquare, and - newly confirmed while chasing
+this - star/atom/spiro too, all via `shiftFirstToOrigin()`), and so
+computed the SDF spawn yaw and `WP_SPAWN_BEARING_DEG` from wp0->wp1's
+bearing. `corner` deliberately does NOT shift (wp0 is ahead of true
+spawn, matching dash's convention, so the approach leg is real and
+measurable) - the function had no kind-based exclusion for that case,
+only a length-based one dash happens to trigger by having just 1
+waypoint. Result: `corner:25:45` spawned the dog facing 45 degrees (the
+TURN ANGLE) instead of north, live-confirmed via the `[nav] ... heading
+datum ... spawn bearing 45.0 deg` log line matching the angle parameter
+exactly. Fixed with an explicit `if kind == "corner": return 0.0`.
+
+**That fix was real and necessary, but did NOT resolve the actual
+symptom.** Re-tested after the fix (spawn confirmed correct - `[nav]
+corner mission: 25.0 m approach...` with no bad heading-datum line) and
+the dog still overshoots wp0 (the corner vertex itself, not the exit
+leg) and has to loop back around to re-approach it from the wrong
+side - visible as N/E DECREASING toward wp0's coordinates with a
+roughly-constant backward heading, i.e. genuinely correcting back
+rather than progressing normally. The pre-planned corridor fillet at
+this corner is generous (R=12.14 m, nothing like the star hairpin's
+R=0.03-0.28 m that caused the historically-documented "elephant foot"
+overshoot), so this does not look like the same steering-vs-traction
+cap issue that fix addressed. Not root-caused tonight - the leading
+guess, not verified, is something specific to wp0 being the FIRST
+waypoint of the whole path with no preceding leg to fillet against,
+which every other mission in the catalog never exercises (they all
+either spawn on wp0 with a real leg already computed into wp1, or - for
+dash - have only one waypoint and no corner at all).
+
+**Decision: did not keep debugging this under time pressure.** Per
+direct instruction to use judgement and keep moving on architectural
+issues, pivoted the cornering-envelope work to the EXISTING, already
+solid mission catalog's own natural corner angles instead of a novel,
+still-broken primitive: `circle:9:8` (45 deg/vertex), `parallel`/
+`expsquare` (90 deg), `sector:15:3` (120-147.5 deg, dominant 120),
+`star:10.514:5` (144/162 deg). This sacrifices the "any angle in 5
+degree notches" flexibility the dedicated mission would have given, but
+delivers real data on infrastructure already proven not to fight itself
+mid-corner. The `corner:` mission and its geometry/bbox/spawn-bearing
+wiring are left in the tree (commits `5551e78` and this session's fix)
+rather than reverted - the spawn-bearing fix is correct and worth
+keeping regardless, and a future session chasing the wp0-overshoot bug
+starts from a mission that is at least correctly oriented at spawn.

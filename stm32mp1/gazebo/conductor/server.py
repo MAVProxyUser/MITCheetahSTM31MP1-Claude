@@ -769,7 +769,14 @@ class Fleet:
         for i, s in enumerate(slots):
             spec = s["mission"]
             kind = mission_kind(spec)
-            recipe = RECIPES.get(kind, dict(gait=5, speed=2.5, extra=""))
+            # The fallback for a mission kind with no RECIPES entry (e.g.
+            # "corner:" - a hand-tuned test primitive, never meant to carry
+            # its own default gait/speed) MUST carry every key launch() reads
+            # below, or a mission kind that is merely undocumented crashes
+            # the whole launch request instead of just running with defaults
+            # - exactly the KeyError('note') class of bug already documented
+            # above for "outback"/"dash", now hit for real by "corner".
+            recipe = RECIPES.get(kind, dict(gait=5, speed=2.5, extra="", note=""))
             gait = GAITS.get(s.get("gait", ""), recipe["gait"])
             gait_name = s.get("gait") if s.get("gait") in GAITS else next(
                 (g for g, n in GAITS.items() if n == gait), str(gait))
