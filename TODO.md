@@ -47,23 +47,41 @@ Grouped by what it would actually take to close it.
 
 ## Genuine unsolved mysteries (cause not isolated — do not re-guess without new evidence)
 
-- [ ] **The zero-debounce orientation ESTOP occasionally fires right at nav
-      handoff and produces a permanent zombie** — MIT's FSM force-cuts to
-      PASSIVE, the dog never falls (so `[FALL]` never fires) and just sits
-      frozen issuing zero displacement for the rest of the run, silently
-      burning the full mission timeout. Previously characterised on star/oval
+- [ ] **The zero-debounce orientation ESTOP occasionally fires, and WHY it
+      fires is still not isolated** — two distinct manifestations seen so
+      far, and it is not yet known whether they share one cause:
+      (a) a permanent, non-falling ZOMBIE (MIT's FSM force-cuts to PASSIVE,
+      the dog stays upright issuing zero displacement, `[FALL]` never fires
+      since nothing is actually toppling) — characterised on star/oval
       fleets (`CLAUDE.md`'s orientation-hold A/B — "dog0 sat at wp6/7 for
-      160s"); reproduced again in a randomized 3-dog fleet trial
-      (2026-08-26, run162) on `lissajous:15:5:7`, tripping within ~15s of
-      nav taking the stick rather than mid-mission. The one thing already
-      ruled out as the fix: debounce LENGTH (60ms vs 200ms Fisher p~0.6,
-      pure noise on an interleaved A/B) — the actual trigger for why the
-      trip fires at all was never chased. `mission_runner.py`'s
-      `find_zombies()` now auto-diagnoses this pattern (ESTOP in the raw
-      log + identical N/E across the last few `[nav]` lines) whenever a
-      harness timeout fires, so it no longer takes a manual log read to
-      tell apart from a merely-slow mission — that's a detection aid, not a
-      fix.
+      160s") and reproduced on `lissajous:15:5:7` (2026-08-26, run162),
+      tripping ~15s after nav handoff; (b) a genuine FAST FALL (roll racing
+      past 50 deg within seconds) — reproduced twice on `sector:15:3` in a
+      3-dog fleet mix (2026-08-26, runs 201/203), each time with clean
+      control-loop timing (maxPeriod 2.7-2.96ms) ruling out a host/
+      scheduling stall as the trigger. Solo sector was clean 2/2 in the
+      same session, matching the ALREADY-DOCUMENTED "atom is fleet-fragile"
+      precedent (`CLAUDE.md`) — a course solid alone, intermittently
+      fragile only in a multi-dog context. The one thing already ruled out as a fix for
+      case (a): debounce LENGTH (60ms vs 200ms Fisher p~0.6, pure noise on
+      an interleaved A/B). `mission_runner.py`'s `find_zombies()`
+      auto-diagnoses case (a) (ESTOP in the raw log + identical N/E across
+      the last few `[nav]` lines) whenever a harness timeout fires - a
+      detection aid, not a fix.
+      **An ESTOP-recovery mechanism now exists** (`mit_sim_main.cpp`,
+      `WP_ESTOP_RECOVER`, default on) that should directly close case (a):
+      on a confirmed `isEstopped()`, wait up to 15s for roll/pitch to
+      settle under 30 deg and hold there 1s, then run the same proven
+      boot sequence (PASSIVE -> STAND_UP -> BALANCE_STAND -> LOCOMOTION)
+      used at mission start, verify it worked, and resume nav from
+      wherever it already was. Verified SAFE across 5 live runs (a normal
+      mission unaffected, two genuine fast-fall cases where it correctly
+      deferred to the existing fall detector rather than acting, and a
+      clean 3-dog PASS with no added overhead) - but every ESTOP actually
+      caught live during that testing turned out to be case (b), a genuine
+      fall the mechanism is deliberately built NOT to act on. It has NOT
+      yet been observed completing a full recovery cycle on an actual
+      case-(a) zombie - verified safe, not yet verified successful.
 - [ ] **Four or more dogs in one fleet always fail at boot** with `STATE
       ESTIMATE WENT NON-FINITE`. Ruled out: real-time factor, loop
       starvation, sensor topic wiring, a startup race (readiness gate didn't
