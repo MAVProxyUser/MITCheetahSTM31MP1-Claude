@@ -6149,6 +6149,24 @@ those failures were checked and reproduced SOLO from the start (that is
 why that finding was trusted this far) - it only retracts walking's own,
 never-solo-verified addition to it.
 
+**Meta-lesson worth stating once, plainly, given it happened three times
+in one night**: pacing's "~50% engagement coin-flip," bounding's "bimodal
+at 1.0 m/s" (partially - that one turned out to be an obsolete-codebase
+issue instead, a different but related trap), and now walking's
+"120-147.5 degree mid-band softness" were ALL measured, at least in part,
+inside multi-dog batches and treated as properties of the gait or the
+course. Every one collapsed under solo re-testing. This project's own
+documented rule ("identical simultaneous failure across independent
+processes = the HOST, never the controller") was written for the
+easy case - dogs failing in the SAME wall-clock second. These three were
+subtler: failures scattered across DIFFERENT dogs, DIFFERENT seconds,
+inside the SAME batch, which reads like independent evidence about
+several different gaits/courses but may just be several controllers
+sharing one contended host at different moments each. Going forward: any
+"marginal"/"coin-flip"/"~N% failure rate" finding that was measured
+inside a multi-dog batch and never independently re-run solo should be
+treated as UNVERIFIED, not as evidence, until it is.
+
 **Speed ceiling pushed on the passing angles**: 3/3 PASS at 2.0 m/s
 (expsquare 26.0s, parallel 95.6s, octagon 160.1s - the wall-time spread
 tracks each course's own length, not a stability difference). At 2.5,
