@@ -3905,6 +3905,15 @@ observation for whoever next has time, and a caution against assuming a
 gait's discrete-corner performance predicts its continuous-curvature
 performance, or vice versa.
 
+**Bracketed the ceiling**: PASS at 2.0 (25.6s), PASS at 2.75 (21.0s),
+**FELL at 3.2**. So trotRunning's smooth-circle wall sits at 2.75 PASS /
+3.2 FAIL - well below its flat-dash and discrete-corner ceilings
+elsewhere in this file. `path_analysis.py`'s hairpin finding two sections
+up (overshoot starting 2-3 corners before the actual fall) is the
+leading, still-unconfirmed lead for WHY - worth checking whether the same
+overshoot-then-correct signature appears, growing, as speed is pushed
+from 2.75 toward 3.2, before assuming a totally different mechanism.
+
 ## `unittests/`: a repeatable regression suite over the validated missions, and a false positive found on its first real use
 
 Per direct request for "a concise repeatable set of unit tests... so when
