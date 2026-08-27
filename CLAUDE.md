@@ -5480,6 +5480,21 @@ a straight is duration, not cornering, so their cornering ceiling is a
 genuinely separate question from their dash one). Flagged here as the
 concrete continuation point rather than claimed complete.
 
+### walking2 on sector/parallel at 0.6 m/s: inconclusive, not chased further
+
+Attempted to complete walking2's angle coverage (only 45/144-162 degrees
+had data before tonight). Result was genuinely inconclusive rather than a
+new finding: the parallel-course dog's orientation trip landed BEFORE nav
+even took the stick (engagement-time, the same already-documented
+coin-flip class of instability seen elsewhere for other gaits, not a
+90-degree-cornering result), and the sector-course dog was still healthily
+progressing (160s in, un-stalled) when the harness's own 260s timeout
+ended the run - too tight for this course at walking2's low 0.6 m/s, not
+a mission failure. Not re-run - walking2 is already well-characterized as
+generally speed-limited (~1.0 m/s) independent of angle, so completing
+its exact per-angle table is lower value than the coverage already
+gathered tonight for the other seven gaits.
+
 ### PACING: a real methodological near-miss, caught in time
 
 Attempted `pacing` on star (0.8, 0.5 m/s) and circle (0.8 m/s) as a
