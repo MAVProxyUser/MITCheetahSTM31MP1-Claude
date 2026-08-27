@@ -126,6 +126,20 @@ Grouped by what it would actually take to close it.
       tightly-tuned SAR mission, as a second candidate) until one falls,
       then read the archived trace's per-tick roll/omega/period in the
       seconds before the FALL tag.
+      **printf is now fully retired from `RobotRunner.cpp` and
+      `mit_sim_main.cpp`** (a second, separate SHM text ring +
+      `shm_reaper.py`'s `tail_text_to_log()` bridge - see `ShmTrace.h`'s
+      own header), so the trace investigation above and the ordinary
+      orchestration log are BOTH now SHM-sourced rather than stdio for
+      those two files. Verified end-to-end (solo + 3-dog fleet, zero
+      cross-contamination between dogs' bridges). **Not yet converted,
+      flagged for a decision**: `WaypointNav.cpp` (`[nav] reached wpNN`),
+      `Stm32mp1HardwareBridge.cpp` (`[stm32mp1] ctrl loop:`, `[sim]
+      control_mode ->`, `[stm32mp1] REAL ESTIMATOR:`), `MissionAnalyzer.h`
+      (`[mission] N segments over`), and `SafetyCheck.hpp`/`ControlFSM`
+      (`Orientation safety check failed!`) still printf directly - some of
+      these strings are ALSO matched by `server.py`'s `EVENT_PATTERNS`, so
+      converting them needs the same byte-for-byte care applied here.
 - [ ] **Four or more dogs in one fleet always fail at boot** with `STATE
       ESTIMATE WENT NON-FINITE`. Ruled out: real-time factor, loop
       starvation, sensor topic wiring, a startup race (readiness gate didn't
