@@ -463,6 +463,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   const float spawn_bearing_rad =
       (getenv("WP_SPAWN_BEARING_DEG") ? atof(getenv("WP_SPAWN_BEARING_DEG")) : 0.0f)
       * (float)M_PI / 180.f;
+  // TRUE WORLD (Gazebo/SDF) yaw at spawn, derived from the compass-bearing
+  // convention above - NOT the same quantity. spawn_bearing_rad is 0=north/
+  // positive-toward-east (matches nav's own "bearing"); Gazebo yaw is
+  // 0=facing world+X(east)/positive CCW toward +Y(north). The conversion
+  // (verified against $SIM_ESTERR ground truth on dash, spawn_bearing=0):
+  // world_yaw = pi/2 - spawn_bearing_rad. Needed by the hardware bridge's
+  // $SIM_VEL_AIDING to rotate world-frame GPS velocity into the KF's own
+  // spawn-yaw-zeroed frame - see CLAUDE.md "GPS VELOCITY AIDING".
+  bridge->setSpawnYawRad((float)M_PI / 2.f - spawn_bearing_rad);
 
   // ESTOP RECOVERY. See RobotController::isEstopped()'s comment for the
   // mechanism: MIT's stock FSM latches ESTOP forever on its own (a

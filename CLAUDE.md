@@ -4050,14 +4050,119 @@ the same failure as position aiding, verified structurally), implemented
 as real code with real gain, tested against the exact confirmed failure
 case - and it made that failure case measurably worse. Left in the tree,
 default OFF (`$SIM_VEL_AIDING`, `$SIM_GPS_VEL_SIGMA`), documented rather
-than silently reverted. NOT fixed tonight - the concrete next step is to
-verify the KF's actual world-frame convention directly (log `_xhat[3:6]`
-against Gazebo truth `vworld` with NO aiding active, at t=0 with the robot
-stationary and then during a known, single-axis translation, to see
-whether they agree axis-for-axis or are rotated/swapped) BEFORE trying a
-second frame convention by guesswork - guessing a second rotation without
-first confirming the first one was wrong would repeat the exact mistake
-pattern this file has flagged multiple times already tonight.
+than silently reverted.
+
+**UPDATE, same night: the frame-mismatch hypothesis is now CONFIRMED, in
+the actual source, not just inferred from symptoms.**
+`VectorNavOrientationEstimator::run()`
+(`common/src/Controllers/OrientationEstimator.cpp:44-83`) is NOT a raw
+pass-through of true world orientation - on the very first tick
+(`_b_first_visit`) it captures the initial roll/pitch/yaw, builds
+`_ori_ini_inv` from `-rpy_ini` (roll/pitch zeroed, YAW KEPT), and applies
+`orientation = _ori_ini_inv * raw_orientation` on every subsequent tick.
+Every downstream quantity - `rBody`, `aWorld`, and therefore the KF's own
+integrated `_xhat` position/velocity - is expressed relative to the
+robot's OWN SPAWN YAW, not true world yaw. Verified directly with fresh
+`$SIM_ESTERR=1` data on a north-spawning mission (`dash:100`, which
+spawns at world yaw +90 deg so body-forward = world north): sustained
+forward motion showed up as world truth's Y (north) climbing steadily
+(`pT` index 1: 20.5 -> 20.9 m) while the KF's own estimate showed the
+SAME motion in its OWN index 0 (`pE` index 0: 19.5 -> 19.9 m, index 1
+flat) - a clean, exact confirmation that **estimator frame = world frame
+rotated by -spawn_yaw**, not a fixed 90 degrees, not a guess.
+
+This is precisely why my velocity-aiding injection (`_absAiding.velocity
+<< east, north, up`, assuming the KF's x/y directly ARE world east/north)
+was wrong FOR THIS SPAWN HEADING specifically, and why position aiding's
+IDENTICAL assumption never surfaced as a bug before now - position
+aiding's Kalman gain is near-zero (masked by MIT's covariance
+suppression), so injecting a rotated-wrong vector into a near-inert
+update was silently harmless; velocity aiding has real gain, so the same
+wrong-axis injection actively corrupted the state instead.
+
+**IMPLEMENTED, same night** - `Stm32mp1HardwareBridge::setSpawnYawRad()`
+(new setter, default pi/2 matching the universal spawn convention),
+called once from `mit_sim_main.cpp` with the TRUE world yaw derived from
+`spawn_bearing_rad` (`world_yaw = pi/2 - spawn_bearing_rad` - compass
+convention to Gazebo-yaw convention, verified: spawn_bearing_rad=0 for a
+north-spawning mission gives world_yaw=90deg, matching the known
+convention exactly). The velocity-aiding injection now rotates world
+(east, north) GPS velocity into the KF's own frame:
+`ex = ve*cos(yaw) + vn*sin(yaw), ey = -ve*sin(yaw) + vn*cos(yaw)` -
+checked numerically against the one validated data point (yaw=90deg,
+pure-north velocity must map to pure estimator-x) BEFORE trusting it in
+code, which caught a real sign-transcription error in the first draft
+(the cross-terms were backwards) before it ever ran.
+
+**Re-tested against galloping's dash with the corrected rotation - IT DID
+NOT FIX IT EITHER.** Same signature as the unrotated version: no fall
+(height stayed normal the whole 252s+ run), but true north position
+barely moved (`pT` index 1: 0.81 m at t=252.5s, should be ~125m) while the
+KF's own estimate ran away just as far as before (`pE` index 0: 46.8).
+**This is the honest, important negative result**: the frame-mismatch fix
+is real, verified, and worth keeping (it is objectively more correct than
+injecting a rotated-wrong vector, and may matter for other missions with
+non-north spawn headings even if it does not fix galloping) - but it was
+NOT the reason velocity aiding hurts this case. Something else about
+injecting a real-time GPS velocity correction into the KF every tick is
+disrupting the controller, independent of axis alignment - a plausible
+but UNCONFIRMED lead is a rate mismatch (Gazebo's simulated GPS/NavSat
+almost certainly updates slower than the 500 Hz control loop, so
+`aux.gps_vel` may be a zero-order-held stale value between fixes, and a
+Kalman correction applied every tick against a value that only genuinely
+changes every N ticks could inject a small step discontinuity each time a
+new GPS sample actually lands - structurally similar to the ALREADY-
+documented reason position aiding hurts locomotion, "the controller needs
+consistent RELATIVE motion... injecting [it] steps the tracking error and
+the MPC fights it," just via a different channel). **Tested, same night**: added a staleness gate (`static float lastGpsVel[3]`,
+comparing exact bit-for-bit equality since a genuinely zero-order-held
+value between fixes IS bit-identical, not merely close) so the Kalman
+correction only fires on the tick a NEW GPS sample actually lands, not
+all ~49 stale ticks between real 10 Hz updates. Re-tested against
+galloping's dash - **byte-for-byte identical result to the unfixed rate
+gate**. That identical-across-genuinely-different-code-changes pattern
+was the tell, and it led to the actual bug:
+
+**THE REAL BUG, finally found**: `$SIM_AID_DBG=1` showed
+`[AID-PTR] estimator sees absAiding=0x0` throughout - the pointer wiring
+`_robotRunner->absAiding = &_absAiding` (`Stm32mp1HardwareBridge.cpp`,
+right after `RobotRunner` construction) was gated on `SIM_ABS_AIDING`
+ALONE. Every `$SIM_VEL_AIDING=1` test run tonight - the frame-mismatch
+fix AND the rate-staleness gate on top of it - had this pointer sitting
+null the entire time, so `PositionVelocityEstimator`'s
+`if (aid && aid->haveVel)` never once evaluated true. All three "fixes"
+were correct, real code, computing correct values into a struct the
+estimator was never connected to read. Fixed by wiring the pointer on
+EITHER flag. Confirmed with `$SIM_AID_DBG=1`: `absAiding` is now a real
+non-null address and `[VELAID]` fires with a genuine, non-trivial Kalman
+gain (`K=0.71`) - the mechanism has now, for the first time tonight,
+actually run.
+
+**Final result with everything actually connected**: galloping's dash
+shows REAL, MEASURABLE improvement - true forward progress reached
+14.5 m by t=252s (every prior attempt, mechanism disconnected, stalled
+under 3 m) - but it is still far short of the ~125 m the commanded
+0.5 m/s implies, the dash still does not complete, and the KF's own
+POSITION estimate diverges even FURTHER than the unaided baseline
+(`pE` index 0 reaches 50.4, worse than the ~29-47 m range seen in every
+earlier variant). So velocity aiding, now genuinely active, measurably
+HELPS the robot's real physical progress while still not solving the
+underlying divergence and arguably worsening the position-side symptom -
+a partial, real effect, not a full fix and not inert either.
+
+**Honest final status for tonight**: three real, independent bugs found
+and fixed in pursuit of this one feature (a frame-convention error, a
+GPS-update-rate staleness gate, and - the one that actually mattered
+tonight - a missing pointer wire that meant NOTHING before this point had
+ever really been tested). The feature itself remains an open, partially-
+effective lead: `$SIM_VEL_AIDING` now genuinely runs and genuinely
+changes behavior, but does not resolve galloping's estimator divergence
+on its own. Left default OFF. Next concrete step for whoever continues:
+now that the mechanism is confirmed live, log `_xhat`'s own diagonal
+covariance for the velocity states around each correction to see whether
+the Kalman gain (K=0.71, quite large) is appropriate for the actual GPS
+velocity noise, or whether `$SIM_GPS_VEL_SIGMA`'s default (0.1) is too
+aggressive now that the correction is real rather than a no-op.
 
 ## Two more found via the new launcher: a missing dash overlay, and a real panel bug behind an atom spin-out
 

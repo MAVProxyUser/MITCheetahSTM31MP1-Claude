@@ -39,6 +39,17 @@ class Stm32mp1HardwareBridge {
 
   //! Configure the Gazebo UDP peer (workstation running the bridge) for GAZEBO backend.
   void setGazebo(const GazeboUdpConfig& cfg) { _gazeboCfg = cfg; }
+  //! The robot's TRUE WORLD yaw (Gazebo/SDF convention) at spawn - needed to
+  //! rotate world-frame GPS velocity into the KF's own frame before feeding
+  //! it to $SIM_VEL_AIDING. See CLAUDE.md "GPS VELOCITY AIDING" for why this
+  //! rotation is required: VectorNavOrientationEstimator zeroes yaw to the
+  //! robot's OWN spawn heading on the first tick, so the KF's internal
+  //! x/y axes are NOT world east/north except when spawn yaw happens to be
+  //! zero. mit_sim_main.cpp knows this value (mission_spawn_yaw_rad, the
+  //! SAME value used to actually build the SDF spawn pose); the hardware
+  //! bridge does not, by design (it is mission-agnostic), so it must be
+  //! told once at startup.
+  void setSpawnYawRad(float yaw) { _spawnYawRad = yaw; }
   //! Drive the FSM from outside the sequencer - used by the mission's
   //! end-of-run lie-down. K_BALANCE_STAND / K_STAND_UP / K_PASSIVE.
   void setControlMode(int m) { _robotParams.control_mode = m; }
@@ -78,6 +89,9 @@ class Stm32mp1HardwareBridge {
   //! Absolute position aiding for the KF (baro/GPS). On the real Go1 these
   //! arrive over CAN; in SITL over UDP. Opt-in via $SIM_ABS_AIDING.
   AbsolutePositionAiding<float> _absAiding;
+  float _spawnYawRad = 1.5707963f;  // pi/2 - default matches every world file's own
+                                    // universal spawn convention (yaw=+90deg, body-x
+                                    // north) when nobody calls the setter
   RobotControlParameters _robotParams;
   RobotRunner*        _robotRunner = nullptr;
 

@@ -198,17 +198,64 @@ void Stm32mp1HardwareBridge::runMotors() {
         // Separate flag from SIM_ABS_AIDING above: this corrects the KF's
         // VELOCITY estimate, not position, and the two have different (and
         // previously separately-measured) risk profiles - see the comment on
-        // AbsolutePositionAiding::haveVel. aux.gps_vel is NED (north, east,
-        // down); the estimator's world frame is (x=East, y=North, z=up), same
-        // convention as the position mapping just above. Does NOT need the
-        // lat/lon origin capture above - velocity is already in the right
-        // units/frame directly from the sensor, no reference point needed.
+        // AbsolutePositionAiding::haveVel. Does NOT need the lat/lon origin
+        // capture above - velocity is already in the right UNITS directly
+        // from the sensor, no reference point needed - but it DOES need a
+        // FRAME rotation, which the first cut of this code got wrong: it
+        // assumed the KF's x/y ARE world east/north, which is only true
+        // when spawn yaw is exactly zero. VectorNavOrientationEstimator
+        // zeroes yaw to the robot's OWN spawn heading on tick one (see
+        // OrientationEstimator.cpp), so the KF's internal frame is world
+        // frame rotated by -spawn_yaw, confirmed directly against
+        // $SIM_ESTERR ground truth on a north-spawning mission (see
+        // CLAUDE.md "GPS VELOCITY AIDING" for the derivation and the one
+        // validated data point - spawn_yaw=90deg). Rotate the world-frame
+        // (east, north) GPS velocity into the KF's frame before injecting:
+        // ex = ve*cos(yaw) + vn*sin(yaw), ey = -ve*sin(yaw) + vn*cos(yaw).
+        // Numerically checked against the one validated data point (yaw=90
+        // deg, pure-north world velocity (ve=0,vn=1) must map to pure
+        // estimator-x (ex=1,ey=0)) before trusting it in code - an earlier
+        // draft of this exact formula had the cross-term signs backwards
+        // and would have injected the rotation in the wrong direction.
+        // STALENESS GATE. The world SDF configures the navsat sensor at
+        // update_rate=10 Hz (make_world.py) against a 500 Hz control loop -
+        // a 50x mismatch. Without this gate, the block below ran every
+        // tick regardless, applying a full Kalman correction toward the
+        // SAME zero-order-held GPS reading ~49 times out of every 50 -
+        // effectively treating one real measurement as 50 independent
+        // ones, over-weighting it by 50x versus what the filter's own R
+        // (measurement noise) was tuned to assume. Gate on the reading
+        // actually changing (exact float equality is the right test here,
+        // not a fragile epsilon - a genuinely stale ZOH value is bit-for-
+        // bit identical to the previous tick's, not merely close).
+        static float lastGpsVel[3] = {0, 0, 0};
+        const bool gpsVelIsNew = velAidOn &&
+            (aux.gps_vel[0] != lastGpsVel[0] || aux.gps_vel[1] != lastGpsVel[1] ||
+             aux.gps_vel[2] != lastGpsVel[2]);
         if (velAidOn) {
-          _absAiding.velocity << aux.gps_vel[1], aux.gps_vel[0], -aux.gps_vel[2];
+          lastGpsVel[0] = aux.gps_vel[0];
+          lastGpsVel[1] = aux.gps_vel[1];
+          lastGpsVel[2] = aux.gps_vel[2];
+        }
+        if (velAidOn && gpsVelIsNew) {
+          // aux.gps_vel is NED (north, east, down); world-frame east/north:
+          const float ve = aux.gps_vel[1], vn = aux.gps_vel[0];
+          const float c = std::cos(_spawnYawRad), s = std::sin(_spawnYawRad);
+          const float ex = ve * c + vn * s;
+          const float ey = -ve * s + vn * c;
+          _absAiding.velocity << ex, ey, -aux.gps_vel[2];
           _absAiding.haveVel = true;
           const float vel_sig = getenv("SIM_GPS_VEL_SIGMA")
                               ? atof(getenv("SIM_GPS_VEL_SIGMA")) : 0.1f;
           _absAiding.velSigma << vel_sig, vel_sig, vel_sig;
+        } else if (velAidOn) {
+          // Must explicitly clear this every stale tick, not just skip
+          // setting it - haveVel is a persistent member (_absAiding lives
+          // for the process lifetime), so without this it would stay true
+          // from the last genuinely-new sample and the estimator would
+          // keep correcting against a value that never actually changed,
+          // which is the exact bug this whole gate exists to close.
+          _absAiding.haveVel = false;
         }
       }
     }
@@ -262,7 +309,17 @@ void Stm32mp1HardwareBridge::run() {
   _robotRunner->robotType = RobotType::MINI_CHEETAH;   // Unitree legs mapped onto the MC model for now
   _robotRunner->vectorNavData = &_vectorNavData;
   _robotRunner->cheaterState = &_cheaterState;
-  if (getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0)
+  // THE REAL BUG BEHIND TONIGHT'S "velocity aiding does nothing" RESULTS:
+  // this wiring was gated on SIM_ABS_AIDING alone. Every $SIM_VEL_AIDING=1
+  // test run tonight (frame-mismatch fix, then the GPS-rate staleness gate
+  // on top of it) produced byte-for-byte identical divergence to the
+  // unfixed baseline - which in hindsight was the tell that the mechanism
+  // was never actually running at all, not that the fixes were ineffective.
+  // this->_robotRunner->absAiding stayed null, so
+  // PositionVelocityEstimator's `if (aid && aid->haveVel)` never even
+  // evaluated true. Both flags now wire the pointer independently.
+  if ((getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0) ||
+      (getenv("SIM_VEL_AIDING") && atoi(getenv("SIM_VEL_AIDING")) != 0))
   {  _robotRunner->absAiding = &_absAiding;
      shmtrace::logf(0.0, "[stm32mp1] absAiding wired: %p", (void*)&_absAiding); }
   // CHEATER MODE IS DELETED. There is no environment variable, no yaml key and
