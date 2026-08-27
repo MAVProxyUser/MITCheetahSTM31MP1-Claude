@@ -5166,6 +5166,37 @@ a straight is duration, not cornering, so their cornering ceiling is a
 genuinely separate question from their dash one). Flagged here as the
 concrete continuation point rather than claimed complete.
 
+### PACING: a real methodological near-miss, caught in time
+
+Attempted `pacing` on star (0.8, 0.5 m/s) and circle (0.8 m/s) as a
+3-dog batch to check both angle- and speed-sensitivity at once. Two of
+three fell within the same second, on DIFFERENT courses at DIFFERENT
+speeds (`circle@0.8` and `star@0.5`) - which, taken at face value, would
+have produced an incoherent, wrong finding (why would a gentler course
+at a slower speed fail while the SAME gait on a harder course at a
+HIGHER speed passed?). Checking timestamps against the boot sequence
+before writing anything down: both failures hit `SAFETY CHECK FAILED`
+during their own gait-ENGAGEMENT settle-hold, seconds before nav ever
+took the stick - i.e. before course or commanded speed could possibly
+be involved at all. A 3x repeat of the identical config
+(`pacing@0.8/star`, same everything) reproduced this exactly: one dog
+tripped in the same wall-clock second nav took the stick, two others
+carried on without falling. Across 6 total attempts (this session):
+roughly half failed at the gait-engagement/nav-handover transition,
+independent of course or speed - a genuine, marginal, coin-flip-style
+instability at that ONE transition, the same shape this file already
+documents for bounding's own entry ("BIMODAL... roughly a coin flip"),
+now shown for pacing too and localized more precisely (the handover
+moment itself, not general locomotion).
+
+**The lesson, worth stating plainly**: a same-second multi-dog failure
+is not evidence about the mission being run - check WHEN in the
+sequence it happened before attributing it to course geometry or
+commanded speed, every time, not just when the pattern looks suspicious
+on its face (walking2's genuinely-simultaneous failure earlier in this
+file WAS about the mission; this one was not, and the only way to tell
+them apart was to read the timestamps against the boot log both times).
+
 ## SESSION SUMMARY (2026-08-27, autonomous overnight run)
 
 Everything in this file from "THE REAL GAIT-SELECTION BUG" down was one
@@ -5208,11 +5239,22 @@ the cornering-envelope stretch goal. In order of what actually shipped:
    pressure, and made the call to pivot the envelope work onto the
    existing, proven mission catalog instead of continuing to debug a new
    primitive.
-6. **Delivered one genuine cornering-envelope data point** (walking2 on
-   the star, ceiling between 0.6 and 1.0 m/s) with the full methodology
-   (fleet result treated as suspect, solo-confirmed before trusting)
-   this file has insisted on everywhere else, and documented the honest
-   scope gap against the original "every gait, 5 degree notches" ask.
+6. **Delivered two genuine cornering-envelope findings and caught a
+   third result before it became a wrong claim.** Walking2 turned out to
+   have a general ~1.0 m/s SPEED ceiling, not a cornering one - it fails
+   just as fast on a gentle 45 deg circle as on the star's 144/162 deg
+   corners, a correction only found by deliberately testing the gentlest
+   angle available rather than stopping at the first confirming result.
+   Pacing looked briefly like it had angle- and speed-dependent
+   cornering behaviour (two dogs failing on different courses at
+   different speeds in the same second); checking boot-sequence
+   timestamps showed both failures actually hit during gait ENGAGEMENT,
+   before nav ever took the stick - a marginal, coin-flip-style entry
+   instability (roughly 50% across 6 attempts) with nothing to do with
+   the course or commanded speed, the same shape already documented here
+   for bounding's own entry. Documented the honest scope gap against the
+   original "every gait, 5 degree notches" ask - this remains a partial,
+   first-pass characterization.
 
 Every numbered item above has its own detailed section earlier in this
 file with the actual data, the code changes, and (where relevant) the
