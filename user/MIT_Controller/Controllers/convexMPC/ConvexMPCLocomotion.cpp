@@ -1237,6 +1237,13 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
   static int64_t gaitChangedMs = 0;
   const int64_t nowms = nowMs();
   if (gaitNumber != lastGaitSeen) {
+    // Ground truth for "did the gait really change" - unlike GaitScheduler's
+    // own "[GAIT] Transitioning" print, this fires from the actual selection
+    // ConvexMPCLocomotion uses (gaitNumber -> Gait* above), so it is the
+    // right thing to grep after any cmpc_gait write (yaml, SIM_GAIT, or a
+    // runtime .set() from the mission analyzer) to confirm it took effect.
+    if (lastGaitSeen >= 0)
+      shmtrace::logf(0.0, "[SCHED] gait changed %d -> %d", lastGaitSeen, gaitNumber);
     lastGaitSeen = gaitNumber;
     gaitChangedMs = nowms;
   }

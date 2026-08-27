@@ -4778,3 +4778,86 @@ spiro:9.0:8          PASS 118.9-119.2s x3
 
 Every mission in the catalog, confirmed on the final binary, in one
 sweep. Nothing broken; everything asked for landed.
+
+## THE REAL GAIT-SELECTION BUG: $SIM_GAIT silently discarded every runtime cmpc_gait write
+
+Chasing "run pronking tests across all mission types" led to the oval's own
+`WP_ANALYZER=1` mid-course gait changes: the analyzer's own `"[mission] gait
+9 -> 5 entering straight..."` print fired correctly (proving the
+`cmpc_gait.set()` call executed) but the robot never visibly changed gait.
+
+`ConvexMPCLocomotion::run()` reads `cmpc_gait` fresh every tick (correct) and
+then had `if (gait_env >= 0) gaitNumber = gait_env;` running UNCONDITIONALLY
+every tick right after, where `gait_env` is `$SIM_GAIT` cached at first call.
+`server.py` always sets `SIM_GAIT` on every launch. So the analyzer's write
+took effect on `cmpc_gait` for exactly one tick before this put `gaitNumber`
+right back - forever, for the rest of the process. Fixed: `$SIM_GAIT` now
+writes into `cmpc_gait` itself, ONCE, on `firstRun` - it still seeds the
+initial gait for a sweep without editing the yaml, but no longer fights a
+write that comes after boot.
+
+**What this does and does NOT invalidate.** Any mission that only sets the
+gait ONCE at launch (star, atom, dash, every pronk/gallop/bound base-gait
+test in this file) was NEVER affected - the old code's "override every tick"
+and the new code's "seed once" are behaviourally identical when nothing ever
+calls `.set()` on `cmpc_gait` again after boot. The only mechanism this ever
+broke is `WP_ANALYZER=1`'s mid-course gait switching, which only oval's
+recipe uses. Every prior star/atom gait claim in this file stands. Oval's
+own measured `-19.5%` analyzer win also stands - that comes from
+`WP_VSUS`, a pure speed cap that never touches `cmpc_gait` at all - but any
+claim in this file that the oval's `9 -> 5 -> 9 -> 5` gait changes
+themselves "fired" was checking the analyzer's own planning-intent print,
+not real robot behaviour, and should be treated as unverified until re-shown
+against ground truth.
+
+**Verified against real ground truth, not the misleading signal.**
+`GaitScheduler::createGait()`'s `"[GAIT] Transitioning gait from X to Y"`
+print - what this investigation originally chased - comes from a separate
+class `ConvexMPCLocomotion` never consults for its own `Gait*` selection
+(that happens directly off `gaitNumber`, a plain member-variable switch).
+Added a real ground-truth line at the actual selection site instead
+(`applySchedule()`'s existing `lastGaitSeen` tracking, which had no log of
+its own): `"[SCHED] gait changed A -> B"`. Live oval re-test after the fix:
+
+```
+[SCHED] gait changed 5 -> 4     (entry hold, standing)
+[SCHED] gait changed 4 -> 5     (engage trotRunning)
+[SCHED] gait changed 5 -> 9     (analyzer: entering the sustained curve)
+[SCHED] gait changed 9 -> 5     (analyzer: entering the straight)
+```
+Matches the analyzer's plan exactly - the mechanism now genuinely works.
+
+**A real, NEW failure mode this exposed, not previously observable because
+the switch never actually happened before**: the same run fell
+(`roll=0 pitch=7 z=0.058`) a few hundred ms after the `9 -> 5` switch -
+i.e. switching INTO trotRunning right as the robot exits the sustained
+curve, likely still carrying yaw/lateral momentum from the turn.
+`applySchedule()` already has a 500 ms "do not stack a segment-clock change
+on a gait change" guard, and it evidently is not sufficient for this
+specific transition. NOT fixed this session (out of the current priority
+order: pronk/gallop tests and max dash speed come first, per direct
+instruction) - flagged here as a genuine, freshly-exposed bug for whoever
+next touches oval's analyzer path, and it is directly relevant to the
+per-gait/per-angle cornering-envelope stretch goal further down this file's
+history, since "how much momentum can a gait switch tolerate mid-turn" is
+exactly that question.
+
+## Stale bridge/controller ports: now guarded automatically, at both ends
+
+The "frozen roll=-3.14159 exactly, every run, until a stale pid on 9100 was
+found by hand" failure class (a `cheetah_gazebo_bridge.py` left running from
+an earlier manual test, no `gz sim` behind it, silently answering a fresh
+controller with stale sensor data) invalidated an entire pronking
+speed-ladder sweep this session. Per direct instruction ("check for stale
+bridge should ALWAYS happen either at bridge start, or test start, or
+both"), fixed at both:
+1. `cheetah_gazebo_bridge.py`'s `_clear_stale_port()` runs before its own
+   `sock.bind()` - `lsof`s its own `CMD_PORT`, kills whatever it finds.
+2. `server.py`'s `launch()` sweeps every port pair for every dog slot about
+   to launch, before building the fleet world - catches a stale
+   `mit_ctrl_sim` on `SENSOR_PORT` too, which the bridge-side check alone
+   cannot see, and covers the case (this session's actual failure) where
+   the conductor server itself has been up for hours and a stray process
+   from an unrelated manual test interferes with a later `/api/launch`.
+Neither UDP socket sets `SO_REUSEADDR`, on purpose, so a stale occupant is
+detected rather than silently shared - both fixes rely on that.
