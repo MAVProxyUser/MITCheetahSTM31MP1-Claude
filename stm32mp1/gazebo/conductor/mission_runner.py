@@ -61,6 +61,7 @@ picture than what was actually on screen).
 """
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -268,14 +269,83 @@ BASELINE_S = {
 }
 _LISSAJOUS_RATIO_S = {(1, 2): 120, (5, 7): 400, (11, 9): 650}
 
+# Fixed, NOT distance-scaled, sequence every mission pays regardless of
+# course length: boot-limp, stand up, balance-stand settle, LOCOMOTION
+# entry, the gait-engage hold before nav takes the stick, then at the end
+# the decel ramp, the settle check, and the lie-down. Measured off real
+# orchestration logs (the gap between "initialising" and "nav taking the
+# stick" is ~20 s on its own; the end-of-mission sequence adds ~15 s),
+# rounded up to leave room for a slow launch.
+BOOT_OVERHEAD_S = 75.0
 
-def mission_baseline_s(spec):
-    """Generous expected-completion estimate for one mission spec string -
-    see BASELINE_S's comment for what "generous" means here. Unknown kinds
-    (a future mission nobody's added yet) get a large flat guess rather
-    than a crash, printed as a guess so it doesn't read as a measurement."""
+
+def mission_path_length_m(spec):
+    """Actual planned path length in metres, from the mission's OWN geometry
+    (mission_geometry.mission_waypoints, the same generator the controller
+    and the panel overlay use), or None if it can't be computed.
+
+    Deliberately measures the real waypoint polyline rather than parsing a
+    size parameter out of the spec string: "dash:100" is 100 m but
+    "atom:9.0:6" is ~128 m from a 9 m radius, and only the geometry knows.
+    """
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        from mission_geometry import mission_waypoints
+        pts = mission_waypoints(spec)
+    except Exception:
+        return None
+    if not pts:
+        return None
+    # The robot starts at the local-frame origin, so the first leg is
+    # origin -> wp0 (for courses that do not shiftFirstToOrigin, that leg
+    # is real distance the dog actually walks; for those that do, wp0 IS
+    # the origin and this term is zero either way).
+    total, prev = 0.0, (0.0, 0.0)
+    for p in pts:
+        total += math.hypot(p[0] - prev[0], p[1] - prev[1])
+        prev = p
+    return total
+
+
+def mission_baseline_s(spec, speed=None):
+    """Expected solo completion time for one mission, in seconds.
+
+    DERIVED, not looked up, whenever the geometry and the commanded speed
+    are both available: path_length / speed, times a slack factor for the
+    accel/decel ramps and per-corner braking the planner imposes, plus the
+    fixed boot/stand/settle/lie-down overhead every mission pays.
+
+    WHY THIS IS COMPUTED RATHER THAN TABULATED: BASELINE_S used to be a
+    flat per-KIND constant, so "dash" was 60 s whether it was dash:20 at
+    0.8 m/s (~25 s of nav) or dash:100 at 0.6 m/s (~150 s+). Everything
+    needed to size that correctly - distance and commanded speed - was
+    already known at launch, and using a hand-picked round number instead
+    is what produced repeated harness timeouts on runs that were healthy
+    and still progressing, each of which then had to be re-run and
+    re-confirmed by hand before its result could be trusted at all.
+
+    The table stays as a FALLBACK for the case where geometry or speed is
+    genuinely unavailable (an unknown future mission kind, or a caller
+    that never resolved a speed), and the lissajous ratio table stays
+    because those three ratios differ ~6x on identical geometry parameters.
+    """
     kind = spec.split(":", 1)[0]
     kind = "dash" if kind in ("outback", "dash") else kind
+
+    if speed and speed > 0.05:
+        length_m = mission_path_length_m(spec)
+        if length_m and length_m > 0:
+            # 1.9x slack on the pure length/speed time: the planner brakes
+            # for every corner and ramps from a standstill, so no mission
+            # ever averages its commanded cruise. Measured against real
+            # runs this project has on record - e.g. atom:9.0:6 (~128 m)
+            # at 2.1 m/s is 61 s of ideal cruise against a 62-124 s
+            # observed range, and dash:100 at 0.6 is 167 s ideal against
+            # a 149.6 s observed (a straight beats the factor, as it
+            # should). Plus BOOT_OVERHEAD_S for the fixed stand/settle/
+            # gait-engage/lie-down sequence that is not distance-scaled.
+            return length_m / float(speed) * 1.9 + BOOT_OVERHEAD_S
+
     if kind == "lissajous":
         parts = spec.split(":")
         try:
@@ -426,14 +496,32 @@ def main():
     if len(args.slot) > 3:
         ap.error("max 3 slots")
 
-    dog_baseline = [mission_baseline_s(m) for m in args.slot]
-    if args.timeout is None:
-        args.timeout = max(dog_baseline) * 3 + 120
-        print("[runner] --timeout not given - auto-derived %.0fs from this fleet's "
-              "own missions (baselines: %s, x3 + 120s boot overhead)"
-              % (args.timeout, dict(zip(args.slot, dog_baseline))), flush=True)
-
     st = api("GET", "/api/state")
+
+    # AUTO-SIZED TIMEOUTS, from each mission's own geometry and the speed it
+    # will actually be launched at - resolved HERE, after /api/state is
+    # available, because the speed may come from the recipe rather than the
+    # command line and mission_baseline_s cannot derive anything without it.
+    # See that function's docstring for why this is computed instead of
+    # looked up in a per-kind table.
+    _recipes_for_baseline = st.get("recipes", {})
+
+    def _resolved_speed(i, spec):
+        if i < len(args.speed):
+            return args.speed[i]
+        k = spec.split(":", 1)[0]
+        k = "dash" if k in ("outback", "dash") else k
+        return _recipes_for_baseline.get(k, {}).get("speed")
+
+    dog_baseline = [mission_baseline_s(m, _resolved_speed(i, m))
+                    for i, m in enumerate(args.slot)]
+    if args.timeout is None:
+        args.timeout = max(dog_baseline) * 2.0 + 60
+        print("[runner] --timeout not given - auto-derived %.0fs from this fleet's own "
+              "geometry x speed (per-dog: %s, x2 + 60s)"
+              % (args.timeout,
+                 {m: "%.0fs" % b for m, b in zip(args.slot, dog_baseline)}), flush=True)
+
     gaits = st["gaits"]                       # name -> numeric SIM_GAIT id
     gait_name_by_id = {v: k for k, v in gaits.items()}
     recipes = st["recipes"]                   # RECIPES stores gait as that
