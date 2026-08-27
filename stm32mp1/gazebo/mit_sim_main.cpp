@@ -480,6 +480,60 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
   // spawn-yaw-zeroed frame - see CLAUDE.md "GPS VELOCITY AIDING".
   bridge->setSpawnYawRad((float)M_PI / 2.f - spawn_bearing_rad);
 
+  /*
+   * ONE decel-ramp mechanism, used by both the dash-interlude's mid-path
+   * stop and the end-of-mission stop. These used to be two independently
+   * patched copies of the same fix (seed from the live stick value vs.
+   * seed from nv, each separately min()'d against planner.plannedSpeed()
+   * after the same bug - follow() bailing out near a path's end leaves
+   * whichever seed stale/unbraked - was found twice). Callers pass
+   * whatever they'd naturally have used as the ramp's starting speed
+   * (the live stick value, or nv); this decides whether the planner's
+   * own braked value is actually the safer bound and applies it, so
+   * there is exactly one place that decision is made.
+   */
+  auto decelerateAndConfirmStopped = [&](float candidate_speed) {
+    const float seed = use_planner
+        ? std::min(candidate_speed, (float)planner.plannedSpeed())
+        : candidate_speed;
+    for (int k = 15; k >= 0; --k) {
+      // STEERED deceleration: keep the follower's steering live through the
+      // first 0.5 s of the ramp so the dog straightens onto the exit heading
+      // as it slows, rather than zeroing yaw while it still carries a turn's
+      // residual yaw/roll (measured to tip the oval's stop 53-88 deg, ~50%
+      // of the time, before this existed). On a straight approach the
+      // follower already outputs w~0 and this is a no-op.
+      float w_dec = 0.f;
+      if (use_planner && k > 5) {
+        SimAuxSensors aux2; gazebo_get_aux(&aux2);
+        float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
+        const auto& es2 = bridge->robotRunner()->getStateEstimate();
+        const float b2 = spawn_bearing_rad - (es2.rpy[2] - yaw_ref);   // same correction as "bearing" above
+        double pv2 = 0, pw2 = 0;
+        if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
+      }
+      bridge->driverCommand().leftStickAnalog[1]  = seed * (float)k / 15.f;
+      bridge->driverCommand().rightStickAnalog[0] = w_dec;
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    bridge->driverCommand().leftStickAnalog[1]  = 0.f;
+    bridge->driverCommand().rightStickAnalog[0] = 0.f;
+    // VERIFY the real measured speed actually dropped, rather than assuming
+    // the commanded ramp above was enough - a fixed timer here is exactly
+    // the class of assumption that cost a day chasing "stale" behaviour
+    // elsewhere in this file. Bounded timeout as a backstop only.
+    const float settle_start = elapsed();
+    while (elapsed() - settle_start < 2.0f) {
+      if (bridge->robotRunner()) {
+        const auto& es = bridge->robotRunner()->getStateEstimate();
+        const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
+                                     es.vBody[1] * es.vBody[1]);
+        if (spd < 0.15f) break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+  };
+
   // ESTOP RECOVERY. See RobotController::isEstopped()'s comment for the
   // mechanism: MIT's stock FSM latches ESTOP forever on its own (a
   // deliberate real-hardware fail-safe - no self-reset without something
@@ -923,63 +977,18 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //      live, not a planner or waypoint-arrival bug.
       //    Short and sharp instead - the goal at a stop is arriving close to
       //    the point, not a gentle deceleration profile - and BALANCE_STAND
-      //    is no longer entered on a timer's say-so: the loop below polls
-      //    the REAL measured body speed and only proceeds once it is
+      //    is no longer entered on a timer's say-so: decelerateAndConfirmStopped
+      //    polls the REAL measured body speed and only returns once it is
       //    actually low, with a bounded timeout as a backstop.
-      // Ramp from the speed actually being COMMANDED right now, not from
+      // Seed from the speed actually being COMMANDED right now, not from
       // cruise: the planner's mid-path stop (addStopXY at the loop closure)
       // has already braked the dog to ~v_min by the time this fires, so the
       // stick is at a creep - ramping "vx down to zero" from here would
-      // first SPIKE the command back up to cruise.
-      // Same defense as the end-of-mission ramp below: on a short enough
-      // leg into this stop, follow() could have bailed out on its last
-      // couple of ticks (its own comment explains why) and left the live
-      // stick value stale/unbraked - plannedSpeed() stays valid on those
-      // ticks too, so take whichever is more conservative.
-      const float v_at_stop = use_planner
-          ? std::min(bridge->driverCommand().leftStickAnalog[1],
-                     (float)planner.plannedSpeed())
-          : bridge->driverCommand().leftStickAnalog[1];
-      for (int k = 15; k >= 0; --k) {
-        /*
-         * STEERED deceleration. Zeroing yaw on the ramp's first tick while
-         * the body still carries a turn's residual yaw/roll is what tipped
-         * the OVAL's stop sideways (roll 53-88 deg, ~50%): its closure sits
-         * 1.2 m off the exit of a continuous R=5 arc, so the dog stops
-         * mid-straightening - where the star gets a 20 m straight run-in
-         * and stops clean. Keep the follower's steering live through the
-         * first 0.5 s of the ramp so the dog straightens onto the exit
-         * heading as it slows; on a straight approach the follower already
-         * outputs w~0 and this is a no-op (star behaviour unchanged, and
-         * guarded by reps regardless).
-         */
-        float w_dec = 0.f;
-        if (use_planner && k > 5) {
-          SimAuxSensors aux2; gazebo_get_aux(&aux2);
-          float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
-          const auto& es2 = bridge->robotRunner()->getStateEstimate();
-          const float b2 = spawn_bearing_rad - (es2.rpy[2] - yaw_ref);   // same correction as "bearing" above
-          double pv2 = 0, pw2 = 0;
-          if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
-        }
-        bridge->driverCommand().leftStickAnalog[1]  = v_at_stop * (float)k / 15.f;
-        bridge->driverCommand().rightStickAnalog[0] = w_dec;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      }
-      bridge->driverCommand().leftStickAnalog[1]  = 0.f;
-      bridge->driverCommand().rightStickAnalog[0] = 0.f;
-      {
-        const float settle_start = elapsed();
-        while (elapsed() - settle_start < 2.0f) {
-          if (bridge->robotRunner()) {
-            const auto& es = bridge->robotRunner()->getStateEstimate();
-            const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
-                                         es.vBody[1] * es.vBody[1]);
-            if (spd < 0.15f) break;
-          }
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-      }
+      // first SPIKE the command back up to cruise. decelerateAndConfirmStopped
+      // itself takes min() against planner.plannedSpeed() as a defense against
+      // follow() having bailed out on its last couple of ticks and left this
+      // live value stale/unbraked - see that helper's own comment.
+      decelerateAndConfirmStopped(bridge->driverCommand().leftStickAnalog[1]);
 
       // 2. settle on its feet. (A 1.3 s trot-in-place settle was inserted
       //    here and REVERTED same-day: with the long zero-vel hold it took
@@ -1133,45 +1142,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // ran - which is fine on a course with room to spare, but a SHORT
       // course (measured: a 2-waypoint corner: mission) can still be at
       // full cruise on that last successful tick, so nv itself was never
-      // actually braked. planner.plannedSpeed() reads _path[_lastIdx].v,
-      // which IS updated on every tick including the ones follow() bails
-      // on (_lastIdx is set before the bailout check) - taking the min of
-      // the two means this ramp starts from whatever the plan actually
-      // wanted here, not from a stale, unbraked nv.
-      const float rampStart = use_planner
-          ? std::min(nv, (float)planner.plannedSpeed()) : nv;
-      shmtrace::logf(elapsed(), "[rampdbg] nv=%.3f plannedSpeed=%.3f use_planner=%d rampStart=%.3f",
-             nv, use_planner ? (float)planner.plannedSpeed() : -1.f, (int)use_planner, rampStart);
-      for (int k = 15; k >= 0; --k) {
-        // STEERED deceleration - same fix and reasoning as the interlude's
-        // decel above (a dash=0 oval ends right off the arc exit too).
-        float w_dec = 0.f;
-        if (use_planner && k > 5) {
-          SimAuxSensors aux2; gazebo_get_aux(&aux2);
-          float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
-          const auto& es2 = bridge->robotRunner()->getStateEstimate();
-          const float b2 = spawn_bearing_rad - (es2.rpy[2] - yaw_ref);   // same correction as "bearing" above
-          double pv2 = 0, pw2 = 0;
-          if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
-        }
-        bridge->driverCommand().leftStickAnalog[1] = rampStart * (float)k / 15.f;
-        bridge->driverCommand().rightStickAnalog[0] = w_dec;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      }
-      bridge->driverCommand().leftStickAnalog[1] = 0.f;
-      bridge->driverCommand().rightStickAnalog[0] = 0.f;
-      {
-        const float settle_start = elapsed();
-        while (elapsed() - settle_start < 2.0f) {
-          if (bridge->robotRunner()) {
-            const auto& es = bridge->robotRunner()->getStateEstimate();
-            const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
-                                         es.vBody[1] * es.vBody[1]);
-            if (spd < 0.15f) break;
-          }
-          std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-      }
+      // actually braked. decelerateAndConfirmStopped takes min(nv,
+      // planner.plannedSpeed()) internally for exactly this reason - see
+      // that helper's own comment for why plannedSpeed() stays valid here.
+      decelerateAndConfirmStopped(nv);
 
       // 2. settle on its feet (trot-in-place settle tried and reverted -
       //    see the interlude's matching note).
