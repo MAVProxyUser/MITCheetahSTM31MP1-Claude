@@ -34,11 +34,8 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   standing** — `UNEXPLAINED`. Every dog, both fleet architectures. Ruled
   out: RTF, loop starvation, sensor wiring, startup race, settling.
   Distinct from contention (refuted at N≤3).
-- **OPEN-5 · trotRunning's smooth-circle ceiling (2.75 PASS / 3.2 FAIL)** —
-  `UNEXPLAINED`. Bracketed, never root-caused. Standing lead:
-  `path_analysis.py` showed overshoot-and-correct hairpinning building 2-3
-  corners before the fall; never followed up. (Also plausibly
-  windup-tainted → borderline `RETEST`.)
+- ~~OPEN-5~~ **closed 2026-08-28 → see C-OPEN-5** (3.2 PASS ×2 and 3.5
+  PASS ×2 on the current build — the bracketed ceiling was the windup).
 - **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"
   ×2 every run** — `UNEXPLAINED`, minor. Deterministic, harmless-looking,
   never eliminated. Likely tied to OPEN-1's spawn clip.
@@ -49,13 +46,16 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### Built, not run
 
-- **OPEN-8 · The per-gait × 5°-notch cornering sweep** — `NOT-RUN`. The
-  original stretch goal. Its blocker (`corner:` broken) is fixed — recipe'd,
-  45/90/135 verified — so this is now pure data collection.
-- **OPEN-9 · A course that rewards real gait switching** — `NOT-RUN`. The
-  machinery finally works (3/3, pinned by `oval_real_switch`) but ties
-  cap-only on the oval. The analyzer's design thesis (switch where regimes
-  differ) has no course in the catalog that profits from it yet.
+- **OPEN-8 · The per-gait × 5°-notch cornering sweep** — `IN PROGRESS`
+  (2026-08-28): `unittests/corner_sweep.py` is collecting the first
+  tranche into `unittests/corner_envelope.csv` — 5 gaits (bounding 1.0,
+  galloping 0.8, pronking 0.6, trotRunning 3.5, trotting 2.5) × 10 angles
+  (30–165° in 15° steps), solo `corner:25:<angle>` probes, close-leg off.
+  Resumable: re-running the script skips measured cells; 5°-notch
+  refinement goes around whatever transitions the 15° grid finds.
+- ~~OPEN-9~~ **closed 2026-08-28 → see C-OPEN-9** (run, twice over, and
+  answered NEGATIVE: capped-speed management subsumes gait switching for
+  lap time on every regime tested; the analyzer itself pays −11%).
 
 ### Hardware (nothing in this repo is hardware-validated)
 
@@ -128,6 +128,41 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   pattern was a course-length artifact. The 105-150° band gets re-measured
   at 15° resolution by the OPEN-8 envelope sweep (corner_envelope.csv); a
   failure there reopens this with fresh data.
+
+- **C-OPEN-5 · trotRunning's smooth-circle ceiling (2.75 PASS / 3.2
+  FAIL)** — closed 2026-08-28: **the ceiling was the windup**, and it is
+  gone. Current build, same course (`circle:9:36`, close-leg off, solo):
+  3.2 **PASS ×2** (runs 644/645 — the historical FELL speed) and 3.5
+  **PASS ×2** (runs 652/653 — trotRunning's own flagship speed, ~24 s
+  laps). No anomaly remains to explain: a 36-gon lap is exactly the
+  sustained-cruise shape the integrator needed (never brakes through the
+  0.3 m/s gate), so the "ceiling" was accumulation time, not curvature.
+  The old `path_analysis.py` hairpin-overshoot lead is moot — that
+  overshoot-and-correct buildup was the dog fighting a growing backward
+  force command, which also explains why it built over 2-3 corners
+  rather than appearing at one.
+
+- **C-OPEN-9 · A course that rewards real gait switching** — closed
+  2026-08-28, RUN, and answered in the negative — twice, at two radii.
+  Experiment on `oval:40:2.5` (sustained R=2.5, the tightest oval yet):
+  arm A cap-only (trotRunning 3.5, `WP_VSUS=2.2`, corner gait = itself)
+  **PASS ×2, 37.8/37.9 s**; arm B real switching (`WP_GAIT_CORNER=9`, 4
+  pre-planned 5↔9 changes firing per lap, verified in the stream) **PASS
+  ×2, 37.8/37.7 s**; arm C trotting-only @2.4 **PASS ×2, 42.6/42.6 s**
+  (runs 646-651). Conclusions: (1) the ANALYZER pays — both analyzer
+  arms beat flat trotting by ~11%, reconfirming the oval thesis at a
+  second radius; (2) the SWITCH buys nothing over capping — dead tie at
+  R=5.0 (38.6 vs 38.2 s, prior session) and now R=2.5, because both arms
+  corner at the same capped speed and capped trotRunning holds every
+  sustained radius tested (my own pre-registered prediction that R=2.5
+  would break it was WRONG — recorded per the rules). Structural read:
+  switching can only beat capping where the corner gait corners FASTER
+  than the fast gait can when speed-capped, and no such regime exists in
+  this gait matrix on flat ground — tighter radii bind the STEERING cap
+  (`wz≤1.2`), which slows both arms identically. Switching's remaining
+  candidate value is duty-cycle/energy and terrain-class constraints
+  (hardware-era questions), not lap time. The machinery stays validated
+  and pinned by `oval_real_switch`.
 
 - **C-OPEN-3 · Atom-in-fleet fragility** — closed 2026-08-28: does not
   reproduce on the current build. Three consecutive 3-dog fleet reps
