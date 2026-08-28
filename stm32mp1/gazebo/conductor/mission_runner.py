@@ -533,86 +533,51 @@ def main():
                                                # `fields["gait"] in GAITS`,
                                                # GAITS's KEYS being names).
 
-    # --- reconcile draft slot COUNT to len(args.slot) --------------------
-    for _ in range(20):
-        cur = len(st["draft_slots"])
-        if cur == len(args.slot):
-            break
-        if cur < len(args.slot):
-            r = api("POST", "/api/slots/add")
-            if not r.get("ok"):
-                raise SystemExit("could not add draft slot: %s" % r.get("message"))
-        else:
-            r = api("DELETE", "/api/slots/%d" % (cur - 1))
-            if not r.get("ok"):
-                raise SystemExit("could not remove draft slot: %s" % r.get("message"))
-        st = api("GET", "/api/state")
-    if len(st["draft_slots"]) != len(args.slot):
-        raise SystemExit("could not reconcile draft slot count (have %d, want %d)"
-                          % (len(st["draft_slots"]), len(args.slot)))
-
-    # --- populate each slot ----------------------------------------------
-    # /api/slots/{i} only OVERWRITES the fields you pass it - a bare
-    # {"mission": ...} leaves gait/speed/dash/extra at whatever that draft
-    # slot already held (server.py's draft_set_slot() has no "look up this
-    # mission's recipe" fallback of its own; that lookup lives in the
-    # BROWSER's JS, which this script does not run). Relying on the slot
-    # to already hold the right mission's leftover values is exactly the
-    # kind of silent state carryover this harness exists to avoid - caught
-    # here after a server restart reset slot 0 to its hard-coded star
-    # default (trotRunning/3.5/dash=100) and a bare --slot sector:15:3 ran
-    # star's gait/speed/dash against sector's waypoints. So: look up each
-    # mission's own recipe by kind (mirroring server.py's mission_kind())
-    # and apply it explicitly whenever the matching --gait/--speed/--extra
-    # flag was not given. --dash has no recipe concept at all (RECIPES
-    # carries gait/speed/extra/note only) - default it to 0 (no finish
-    # dash) rather than trust the slot's leftover value.
+    # --- build the slot list LOCALLY and launch with an explicit body ----
+    # This script used to reconcile the server's DRAFT slot-by-slot
+    # (add/remove to match the count, then POST each slot's fields) and
+    # launch with an empty body, i.e. "launch whatever the draft shows".
+    # That worked, but it meant every automated run REWROTE THE OPERATOR'S
+    # OWN PANEL: after any suite/sweep, the draft held the last test's
+    # mission/gait/speed - e.g. circle:9:8 @ galloping 0.8 sitting in slot
+    # 0 - and the panel then flagged it with "not this course's validated
+    # combo" warnings the operator never caused (operator-reported, twice).
+    # /api/launch has always accepted an explicit "slots" body that skips
+    # the draft entirely, and launch() resolves every omitted field from
+    # the mission's own recipe with the same code path the draft uses - so
+    # automation now uses that, and the draft belongs to the human again.
+    slots_body = []
     for i, mission in enumerate(args.slot):
         kind = mission.split(":", 1)[0]
         kind = "dash" if kind in ("outback", "dash") else kind
         recipe = recipes.get(kind, {})
-        body = {"mission": mission}
+        slot = {"mission": mission}
         if i < len(args.gait):
             g = args.gait[i]
             if g not in gaits:
                 raise SystemExit("unknown gait %r - choices: %s" % (g, sorted(gaits)))
-            body["gait"] = g
+            slot["gait"] = g
         elif "gait" in recipe:
-            body["gait"] = gait_name_by_id.get(recipe["gait"], recipe["gait"])
+            slot["gait"] = gait_name_by_id.get(recipe["gait"], recipe["gait"])
         if i < len(args.speed):
-            body["speed"] = args.speed[i]
+            slot["speed"] = args.speed[i]
         elif "speed" in recipe:
-            body["speed"] = recipe["speed"]
-        if i < len(args.dash):
-            body["dash"] = args.dash[i]
-        else:
-            body["dash"] = 0
-        if i < len(args.extra):
-            # ADDITIVE, not a replacement: server.py's launch() ALWAYS
-            # prepends the recipe's own extra to the slot's extra field
-            # ("recipe['extra'] + ' ' + s['extra']", server.py:598), so
-            # this is for a genuine additional override beyond the
-            # recipe's own tuning (env A=1 A=2 keeps the last, so this
-            # wins over the recipe on a shared key).
-            body["extra"] = args.extra[i]
-        else:
-            # Explicitly clear rather than omit the key: server.py's
-            # draft_set_slot() only touches "extra" when the key is
-            # present at all, so a bare omission here would leave
-            # whatever override a PRIOR /api/slots/{i} call on this same
-            # slot happened to leave behind - the exact silent-carryover
-            # bug this whole fallback exists to close. The recipe's own
-            # tuning still applies either way, via the same launch()
-            # prepend.
-            body["extra"] = ""
+            slot["speed"] = recipe["speed"]
+        # --dash has no recipe concept (RECIPES carries gait/speed/extra/
+        # note only) - explicit 0 rather than an omission, so nothing is
+        # left to a default that might change underneath this script.
+        slot["dash"] = args.dash[i] if i < len(args.dash) else 0
+        # ADDITIVE, not a replacement: launch() ALWAYS prepends the
+        # recipe's own extra ("recipe['extra'] + ' ' + s['extra']"), so
+        # this is a genuine additional override (env A=1 A=2 keeps the
+        # last, so an explicit key here wins over the recipe's).
+        slot["extra"] = args.extra[i] if i < len(args.extra) else ""
         if not args.keep_cameras:
-            body["cam_front"] = body["cam_nadir"] = body["cam_chase"] = False
-        r = api("POST", "/api/slots/%d" % i, body)
-        if not r.get("ok"):
-            raise SystemExit("slot %d rejected: %s" % (i, r.get("message")))
+            slot["cam_front"] = slot["cam_nadir"] = slot["cam_chase"] = False
+        slots_body.append(slot)
 
     # --- launch -------------------------------------------------------
-    r = api("POST", "/api/launch", {})
+    r = api("POST", "/api/launch", {"slots": slots_body})
     if not r.get("ok"):
         raise SystemExit("launch refused: %s" % r.get("message"))
 

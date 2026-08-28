@@ -165,6 +165,58 @@ CASES = [
         ),
     ),
     Case(
+        name="octagon_recipe",
+        slots=["circle:9:8"], gaits=[], speeds=[],
+        extras=[],
+        min_s=20, max_s=80,
+        why=(
+            "The octagon (circle:9:8 - 8 vertices, 45deg each; named "
+            "honestly in the panel since 2026-08-28) at its OWN recipe "
+            "(walking @1.5, graded corridor, WP_TURN_SOFT=0.3/HARD=0.79 "
+            "bracketing its 45deg vertices). Operator-asked coverage gap: "
+            "the three envelope cases below run this course deliberately "
+            "OFF-recipe (trotting/bounding/galloping) to probe cornering, "
+            "so the shipping recipe config itself was never suite-covered. "
+            "Empty gaits/speeds/extras = the recipe drives, exactly like a "
+            "panel launch - which also regression-tests the recipe-fallback "
+            "path in mission_runner/launch()."
+        ),
+    ),
+    Case(
+        name="circle_smooth_36gon",
+        slots=["circle:9:36"], gaits=[], speeds=[],
+        extras=[],
+        min_s=20, max_s=80,
+        why=(
+            "The REAL circle: 36 vertices, ~10deg each - functionally "
+            "smooth at this port's corridor/lookahead scale, selectable in "
+            "the panel since the octagon/circle naming fix. Shares the "
+            "'circle' recipe; its turn-grading is a structural no-op here "
+            "(10deg sits below turn_soft=17deg), so this exercises the "
+            "smooth-arc path where the octagon exercises discrete 45deg "
+            "corners. Verified PASS 33.7s on its first selectable run; "
+            "suite-covered per operator request ('including octagon and "
+            "circle')."
+        ),
+    ),
+    Case(
+        name="corner_probe_90deg",
+        slots=["corner:25:90"], gaits=[], speeds=[],
+        extras=[],
+        min_s=25, max_s=90,
+        why=(
+            "The per-angle cornering probe at 90deg, on its own recipe "
+            "(walking @1.5, WIDE turn-grading window 0.3-2.0 rad - kept "
+            "wide on purpose so angle sweeps measure the robot, not a "
+            "per-angle tuning). corner: had NO recipe at all until "
+            "2026-08-28 and was carried as broken because of it (pitch "
+            "53.8deg at settle with zero tuning); with the recipe it "
+            "passed 45/90/135 first try (61.3/54.9/47.8s). 90deg chosen "
+            "for the suite as the angle no other single-corner case "
+            "covers at recipe config."
+        ),
+    ),
+    Case(
         name="corner_octagon_45deg",
         slots=["circle:9:8"], gaits=["trotting"], speeds=[2.5],
         min_s=15, max_s=40,

@@ -1071,7 +1071,15 @@ class Fleet:
                            "%s @ %.2f, recipe is %s @ %.2f%s" %
                            (i, gait_name, speed, recipe_gait_name, recipe["speed"],
                             " (" + recipe["extra"] + ")" if recipe["extra"] else ""))
-            elif isinstance(recipe.get("speed"), (int, float)) and abs(speed - recipe["speed"]) > 0.05:
+            elif isinstance(recipe.get("speed"), (int, float)) and \
+                    abs(speed - clamp_speed(recipe["speed"], speed_cap,
+                                             s.get("model", DEFAULT_MODEL))) > 0.05:
+                # Mirror of app.js's cap-aware comparison: judge against the
+                # recipe speed CLAMPED by this slot's model ceiling (and the
+                # fleet cap), not the raw recipe number - a Go1 Air running
+                # the oval at its own 2.5 ceiling is at the best legal speed,
+                # not off-recipe, and warning about a limit the operator
+                # cannot lift from here is pure noise.
                 self._note("dog%d: NOT this course's validated combo - running "
                            "%s @ %.2f, recipe speed is %.2f" %
                            (i, gait_name, speed, recipe["speed"]))

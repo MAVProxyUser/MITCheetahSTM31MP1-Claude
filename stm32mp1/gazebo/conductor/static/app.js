@@ -170,7 +170,17 @@ function renderSlots() {
     // recipe, from either side.
     const recipeGait = recipe.gait !== undefined ? gaitNameForIndex(recipe.gait) : null;
     const gaitOff = recipeGait && s.gait !== recipeGait;
-    const speedOff = typeof recipe.speed === "number" && Math.abs(s.speed - recipe.speed) > 0.05;
+    // Compare against the recipe speed CLAMPED BY THIS SLOT'S MODEL CEILING,
+    // not the raw recipe number. A Go1 Air (cap 2.5) selecting the oval
+    // (recipe 3.5) snaps to 2.5 - the best that model can legally run - and
+    // the raw comparison then flagged it "not the validated combo" forever,
+    // an unclearable warning about a limit the operator cannot lift from
+    // here (the cap is enforced server-side on purpose). Audited across
+    // every mission option x model: this was the only fresh-selection path
+    // that warned. The model radio already shows the ceiling.
+    const modelCap = (state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[s.model || "edu"] ?? 3.9;
+    const recipeSpeedHere = typeof recipe.speed === "number" ? Math.min(recipe.speed, modelCap) : null;
+    const speedOff = recipeSpeedHere !== null && Math.abs(s.speed - recipeSpeedHere) > 0.05;
     const offRecipe = gaitOff || speedOff;
     return `<div class="play-card active">
       <h3>Dog ${i} <small>${(recipe.note || "").split(" - ")[1] || ""}</small></h3>

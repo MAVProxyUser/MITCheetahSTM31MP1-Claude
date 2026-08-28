@@ -7698,3 +7698,75 @@ env-last-wins merge makes a recipe field STICKY against any probe that
 does not explicitly override the same key. Check the `[SCHED]` adoption
 lines before believing any switching claim.
 
+
+## The "not this course's validated combo" warnings, audited to zero
+
+Operator order: "immediately check EVERY single matchup of Mission and
+settings, and ensure the defaults or thresholds match so these stupid
+warnings stop showing."
+
+Audited the full matrix - every dropdown option x every model - through
+the panel's own snap logic and warning predicate. Two real causes, both
+fixed at the root; no thresholds were fudged to silence anything.
+
+### Cause 1, the live sighting: MY OWN HARNESS was rewriting the operator's draft
+
+The `circle @ galloping 0.8` the warning was pointing at was residue from
+the suite's `galloping_octagon_45deg` case. `mission_runner.py` launched
+by reconciling the server's DRAFT slot-by-slot and firing an empty-body
+launch ("run whatever the draft shows") - so every automated run left its
+last test config sitting in the operator's panel, correctly flagged as
+off-recipe, caused by nobody at the keyboard. Twice operator-reported.
+
+Fix: `/api/launch` has always accepted an explicit `slots` body that
+skips the draft entirely, resolving omitted fields from each mission's
+recipe through the same locking code the draft path uses.
+`mission_runner.py` now builds its slot list locally and launches with
+that body. **Automation no longer touches the draft at all** - verified
+by running the full 11-case suite and checking the draft after: still
+the pristine star/oval/atom defaults, zero warnings.
+
+### Cause 2: the model-cap clamp made fresh selections warn unclearably
+
+The matrix (every option, per model, after the mission-change snap):
+
+| option | edu | pro | air |
+|---|---|---|---|
+| star / oval (recipe 3.5), dash (3.0) | ok | ok | **WARNED** |
+| every other option | ok | ok | ok |
+
+A Go1 Air (ceiling 2.5) selecting the oval snaps to 2.5 - the best that
+model can legally run - and the raw `speed != recipe.speed` comparison
+then flagged it forever, about a limit the operator cannot lift from the
+panel (the cap is enforced server-side on purpose). Both comparison
+sites (app.js's card warning and launch()'s orchestration-log note) now
+judge against the recipe speed CLAMPED by the slot's model ceiling. A
+deliberate gait/speed override still warns - that is the warning doing
+its job (it caught the oval recipe drift earlier tonight); only the
+cannot-act-on-it case is silenced.
+
+## Suite coverage question answered honestly - and three cases added
+
+Asked directly: "are all unit tests done for everything *including
+octagon and circle*?" The honest answer was NO:
+
+- the octagon appeared 3x but only at ENVELOPE configs (trotting 2.5 /
+  bounding 1.0 / galloping 0.8 - deliberately off-recipe cornering
+  probes); its own shipping recipe (walking @1.5, the panel default) was
+  never suite-covered;
+- the smooth circle (`circle:9:36`) and the `corner:` probe were not in
+  the suite at all;
+- sector / parallel / expsquare / lissajous x3 / spiro have never been
+  suite cases - they were validated by hand in their own sessions and
+  the suite was scoped to "the validated core" before the catalog grew.
+
+Added now, all recipe-driven (empty gaits/speeds/extras, so they also
+regression-test the recipe-fallback path end to end):
+`octagon_recipe` (circle:9:8 at walking @1.5), `circle_smooth_36gon`
+(circle:9:36), `corner_probe_90deg` (corner:25:90). Suite is 11 cases.
+The SAR/lissajous/spiro gap REMAINS OPEN and is a deliberate size
+decision, not an oversight: those seven at recipe speeds add ~25+
+minutes per suite run (lissajous 11:9 alone is ~9.5 min); adding them
+belongs with a tiering decision (fast suite vs full catalog sweep), not
+silently tripling the suite's runtime.
+
