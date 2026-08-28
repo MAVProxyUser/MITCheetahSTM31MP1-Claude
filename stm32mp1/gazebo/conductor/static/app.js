@@ -689,13 +689,22 @@ async function poll() {
       if (_uiRev === null) _uiRev = state.ui_rev;
       else if (state.ui_rev !== _uiRev && !editingASlot) { location.reload(); return; }
     }
+    // Terrain dropdown syncs EVERY poll (unless the operator is focused on
+    // it) - it was nested inside the draft-slots-changed guard, and once
+    // launches started REPLACING the draft, consecutive same-config runs
+    // never tripped that guard, so the dropdown froze on an old kind while
+    // the log said otherwise (operator: "the log says dirt, but the
+    // dropdown says flat").
+    const tsel = document.getElementById("terrainSelect");
+    if (tsel && document.activeElement !== tsel) {
+      syncTerrainOptions(state);
+      if (state.draft_terrain) tsel.value = state.draft_terrain;
+    }
     if (state.draft_slots && !editingASlot) {
       const incoming = JSON.stringify(state.draft_slots);
       if (!_synced || incoming !== JSON.stringify(slots)) {
         slots = state.draft_slots;
         document.getElementById("capSlider").value = state.draft_cap ?? 3.5;
-        syncTerrainOptions(state);
-        if (state.draft_terrain) document.getElementById("terrainSelect").value = state.draft_terrain;
         renderSlots();
       }
       _synced = true;

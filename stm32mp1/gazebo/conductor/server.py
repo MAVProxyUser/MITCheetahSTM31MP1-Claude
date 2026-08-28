@@ -1774,8 +1774,16 @@ class Fleet:
                         st["waypoints"] = "%d/%d" % (wp, tot)
                         st["text"] = "d=%sm v=%sm/s" % (d, v)
                         # ---- live desync check (see poll() docstring) ----
+                        # Only while the nav status line is FRESH (a new one
+                        # appeared this tick): after arrival the line goes
+                        # stale at its last v= while the dog legitimately
+                        # brakes/settles/lies down, which false-fired a
+                        # DESYNC at the end of every completed run (flat
+                        # dash showed desync=1 with ratio=1.00 - the tell).
+                        fresh = "[nav] wp" in new_text
                         ds = desync.setdefault(i, dict(last=None, bad=0,
                                                         alarmed=False))
+
                         with self.lock:
                             p = self.positions.get(i)
                             pos = (p["x"], p["y"]) if p else None
@@ -1783,7 +1791,10 @@ class Fleet:
                             believed_v = float(v)
                         except ValueError:
                             believed_v = 0.0
-                        if pos is not None and ds["last"] is not None:
+                        if not fresh:
+                            ds["last"] = pos
+                            ds["bad"] = 0
+                        elif pos is not None and ds["last"] is not None:
                             true_v = ((pos[0] - ds["last"][0]) ** 2 +
                                        (pos[1] - ds["last"][1]) ** 2) ** 0.5  # per ~1s tick
                             if believed_v > 0.5 and true_v < 0.2 * believed_v:
