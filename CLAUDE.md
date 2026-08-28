@@ -7639,3 +7639,62 @@ deterministically instead of at whatever phase the stick moved -
 plausibly relevant to the documented engagement coin-flips (pacing's
 ~50%, historical bounding entry), not yet separately measured.
 
+
+### ARRIVE SETTLED, NOT HOT - the pre-planner now finishes braking BEFORE the arc
+
+Per direct instruction ("'still fell entering the arc hot' - soooo stop
+doing that... and ensure the preplanner knows to stop doing that").
+
+The mechanism, measured: `MissionAnalyzer::applyTo()` capped exactly
+`[s0, s1]` - the sustained segment's geometric extent - so the PLAN
+reached the 2.4 cap precisely AT the arc entry. A real body tracks a
+speed command with a first-order-ish lag (`track_lag_s`, the planner's
+own measured constant) and trotRunning overshoots its command, so the
+dog crossed into the R=5 arc at 2.7-3.0 actual, still shedding speed -
+its hardest combined braking+turning exactly where lateral margin is
+thinnest.
+
+The fix, derived from limits already in the model rather than a new
+hand-picked number: the sustained cap now begins
+
+    lead = entry_settle_x * track_lag_s * v_sustained_max
+         = 2.0 * 1.2 s * 2.4 m/s ~= 5.8 m  (for the oval)
+
+BEFORE the segment's geometric start (`$WP_ENTRY_SETTLE`, default 2.0
+time-constants ~= 86% converged; 0 restores arrive-hot for A/B). The
+backward braking pass moves correspondingly earlier, so the body spends
+its convergence lag on the straight. The EXIT side is untouched -
+accelerating out of a curve early is not a hazard.
+
+Measured at the same wall-clock window, shipping recipe:
+
+| | entry speed profile | arc entry | result |
+|---|---|---|---|
+| before | 2.9 -> 2.5, still shedding INSIDE the arc | hot, z bleeding to 0.24 | the wp34 falls |
+| after | settled at ~2.4 BEFORE the arc, flat through it | z steady 0.28-0.29 | **PASS** |
+
+Cost: ~1.2 s (37.0 -> 38.1-38.3 s, 3 reps) - braking earlier is slower,
+and that is the trade that was ordered. The suite's oval bounds already
+cover it.
+
+### The switching probe: two real causes removed, still not sufficient - and a near-false-claim caught
+
+With settled entry AND the phase gate, a REAL 5->9 swap
+(`WP_GAIT_CORNER=9` explicitly) still falls. So: contact-table
+misalignment (fixed), hot entry (fixed), and at least one more swap
+transient remains - the narrowest suspect is the swing-phase
+discontinuity (a mid-air foot's `swingState` jumps when the schedule
+changes, re-evaluating its Bezier at a jumped phase). Real mid-motion
+gait switching stays BROKEN, now with a much shorter suspect list.
+Cap-only remains the shipping design.
+
+**Method note worth keeping**: the first "switching probe" (run500)
+passed at 38.2 s and nearly went into this file as the first real
+switching pass in project history. Verifying the log first showed ZERO
+mid-course adoptions - `launch()` prepends the recipe's extra, the
+recipe now carries `WP_GAIT_CORNER=5`, and the probe's extra did not
+override it, so run500 was silently another cap-only run. The
+env-last-wins merge makes a recipe field STICKY against any probe that
+does not explicitly override the same key. Check the `[SCHED]` adoption
+lines before believing any switching claim.
+

@@ -331,6 +331,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     pol.gait_sustained= getenv("WP_GAIT_CORNER") ? atoi(getenv("WP_GAIT_CORNER")) : pol.gait_sustained;
     pol.hbias_max     = getenv("WP_HBIAS")      ? atof(getenv("WP_HBIAS"))      : pol.hbias_max;
     pol.v_sustained_max = getenv("WP_VSUS") ? atof(getenv("WP_VSUS")) : pol.v_sustained_max;
+    // Settling lead-in multiplier for the sustained cap - see
+    // MissionAnalyzer::applyTo(). 0 = arrive-hot (old behaviour), for A/B.
+    pol.entry_settle_x  = getenv("WP_ENTRY_SETTLE") ? atof(getenv("WP_ENTRY_SETTLE")) : pol.entry_settle_x;
     // ALWAYS analyse (the brief is free and worth having in every log), but
     // only ACT on it when asked. applyTo() imposes the sustained-curve speed
     // ceiling, which is a behaviour change - running it unconditionally made

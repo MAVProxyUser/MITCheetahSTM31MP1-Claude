@@ -107,6 +107,12 @@ struct MissionPolicy {
    * lateral-acceleration budget can express that. 0 disables.
    */
   double v_sustained_max = 2.5;
+  //! How many track_lag_s time-constants of settling distance the sustained
+  //! cap begins BEFORE the segment's geometric start (lead = this *
+  //! track_lag_s * v_sustained_max). 2.0 ~= 86% first-order convergence at
+  //! entry; 0 restores the old arrive-hot behaviour for A/B
+  //! ($WP_ENTRY_SETTLE). See applyTo()'s comment for the measured failure.
+  double entry_settle_x = 2.0;
 };
 
 class MissionAnalyzer {
@@ -227,10 +233,33 @@ class MissionAnalyzer {
    *  analyze() so the segment table reflects the plan the robot will fly. */
   void applyTo(BodyPathPlanner& planner, const MissionPolicy& pol) {
     if (pol.v_sustained_max <= 0.0) return;
+    /*
+     * ARRIVE SETTLED, NOT HOT. Capping exactly [s0, s1] makes the PLAN
+     * reach the sustained cap precisely AT the arc entry - which hands a
+     * real body zero distance to converge. The body tracks a speed command
+     * with a first-order-ish lag (BodyLimits::track_lag_s, the planner's
+     * own measured constant) and trotRunning overshoots its command
+     * (documented: 3.0 commanded -> 3.46 actual), so the dog was measured
+     * crossing into the oval's R=5 arc at 2.7-3.0 against a 2.4 plan,
+     * still shedding speed - doing its hardest combined braking+turning
+     * exactly where lateral margin is thinnest. Per direct instruction
+     * ("stop doing that... ensure the preplanner knows"), the cap now
+     * begins entry_settle_x * track_lag_s * v_cap metres BEFORE the
+     * segment (2.0 * 1.2 s * 2.4 m/s ~= 5.8 m for the oval): the backward
+     * braking pass moves correspondingly earlier, and the body spends its
+     * convergence lag on the straight lead-in instead of inside the arc.
+     * k=2 time-constants ~= 86% converged at entry. Derived from limits
+     * already in the model - no new hand-picked number. The EXIT side is
+     * untouched: accelerating out of a curve early is not a hazard.
+     * capSpeedOverRange's `>= s0` comparison makes a negative lead-in
+     * start naturally safe at the path head.
+     */
+    const double lead =
+        pol.entry_settle_x * planner.limits().track_lag_s * pol.v_sustained_max;
     bool any = false;
     for (const auto& g : _seg)
       if (g.regime == REGIME_SUSTAINED) {
-        planner.capSpeedOverRange(g.s0, g.s1, pol.v_sustained_max);
+        planner.capSpeedOverRange(g.s0 - lead, g.s1, pol.v_sustained_max);
         any = true;
       }
     if (any) planner.recomputeSpeedProfile();
