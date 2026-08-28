@@ -616,8 +616,16 @@ function renderFleet() {
   const rid = state.run_id ? ("RUN " + state.run_id) : "";
   const hdr = document.querySelector(".topbar .subtitle, .topbar h2, .topbar span");
   if (hdr && rid && !hdr.dataset.norun) hdr.textContent = hdr.textContent.replace(/ · RUN \d+$/, "") + " · " + rid;
-  document.getElementById("logBox").textContent = (state.log || []).join("\n");
-  document.getElementById("logBox").scrollTop = 1e9;
+  // Pin to the bottom ONLY when the operator is already there - and decide
+  // that BEFORE the re-render grows scrollHeight, or a busy tick reads a
+  // just-appended chunk as "scrolled up" and stops following for everyone.
+  // An unconditional scroll made reading history impossible: every poll
+  // yanked the view back down mid-read (operator: "if I scroll up ...
+  // I'm trying to see where it tells me the terrain sdf it selected").
+  const lb = document.getElementById("logBox");
+  const atBottom = lb.scrollHeight - lb.scrollTop - lb.clientHeight < 40;
+  lb.textContent = (state.log || []).join("\n");
+  if (atBottom) lb.scrollTop = 1e9;
 
   const running = state.phase === "launching" || state.phase === "running";
   document.getElementById("launchBtn").disabled = running;

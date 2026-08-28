@@ -52,27 +52,33 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### In progress
 
-- **OPEN-20 · Surface terrains kill traction; a whole matrix of false
-  PASSes got through** — opened 2026-08-28, operator-caught ("the dog never
-  stands, it never moves but the simulator claims it is navigating").
-  On every patched SURFACE kind (concrete…ice) the dog stands but its feet
-  grip NOTHING: legs churn (bridge shows real q/tau), body stays at spawn
-  (gz truth x≈2.6 m, creeping ~0.03 m/s; bridge GPS frozen at the spawn
-  coordinate all run), while the ESTIMATOR integrates the cycling legs
-  into a clean 1.5 m/s belief — nav "reaches" every waypoint at almost
-  exactly the accept radius and the judge (which trusts the estimator)
-  passes the run. ALL non-flat surface-cell results from the 2026-08-28
-  matrix are INVALID (flat cells are real — flat patches nothing and its
-  times match the suite's known baselines). My "ice 20.9 s physics
-  signal" claim is RETRACTED with them. Two fixes so far: the
-  operator-prescribed ground-truth gate in mission_runner (a claimed
-  PASS whose FLOWN trail is <30% of the PLANNED path length is demoted
-  to INVALID, exit 1 — "checking the path actual vs path traveled
-  trails should have told you that"); and a bisect in flight (dbgfeet /
-  dbgground debug kinds) to isolate which half of the surface patch —
-  the ground <surface> insert or the foot mu rewrite — breaks contact.
-  gz's own console is silent (SDF parsed clean), so this is engine
-  behavior, not a parse rejection. Root cause OPEN.
+- **OPEN-20 · The "surface false-positive" alarm — MY VERIFICATION was the
+  false positive; matrix results REINSTATED** — 2026-08-28, kept open only
+  for the remaining root-cause question of what the operator saw. The
+  sequence, honestly: operator reported "the dog never stands, never
+  moves but the simulator claims it is navigating"; my confirmation check
+  sampled AT THE INTER-CELL BOUNDARY (phase "done" on the finished grass
+  cell while the next world was already spawning) and read the NEXT
+  cell's freshly-spawned dog (gz truth x=2.64 — exactly the next slot's
+  computed spawn-east offset), its 1-point brand-new trail, and a
+  finished mission's post-lie-down frozen-GPS bridge tail as proof of a
+  hallucinated run — then struck the whole matrix as invalid. The
+  DECISIVE re-check (per-run GPS RANGE in metres from the bridge logs):
+  every T1 dash swept exactly 30.1 m north (the dash:30 course), every
+  T2 octagon 17.8 × 17.6 m (an r=9 octagon's footprint) — full
+  course-scale, world-truth-derived motion in EVERY cell. The runs were
+  real; the surface feature works; T1's ice-runs-0.6s-slower observation
+  stands (single sample). The likely explanation for the operator's
+  view: 24 short cells at ~40 s boot+stand per ~20-26 s mission means
+  the chase tile shows a standing dog two-thirds of wall time. What came
+  out of it anyway and STAYS: the mission_runner ground-truth gate
+  (claimed PASS with flown < 30% of planned → INVALID, exit 1) — the
+  matrix cells re-verified through it from here on; and the bisect
+  probes (both halves PASS with real motion, consistent with the
+  reinstatement). Lesson recorded per the records rule: a verification
+  sample taken during a phase transition confirmed a false alarm and
+  nearly cost a day of valid data — check the RUN WINDOW of any evidence
+  before reading it as the run's state.
 
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete

@@ -68,17 +68,6 @@ TERRAIN_TYPES = {
     "ice":      dict(amplitude=0.0, note="mu 0.15 - deliberately past any gait's envelope; adhesion diagnostic",
                      surface=dict(mu=0.15, kp=1e6, kd=1, min_depth=0.0,
                                    torsional=0.05, color=(0.72, 0.80, 0.88))),
-    # BISECT DEBUG kinds (2026-08-28, false-positive incident): apply only
-    # ONE half of a surface patch each, to isolate which half kills
-    # traction. Remove once root-caused.
-    "dbgfeet":  dict(amplitude=0.0, note="DEBUG: foot mu patch only, mu 0.9",
-                     surface=dict(mu=0.90, kp=1e6, kd=1, min_depth=0.0,
-                                   torsional=1.0, color=(0.9, 0.3, 0.3),
-                                   skip_ground=True)),
-    "dbgground": dict(amplitude=0.0, note="DEBUG: ground surface patch only, mu 0.9",
-                     surface=dict(mu=0.90, kp=1e6, kd=1, min_depth=0.0,
-                                   torsional=1.0, color=(0.3, 0.3, 0.9),
-                                   skip_feet=True)),
 }
 
 
