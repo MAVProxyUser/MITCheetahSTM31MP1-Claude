@@ -154,6 +154,33 @@ def render_report(run_id, slots, state, all_lines):
             flown_len = _plen(trail_pts)
             if plan_len > 3.0 and flown_len < 0.3 * plan_len:
                 per_dog[i] = "INVALID"
+            # FRICTION/DEVIATION METRICS, per run (operator: "start keeping
+            # track of the friction vibe in each world and how much it
+            # makes the runs deviate"). xtrack_max = worst distance from
+            # any flown point to the planned polyline - the how-wide-did-
+            # it-slide number; ratio = flown/planned length. One greppable
+            # line; terrain_sweep.py accumulates these into a CSV.
+            def _xtrack(trail, plan):
+                if not trail or not plan or len(plan) < 2:
+                    return -1.0
+                worst = 0.0
+                for px, py in trail[:: max(1, len(trail) // 200)]:
+                    best = float("inf")
+                    for k in range(len(plan) - 1):
+                        ax, ay = plan[k]; bx, by = plan[k + 1]
+                        dx, dy = bx - ax, by - ay
+                        L2 = dx * dx + dy * dy
+                        t = 0.0 if L2 == 0 else max(0.0, min(1.0,
+                            ((px - ax) * dx + (py - ay) * dy) / L2))
+                        ex, ey = ax + t * dx - px, ay + t * dy - py
+                        best = min(best, ex * ex + ey * ey)
+                    worst = max(worst, best)
+                return worst ** 0.5
+            print("[runner] METRICS dog%d terrain=%s mission=%s flown=%.1f "
+                  "plan=%.1f ratio=%.2f xtrack_max=%.2f verdict=%s"
+                  % (i, state.get("terrain"), slots[i], flown_len, plan_len,
+                     (flown_len / plan_len) if plan_len > 0 else 0.0,
+                     _xtrack(trail_pts, plan_pts), per_dog[i]), flush=True)
         elif any("FELL" in l for l in mine):
             per_dog[i] = "FELL"
         elif any("mission result: FAIL" in l for l in mine):

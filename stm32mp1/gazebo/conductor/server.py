@@ -1700,6 +1700,22 @@ class Fleet:
         def poll():
             done = set()
             seen_bytes = {}   # index -> bytes of ctrl_%d.log already scanned for EVENT_PATTERNS
+            # LIVE DESYNC MONITOR (operator-ordered, 2026-08-28: "you must
+            # make the monitor aware of if the dog is NOT moving vs the
+            # expected track. GPS is your friend... if the dog thinks it is
+            # moving you should always be able to spot check the track and
+            # see it move under GPS"). Per dog, per ~1s tick: the BELIEVED
+            # speed comes from nav's own status line (v=..m/s - the
+            # estimator's opinion); the TRUE speed comes from the gz pose
+            # feed (self.positions - the same world truth GPS is derived
+            # from). Belief cruising while the world stands still for
+            # several consecutive ticks = the estimator hallucinating over
+            # slipping/blocked feet, flagged IN THE LOG the moment it is
+            # happening rather than at the post-run gate. Recovery is
+            # logged too, and the alarm re-arms, so an intermittent slip
+            # (mud-style struggling) reads as bursts rather than one stale
+            # banner.
+            desync = {}   # index -> dict(last=(x,y) or None, bad=0, alarmed=False)
             while True:
                 with self.lock:
                     if self.phase not in ("running",):
@@ -1757,6 +1773,40 @@ class Fleet:
                             wp = max(wp, int(rm[-1]) + 1)
                         st["waypoints"] = "%d/%d" % (wp, tot)
                         st["text"] = "d=%sm v=%sm/s" % (d, v)
+                        # ---- live desync check (see poll() docstring) ----
+                        ds = desync.setdefault(i, dict(last=None, bad=0,
+                                                        alarmed=False))
+                        with self.lock:
+                            p = self.positions.get(i)
+                            pos = (p["x"], p["y"]) if p else None
+                        try:
+                            believed_v = float(v)
+                        except ValueError:
+                            believed_v = 0.0
+                        if pos is not None and ds["last"] is not None:
+                            true_v = ((pos[0] - ds["last"][0]) ** 2 +
+                                       (pos[1] - ds["last"][1]) ** 2) ** 0.5  # per ~1s tick
+                            if believed_v > 0.5 and true_v < 0.2 * believed_v:
+                                ds["bad"] += 1
+                            else:
+                                if ds["alarmed"]:
+                                    self._note("dog%d desync CLEARED - world "
+                                                "motion matches belief again" % i)
+                                    ds["alarmed"] = False
+                                ds["bad"] = 0
+                            if ds["bad"] >= 5 and not ds["alarmed"]:
+                                ds["alarmed"] = True
+                                st["text"] += " [DESYNC]"
+                                self._note("dog%d DESYNC: belief moving %.2f "
+                                            "m/s but world/GPS moving %.2f m/s "
+                                            "for %ds - feet slipping or blocked, "
+                                            "estimator hallucinating (spot-check "
+                                            "the track; SHM trace has per-tick "
+                                            "detail)" % (i, believed_v, true_v,
+                                                          ds["bad"]))
+                            elif ds["alarmed"]:
+                                st["text"] += " [DESYNC]"
+                        ds["last"] = pos
                     if "[mission] RESULT" in text:
                         # A dog is DONE at its JUDGE line, not at "MISSION
                         # COMPLETE": the judge prints ~9 s later, after the
