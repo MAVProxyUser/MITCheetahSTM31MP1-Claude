@@ -7373,3 +7373,22 @@ One caution recorded because I got it wrong mid-investigation: `vx` in
 oval's RETURN leg a negative `vx` is correct, not a backward-walk
 symptom. Do not read it as one.
 
+
+### The windup clamp now ships ON by default
+
+`$CTRL_XDRAG_CLAMP` defaults to **1.0** rather than -1 (off). It was
+opt-in while it was one run's hypothesis; leaving it off shipped a robot
+that still walks backward on any sustained straight, and that is not a
+defensible default once the alternative is measured. 1.0 is the value
+every one of tonight's passes used - all 8 gaits on the 100 m dash, and
+the regression suite - so it is the value that ships rather than a fresh
+guess. A NEGATIVE value restores stock MIT's unbounded behaviour for A/B.
+
+Regression suite with it ON by default: **8/8 PASS** (star, atom, oval,
+dash_trotRunning, dash_long_duration, and circle at trotting/bounding/
+galloping).
+
+Worth testing later, deliberately NOT done now: MIT clamps the sibling
+integrator `rpy_int` to +-0.25, and a tighter bound here may well be
+better. But 0.25 has not been measured and 1.0 has, across 8 gaits plus
+the full suite - changing it now would trade evidence for symmetry.

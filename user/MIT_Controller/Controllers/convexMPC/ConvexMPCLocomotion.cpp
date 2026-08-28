@@ -1739,8 +1739,21 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   // the firstRun block - see its comment for why re-entering locomotion
   // mid-mission makes that reset load-bearing in this port specifically.)
   {
+    // DEFAULT ON as of tonight. It was opt-in while it was one run's
+    // hypothesis; it is now the difference between "three gaits have never
+    // crossed 100 m in this project's history" and all EIGHT completing the
+    // dash, and leaving it off shipped a robot that still walks backward on
+    // any sustained straight. 1.0 is the value every one of those passes was
+    // measured at, so it is the value that ships - not a fresh guess.
+    // $CTRL_XDRAG_CLAMP still overrides it, and a NEGATIVE value restores
+    // stock MIT's unbounded behaviour for A/B work.
+    //
+    // Worth testing later, not now: MIT clamps the sibling integrator
+    // rpy_int to +-0.25, and a tighter bound here may be better still - but
+    // 0.25 has not been measured and 1.0 has, across 8 gaits plus the full
+    // regression suite, so changing it would trade evidence for symmetry.
     static const float xdragClamp =
-        getenv("CTRL_XDRAG_CLAMP") ? atof(getenv("CTRL_XDRAG_CLAMP")) : -1.f;
+        getenv("CTRL_XDRAG_CLAMP") ? atof(getenv("CTRL_XDRAG_CLAMP")) : 1.0f;
     if (xdragClamp >= 0.f) {
       if (x_comp_integral >  xdragClamp) x_comp_integral =  xdragClamp;
       if (x_comp_integral < -xdragClamp) x_comp_integral = -xdragClamp;

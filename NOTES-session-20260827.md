@@ -60,12 +60,12 @@ Ordered by my read of value, not by age.
 
 | # | item | state |
 |---|---|---|
-| 1 | **Windup clamp is OFF by default** (`CTRL_XDRAG_CLAMP` defaults to -1) | every tonight result needed it passed explicitly; a default panel launch still has the bug |
-| 2 | Suite vs HEAD binary | **in flight now** |
+| 1 | Windup clamp OFF by default | **DONE** - defaults to 1.0 (the value every measured pass used). Suite **8/8** at 22:49 with it on. The fix now SHIPS. |
+| 2 | Suite vs HEAD binary | **DONE 21:30 - 8/8**, re-confirmed 8/8 at 22:36 after the force-cap fix |
 | 3 | Contention experiment | tool + model built and committed; never run |
 | 4 | `corner:` mission | no RECIPES entry (that absence *was* the WP_PLANNER bug); still no clean PASS |
 | 5 | Spawn pose | operator-flagged; two fixes reverted; feet still 10–17 cm under at settle |
-| 6 | Oval gait-switch fall | exposed by my own SIM_GAIT fix; falls ~300 ms after the 9→5 switch; never chased |
+| 6 | Oval gait-switch fall | **PARTIAL** - found+fixed a real force-cap bug (below); reach wp33 -> wp44; fast oval still falls |
 | 7 | Residual ~10 % estimator scale under-read (galloping) | new tonight, real, separate from the windup, uninvestigated |
 | 8 | `parallel` closed-leg | never re-measured; largest gap in the catalog (46.1 m) + a 90→49.4° closing corner |
 | 9 | Chase camera position not live | flagged, deliberately not built pending a decision on per-tick cost |
@@ -186,3 +186,58 @@ stopping, lying down before the dash finish" then "back on its feet -
 dashing the final leg". Sprint length checks out exactly:
 `hypot(92.39, 38.27) = 100.00 m`, aimed along the heading the dog arrived
 home on.
+
+---
+
+## #6 OVAL — what actually happened (partial, honest)
+
+**The oval was never broken.** `oval:40:5.0` at trotting @2.4 passes the
+regression suite every single time (80.5 s). What fails is the FAST
+config - trotRunning @3.5 with `WP_ANALYZER=1` mid-course gait switching,
+the one worth ~30 s instead of ~46 s.
+
+**Found and fixed a real bug on the way.** `setup_problem()`'s per-foot
+force cap was passed at FOUR call sites with THREE values, and
+`applySchedule()` - which re-runs on any MPC segment-timing change, i.e.
+any gait or speed switch - passed a hardcoded **120 N**, mini-cheetah's
+number. So every mid-course gait switch silently cut the cap 175 -> 120
+N/foot: 350 -> 240 N across two feet, against the **315 N** trotRunning
+needs at 3.5 m/s. Measured with `$SIM_MPCZ`: `Fz` pinned at exactly 350.0
+while height fell and `vz` stayed negative. `$CTRL_F_MAX` did not help
+because it only ever reached the constructor. Now one `mpcForceCap()`
+accessor at all four sites. **Suite 8/8 after.**
+
+That also invalidates this file's "trotRunning genuinely cannot hold this
+curve" - it was measured on a build handing the gait 76 % of the force it
+needed the instant the analyzer acted.
+
+**Measured negatives, so nobody repeats them:**
+- x_drag fully disabled (`CTRL_XDRAG_CLAMP=0`): still falls. The oval
+  fall is NOT the windup.
+- Effective 260 N/foot (verified reaching the solver, `Fz` hit 442.9):
+  still falls.
+
+**Net:** reach went wp33 -> wp44. It now completes the FULL analyzer
+cycle (5->9 into the curve, 9->5 out) and fails in the SECOND curve. The
+cap was load-bearing; at least one more cause sits behind it.
+
+**Trap corrected mid-investigation:** `vx` in `[MPCZ]` is `vWorld[0]`, the
+estimator's initial-heading axis - on an oval's RETURN leg a negative
+`vx` is CORRECT, not a backward-walk symptom. I misread it once.
+
+## A FALSE-PASS GENERATOR found and fixed on the way
+
+`shm_reaper --tail-text` replayed a **dead** writer's SHM ring into the
+new run's freshly truncated `ctrl_N.log`: ShmTrace only `shm_unlink()`s at
+startup, and server.py spawns the reaper microseconds before the
+controller, which needs ~1 s to boot - so the first attach lands on the
+PREVIOUS run's full ring essentially every time. Its final
+"MISSION COMPLETE"/"RESULT: PASS" lines then landed in the new log and
+`_start_poller` believed them.
+
+It produced one: **run430 was declared "COMPLETE t=212.8s PASS" nine
+seconds after launch**, reporting run429's parallel-course time, on an
+oval test. Caught only because the `[RUNID]` stamp added earlier tonight
+said `run=429` in a file claiming to be run430 - the exact contamination
+that stamp was added for, paying for itself the same evening. Fixed: skip
+history from a writer whose pid is not alive.
