@@ -708,9 +708,24 @@ class Fleet:
         with self.lock:
             if not (0 <= i < len(self.draft_slots)):
                 return False, "no such slot"
-            if len(self.draft_slots) <= 1:
-                return False, "at least one slot required"
+            # The last slot IS removable. It used to be pinned ("at least one
+            # slot required"), which meant dog 0 had no delete button at all
+            # once it was the only one - operator-reported, and the wrong
+            # trade: an empty draft is a perfectly sensible thing to want as a
+            # starting point for building a fleet from scratch, and it is
+            # launch() - not this - that has to refuse an empty fleet. Guard
+            # added there instead, where the actual constraint lives.
             self.draft_slots.pop(i)
+            return True, self.draft_slots
+
+    def draft_clear_slots(self):
+        """Remove every draft slot at once. Operator-requested: rebuilding a
+        fleet meant clicking remove up to three times, each one a separate
+        round trip that re-indexed the remaining slots (the same re-indexing
+        that caused the removal race documented in CLAUDE.md). One call, one
+        server-truth response, no intermediate states to race."""
+        with self.lock:
+            self.draft_slots = []
             return True, self.draft_slots
 
     def draft_set_slot(self, i, fields):
@@ -807,6 +822,13 @@ class Fleet:
                 terrain_kind = self.draft_terrain
             if terrain_kind not in terrain.TERRAIN_TYPES:
                 return False, "unknown terrain %r" % terrain_kind
+            # An empty fleet is refused HERE, not by pinning the last draft
+            # slot as unremovable - that pin is what left dog 0 with no
+            # delete button. "You cannot launch nothing" is a launch-time
+            # constraint; "you may not empty the draft" never was one.
+            if not slots:
+                return False, ("no dogs in the fleet - add at least one slot "
+                               "before launching")
             if self.phase in ("launching", "running"):
                 return False, "a fleet is already active - stop it first"
             # TIME MACHINE GATE (operator-diagnosed): hourly backups on this
@@ -1782,6 +1804,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self._json({"ok": False, "error": "no such route"}, 404)
 
     def do_DELETE(self):
+        # Checked BEFORE the indexed route so "/api/slots" cannot be read as
+        # a malformed "/api/slots/{i}".
+        if self.path == "/api/slots":
+            ok, res = FLEET.draft_clear_slots()
+            return self._json({"ok": ok, "slots": res if ok else None,
+                                "message": None if ok else res})
         m = re.match(r"^/api/slots/(\d+)$", self.path)
         if m:
             ok, res = FLEET.draft_remove_slot(int(m.group(1)))

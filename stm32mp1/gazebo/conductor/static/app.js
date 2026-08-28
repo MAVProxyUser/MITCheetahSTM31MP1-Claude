@@ -202,7 +202,7 @@ function renderSlots() {
                  data-i="${i}" data-f="dash" ${locked ? "disabled" : ""}>
         </label>
         <label style="justify-content:flex-end">
-          <button class="slot-remove" data-remove="${i}" ${locked || slots.length <= 1 ? "disabled" : ""}>&times; remove</button>
+          <button class="slot-remove" data-remove="${i}" ${locked ? "disabled" : ""}>&times; remove</button>
         </label>
       </div>
       <div class="slot-row cam-config-row">
@@ -325,6 +325,8 @@ function renderSlots() {
     });
   });
   document.getElementById("addSlot").disabled = locked || slots.length >= 3;
+  const clearBtn = document.getElementById("clearSlots");
+  if (clearBtn) clearBtn.disabled = locked || slots.length === 0;
 }
 
 function renderScene() {
@@ -592,6 +594,26 @@ document.getElementById("addSlot").addEventListener("click", async () => {
   const r = await fetch("/api/slots/add", { method: "POST" });
   const j = await r.json();
   if (j.ok) { slots = j.slots; renderSlots(); } else { alert(j.message); }
+});
+document.getElementById("clearSlots").addEventListener("click", async () => {
+  if (!slots.length) return;
+  // Same _removing guard the per-slot remove uses: disable every slot
+  // control synchronously so nothing can act on a stale index while the
+  // DELETE is in flight, and adopt the SERVER's returned list as truth
+  // rather than mutating locally and hoping they agree.
+  _removing = true;
+  renderSlots();
+  try {
+    const r = await fetch("/api/slots", { method: "DELETE" });
+    const j = await r.json();
+    if (j.ok) slots = j.slots;
+    else alert(j.message || "could not clear slots");
+  } catch (err) {
+    alert("clear failed: " + err);
+  } finally {
+    _removing = false;
+    renderSlots();
+  }
 });
 document.getElementById("launchBtn").addEventListener("click", async e => {
   // Disable and relabel INSTANTLY, before the fetch - renderFleet() only

@@ -93,6 +93,14 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .slot-row select:focus, .slot-row input:focus { outline: none; border-color: var(--accent); }
 .slot-remove { align-self: flex-start; padding: 0.15rem 0.4rem; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.9rem; }
 .slot-remove:hover { color: var(--warn); }
+.slot-remove:disabled { opacity: 0.35; cursor: default; }
+/* Delete-all sits in the Slots heading; deliberately quieter than the
+   per-slot remove until hovered, since it is the wider action. */
+.slot-clear { float: right; padding: 0.1rem 0.4rem; border: none;
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 0.75rem; font-weight: normal; }
+.slot-clear:hover:not(:disabled) { color: var(--warn); }
+.slot-clear:disabled { opacity: 0.3; cursor: default; }
 .gait-warning {
   margin: 0 !important; padding: 0.2rem 0.4rem; background: rgba(196, 92, 58, 0.15);
   border: 1px solid var(--warn); color: var(--warn) !important; font-size: 0.68rem !important;
