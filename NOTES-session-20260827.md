@@ -65,7 +65,7 @@ Ordered by my read of value, not by age.
 | 3 | Contention experiment | **DONE - REFUTED at N<=3.** 9 runs, 876 samples, 0 ticks over 4ms at every N. Real stalls were Time Machine (external), not dogs competing. |
 | 4 | `corner:` mission | **DONE.** It had no recipe - that WAS the bug. 45/90/135 deg all PASS on one tuning. Now in RECIPES + dropdown. |
 | 5 | Spawn pose | operator-flagged; two fixes reverted; feet still 10–17 cm under at settle |
-| 6 | Oval gait-switch fall | **SOLVED (Fable).** Root cause chain: phase-misaligned gait adoption (fixed: phase-gated at cycle wrap) + hot-entry switch transients no variation survived + the archaeology that the milestone oval NEVER actually switched (phantom prints). Shipped: cap-only trotRunning@3.5, **4/4 PASS at 37.0-37.1s** vs 80.5s fallback. My earlier 'second curve' claim was wrong - both falls bracketed ONE curve's two switches. |
+| 6 | Oval gait-switch fall | **SOLVED (Fable).** Chain: phase-gated gait adoption (fixed the mis-phased contact-table collapse) + pre-planner settle lead (`entry_settle_x * track_lag_s * v_cap` before the arc - fixed hot entry, per direct order) + archaeology: the milestone oval NEVER actually switched (phantom prints). Shipped: cap-only trotRunning@3.5, 4/4 at 37.0-37.1s then 3/3 at 38.1-38.3s with the settle lead (+1.2s, the ordered trade). REAL switching (WP_GAIT_CORNER=9 explicit) still falls - two causes removed, swing-phase jump is the narrowest remaining suspect. My 'second curve' claim was wrong - both falls bracketed ONE curve's two switches. |
 | 7 | Residual ~10 % estimator scale under-read (galloping) | new tonight, real, separate from the windup, uninvestigated |
 | 8 | `parallel` closed-leg | never re-measured; largest gap in the catalog (46.1 m) + a 90→49.4° closing corner |
 | 9 | Chase camera position not live | flagged, deliberately not built pending a decision on per-tick cost |
@@ -241,3 +241,39 @@ oval test. Caught only because the `[RUNID]` stamp added earlier tonight
 said `run=429` in a file claiming to be run430 - the exact contamination
 that stamp was added for, paying for itself the same evening. Fixed: skip
 history from a writer whose pid is not alive.
+
+---
+
+## FABLE SESSION ADDENDUM (2026-08-28, 00:00-01:15)
+
+Everything below is in CLAUDE.md in full; this is the index.
+
+- **The fast oval is SOLVED and shipping**: `oval` recipe = trotRunning
+  @3.5, `WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5` (speed cap in the
+  curves, NO gait swap). 4/4 + 3/3 reps, suite 8/8 twice.
+- **Phase-gated gait adoption** (ConvexMPCLocomotion): a requested gait
+  change defers to the cycle wrap (seg 0) instead of firing at an
+  arbitrary phase - 40% of the trot-pair cycle instantly de-loads the
+  carrying diagonal or schedules stance onto airborne feet. Fixed the
+  flat collapse AT the switch; also makes every ENGAGEMENT
+  phase-deterministic. Into-standing stays immediate (always safe).
+- **Pre-planner settle lead** (MissionAnalyzer): sustained cap begins
+  `entry_settle_x * track_lag_s * v_cap` (~5.8m on the oval) BEFORE the
+  arc, so braking finishes on the straight. Entry measured settled at
+  ~2.4 (was 2.7-3.0 hot). `$WP_ENTRY_SETTLE`, default 2.0.
+- **Force-cap dose-response reframed**: 240 N was headroom to survive a
+  MIS-PHASED switch, not steady-state need.
+- **Archaeology**: the fleet-complete milestone oval never actually
+  switched gaits - phantom prints from the pre-fix SIM_GAIT override.
+  Cap-only is what history validated; the recipe now says so explicitly.
+- **Real switching still broken** (explicit WP_GAIT_CORNER=9 falls):
+  contact table fixed, hot entry fixed, swing-phase `swingState` jump
+  across the swap is the narrowest remaining suspect.
+- **Two near-false claims caught by verification**: my own "second
+  curve" location claim (both falls bracket ONE curve's switches), and
+  a "switching passes!" probe whose [SCHED] log showed zero mid-course
+  adoptions - the recipe's `WP_GAIT_CORNER=5` survived the probe's extra
+  (env-last-wins makes recipe fields sticky; always check adoption lines).
+- **Octagon named honestly**: dropdown says "Octagon search (8×45°)";
+  the smooth circle `circle:9:36` is selectable and verified (33.7s).
+- **`corner:` probe shipped** with recipe + dropdown (45/90/135 all PASS).

@@ -725,7 +725,16 @@ star:<r>:<points>            # e.g. star:10.514:5 - 5-point star
 oval:<straight_m>:<radius_m> # e.g. oval:40:5.0 - stadium
 atom:<outer_r>:<lobes>       # e.g. atom:9.0:6 - epitrochoid rosette
 dash:<metres>                # straight sprint, ends at the final waypoint
-circle:<r>:<points>          # e.g. circle:9:8
+circle:<r>:<points>          # N-GON, named honestly now: circle:9:8 is
+                              #   an OCTAGON (45deg/vertex, the discrete-
+                              #   corner probe); circle:9:36 is the
+                              #   functionally-smooth real circle. Both
+                              #   share the "circle" recipe.
+corner:<leg_m>:<angle_deg>   # e.g. corner:25:45 - ONE isolated corner
+                              #   with a real approach and exit; the
+                              #   per-angle cornering probe (sweep the
+                              #   angle: 25:90, 25:135, ...). Verified
+                              #   45/90/135 all PASS on one wide tuning.
 sector:<leg_m>:<reps>        # e.g. sector:15:3 - SAR sector search
 parallel:<width_m>:<height_m>:<passes>  # e.g. parallel:30:5:8 - SAR lawnmower
 expsquare:<step_m>:<legs>    # e.g. expsquare:5:12 - SAR expanding square
@@ -772,7 +781,8 @@ one (like lissajous) probably does not, since there is no single
 python3 -c "
 import random
 catalog = ['star:10.514:5','oval:40:5.0','atom:9.0:6','spiro:9.0:8','dash:100',
-           'circle:9:8','sector:15:3','parallel:30:5:8','expsquare:5:12',
+           'circle:9:8','circle:9:36','corner:25:45','sector:15:3',
+           'parallel:30:5:8','expsquare:5:12',
            'lissajous:15:1:2','lissajous:15:5:7','lissajous:15:11:9']
 print(' '.join(f'--slot \"{m}\"' for m in random.sample(catalog, 3)))
 "
