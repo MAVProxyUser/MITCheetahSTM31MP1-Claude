@@ -1,6 +1,6 @@
 # CLAUDE.md — STM32MP1 Cheetah port: rules, architecture, and traps
 
-Read before changing the port. Companion to `SKILL.md` (commands) and `README.md`.
+Read before changing the port. Companion to `SKILL.md` (commands), `README.md`, and **`ISSUES.md` (the official issue tracker - every open and closed issue with symptom/cause/fix/evidence; update it when an issue opens or closes, this file stays the deep-dive archive)**.
 
 ## The board (Octavo OSD32MP1-RED)
 
