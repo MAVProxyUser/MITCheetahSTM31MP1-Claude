@@ -320,3 +320,24 @@ window, and every validated result in the project shares it.
 RECOMMENDATION: accept the boot-window clip; revisit only if gz gains
 initial-joint-state support at spawn. Flagged for the operator's call,
 not silently closed.
+
+---
+
+## FINAL VALIDATION (04:24-05:15): full suite, 19/19 PASS
+
+The closing run per the night's own lesson ("the first full suite after
+any default change is the test that matters most"): all 19 cases -
+every mission in the catalog at its recipe defaults, plus the switching
+and envelope cases - with velocity aiding DEFAULT-ON everywhere, the
+phase-origin rebase, the spawn-yaw constructor fix, and the exit-2
+retry-then-fail suite semantics all active together for the first time.
+
+    star  atom  oval  dash_trotRunning  dash_long_duration
+    octagon_recipe  circle_smooth_36gon  corner_probe_90deg
+    corner_octagon_45deg  oval_real_switch  sector_recipe
+    parallel_recipe  expsquare_recipe  lissajous_1_2  lissajous_5_7
+    lissajous_11_9  spiro_recipe  bounding_octagon_45deg
+    galloping_octagon_45deg          -> 19/19 PASS
+
+Every ordered target solved, every backlog item closed or explicitly
+flagged for the operator's decision, working tree clean, all pushed.
