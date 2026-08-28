@@ -7504,3 +7504,37 @@ per-gait, per-angle envelope in arbitrary notches, instead of only the
 angles other courses happen to contain (45 from circle, 90 from
 parallel/expsquare, 120-147.5 from sector, 144/162 from star).
 
+
+### The fast oval, after the force-cap fix: better, still not passing
+
+Continuing item 6 on the current build (force cap unified, windup clamp
+on by default, SHM run-id). `oval:40:5.0` trotRunning @3.5 with
+`WP_ANALYZER=1 WP_VSUS=2.4`, varying only the per-foot cap:
+
+| `CTRL_F_MAX` | reach | fall |
+|---|---|---|
+| 175 (default) | wp33 | flat collapse right at the `5 -> 9` switch |
+| 240 | **wp44** | flat collapse, SECOND curve |
+| 260 | **wp44** | flat collapse, SECOND curve |
+
+So the cap is genuinely binding - raising it clears the first curve and
+the entire `5 -> 9 -> 5` analyzer cycle - but it is not sufficient. And
+this is not simply "too fast": trotRunning @3.0 with the analyzer fails
+too, as does x_drag fully disabled.
+
+Worth noting against this file's own force-cap comment, which says a
+2-foot-down gait peaks at **128-192 N/foot** and the knee is good for
+**240-355 N**: the shipped 175 is below the top of the gait's own demand
+band and well below what the hardware could deliver, so 240 is not an
+aggressive value - it is inside the documented envelope. It still is not
+enough for this course at this speed.
+
+**Status, plainly: the oval RUNS.** `trotting @2.4, WP_ANALYZER=0` is the
+shipping recipe and passes the regression suite every time (80.5 s). What
+remains unsolved is the FAST configuration (trotRunning @3.5 with
+mid-course gait switching, historically ~30 s), which is a speed
+optimisation, not a broken course. The next lead is the second curve
+specifically - both surviving failures are there, not at the switch - so
+whatever is left is about sustained R=5 cornering under a flight gait
+rather than about the gait change.
+
