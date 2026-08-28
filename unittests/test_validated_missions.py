@@ -55,6 +55,13 @@ class Case:
     min_s: float = 1.0   # a real completion below this is suspicious (too fast = didn't run)
     max_s: float = 400.0 # generous outer bound; mission_runner's own baseline logic does the real timing
     why: str = ""
+    # "fast" = the quick regression gate (~15 min, the tier every code
+    # change has been validated against all along). "full" = the long-
+    # course catalog (SAR patterns, lissajous, spiro) - recipe-driven,
+    # ~35 more minutes, lissajous:15:11:9 alone is ~9.5 of them. The
+    # DEFAULT invocation runs BOTH tiers (per direct instruction: "add
+    # the full suite"); --fast restores the quick gate for iteration.
+    tier: str = "fast"
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +237,95 @@ CASES = [
             "the mission name; see the 'Naming correction' note in "
             "CLAUDE.md before assuming this tests continuous curvature."
         ),
+    ),    Case(
+        name="sector_recipe", tier="full",
+        slots=["sector:15:3"], gaits=[], speeds=[], extras=[],
+        min_s=100, max_s=280,
+        why=(
+            "SAR sector search at its own recipe (walking @2.0, star-tight "
+            "turn-grading 0.8/2.0, WP_FINAL_ACCEPT=0.3). Validated at "
+            "141.5/141.8s leg-open; close_leg (default ON) adds the 15.0m "
+            "walk home - its sharpest angle is UNCHANGED by closing (32.5deg "
+            "either way, the course already had one that tight). First "
+            "suite-covered 2026-08-28 with the full-catalog tier."
+        ),
     ),
+    Case(
+        name="parallel_recipe", tier="full",
+        slots=["parallel:30:5:8"], gaits=[], speeds=[], extras=[],
+        min_s=140, max_s=330,
+        why=(
+            "SAR parallel-track (lawnmower) at its own recipe (walking "
+            "@1.5). The largest close-leg cost in the catalog - 46.1m gap "
+            "plus a 90->49.4deg closing corner - measured PASS 212.8s "
+            "closed vs 181-182s open (+17%, monotonic in gap size across "
+            "circle/expsquare/parallel). Bounds sized for the CLOSED "
+            "course, which is what the recipe now runs."
+        ),
+    ),
+    Case(
+        name="expsquare_recipe", tier="full",
+        slots=["expsquare:5:12"], gaits=[], speeds=[], extras=[],
+        min_s=80, max_s=230,
+        why=(
+            "SAR expanding square at its own recipe (walking @1.5). "
+            "Closed-leg measured PASS 121.3s (+11% over 109s open); the "
+            "closing corner is the SHARPEST on the course (90->33.7deg) "
+            "and the turn-grading was never measured against it - it "
+            "passes, but if this case regresses at the very END of the "
+            "course, suspect that corner before the course itself."
+        ),
+    ),
+    Case(
+        name="lissajous_1_2", tier="full",
+        slots=["lissajous:15:1:2"], gaits=[], speeds=[], extras=[],
+        min_s=60, max_s=190,
+        why=(
+            "Lissajous 1:2 at recipe (walking @1.5) - the short smooth "
+            "parametric course, 96.1-96.2s across every prior sweep. "
+            "Closes itself by construction (ends 0.00m from home), so "
+            "close_leg is a structural no-op here - a shift in its time "
+            "cannot be blamed on the closing leg."
+        ),
+    ),
+    Case(
+        name="lissajous_5_7", tier="full",
+        slots=["lissajous:15:5:7"], gaits=[], speeds=[], extras=[],
+        min_s=250, max_s=480,
+        why=(
+            "Lissajous 5:7 at recipe - 345.9s baseline, twice matched "
+            "exactly. Historically the course that exposed BOTH the silent "
+            "'timeout 240' SIGKILL (its controller vanished mid-run with a "
+            "signature indistinguishable from a crash) and the false "
+            "stall-timeout class - if this case times out, read the "
+            "module docstring before believing the verdict."
+        ),
+    ),
+    Case(
+        name="lissajous_11_9", tier="full",
+        slots=["lissajous:15:11:9"], gaits=[], speeds=[], extras=[],
+        min_s=420, max_s=760,
+        why=(
+            "Lissajous 11:9 at recipe - the longest course in the catalog "
+            "(902m path, 561.7-562.0s baseline). THE duration stress case: "
+            "~9.5 minutes of continuous low-speed cruising, which is also "
+            "the deepest sustained exercise of the x_comp_integral clamp "
+            "outside the dash cases. The whole reason the full tier is "
+            "opt-out for iteration (--fast) instead of this being trimmed."
+        ),
+    ),
+    Case(
+        name="spiro_recipe", tier="full",
+        slots=["spiro:9.0:8"], gaits=[], speeds=[], extras=[],
+        min_s=80, max_s=210,
+        why=(
+            "Spirograph 8-lobe rosette at recipe (trotting @1.8) - "
+            "makeAtom's own formula at k=lobes, depth 0.99. 118.9-119.2s "
+            "across three prior runs including one 3-dog fleet. Ends "
+            "0.05m from home (periodic curve), close_leg no-op."
+        ),
+    ),
+
 ]
 
 FLIGHT_GAIT_CASES = [
@@ -349,6 +444,10 @@ def run_case(case: Case, repeats: int) -> bool:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--only", nargs="*", help="run only these case names")
+    ap.add_argument("--fast", action="store_true",
+                     help="run only the fast tier (~15 min quick gate) - the default "
+                          "runs the FULL suite including the long-course catalog "
+                          "(~50 min; lissajous:15:11:9 alone is ~9.5)")
     ap.add_argument("--repeats", type=int, default=1, help="repeats per case (default 1 - SITL has real run-to-run variance, see CLAUDE.md; use 3+ before trusting a single failure)")
     ap.add_argument("--list", action="store_true", help="list cases and their tribal-knowledge rationale, then exit")
     ap.add_argument("--history", nargs="?", const="__all__", help="print the ring-buffer run history (optionally for one case name) and exit, without running anything")
@@ -363,7 +462,12 @@ def main():
         run_history.summarize(None if args.history == "__all__" else args.history)
         return 0
 
-    names = args.only if args.only else list(ALL_CASES.keys())
+    if args.only:
+        names = args.only
+    elif args.fast:
+        names = [n for n, c in ALL_CASES.items() if c.tier == "fast"]
+    else:
+        names = list(ALL_CASES.keys())
     unknown = [n for n in names if n not in ALL_CASES]
     if unknown:
         print(f"Unknown case name(s): {unknown}. Known: {list(ALL_CASES.keys())}")

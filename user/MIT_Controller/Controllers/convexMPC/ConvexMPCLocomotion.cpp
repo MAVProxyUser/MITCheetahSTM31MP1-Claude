@@ -521,6 +521,27 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
                  _gaitDeferTicks > 300 ? " - CAP HIT, adopting off-wrap" : "");
           _gaitAdopted = gaitNumber;
           _gaitDeferTicks = 0;
+          /*
+           * SWING CONTINUITY ACROSS THE SWAP. Even a phase-aligned adoption
+           * changes each foot's swing SCHEDULE mid-flight: at seg 0 the
+           * off pair is 2/7 through trotRunning's swing but 0/5 through
+           * trotting's, so its swingState JUMPS and the existing Bezier -
+           * still anchored at the OLD liftoff point - gets re-evaluated at
+           * the jumped phase, yanking a mid-air foot toward a stale
+           * trajectory. Measured consequence: with the contact table fixed
+           * (this gate) and hot entry fixed (the analyzer settle lead), a
+           * real 9->5/5->9 swap STILL fell within ~1 s - this discontinuity
+           * was the narrowest remaining suspect.
+           *
+           * Forcing firstSwing on every leg at the swap makes each foot's
+           * next swing tick RE-CAPTURE its trajectory from where the foot
+           * physically is (setInitialPosition(pFoot)) and re-plan to a
+           * fresh Raibert touchdown under the NEW gait's timing - the same
+           * re-plan every ordinary liftoff performs. Stance feet are
+           * untouched by construction: the stance branch holds firstSwing
+           * true anyway, and the flag is only consumed when swingState > 0.
+           */
+          for (int leg = 0; leg < 4; ++leg) firstSwing[leg] = true;
         } else {
           if (_gaitDeferTicks == 1)
             shmtrace::logf(0.0, "[SCHED] gait %d -> %d requested at seg=%d - deferring to cycle wrap",

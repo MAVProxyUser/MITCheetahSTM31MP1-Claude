@@ -263,6 +263,46 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     pzs(i) = (1.0f - trust) * (p0(2) + p_f(2));
   }
 
+  // [LEGVEL] ($SIM_LEGVEL_DBG=1) - the discriminating diagnostic for the
+  // galloping ~10% velocity/position scale under-read (see CLAUDE.md).
+  // Two hypotheses produce the same fused symptom and need different fixes:
+  //   H-measurement: the raw leg-odometry velocity (-dp_f) is itself ~10%
+  //     low during confident stance (foot slip under galloping's high
+  //     per-foot forces, or kinematics sampled while the scheduled-stance
+  //     foot is not truly loaded) -> fix belongs at the sensor/fusion level
+  //     (e.g. GPS velocity aiding, built for exactly this).
+  //   H-blending: the measurement is faithful but the trust-ramp blend
+  //     drags the fused state toward its own prior at galloping's fast
+  //     stance edges -> fix belongs in the trust/ramp shape.
+  // Logs, at 10 Hz, each leg's trust and measured world-x velocity (-dp_f)
+  // beside the fused vx - lined up against $SIM_ESTERR's ground truth at
+  // the same timestamps, one of the two hypotheses dies.
+  {
+    static const bool legdbg =
+        getenv("SIM_LEGVEL_DBG") && atoi(getenv("SIM_LEGVEL_DBG")) != 0;
+    if (legdbg) {
+      static int nlv = 0;
+      static double lvElapsed = 0.0;
+      lvElapsed += _dtUsed;
+      if ((nlv++ % 50) == 0) {
+        // reconstruct each leg's -dp_f x-term from _vs is not possible after
+        // the blend, so recompute cheaply from the stored measurement vector:
+        // _vs holds the BLENDED value; log it per leg plus trust, and the
+        // fused prior v0 - the blend equation lets the raw measurement be
+        // recovered offline: meas = (vs - (1-trust)*v0) / trust  (trust>0).
+        shmtrace::logf(lvElapsed,
+               "[LEGVEL] vx_fused_prior=%.3f "
+               "L0 t=%.2f vs=%.3f  L1 t=%.2f vs=%.3f  "
+               "L2 t=%.2f vs=%.3f  L3 t=%.2f vs=%.3f",
+               (double)v0[0],
+               (double)trusts(0), (double)_vs[0],
+               (double)trusts(1), (double)_vs[3],
+               (double)trusts(2), (double)_vs[6],
+               (double)trusts(3), (double)_vs[9]);
+      }
+    }
+  }
+
   Eigen::Matrix<T, 28, 1> y;
   y << _ps, _vs, pzs;
   _xhat = _A * _xhat + _B * a;
