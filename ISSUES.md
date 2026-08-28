@@ -29,10 +29,22 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   standing** — `UNEXPLAINED`. Every dog, both fleet architectures. Ruled
   out: RTF, loop starvation, sensor wiring, startup race, settling.
   Distinct from contention (refuted at N≤3).
-- **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"
-  ×2 every run** — `UNEXPLAINED`, minor. Deterministic, harmless-looking,
-  never eliminated. Likely tied to the spawn clip — see CLOSED (was
-  OPEN-1), the spawn-pose entry.
+- **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"**
+  — `UNEXPLAINED`, minor, and CURRENT: log archaeology (2026-08-28,
+  operator-asked "when did we last see it") found the last sighting is
+  the session's FINAL run (15:54, ×2 at boot, the classic signature).
+  Two prior claims in this entry corrected against 641 archived ctrl
+  logs: (1) it is NOT "×2 every run" — it appears in ~2/3 of runs,
+  stable for three days (Aug 26: 77/110, Aug 27: 198/298, Aug 28:
+  167/233; occasionally ×1 or ×3), and blip-free runs complete missions
+  cleanly (runs 638/640, full PASSes); (2) the "likely tied to the
+  spawn clip" hypothesis is REFUTED — the z=0.45 spawn fix landed 11:56
+  (a4cc804) and the rate is statistically identical either side of it
+  (87/122 before, 80/111 after, same day). It is an independent,
+  intermittent boot-window estimator transient; verdicts look
+  uncorrelated (passes and fails exist in both populations). Root cause
+  still unknown — but the search space no longer includes the spawn
+  pose.
 - **OPEN-7 · Terrain: standing on the farm mesh works, walking doesn't** —
   `UNEXPLAINED`/unfinished. Contact-terminated stand improved it; every
   validated result is on flat ground. Proper fix needs touchdown-torque
