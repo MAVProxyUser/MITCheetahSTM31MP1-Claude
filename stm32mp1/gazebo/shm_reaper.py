@@ -209,6 +209,24 @@ def read_all_text(instance):
         os.close(fd)
 
 
+def _pid_alive(pid):
+    """Is this pid a live process? Used to tell a running controller's SHM
+    ring from a dead one's leftovers - see the call site for the false-PASS
+    that motivated it. signal 0 performs the existence/permission check
+    without delivering anything. A pid of 0 is never a real writer here."""
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True          # exists, just not ours to signal
+    except OSError:
+        return False
+    return True
+
+
 def tail_text_to_log(instance, log_path, poll_s=0.2):
     """Continuously append new text-ring records for `instance` to
     `log_path`, in the order they were written - this IS the printf
@@ -244,7 +262,39 @@ def tail_text_to_log(instance, log_path, poll_s=0.2):
                 write_seq, writer_pid = struct.unpack_from("<Q12xI", m, 0)
                 if writer_pid != last_pid:
                     last_pid = writer_pid
-                    last_seq = 0
+                    # NEVER REPLAY A DEAD WRITER'S RING. The segment
+                    # (/cheetah_trace_text_N) outlives the process that made
+                    # it - ShmTrace only shm_unlink()s at STARTUP, not at
+                    # exit - so between runs the previous controller's ring
+                    # is still sitting there, full, with its final records
+                    # intact. server.py spawns this reaper microseconds after
+                    # the controller, and the controller needs ~1 s to boot
+                    # before it unlinks and recreates the segment, so the
+                    # first attach lands on the OLD run's ring essentially
+                    # every time. Replaying it from seq 0 dumped the previous
+                    # mission's entire tail - including its "MISSION COMPLETE"
+                    # and "[mission] RESULT: PASS" lines - into the new run's
+                    # freshly truncated ctrl_%d.log.
+                    #
+                    # That is a FALSE PASS generator, and it produced one:
+                    # run430 (oval, trotRunning @3.5) was declared
+                    # "COMPLETE t=212.8s PASS" NINE SECONDS after launch,
+                    # reporting run429's parallel-course time, because
+                    # _start_poller scans the whole ctrl log for exactly
+                    # those markers. Caught only because the [RUNID] stamp
+                    # added earlier the same evening said run=429 in a file
+                    # that claimed to be run430.
+                    #
+                    # A live writer's ring is real data and is replayed in
+                    # full (that is the whole point of the ring - the reaper
+                    # must not miss lines written before it attached). A DEAD
+                    # writer's ring is history that already has an archived
+                    # log file of its own, so skip to its end rather than
+                    # re-emitting it. When the real controller then creates
+                    # its segment the pid changes again and this branch
+                    # re-fires with a live pid, replaying that ring properly
+                    # from 0 - so nothing the new run writes is ever lost.
+                    last_seq = 0 if _pid_alive(writer_pid) else write_seq
                 if write_seq != last_seq:
                     start = max(last_seq, write_seq - TEXT_RING_CAPACITY)
                     for seq in range(start, write_seq):

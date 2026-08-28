@@ -7310,3 +7310,66 @@ biggest) plus a 90->49.4 deg closing corner predicts. Completes the set:
 
 Monotonic in the gap, as it should be - it is the same walk home each
 time, priced by how far home is. All three pass closed.
+
+## THE FORCE CAP WAS SET IN FOUR PLACES WITH THREE VALUES - and a gait switch silently cut it to 120 N
+
+Per direct instruction to fix the oval ("you HAVE to be able to run that
+oval"). Chasing it turned up a real bug that explains a long-standing
+wrong conclusion in this file.
+
+`setup_problem()`'s 4th argument is the per-foot force cap. It was passed
+at FOUR call sites with THREE different values:
+
+| site | value |
+|---|---|
+| constructor | `$CTRL_F_MAX` or 175 |
+| `applySchedule()` | **hardcoded 120** |
+| `solveDenseMPC()` | `MPC_F_MAX` (175) |
+| `_runSolve()` | `MPC_F_MAX` (175) |
+
+120 is mini-cheetah's original number, corrected to 175 for the Go1 long
+ago everywhere except here. And `applySchedule()` re-runs `setup_problem`
+whenever the MPC SEGMENT TIMING changes - which is gait- and
+speed-dependent - so **any mid-course gait switch or speed change
+silently dropped the cap from 175 to 120 N/foot**: 350 -> 240 N across
+the two feet a diagonal-pair gait has down. trotRunning at 3.5 m/s needs
+`m*g/duty` = 126.1/0.4 = **315 N** during stance. 240 N cannot hold the
+robot up.
+
+**This is why the OVAL specifically failed**: it is the only course in
+the catalog that switches gait mid-run (`WP_ANALYZER`). And it means this
+file's own conclusion - "trotRunning genuinely cannot hold this curve" -
+was measured on a build that handed it 76 % of the force it needed the
+moment the analyzer acted. That conclusion should be treated as
+UNVERIFIED, not as a property of the gait.
+
+Measured directly with `$SIM_MPCZ`: `Fz` pinned at exactly **350.0 N**
+(the 175 cap x 2) while body height fell 0.291 -> 0.264 with `vz`
+negative throughout - the solver asking for everything it was allowed and
+still sinking. `$CTRL_F_MAX=250` changed NOTHING, because that override
+only ever reached the constructor.
+
+Fixed with one `mpcForceCap()` accessor used by all four sites - the same
+one-source-of-truth treatment the decel ramps, the draft slots and the
+gait dropdown needed tonight.
+
+### Honest status: this did NOT restore the fast oval
+
+Two more measured negatives, so nobody re-runs them:
+
+- `$CTRL_XDRAG_CLAMP=0` (x_drag fully disabled): still fell. The oval's
+  mid-course fall is **not** the `x_comp_integral` windup.
+- Cap unified, then raised to an effective 260 N/foot (verified reaching
+  the solver - `Fz` reached 442.9, past the old 350 ceiling): still fell.
+
+What DID change is how far it gets. Before: fell at **wp33**, right at
+the first `5 -> 9` switch. After: reaches **wp44**, completing the FULL
+analyzer cycle (`5 -> 9` into the curve, `9 -> 5` out of it) and failing
+in the SECOND curve instead. So the force cap was a genuine, load-bearing
+bug on this course and there is at least one more cause behind it.
+
+One caution recorded because I got it wrong mid-investigation: `vx` in
+`[MPCZ]` is `vWorld[0]`, the estimator's own initial-heading axis. On an
+oval's RETURN leg a negative `vx` is correct, not a backward-walk
+symptom. Do not read it as one.
+

@@ -27,6 +27,38 @@
 #else
 #define MPC_F_MAX 120
 #endif
+
+/*
+ * THE PER-FOOT FORCE CAP, IN ONE PLACE.
+ *
+ * setup_problem()'s 4th argument was passed at FOUR call sites with THREE
+ * different values: the constructor honoured $CTRL_F_MAX, solveDenseMPC()
+ * and _runSolve() passed MPC_F_MAX (175), and applySchedule() passed a
+ * hardcoded 120 - mini-cheetah's original number, which this port corrected
+ * to 175 for the Go1 long ago and which survived only here.
+ *
+ * That was not cosmetic. applySchedule() re-runs setup_problem whenever the
+ * MPC SEGMENT TIMING changes, and segment timing is gait- and
+ * speed-dependent - so any mid-course gait switch or speed change silently
+ * dropped the cap from 175 to 120 N/foot, i.e. 350 -> 240 N on the two feet
+ * a diagonal-pair gait has down. trotRunning at 3.5 m/s needs m*g/duty =
+ * 126.1/0.4 = 315 N during stance. 240 N cannot hold the robot up, so the
+ * body sank and collapsed flat (roll~0, pitch~0, z->0.06) a second or two
+ * after the switch.
+ *
+ * This is why the OVAL - the only course in the catalog that switches gait
+ * mid-run, via WP_ANALYZER - was the one that failed, and why this file
+ * concluded "trotRunning genuinely cannot hold this curve". It held the
+ * curve fine; it was being handed 76% of the force it needed the moment the
+ * analyzer acted. Measured directly: $SIM_MPCZ showed Fz pinned at exactly
+ * 350.0 N (the 175 cap x 2) while height fell, and $CTRL_F_MAX=250 changed
+ * NOTHING because it only ever reached the constructor.
+ */
+static inline float mpcForceCap() {
+  static const float f = getenv("CTRL_F_MAX") ? atof(getenv("CTRL_F_MAX"))
+                                              : (float)MPC_F_MAX;
+  return f;
+}
 #include "convexMPC_interface.h"
 #include "../../../../common/FootstepPlanner/GraphSearch.h"
 
@@ -78,7 +110,7 @@ ConvexMPCLocomotion::ConvexMPCLocomotion(float _dt, int _iterations_between_mpc,
   {
     static const float fmax = getenv("CTRL_F_MAX") ? atof(getenv("CTRL_F_MAX"))
                                                   : (float)MPC_F_MAX;
-    setup_problem(dtMPC, horizonLength, 0.4, fmax);
+    setup_problem(dtMPC, horizonLength, 0.4, mpcForceCap());
   }
   //setup_problem(dtMPC, horizonLength, 0.4, 650); // DH
 
@@ -1346,7 +1378,7 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
       iterationsBetweenMPC = wantIters;
       dtMPC = dt * iterationsBetweenMPC;
       _segMsCurrent = p.segMs;
-      setup_problem(dtMPC, horizonLength, 0.4, 120);
+      setup_problem(dtMPC, horizonLength, 0.4, mpcForceCap());
     }
   } else if (_segMsCurrent == 0) {
     _segMsCurrent = p.segMs;
@@ -1641,7 +1673,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   // no state cost and no friction constraints, so the QP reduced to
   // min alpha*||u||^2 and both solvers correctly returned ZERO force.
   // The worker calls setup_problem itself, on its own thread, before each solve.
-  if (!_mpcAsync) setup_problem(dtMPC,horizonLength,0.4,MPC_F_MAX);
+  if (!_mpcAsync) setup_problem(dtMPC,horizonLength,0.4,mpcForceCap());
   update_x_drag(x_comp_integral);
   if(vxy[0] > 0.3 || vxy[0] < -0.3) {
     //x_comp_integral += _parameters->cmpc_x_drag * pxy_err[0] * dtMPC / vxy[0];
@@ -1798,7 +1830,7 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
 //! The original MIT solve, run on the worker thread against a snapshot.
 void ConvexMPCLocomotion::_runSolve(const MpcSnapshot& in, Vec3<float> frTraj[3][4]) {
   float Q[12] = {0.25, 0.25, 10, 2, 2, 50, 0, 0, 0.3, 0.2, 0.2, 0.1};
-  setup_problem(in.dtMPC, in.horizon, 0.4, MPC_F_MAX);
+  setup_problem(in.dtMPC, in.horizon, 0.4, mpcForceCap());
   update_x_drag(x_comp_integral);
   update_solver_settings(_parameters->jcqp_max_iter, _parameters->jcqp_rho,
       _parameters->jcqp_sigma, _parameters->jcqp_alpha,
