@@ -383,8 +383,10 @@ RECIPES = {
                            "R=2.25m/no-braking baseline). This course ends 46.1m "
                            "from home - the LARGEST gap in the catalog - so "
                            "'Close final leg' (default ON) adds a substantial "
-                           "walk plus a 90->49.4deg closing corner. NOT yet "
-                           "re-measured closed; expect well over 182s."),
+                           "walk plus a 90->49.4deg closing corner: MEASURED "
+                           "PASS 212.8s closed, +17% over the 181-182s open "
+                           "baseline - the largest close-leg cost in the "
+                           "catalog, as its gap predicts."),
     # Same fix, same reasoning, same numbers as parallel immediately above -
     # expsquare's corners are ALSO a constant 90deg turn (its 5 non-trivial
     # legs alternate direction by exactly 90deg each), so it had the

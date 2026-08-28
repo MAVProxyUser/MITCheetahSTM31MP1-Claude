@@ -7296,3 +7296,17 @@ force, so this is not a small-sample inference of the kind this file
 keeps having to retract. But it is one run per cell, and the clamp is
 still opt-in pending exactly that repetition.
 
+
+**`parallel` closed-leg measured, filling the one gap left open above**:
+PASS **212.8 s** against its 181-182 s leg-open baseline, **+17 %** - the
+largest close-leg cost in the catalog, which is what its 46.1 m gap (the
+biggest) plus a 90->49.4 deg closing corner predicts. Completes the set:
+
+| course | gap from home | open | closed | delta |
+|---|---|---|---|---|
+| circle (trotting 2.5) | 6.89 m | 58.5 s | 62.5 s | +6.8 % |
+| expsquare (walking 1.5) | 18.03 m | 109.1 s | 121.3 s | +11 % |
+| parallel (walking 1.5) | 46.10 m | 181.5 s | 212.8 s | +17 % |
+
+Monotonic in the gap, as it should be - it is the same walk home each
+time, priced by how far home is. All three pass closed.

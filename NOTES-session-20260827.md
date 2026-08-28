@@ -6,10 +6,14 @@ labelled as not-yet-verified.
 
 ---
 
-## IN FLIGHT right now
+## COMPLETED (was "in flight")
 
-### 1. Definitive regression suite against the HEAD binary — RUNNING
-Launched 21:18, ~15 min for 8 cases. Log: `/tmp/regress_head.log`.
+### 1. Definitive regression suite against the HEAD binary — **8/8 PASS** ✅
+Ran 21:18–21:30. Log: `/tmp/regress_head.log`.
+
+    star 94.6s   atom 94.6s   oval 80.5s   dash_trotRunning 72.6s
+    dash_long_duration 182.8s   circle@trotting 58.6s
+    circle@bounding 76.6s   circle@galloping 90.6s
 
 This is item #2 from the backlog audit and the reason it mattered: the
 previous 8/8 suite ran 18:19–18:32, but the `x_comp_integral` **reset**
@@ -20,7 +24,7 @@ redeployed via `deploy_host.sh`, and checked `tmutil status` was idle.
 
 **First run with BOTH `close_leg` and the windup reset deployed together.**
 
-### 2. Dash-slot end-of-mission defaults — CODE DONE, NOT YET TESTED
+### 2. Dash-slot end-of-mission defaults — **VERIFIED** ✅
 Operator request: on the dash slot, default "100m dash when done" OFF and
 "close final leg" OFF; every other mission keeps its dash finish.
 
@@ -39,10 +43,14 @@ that never happened) and removes the reliance on that coupling, so a future
 dash variant with 2+ waypoints cannot silently become an
 out-and-back-plus-sprint.
 
-**Still to do:** needs a server restart to take effect (cannot restart
-mid-suite), then verify (a) a dash slot shows both boxes off, (b) star/oval/
-atom still show dash=100 + close_leg on, (c) a loop mission still actually
-runs its dash finish end to end.
+**Verified live after the suite freed the panel:**
+
+    (a) default fleet   star/oval/atom   dash=100  close_leg=True
+    (b) switch to dash  dash:100         dash=0    close_leg=False
+    (c) switch back     circle:9:8       dash=100  close_leg=True
+
+(c) is the one that mattered - switching BACK restores the loop defaults,
+so a slot that was briefly a dash does not stay crippled.
 
 ---
 
@@ -123,3 +131,58 @@ the suite is green against exactly what ships.
   Recorded in memory.
 - Restarting `server.py` needs the venv interpreter from `conductor.sh`
   (`PYBIN`), not system `python3` — and always `/api/stop` first.
+
+---
+
+## FOUND WHILE WAITING: an untested interaction I introduced
+
+`closeFinalLeg()` runs **before** `appendDash()` (deliberately - so the dash
+appends to a closed course). But that changes WHICH branch of `appendDash`
+fires for courses that were previously open:
+
+- `star` — already closed before tonight, so it took `appendDash`'s
+  "already closes" branch (append ONE sprint point). Unchanged.
+- `circle` (6.89 m gap), `sector` (15.0), `expsquare` (18.0),
+  `parallel` (46.1) — were OPEN, so they took the TWO-point branch
+  (explicit return to wp00, then the sprint). With `close_leg` ON they are
+  now closed, so they take the ONE-point branch instead. **Changed.**
+
+Both branches are correct by design, but the switch is a behaviour change
+on four courses that has not been exercised: searching the last 40 archived
+ctrl logs finds **no loop+dash run at all** on the current binary. Every
+suite case and every sweep tonight ran `--dash 0`.
+
+**Queued test (directly answers "ensure all other missions still execute
+the dash when done"):** `circle:9:8` with dash=100 and close_leg ON, and
+confirm the closing leg fires, the interlude fires (loop complete → stop →
+lie down → stand back up → sprint), and the mission PASSES. Running as soon
+as the suite frees the panel.
+
+**Statically verified while waiting — no degeneracy.** The worry was that
+with `close_leg` the last waypoint equals wp00 *exactly*, so a sprint
+direction computed as `wp[last] -> wp[0]` would be a zero vector. It is
+not: the already-closed branch uses the final LEG's heading
+(`_wp[_n-1] - _wp[_n-2]`) and guards `l2 < 1e-3f`. For a closed circle that
+is "the direction the dog was travelling as it arrived home", so the sprint
+continues the shape - which is the stated intent. The live test below is
+still worth running, but the interaction is safe by construction.
+
+### 3. "All other missions still execute the dash when done" — **VERIFIED** ✅
+
+The untested interaction above, exercised end to end. `circle:9:8` with
+`close_leg` ON and a 100 m dash finish, from the raw ctrl log:
+
+    [nav] closing the final leg: wp08 back to home (N=0.00 E=0.00), 6.89 m
+    [nav] dash finish appended: course already closes at wp08,
+          100.0 m sprint onward to wp09  N=92.39  E=38.27
+    [nav] reached wp08 (N=0.00 E=0.00) dist=1.50      <- walked home
+    [nav] reached wp09 (N=92.39 E=38.27) dist=1.47    <- ran the sprint
+    [nav] MISSION COMPLETE t=108.7s  (10 waypoints)   -> PASS
+
+Confirms all three links: the closing leg fires, `appendDash` takes the
+**changed** "already closes" branch (one sprint point, not the old
+two-point return), and the full interlude runs - "loop complete -
+stopping, lying down before the dash finish" then "back on its feet -
+dashing the final leg". Sprint length checks out exactly:
+`hypot(92.39, 38.27) = 100.00 m`, aimed along the heading the dog arrived
+home on.
