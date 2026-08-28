@@ -205,9 +205,14 @@ function renderSlots() {
     return `<div class="play-card active">
       <h3>Dog ${i} <small>${(recipe.note || "").split(" - ")[1] || ""}</small></h3>
       <p>${recipe.note || ""}</p>
-      ${offRecipe ? `<p class="gait-warning">&#9888; not this course's validated combo - ` +
-        `recipe: ${recipeGait || "?"} @ ${recipe.speed} m/s` +
-        `${recipe.extra ? " (" + recipe.extra + ")" : ""}</p>` : ""}
+      ${offRecipe ? (running
+        // A LOCKED, already-running card cannot be corrected, so the alarm
+        // styling is wrong there - scripted probes (terrain matrix, corner
+        // sweep) run off-recipe ON PURPOSE. Neutral information instead.
+        ? `<p class="cap-hint">off-recipe probe (course recipe: ${recipeGait || "?"} @ ${recipe.speed} m/s)</p>`
+        : `<p class="gait-warning">&#9888; not this course's validated combo - ` +
+          `recipe: ${recipeGait || "?"} @ ${recipe.speed} m/s` +
+          `${recipe.extra ? " (" + recipe.extra + ")" : ""}</p>`) : ""}
       <div class="slot-row">
         <label>Mission
           <select data-i="${i}" data-f="mission" ${locked ? "disabled" : ""}>
@@ -280,7 +285,7 @@ function renderSlots() {
         <label class="cam-check" title="${inert(k)
             ? "OFF at launch for the RUNNING fleet - the sensor was never spawned, so it cannot come on mid-run. The box takes effect at the next launch."
             : "Live: unchecking mid-run mutes the stream instantly, re-checking resumes it. A camera unchecked at LAUNCH is never spawned in the world and cannot come back mid-run."}"><input type="checkbox" data-i="${i}" data-f="${k}"
-               ${s[k] !== false ? "checked" : ""} ${inert(k) || _removing ? "disabled" : ""}> ${label}</label>`;
+               ${(running ? ((slots[i] || s)[k] !== false) : (s[k] !== false)) ? "checked" : ""} ${inert(k) || _removing ? "disabled" : ""}> ${label}</label>`;
           const anyInert = ["cam_front", "cam_nadir", "cam_chase"].some(inert);
           // VISIBLE text, not just a hover tooltip - the operator clicked a
           // greyed box twice and "got nothing" before this existed.
@@ -305,17 +310,23 @@ function renderSlots() {
         const fleetUp = state.phase === "launching" || state.phase === "running";
         const chaseInert = (fleetUp && ls && ls.cam_chase === false) || _removing;
         const dis = chaseInert ? "disabled" : "";
+        // In the running view s is the LOCKED slot (frozen at launch); the
+        // sliders are LIVE via the draft, so their VALUES must render from
+        // the draft too or every drag snaps back on the next poll - the
+        // exact bug the chase checkbox had (operator: "the checkbox staid
+        // lit").
+        const live = running ? (slots[i] || s) : s;
         return `<div class="slot-row cam-config-row">
         <label>Chase dist (m)
-          <input type="number" step="0.5" min="0.5" max="10" value="${s.chase_distance ?? 3.0}"
+          <input type="number" step="0.5" min="0.5" max="10" value="${live.chase_distance ?? 3.0}"
                  data-i="${i}" data-f="chase_distance" ${dis}>
         </label>
         <label>Chase height (m)
-          <input type="number" step="0.1" min="0.1" max="5" value="${s.chase_height ?? 1.2}"
+          <input type="number" step="0.1" min="0.1" max="5" value="${live.chase_height ?? 1.2}"
                  data-i="${i}" data-f="chase_height" ${dis}>
         </label>
         <label>Chase angle (deg)
-          <input type="number" step="15" min="-360" max="360" value="${s.chase_degree ?? 90}"
+          <input type="number" step="15" min="-360" max="360" value="${live.chase_degree ?? 90}"
                  title="0 = directly behind, 90 = left side, -90 = right side"
                  data-i="${i}" data-f="chase_degree" ${dis}>
         </label>
