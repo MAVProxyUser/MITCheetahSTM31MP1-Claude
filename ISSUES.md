@@ -21,21 +21,12 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ## OPEN
 
-### Probably stale — cheap re-tests (measured before the windup/force-cap fixes)
-
-- ~~OPEN-2~~ **closed 2026-08-28 → see C-OPEN-2** (the 90° "mid-band"
-  weakness was the windup: 3/3 PASS on the exact historical failing course).
-- ~~OPEN-3~~ **closed 2026-08-28 → see C-OPEN-3** (3/3 fleet reps PASS=3
-  on the current build; atom clean every time vs the historical 0/6).
-
 ### Real, reproduced, unexplained
 
 - **OPEN-4 · Four-or-more dogs: `STATE ESTIMATE WENT NON-FINITE` before
   standing** — `UNEXPLAINED`. Every dog, both fleet architectures. Ruled
   out: RTF, loop starvation, sensor wiring, startup race, settling.
   Distinct from contention (refuted at N≤3).
-- ~~OPEN-5~~ **closed 2026-08-28 → see C-OPEN-5** (3.2 PASS ×2 and 3.5
-  PASS ×2 on the current build — the bracketed ceiling was the windup).
 - **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"
   ×2 every run** — `UNEXPLAINED`, minor. Deterministic, harmless-looking,
   never eliminated. Likely tied to OPEN-1's spawn clip.
@@ -44,7 +35,7 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   validated result is on flat ground. Proper fix needs touchdown-torque
   contact + a plane fit, per the old analysis.
 
-### Built, not run
+### In progress
 
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete
@@ -66,9 +57,6 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   that needs re-measuring). The harness is built for it: seed
   `corner_sweep.py --gait <g>:<speed> --angles <list>` per rung; REFUSED/
   TIMEOUT cells self-retry.
-- ~~OPEN-9~~ **closed 2026-08-28 → see C-OPEN-9** (run, twice over, and
-  answered NEGATIVE: capped-speed management subsumes gait switching for
-  lap time on every regime tested; the analyzer itself pays −11%).
 
 ### Hardware (nothing in this repo is hardware-validated)
 
