@@ -153,7 +153,15 @@ def render_report(run_id, slots, state, all_lines):
             plan_len = _plen(plan_pts)
             flown_len = _plen(trail_pts)
             if plan_len > 3.0 and flown_len < 0.3 * plan_len:
-                per_dog[i] = "INVALID"
+                # Distinguish "the dog's belief flew while its body stood"
+                # (INVALID - trail shows the body parked) from "the panel's
+                # own pose feed died" (NOFEED - trail EMPTY/near-empty while
+                # the run claims full completion; run748 flew the whole oval
+                # per bridge-GPS range while the dead feed produced ratio
+                # 0.00 and a false INVALID). A dead feed is infrastructure,
+                # not a robot verdict - cross-check bridge GPS before
+                # trusting either way.
+                per_dog[i] = "NOFEED" if len(trail_pts or []) < 5 else "INVALID"
             # FRICTION/DEVIATION METRICS, per run (operator: "start keeping
             # track of the friction vibe in each world and how much it
             # makes the runs deviate"). xtrack_max = worst distance from

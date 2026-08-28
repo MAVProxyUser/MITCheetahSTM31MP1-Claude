@@ -1501,6 +1501,7 @@ class Fleet:
 
         def on_pose(msg):
             now = time.time()
+            self._pose_last_t = now   # heartbeat for the poller's feed alarm
             with self.lock:
                 for p in msg.pose:
                     idx = self._name_to_index.get(p.name)
@@ -1720,6 +1721,7 @@ class Fleet:
             # (mud-style struggling) reads as bursts rather than one stale
             # banner.
             desync = {}   # index -> dict(last=(x,y) or None, bad=0, alarmed=False)
+            feed_warned = False
             while True:
                 with self.lock:
                     if self.phase not in ("running",):
@@ -1777,6 +1779,21 @@ class Fleet:
                             wp = max(wp, int(rm[-1]) + 1)
                         st["waypoints"] = "%d/%d" % (wp, tot)
                         st["text"] = "d=%sm v=%sm/s" % (d, v)
+                        # ---- pose-feed heartbeat: a DEAD FEED must not
+                        # read as a stalled dog. _pose_last_t is stamped by
+                        # every pose callback; silence >5s while a mission
+                        # is under way is an INFRASTRUCTURE alarm (restart
+                        # the server to rebuild gz-transport state - the
+                        # feed measured degrading partial->total across
+                        # runs 747-748 while the dog demonstrably flew).
+                        if (not feed_warned and
+                                time.time() - getattr(self, "_pose_last_t", time.time()) > 5.0):
+                            feed_warned = True
+                            self._note("POSE FEED STALLED >5s - trail/desync/"
+                                        "flown metrics unreliable from here; "
+                                        "dog state UNKNOWN (check bridge GPS); "
+                                        "restart server to rebuild gz "
+                                        "transport")
                         # ---- live desync check (see poll() docstring) ----
                         # Only while the nav status line is FRESH (a new one
                         # appeared this tick): after arrival the line goes

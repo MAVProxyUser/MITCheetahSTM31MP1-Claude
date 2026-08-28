@@ -68,6 +68,24 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### In progress
 
+- **OPEN-21 · The panel's gz pose feed degrades across accumulated
+  in-process launches** — opened 2026-08-28, caught live by the new
+  instruments mid-terrain-sweep: run747 (asphalt oval) lost ~40% of its
+  trail (flown ratio 0.59 at xtrack 0.12 with wall time matching flat to
+  0.1 s — a feed gap, not a dog gap; the DESYNC alarm fired and CLEARED
+  around an ~8 s stall), then run748 (grass oval) had a fully dead feed:
+  trail empty, gate demoted to INVALID — while bridge GPS shows the dog
+  flew the complete oval (50.1×9.7 m range, 93 waypoints, 42.8 s). So
+  the feed failed partial→total across two launches; a server restart
+  (fresh gz-transport state) cleared it. Same family as the documented
+  gz-transport discovery fragility, now measured degrading with
+  accumulated Node create/destroy cycles inside one server process.
+  Mitigations shipped: NOFEED verdict (near-empty trail + claimed
+  completion ≠ INVALID — infrastructure, not a robot verdict; cross-check
+  bridge GPS), and a pose-feed heartbeat (silence >5 s during a mission
+  logs POSE FEED STALLED naming the metrics as unreliable). Root fix
+  OPEN: rebuild/resubscribe the pose Node on stall, or bound Node churn.
+
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete
   (`unittests/corner_sweep.py` → `unittests/corner_envelope.csv`):
