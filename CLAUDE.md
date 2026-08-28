@@ -7392,3 +7392,68 @@ Worth testing later, deliberately NOT done now: MIT clamps the sibling
 integrator `rpy_int` to +-0.25, and a tighter bound here may well be
 better. But 0.25 has not been measured and 1.0 has, across 8 gaits plus
 the full suite - changing it now would trade evidence for symmetry.
+
+## HOST CONTENTION, MEASURED AT LAST - and at N<=3 it does not exist
+
+Per direct instruction, the experiment the load-budget model was built
+for. `stm32mp1/gazebo/conductor/contention_sweep.py`.
+
+**Design, and why it is not another inconclusive multi-dog batch.** Every
+previous fleet batch in this file varied TWO things at once - how many
+dogs, and how much work each was doing (different courses, speeds,
+durations) - so a failure could never be attributed to concurrency rather
+than to whichever mission happened to be in the batch. Here every dog
+runs the IDENTICAL `dash:100 @2.0 trotting`: a straight line, no
+cornering, no gait switching, nothing course-specific to blame. The only
+variable is N.
+
+And it measures the CONTROL-LOOP PERIOD TAIL, not pass/fail, because that
+is the thing contention would physically do - the loop targets 2.0 ms and
+a late tick applies its forces for however long the tick really took.
+Threshold is this file's own, established across many runs: every failure
+sat at ~14 % of intervals over 4 ms, every pass at <= 3.9 %.
+
+### The result: 3 sweeps, 9 runs, 18 dog-runs, 876 samples
+
+| N | worst period | over 4 ms | verdicts |
+|---|---|---|---|
+| 1 | 3.64 ms | **0 / 209** | PASS x3 |
+| 2 | 3.45 ms | **0 / 434** | PASS x3 |
+| 3 | 3.30 ms | **0 / 527** | PASS x3 |
+
+**ZERO overruns at every concurrency, and the tail does not grow with N** -
+the worst period is flat within noise (3.0-3.6 ms) and if anything trends
+slightly DOWN as dogs are added. Running three dogs costs this host
+nothing measurable in control-loop timing.
+
+### What this means for the record
+
+**"Host contention" as an explanation for multi-dog fleet failures is
+refuted at N<=3.** That matters, because this file leans on it repeatedly,
+and three separate findings already collapsed under solo re-testing
+earlier tonight (pacing's "~50 % coin-flip", walking's "120-147.5 deg
+mid-band softness", part of bounding's "bimodal"). Now there is a number
+behind the doubt rather than just absence of evidence.
+
+**The genuine stalls were never dogs competing with each other.** The real
+13-18 ms events this file documents were operator-diagnosed to TIME
+MACHINE - an EXTERNAL process bursting I/O, which the launch gate now
+refuses to launch into. So "host contention" was conflating two very
+different things:
+
+  * dogs contending with each other  -> MEASURED, does not happen at N<=3
+  * an external process (a backup) stealing the machine -> REAL, already
+    named, already gated
+
+Only the second was ever true, and it is not a property of fleet size.
+
+### Scope, stated honestly
+
+N<=3 only. This file separately documents that FOUR OR MORE dogs fail with
+`STATE ESTIMATE WENT NON-FINITE` before standing - a different mechanism
+at a different scale, untouched by this result and still unexplained.
+`dash:100` is also the simplest course shape; the load model says per-tick
+cost is flat across mission kinds (2.48-2.49 ms measured on every one), so
+a heavier course should be longer rather than costlier per tick - but that
+is an inference from the model, not a second measurement.
+
