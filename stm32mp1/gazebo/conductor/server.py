@@ -595,13 +595,30 @@ class Fleet:
         # cam_front/cam_nadir/cam_chase default all-on (matches what already
         # shipped); chase_distance/height/degree are the side-view default
         # ("side view chase camera... hover over the dogs chasing").
+        # DERIVED FROM RECIPES, never duplicated. These three used to carry
+        # their own literal gait/speed, which is a second source of truth for
+        # the same fact - and it drifted, exactly the way a duplicated
+        # decision always does here. The oval's recipe was re-tuned to
+        # trotting @ 2.4 when trotRunning was measured unable to hold its
+        # sustained curve (see "THE OVAL'S MID-COURSE FALL"), RECIPES was
+        # updated, and this list was not - so the panel's DEFAULT oval slot
+        # went on launching trotRunning @ 3.5, the configuration that
+        # investigation had just finished proving broken, under a note that
+        # correctly described trotting @ 2.4. Operator-spotted from the
+        # panel's own "not this course's validated combo" warning.
+        # Same defect shape as the atom spin-out (run17) further up this
+        # file: a UI showing the right label over the wrong command.
+        # draft_add_slot() already derived from RECIPES correctly; only this
+        # initial draft did not, so now both use the one source.
+        _CORE_MISSIONS = [("star", "star:10.514:5"), ("oval", "oval:40:5.0"),
+                          ("atom", "atom:9.0:6")]
         self.draft_slots = [
-            dict(mission="star:10.514:5", gait="trotRunning", speed=3.5, dash=100,
-                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
-            dict(mission="oval:40:5.0", gait="trotRunning", speed=3.5, dash=100,
-                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
-            dict(mission="atom:9.0:6", gait="trotting", speed=2.1, dash=100,
-                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT),
+            dict(mission=spec,
+                 gait=next(g for g, n in GAITS.items() if n == RECIPES[kind]["gait"]),
+                 speed=RECIPES[kind]["speed"], dash=100,
+                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL,
+                 **DEFAULT_CAM_SLOT)
+            for kind, spec in _CORE_MISSIONS
         ]
         self.draft_cap = 3.5
         # Terrain, from terrain.py. "flat" reproduces the EXACT ground_plane

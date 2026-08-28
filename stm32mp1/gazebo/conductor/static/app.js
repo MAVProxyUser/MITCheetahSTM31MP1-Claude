@@ -23,7 +23,27 @@ const MISSION_OPTIONS = [
   { value: "lissajous:15:11:9", label: "Lissajous 11:9" },
   { value: "spiro:9.0:8", label: "Spirograph (8-lobe rosette)" },
 ];
-const GAITS = ["trotRunning", "trotting", "walking", "walking2", "pacing"];
+// DERIVED FROM THE SERVER, not hardcoded. This was a literal 5-name list
+// while server.py's GAITS has had EIGHT for a long time - bounding(1),
+// pronking(2) and galloping(22) were simply missing, so three of this
+// project's gaits could not be selected from the panel at all even though
+// /api/launch accepts them and CLAUDE.md is full of measured results for
+// them. Operator-visible consequence: the flight-gait dash investigation
+// could be run by script but not reproduced by hand from the UI.
+//
+// Same duplicated-source-of-truth defect as the draft slots carrying their
+// own gait/speed literals beside RECIPES (which drifted the oval onto a
+// configuration already measured broken) - so it gets the same treatment:
+// one source, read live. The fallback list is only for the first paint,
+// before the first poll lands.
+let GAITS = ["trotRunning", "trotting", "walking", "walking2", "pacing"];
+function gaitChoices() {
+  const g = state && state.gaits;
+  if (!g) return GAITS;
+  // Sorted by the numeric SIM_GAIT id so the order is stable and matches
+  // how they are indexed everywhere else, rather than hash order.
+  return Object.keys(g).sort((a, b) => g[a] - g[b]);
+}
 
 // Same hue list as trail_daemon.py's DOG_HUES, so a dog looks the same colour
 // whether the fleet is watched here or (previously) in the native GUI.
@@ -169,7 +189,7 @@ function renderSlots() {
         </label>
         <label>Gait${gaitOff ? ' <span class="gait-warning-dot" title="not the recipe gait">&#9888;</span>' : ""}
           <select data-i="${i}" data-f="gait" ${locked ? "disabled" : ""}>
-            ${GAITS.map(g => `<option ${s.gait === g ? "selected" : ""}>${g}</option>`).join("")}
+            ${gaitChoices().map(g => `<option ${s.gait === g ? "selected" : ""}>${g}</option>`).join("")}
           </select>
         </label>
         <label>Speed cmd (m/s)${speedOff ? ' <span class="gait-warning-dot" title="not the recipe speed">&#9888;</span>' : ""}
