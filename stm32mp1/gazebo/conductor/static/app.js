@@ -244,28 +244,56 @@ function renderSlots() {
           Go1 ${m[0].toUpperCase() + m.slice(1)} (&le;${(state.model_max_speed || { air: 2.5, pro: 3.5, edu: 4.7 })[m]} m/s)</label>`).join("")}
       </div>
       <div class="slot-row cam-config-row">
-        <label class="cam-check" title="Live: unchecking mid-run mutes the stream instantly, re-checking resumes it. A camera unchecked at LAUNCH is never spawned in the world and cannot come back mid-run."><input type="checkbox" data-i="${i}" data-f="cam_front"
-               ${s.cam_front !== false ? "checked" : ""}> Front cam</label>
-        <label class="cam-check" title="Live: unchecking mid-run mutes the stream instantly, re-checking resumes it."><input type="checkbox" data-i="${i}" data-f="cam_nadir"
-               ${s.cam_nadir !== false ? "checked" : ""}> Nadir cam</label>
-        <label class="cam-check" title="Live: unchecking mid-run mutes the stream instantly, re-checking resumes it."><input type="checkbox" data-i="${i}" data-f="cam_chase"
-               ${s.cam_chase !== false ? "checked" : ""}> Chase cam</label>
+        ${(() => {
+          // Camera checkboxes are LIVE while a camera is streaming (the
+          // server gates each frame on the draft flag), but a camera that
+          // was OFF at launch was never spawned in the world, so mid-run
+          // the box can do nothing - which read as "dead checkbox"
+          // (operator-reported, 2026-08-28: suite runs launch camera-dark
+          // via mission_runner, leaving every cam box inert during them).
+          // Disable + explain in exactly that case; everywhere else the
+          // box behaves as before.
+          const ls = (state.slots || []).find(x => x.index === i);
+          const fleetUp = state.phase === "launching" || state.phase === "running";
+          const inert = k => fleetUp && ls && ls[k] === false;
+          const camBox = (k, label) => `
+        <label class="cam-check" title="${inert(k)
+            ? "OFF at launch for the RUNNING fleet - the sensor was never spawned, so it cannot come on mid-run. The box takes effect at the next launch."
+            : "Live: unchecking mid-run mutes the stream instantly, re-checking resumes it. A camera unchecked at LAUNCH is never spawned in the world and cannot come back mid-run."}"><input type="checkbox" data-i="${i}" data-f="${k}"
+               ${s[k] !== false ? "checked" : ""} ${inert(k) || _removing ? "disabled" : ""}> ${label}</label>`;
+          return camBox("cam_front", "Front cam")
+               + camBox("cam_nadir", "Nadir cam")
+               + camBox("cam_chase", "Chase cam");
+        })()}
       </div>
-      <div class="slot-row cam-config-row">
+      ${(() => {
+        // These three are deliberately NOT disabled while a fleet runs:
+        // _follow_chase_cams reads them from the DRAFT every tick precisely
+        // so a mid-run adjustment lands within ~100ms. The old blanket
+        // `locked ? disabled` here was blocking the exact live feature the
+        // server implements (found chasing the 2026-08-28 camera report).
+        // They DO disable when the running fleet never spawned this dog's
+        // chase cam (nothing to move) and during a slot removal.
+        const ls = (state.slots || []).find(x => x.index === i);
+        const fleetUp = state.phase === "launching" || state.phase === "running";
+        const chaseInert = (fleetUp && ls && ls.cam_chase === false) || _removing;
+        const dis = chaseInert ? "disabled" : "";
+        return `<div class="slot-row cam-config-row">
         <label>Chase dist (m)
           <input type="number" step="0.5" min="0.5" max="10" value="${s.chase_distance ?? 3.0}"
-                 data-i="${i}" data-f="chase_distance" ${locked ? "disabled" : ""}>
+                 data-i="${i}" data-f="chase_distance" ${dis}>
         </label>
         <label>Chase height (m)
           <input type="number" step="0.1" min="0.1" max="5" value="${s.chase_height ?? 1.2}"
-                 data-i="${i}" data-f="chase_height" ${locked ? "disabled" : ""}>
+                 data-i="${i}" data-f="chase_height" ${dis}>
         </label>
         <label>Chase angle (deg)
           <input type="number" step="15" min="-360" max="360" value="${s.chase_degree ?? 90}"
                  title="0 = directly behind, 90 = left side, -90 = right side"
-                 data-i="${i}" data-f="chase_degree" ${locked ? "disabled" : ""}>
+                 data-i="${i}" data-f="chase_degree" ${dis}>
         </label>
-      </div>
+      </div>`;
+      })()}
     </div>`;
   }).join("");
 

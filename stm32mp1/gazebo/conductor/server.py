@@ -686,9 +686,9 @@ class Fleet:
         # dash=100: per direct instruction, the 100 m dash is how a course
         # ENDS, not an opt-in toggle - stop, lie down, stand back up, then
         # sprint 100 m on the closing heading, after every loop mission.
-        # cam_front/cam_nadir/cam_chase default all-on (matches what already
-        # shipped); chase_distance/height/degree are the side-view default
-        # ("side view chase camera... hover over the dogs chasing").
+        # cam_front/cam_nadir/cam_chase default OFF (fail dark - see
+        # DEFAULT_CAM_SLOT); chase_distance/height/degree are the side-view
+        # default ("side view chase camera... hover over the dogs chasing").
         # DERIVED FROM RECIPES, never duplicated. These three used to carry
         # their own literal gait/speed, which is a second source of truth for
         # the same fact - and it drifted, exactly the way a duplicated
@@ -1100,9 +1100,15 @@ class Fleet:
                                 gait_name=gait_name, speed=speed, extra=extra,
                                 dash=dash, note=recipe["note"],
                                 close_leg=close_leg,
-                                cam_front=bool(s.get("cam_front", True)),
-                                cam_nadir=bool(s.get("cam_nadir", True)),
-                                cam_chase=bool(s.get("cam_chase", True)),
+                                # Omitted cam flags FAIL DARK, matching
+                                # DEFAULT_CAM_SLOT: a body-launch (automation)
+                                # that never mentions cameras must not spawn
+                                # nine GPU-loading feeds as a side effect.
+                                # Draft slots always carry explicit flags, so
+                                # this only bites clients that omit them.
+                                cam_front=bool(s.get("cam_front", False)),
+                                cam_nadir=bool(s.get("cam_nadir", False)),
+                                cam_chase=bool(s.get("cam_chase", False)),
                                 chase_distance=float(s.get("chase_distance", 3.0)),
                                 chase_height=float(s.get("chase_height", 1.2)),
                                 chase_degree=float(s.get("chase_degree", 90.0))))
@@ -1112,6 +1118,12 @@ class Fleet:
                                  t="", waypoints="") for s in locked]
             self.planned = {}
             self.positions = {}
+            # Stale camera frames from the PREVIOUS run otherwise persist
+            # (only stop() cleared this): the new run's /api/state carries the
+            # old run's last frozen JPEGs until a fresh frame overwrites each
+            # key - forever, on a cams-off run. Found 2026-08-28 when a
+            # wait-for-cameras poll tripped on the prior run's frames.
+            self.cameras = {}
             self._chase_stop = threading.Event()
 
         threading.Thread(target=self._run, args=(locked, terrain_kind),
@@ -1485,6 +1497,7 @@ class Fleet:
         if not indices:
             return
         service = "/world/%s/set_pose" % WORLD
+        parked = set()   # dogs whose chase cam is currently live-muted (model parked below the world)
         while not stop_event.is_set():
             for i in indices:
                 with self.lock:
@@ -1492,6 +1505,30 @@ class Fleet:
                     d = self.draft_slots[i] if i < len(self.draft_slots) else {}
                 if pos is None:
                     continue
+                # Live on/off for the MODEL half of the chase cam. The STREAM
+                # half already gates per-frame in _subscribe_cameras, but the
+                # free-floating camera model kept flying around the GUI when
+                # the box was unchecked (operator-reported, 2026-08-28). Park
+                # it 25 m below the world on uncheck - once, not every tick -
+                # and let the normal follow path snap it back on re-check.
+                # (The gz-side render keeps running either way; the sensor
+                # cannot be despawned mid-run, so the GPU cost of a camera is
+                # decided at launch, not by this checkbox.)
+                if not d.get("cam_chase", True):
+                    if i not in parked:
+                        parked.add(i)
+                        req = _GzPose()
+                        req.name = "go1_%d_chasecam" % i
+                        req.position.x = pos["x"]
+                        req.position.y = pos["y"]
+                        req.position.z = -25.0
+                        req.orientation.w = 1.0
+                        try:
+                            node.request(service, req, _GzPose, _GzBoolean, 100)
+                        except Exception:  # noqa: BLE001 - same never-kill-the-loop rule as below
+                            pass
+                    continue
+                parked.discard(i)
                 distance = float(d.get("chase_distance", 3.0))
                 height = float(d.get("chase_height", 1.2))
                 degree = float(d.get("chase_degree", 90.0))

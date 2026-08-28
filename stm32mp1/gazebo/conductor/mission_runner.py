@@ -576,6 +576,16 @@ def main():
             slot["cam_front"] = slot["cam_nadir"] = slot["cam_chase"] = False
         slots_body.append(slot)
 
+    if not args.keep_cameras:
+        # Say so out loud: runs launched this way have NO camera sensors in
+        # the world, so the panel's camera checkboxes are inert for the whole
+        # run (a sensor absent from the SDF cannot be enabled mid-run) - which
+        # read as "dead checkboxes" to the operator (2026-08-28) when suite
+        # runs were on screen. The panel now greys them out; this line makes
+        # the same fact visible in the runner's own transcript.
+        print("[runner] cameras forced OFF for this launch (GPU fail-dark; "
+              "--keep-cameras to keep the slot's own camera flags)")
+
     # --- launch -------------------------------------------------------
     r = api("POST", "/api/launch", {"slots": slots_body})
     if not r.get("ok"):
