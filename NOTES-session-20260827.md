@@ -64,12 +64,12 @@ Ordered by my read of value, not by age.
 | 2 | Suite vs HEAD binary | **DONE 21:30 - 8/8**, re-confirmed 8/8 at 22:36 after the force-cap fix |
 | 3 | Contention experiment | **DONE - REFUTED at N<=3.** 9 runs, 876 samples, 0 ticks over 4ms at every N. Real stalls were Time Machine (external), not dogs competing. |
 | 4 | `corner:` mission | **DONE.** It had no recipe - that WAS the bug. 45/90/135 deg all PASS on one tuning. Now in RECIPES + dropdown. |
-| 5 | Spawn pose | operator-flagged; two fixes reverted; feet still 10–17 cm under at settle |
+| 5 | Spawn pose | **ASSESSED - no third approach exists** within gz constraints that isn't a variant of the twice-rejected one (see the assessment section below). Shipped state accepted pending operator call / gz gaining initial-joint-state support. |
 | 6 | Oval gait-switch fall | **SOLVED (Fable).** Chain: phase-gated gait adoption (fixed the mis-phased contact-table collapse) + pre-planner settle lead (`entry_settle_x * track_lag_s * v_cap` before the arc - fixed hot entry, per direct order) + archaeology: the milestone oval NEVER actually switched (phantom prints). Shipped: cap-only trotRunning@3.5, 4/4 at 37.0-37.1s then 3/3 at 38.1-38.3s with the settle lead (+1.2s, the ordered trade). REAL switching (WP_GAIT_CORNER=9 explicit) still falls - two causes removed, swing-phase jump is the narrowest remaining suspect. My 'second curve' claim was wrong - both falls bracketed ONE curve's two switches. |
 | 7 | Galloping ~10% estimator under-read | **SOLVED.** Discriminated with SIM_LEGVEL_DBG: the RAW odometry measurement is low (raw/fused=1.02, fused/truth=0.917) - foot slip/schedule mismatch, not KF blending. GPS velocity aiding closes it to 0.5% (0.995), zero cost on symmetric gaits (trotting 0.994 PASS). **Promoted default-ON**, sigma 0.02, pointer-wiring gate fixed to match. |
-| 8 | `parallel` closed-leg | never re-measured; largest gap in the catalog (46.1 m) + a 90→49.4° closing corner |
+| 8 | `parallel` closed-leg | **DONE** - measured PASS 212.8s closed (+17%), monotonic in gap size across the catalog. |
 | 9 | Chase camera live position | **STALE ENTRY - already built** (free-floating model + set_pose follow at 10Hz, draft-live sliders). Measured A/B: zero control-loop cost (3.00 vs 3.05ms worst, 0 overruns either way); ~200-250ms visual lag analyzed and documented. GPU render load is the only real camera cost, identical in both designs. |
-| 10 | walking2 cornering at 90° / 120–147.5° | documented coverage gap |
+| 10 | walking2 cornering coverage | **DONE** - @0.6: parallel (90°) PASS 502.7s, sector (120-147.5°) PASS 304.8s. All four angle bands covered; the ~1.0 ceiling is speed-general, never angle-specific. Envelope table complete. |
 
 **#1 remains the single highest-value item.** Tonight's headline — all 8
 gaits completing the 100 m dash — is not in anyone's hands until the clamp
@@ -296,3 +296,27 @@ Everything below is in CLAUDE.md in full; this is the index.
    recipe stays cap-only (same time, fewer parts); the suite case keeps
    the machinery pinned.
 4. **Chase cam: measured, not guessed** (see backlog row 9).
+
+## Backlog #5 (spawn pose): assessed, no third approach exists - recommending acceptance
+
+The constraint space, checked rather than guessed:
+- SDF 1.9 dropped `//joint/axis/initial_position` (verified a no-op on
+  this gz-sim by direct measurement, earlier session), so legal folded
+  joint angles cannot be specified at spawn declaratively.
+- Baking fold angles into child-link poses = the approach the operator
+  rejected TWICE (it topples the stand-up); standing instruction says do
+  not re-introduce without checking.
+- A temporary JointPositionController plugin could hold a fold at spawn,
+  but plugins cannot be removed at runtime - it would fight the real
+  controller for the whole run. A variant of the rejected approach with
+  extra failure modes.
+- gz Harmonic has no set_joint_position world service to fold the legs
+  post-spawn, pre-controller.
+
+What ships today: spawn z=0.42 (measured equilibrium; higher buys
+nothing), fall-z suspended through boot, feet 10-17cm under at settle
+for the ~1s before the boot-limp fold - cosmetic, confined to the boot
+window, and every validated result in the project shares it.
+RECOMMENDATION: accept the boot-window clip; revisit only if gz gains
+initial-joint-state support at spawn. Flagged for the operator's call,
+not silently closed.

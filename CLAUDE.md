@@ -7914,3 +7914,23 @@ and the FIRST full suite after any default change is the test that
 matters most - provided the suite itself cannot classify "no verdict" as
 "pass".
 
+
+### walking2 cornering coverage completed - the last gap in the envelope table
+
+The consolidated cornering table's open cells (walking2 at 90 and
+120-147.5 deg, never tested at a workable speed). At 0.6 m/s - below its
+documented general ~1.0 ceiling - both PASS on the first attempt:
+
+| walking2 @0.6 | course | angle | result |
+|---|---|---|---|
+| parallel:30:5:8 | 90 deg | **PASS 502.7 s** |
+| sector:15:3 | 120-147.5 deg | **PASS 304.8 s** |
+
+With the earlier 45 and 144/162 deg data, walking2 now has all four
+angle bands covered, and the conclusion the 2026-08-27 session drew from
+two bands holds across all four: **walking2's limit is a general speed
+ceiling (~1.0 m/s), with no angle-specific weakness anywhere** - the
+70%-duty double-support overlap that makes it slow is also what makes it
+indifferent to corner sharpness. The envelope table has no remaining
+uncovered cells for the usable gait set.
+
