@@ -120,6 +120,27 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### Closed from the OPEN list
 
+- **C-47 · The dash interlude fell on the current build — two stacked,
+  trace-proven bugs (found by an operator UI run; the suite was blind)** —
+  closed 2026-08-28. (1) The phase gate's into-standing exemption
+  ("all-stance can never de-load a loaded foot" — true, and HALF the
+  hazard: all-stance also LOADS AIRBORNE feet) adopted the interlude's
+  5→4 mid-FLIGHT — run599's SHM trace: contacts [0,0,0,0] on the tick
+  before standing's schedule, dog ballistic at 0.8 m/s, feet slammed down
+  mid-air, pitch −59°. Exemption removed; every adoption defers to seg 0.
+  (2) With that fixed it STILL fell (0/3): `addStopXY`'s global-nearest
+  scan resolved the loop-closure stop to **s=0** once `shiftFirstToOrigin`
+  made the closure coincide with the path start — the closure got no
+  braking and the dog arrived at its own stop at **vx=+2.98** (run602
+  trace), a ~5 m/s² crash-stop. A regression from the shift era that
+  star+dash had never been re-run across. Fix: brake every LOCAL MINIMUM
+  of distance within 2 m, so a twice-visited coordinate brakes on both
+  passes. After both: star+dash **3/3 PASS at 112.9-113.0 s**, matching
+  the historical record. Suite gap closed: the star case's why always
+  claimed the interlude but its config ran dash-less — now `dashes=[100]`.
+  Lesson added to the process list: a case must exercise what its why
+  claims.
+
 - **C-OPEN-1 · Spawn pose** — closed 2026-08-28, and the
   entry's own claims are the story. The "feet 10-17 cm under at settle"
   figure was FALSE — a frame-misread (gz pose/info reports link poses
@@ -376,6 +397,9 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   solo-tested (three collapsed in one night).
 - Regression cases must spend the DURATION a failure needs, not just cover
   the shape (the suite missed C-1 this way).
+- A case must exercise what its why CLAIMS it exercises — the star case
+  described the dash interlude for weeks while running dash-less, and two
+  real bugs (C-47) lived in the gap until an operator UI click found them.
 - One fact, one place: the decel ramps, draft slots, gait dropdown, force
   cap, and recipe notes all drifted as duplicated sources of truth.
 - `pgrep -f` pollers match their own command line (86 min lost); prefer

@@ -73,7 +73,19 @@ CASES = [
     Case(
         name="star",
         slots=["star:10.514:5"], gaits=["trotRunning"], speeds=[3.5],
-        min_s=60, max_s=90,
+        # dashes=[100] is LOAD-BEARING, not decoration: this case's own why
+        # has always described "full loop, stop, lie down, stand up, 100 m
+        # dash" - but the case ran DASH-LESS, so the interlude (the only
+        # consumer of the mid-path-stop machinery) had zero suite coverage.
+        # Two real bugs hid behind that gap and were found by an operator
+        # UI click, not the suite: the phase gate's into-standing exemption
+        # adopting mid-FLIGHT (run599: contacts [0,0,0,0] at the 5->4), and
+        # addStopXY resolving the loop closure to s=0 after
+        # shiftFirstToOrigin made it coincide with the path start (run602:
+        # arrival at vx=+2.98, crash-stop, face-plant). A case's config
+        # must exercise what its why CLAIMS it exercises.
+        dashes=[100],
+        min_s=90, max_s=150,
         why=(
             "CLAUDE.md 'BASELINE, END OF 2026-08-24' and every full-catalog "
             "regression sweep since: star at trotRunning 3.5 m/s is THE "

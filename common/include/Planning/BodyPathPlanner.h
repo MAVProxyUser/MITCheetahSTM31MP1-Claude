@@ -825,14 +825,43 @@ class BodyPathPlanner {
      * makes the braking end a metre early - harmless.
      */
     if (_endStop && n >= 2) _path[n - 1].v = std::min(_path[n - 1].v, _lim.v_min);
+    /*
+     * EVERY PASS OVER A STOP POINT GETS BRAKED, not just the globally
+     * nearest path index. The global-nearest version broke the moment a
+     * course genuinely visited a stop's coordinates twice: after
+     * shiftFirstToOrigin, a closed loop's CLOSURE waypoint sits at the
+     * exact coordinates of the path START (0,0), the `<` scan from index 0
+     * resolved the tie to s=0 - whose v is already forced to 0 by the
+     * at-rest rule, a no-op - and the real closure at the far end of the
+     * lap got NO braking at all. Measured (run602 SHM trace): the dog
+     * arrived at its own loop closure at vx=+2.98 - full sprint - and the
+     * stop sequence became a ~5 m/s^2 crash-stop, pitch -0.09 -> -1.12 rad
+     * in 800 ms, face-plant. Star+dash had been validated only BEFORE the
+     * shift landed, and the suite's star case ran dash-less, so this
+     * regression lived silently until an operator UI run hit it.
+     *
+     * Fix: clamp v_min at every LOCAL minimum of squared distance that
+     * comes within stop_gate of the point. A twice-visited coordinate is
+     * braked on both visits (the s=0 one harmlessly - it is already 0); a
+     * uniquely-visited stop resolves to its single local minimum, exactly
+     * the old behaviour. The 2 m gate comfortably covers every accept
+     * radius/corridor in use while rejecting far-side passes of a course
+     * that merely comes NEAR a stop's coordinates.
+     */
     for (const auto& st : _stopsXY) {
-      size_t best = 0; double bd = 1e18;
-      for (size_t i = 0; i < n; ++i) {
+      const double stop_gate = 2.0 * 2.0;   // m^2
+      auto d2 = [&](size_t i) {
         const double dx = _path[i].x - st.first, dy = _path[i].y - st.second;
-        const double d = dx * dx + dy * dy;
-        if (d < bd) { bd = d; best = i; }
+        return dx * dx + dy * dy;
+      };
+      for (size_t i = 0; i < n; ++i) {
+        const double d = d2(i);
+        if (d > stop_gate) continue;
+        const bool leftOk  = (i == 0)     || d <= d2(i - 1);
+        const bool rightOk = (i + 1 >= n) || d <= d2(i + 1);
+        if (leftOk && rightOk)
+          _path[i].v = std::min(_path[i].v, _lim.v_min);
       }
-      _path[best].v = std::min(_path[best].v, _lim.v_min);
     }
     // Backward: v_i^2 <= v_{i+1}^2 + 2*a*ds  (can I still slow down in time?)
     for (size_t i = n - 1; i-- > 0; ) {

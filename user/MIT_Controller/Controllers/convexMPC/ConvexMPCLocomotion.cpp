@@ -505,49 +505,88 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   {
     if (_gaitAdopted < 0 || firstRun) _gaitAdopted = gaitNumber;
     if (gaitNumber != _gaitAdopted) {
+      /*
+       * INTO STANDING: immediate ONLY when the body is genuinely slow.
+       * Both halves of this rule were paid for with a measured fall each:
+       *
+       * - run599 (immediate ->4 at speed): the interlude's 5->4 adopted
+       *   mid-FLIGHT at vx=0.8 (SHM trace: contacts [0,0,0,0] the tick
+       *   before standing's all-stance schedule) - feet slammed down
+       *   mid-air, pitch -59, face-plant. So ->4 AT SPEED must defer to
+       *   the wrap like everything else.
+       * - run613/614 (deferred ->4 at rest): removing the exemption
+       *   outright made zeroVelHold's engagement hold WAIT 77 ticks
+       *   (~154 ms) - walking ran against a zero command from a cold
+       *   stand, the exact scenario zeroVelHold exists to prevent, and
+       *   corner:25:90 tripped orientation at engagement DETERMINISTICALLY
+       *   (2/2, identical logs). So ->4 AT REST must stay immediate.
+       *
+       * Body speed separates the two cases cleanly: zeroVelHold watches
+       * the COMMAND (zero while the body still carries 0.5-0.9 through the
+       * interlude's decel ramp), so the interlude's ->4 request arrives
+       * with real body speed and defers; an engagement/entry hold arrives
+       * with the body genuinely stationary and adopts now.
+       */
       if (gaitNumber == 4) {
-        shmtrace::logf(0.0, "[SCHED] gait %d -> 4 (standing) adopted immediately - all-stance is always safe",
-               _gaitAdopted);
-        _gaitAdopted = 4;
-        _gaitDeferTicks = 0;
-      } else {
-        // Segment index from the same arithmetic setIterations feeds the
-        // gaits (every gait in the selector is built with 10 segments).
-        const int seg = (int)(((iterationCounter - _iterSegOffset) / iterationsBetweenMPC) % 10);
-        _gaitDeferTicks++;
-        if (seg == 0 || _gaitDeferTicks > 300) {
-          shmtrace::logf(0.0, "[SCHED] gait %d -> %d adopted at seg=%d (deferred %d ticks%s)",
-                 _gaitAdopted, gaitNumber, seg, _gaitDeferTicks,
-                 _gaitDeferTicks > 300 ? " - CAP HIT, adopting off-wrap" : "");
-          _gaitAdopted = gaitNumber;
+        const auto& se = data._stateEstimator->getResult();
+        const float spd = std::sqrt(se.vWorld[0]*se.vWorld[0] +
+                                     se.vWorld[1]*se.vWorld[1]);
+        if (spd < 0.25f) {
+          shmtrace::logf(0.0, "[SCHED] gait %d -> 4 (standing) adopted immediately at |v|=%.2f - body at rest",
+                 _gaitAdopted, (double)spd);
+          _gaitAdopted = 4;
           _gaitDeferTicks = 0;
-          /*
-           * SWING CONTINUITY ACROSS THE SWAP. Even a phase-aligned adoption
-           * changes each foot's swing SCHEDULE mid-flight: at seg 0 the
-           * off pair is 2/7 through trotRunning's swing but 0/5 through
-           * trotting's, so its swingState JUMPS and the existing Bezier -
-           * still anchored at the OLD liftoff point - gets re-evaluated at
-           * the jumped phase, yanking a mid-air foot toward a stale
-           * trajectory. Measured consequence: with the contact table fixed
-           * (this gate) and hot entry fixed (the analyzer settle lead), a
-           * real 9->5/5->9 swap STILL fell within ~1 s - this discontinuity
-           * was the narrowest remaining suspect.
-           *
-           * Forcing firstSwing on every leg at the swap makes each foot's
-           * next swing tick RE-CAPTURE its trajectory from where the foot
-           * physically is (setInitialPosition(pFoot)) and re-plan to a
-           * fresh Raibert touchdown under the NEW gait's timing - the same
-           * re-plan every ordinary liftoff performs. Stance feet are
-           * untouched by construction: the stance branch holds firstSwing
-           * true anyway, and the flag is only consumed when swingState > 0.
-           */
           for (int leg = 0; leg < 4; ++leg) firstSwing[leg] = true;
-        } else {
-          if (_gaitDeferTicks == 1)
-            shmtrace::logf(0.0, "[SCHED] gait %d -> %d requested at seg=%d - deferring to cycle wrap",
-                   _gaitAdopted, gaitNumber, seg);
-          gaitNumber = _gaitAdopted;   // keep the active gait this tick
         }
+        // else: fall through to the deferred path below - ->4 at speed is
+        // exactly the run599 hazard.
+      }
+      if (gaitNumber != _gaitAdopted) {
+      /*
+       * EVERY adoption defers to the cycle wrap - INCLUDING into standing.
+       * The gate originally exempted ->4 ("all-stance can never de-load a
+       * loaded foot") - true, and HALF the hazard: all-stance also LOADS
+       * AIRBORNE feet. Measured on run599, the first dash-interlude
+       * exercise after the gate landed: the interlude stop's 5->4 adopted
+       * with the SHM trace reading contacts [0,0,0,0] - a trotRunning
+       * FLIGHT segment, dog ballistic at 0.8 m/s - and the next tick was
+       * standing's all-stance schedule. Standing has no swing
+       * trajectories, the feet came down mid-flight wherever they were,
+       * and the body pole-vaulted over them: pitch -0.06 -> -1.07 rad in
+       * 600 ms ([FALL] roll=-20 pitch=-59, z=0.106).
+       *
+       * At seg 0 one pair is FRESHLY PLANTED with a full stance ahead -
+       * real support while the other pair is brought down. The
+       * safety-direction argument that justified the exemption does not
+       * need immediacy: zeroVelHold is a comfort hold on an already-zero
+       * stick (the trot steps in place through the <=1-cycle defer), and
+       * the async entry hold loses nothing to ~300 ms.
+       */
+      const int seg = (int)(((iterationCounter - _iterSegOffset) / iterationsBetweenMPC) % 10);
+      _gaitDeferTicks++;
+      if (seg == 0 || _gaitDeferTicks > 300) {
+        shmtrace::logf(0.0, "[SCHED] gait %d -> %d adopted at seg=%d (deferred %d ticks%s)",
+               _gaitAdopted, gaitNumber, seg, _gaitDeferTicks,
+               _gaitDeferTicks > 300 ? " - CAP HIT, adopting off-wrap" : "");
+        _gaitAdopted = gaitNumber;
+        _gaitDeferTicks = 0;
+        /*
+         * SWING CONTINUITY ACROSS THE SWAP - see the original comment in
+         * git history for the full account: forcing firstSwing makes each
+         * foot's next swing tick re-capture its trajectory from where the
+         * foot physically is and re-plan under the NEW gait's timing.
+         * Stance feet are untouched by construction (the stance branch
+         * holds firstSwing true; the flag is only consumed at
+         * swingState > 0). For an adoption INTO standing this is moot
+         * (standing has no swing states) but harmless.
+         */
+        for (int leg = 0; leg < 4; ++leg) firstSwing[leg] = true;
+      } else {
+        if (_gaitDeferTicks == 1)
+          shmtrace::logf(0.0, "[SCHED] gait %d -> %d requested at seg=%d - deferring to cycle wrap",
+                 _gaitAdopted, gaitNumber, seg);
+        gaitNumber = _gaitAdopted;   // keep the active gait this tick
+      }
       }
     } else {
       _gaitDeferTicks = 0;
