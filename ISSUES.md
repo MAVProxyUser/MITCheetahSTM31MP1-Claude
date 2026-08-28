@@ -25,10 +25,8 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 - ~~OPEN-2~~ **closed 2026-08-28 → see C-OPEN-2** (the 90° "mid-band"
   weakness was the windup: 3/3 PASS on the exact historical failing course).
-- **OPEN-3 · Atom-in-fleet fragility** — `RETEST`. Historically 0/6 in a
-  3-dog fleet while passing solo; blamed on host contention, which is now
-  REFUTED at N≤3 (0/876 ticks over 4 ms). The failures were real; the
-  explanation wasn't. Never re-run since the windup/force-cap/aiding fixes.
+- ~~OPEN-3~~ **closed 2026-08-28 → see C-OPEN-3** (3/3 fleet reps PASS=3
+  on the current build; atom clean every time vs the historical 0/6).
 
 ### Real, reproduced, unexplained
 
@@ -130,6 +128,19 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   pattern was a course-length artifact. The 105-150° band gets re-measured
   at 15° resolution by the OPEN-8 envelope sweep (corner_envelope.csv); a
   failure there reopens this with fresh data.
+
+- **C-OPEN-3 · Atom-in-fleet fragility** — closed 2026-08-28: does not
+  reproduce on the current build. Three consecutive 3-dog fleet reps
+  (star+oval+atom, dash=100, recipe configs — the exact historical failing
+  shape): **PASS=3 / PASS=3 / PASS=3** (runs 641-643), atom (dog2) PASS in
+  all three, no Time Machine activity during any rep (`tmutil` checked per
+  rep). Against the historical 0/6, three straight clean reps put the old
+  failure rate away decisively. WHICH since-fixed bug was responsible is
+  deliberately not asserted: the windup fits the longer-run falls but the
+  documented t=11.5 s first-lobe falls poorly, and the failing era predates
+  the force-cap fix, velocity aiding, and the `Kp_ori` roll gain too. What
+  the tracker needs is settled: the current build's fleet atom is healthy,
+  and contention was separately refuted at N≤3 (0/876 ticks over 4 ms).
 
 - **C-47 · The dash interlude fell on the current build — two stacked,
   trace-proven bugs (found by an operator UI run; the suite was blind)** —
