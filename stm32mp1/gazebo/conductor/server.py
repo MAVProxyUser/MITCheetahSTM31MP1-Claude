@@ -401,6 +401,38 @@ RECIPES = {
     # confirmed since as PASS x4 / FELL x1 across 5 attempts (109.0-109.2s
     # each pass) - more braking demand is the wrong direction on this
     # course, not an oversight.
+    # THE PER-ANGLE CORNERING PROBE. corner:<leg_m>:<angle_deg> is one
+    # isolated corner with a real approach and a real exit - built for the
+    # "empirical per-gait, per-angle cornering envelope" question, where
+    # every other course only offers whatever angles its own shape happens
+    # to contain (45 from circle, 90 from parallel/expsquare, 120-147.5
+    # from sector, 144/162 from star).
+    #
+    # It had NO recipe entry at all until now, which is exactly why it
+    # never worked: with no entry it launched with zero tuning while every
+    # other course got its own, and the resulting overshoot/pitch blowup
+    # (53.8 deg at settle) was read as a planner bug in the mission. Given
+    # the same graded-corridor + gentle-WP_ALON treatment every other
+    # cornering course needed, it just works.
+    #
+    # TURN_SOFT/HARD are deliberately WIDE (0.3-2.0 rad = 17-115 deg) rather
+    # than bracketing one angle, because a probe mission is swept ACROSS
+    # angles - a per-angle-tuned window would be the one thing that makes
+    # the sweep measure its own tuning instead of the robot. Verified with
+    # this single tuning at three angles: 45 deg PASS 61.3s, 90 deg PASS
+    # 54.9s, 135 deg PASS 47.8s, every settle under 0.7 deg roll.
+    "corner": dict(gait=20, speed=1.5,
+                    extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
+                          "WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0",
+                    note="walking @ 1.5 m/s - ONE isolated corner of "
+                         "<angle> deg, the per-angle cornering probe. Same "
+                         "graded-corridor + gentle-WP_ALON treatment every "
+                         "other cornering course needed; it had no recipe at "
+                         "all before, which is why it used to overshoot and "
+                         "pitch out. Turn-grading window kept WIDE on purpose "
+                         "so a sweep across angles measures the ROBOT, not a "
+                         "per-angle tuning. Verified 45/90/135 deg all PASS "
+                         "(61.3/54.9/47.8s), settle roll <=0.7 deg."),
     "expsquare": dict(gait=20, speed=1.5,
                        extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
                              "WP_TURN_SOFT=0.6 WP_TURN_HARD=1.5",

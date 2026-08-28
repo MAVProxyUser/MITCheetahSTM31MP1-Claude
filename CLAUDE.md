@@ -7457,3 +7457,50 @@ cost is flat across mission kinds (2.48-2.49 ms measured on every one), so
 a heavier course should be longer rather than costlier per tick - but that
 is an inference from the model, not a second measurement.
 
+
+## `corner:` WORKS - it never had a recipe, and that WAS the bug
+
+Per direct instruction, item 4. The `corner:<leg_m>:<angle_deg>` mission -
+one isolated corner with a real approach and a real exit, built for the
+"empirical per-gait, per-angle cornering envelope" question - has been
+carried in this file as broken (overshoot, then `pitch 53.757 deg` at the
+settle gate, "still no clean PASS"). It is not broken.
+
+**It had no `RECIPES` entry at all.** Every other cornering course in the
+catalog gets a tuned `extra` at launch; `corner:` got `{}`. So it launched
+with none of the graded-corridor / gentle-`WP_ALON` treatment that circle,
+sector, parallel and expsquare each needed before THEY worked, and the
+resulting pitch blowup was read as a defect in the mission rather than as
+the absence of tuning.
+
+Given the same treatment, at three angles on ONE tuning:
+
+| mission | result | settle |
+|---|---|---|
+| `corner:25:45` | **PASS 61.3 s** | roll 0.7, pitch 0.5 |
+| `corner:25:90` | **PASS 54.9 s** | roll 0.1, pitch 0.4 |
+| `corner:25:135` | **PASS 47.8 s** | roll 0.0, pitch 0.5 |
+
+Against the previous 53.8 deg pitch failure. Confirmed again end-to-end
+from the recipe itself with no manual `--extra`: `corner:25:90` PASS 54.8 s.
+
+**One deliberate design choice worth stating**: the turn-grading window is
+kept WIDE (`WP_TURN_SOFT=0.3`, `WP_TURN_HARD=2.0`, i.e. 17-115 deg) rather
+than bracketed tightly around one angle the way circle's (0.3/0.79) and
+sector's (0.8/2.0) are. A probe mission exists to be swept ACROSS angles,
+and a per-angle-tuned window would make the sweep measure its own tuning
+instead of the robot. Also now selectable from the panel dropdown.
+
+**Correcting an earlier claim in this file**: the `corner:` write-up says
+"corner: has no established recipe, so no test tonight had ever passed
+`WP_PLANNER=1`". The recipe part is right and was the real problem; the
+`WP_PLANNER` part is wrong - `server.py` sets `WP_PLANNER=1`
+unconditionally on the launch command line for every mission, so any
+conductor-launched `corner:` run always had it. What it lacked was the
+tuning, not the planner.
+
+This also unlocks the stretch goal that motivated the mission: a real
+per-gait, per-angle envelope in arbitrary notches, instead of only the
+angles other courses happen to contain (45 from circle, 90 from
+parallel/expsquare, 120-147.5 from sector, 144/162 from star).
+

@@ -22,6 +22,11 @@ const MISSION_OPTIONS = [
   { value: "lissajous:15:5:7", label: "Lissajous 5:7" },
   { value: "lissajous:15:11:9", label: "Lissajous 11:9" },
   { value: "spiro:9.0:8", label: "Spirograph (8-lobe rosette)" },
+  // The per-angle cornering probe: ONE isolated corner with a real
+  // approach and exit. Listed at 45 deg as a starting point - the angle
+  // is the second parameter and is meant to be swept (corner:25:90,
+  // corner:25:135, ...) via the mission field or the API.
+  { value: "corner:25:45", label: "Corner probe (25m, 45\u00B0)" },
 ];
 // DERIVED FROM THE SERVER, not hardcoded. This was a literal 5-name list
 // while server.py's GAITS has had EIGHT for a long time - bounding(1),
