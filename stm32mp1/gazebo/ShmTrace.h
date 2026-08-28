@@ -69,6 +69,7 @@
 #include <atomic>
 #include <cstdarg>
 #include <cstdint>
+#include <cstdlib>   // getenv/atoi for the run_id stamp
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
@@ -129,7 +130,34 @@ struct Header {
                           // Costs nothing: fits in the 4 bytes Header was
                           // already padded to (24 measured vs 20 summed,
                           // from write_seq's 8-byte atomic alignment).
+  uint32_t run_id;        // THE conductor's run number ($SIM_RUN_ID), stamped
+                          // into shared memory itself so run identity does not
+                          // live only in a log line another process can append
+                          // to. Per direct instruction: "the SHM should tag the
+                          // run number and the conductor and logs and everything
+                          // else should all use the same one for no confusion."
+                          // It is already the same number in server.py's
+                          // orchestration log, in each ctrl log's [RUNID] stamp
+                          // and in every archived filename - this closes the
+                          // last gap, the ring itself.
+                          //
+                          // Load-bearing, not decorative: the reaper had only
+                          // writer_pid to tell "my controller" from "a dead
+                          // one's leftovers", and a pid is reused by the OS and
+                          // means nothing to a human reading a log. A run id is
+                          // unique per launch, monotonic, and is the SAME token
+                          // the operator already sees in the panel - so a
+                          // mismatch is both checkable in code and obvious to a
+                          // person. (A stale ring replayed into a fresh log
+                          // produced a false PASS earlier tonight.)
+  uint32_t _pad;          // keep write_seq's 8-byte alignment EXPLICIT rather
+                          // than implicit, so the Python side's struct format
+                          // stays an exact mirror instead of relying on the
+                          // compiler's padding choice.
 };
+static_assert(sizeof(Header) == 32,
+              "Header layout must stay in sync with shm_reaper.py's HEADER_FMT "
+              "- update BOTH sides together");
 constexpr uint32_t MAGIC = 0x43484554;  // "CHET"
 
 struct Ring {
@@ -284,6 +312,9 @@ class Writer {
     ring_->header.record_size = sizeof(Record);
     ring_->header.magic = MAGIC;
     ring_->header.writer_pid = static_cast<uint32_t>(getpid());
+    ring_->header.run_id = static_cast<uint32_t>(
+        getenv("SIM_RUN_ID") ? atoi(getenv("SIM_RUN_ID")) : 0);
+    ring_->header._pad = 0;
     printf("[shmtrace] tracing to %s (%u records, %.1f MB)\n",
            name, RING_CAPACITY, (double)sizeof(Ring) / 1e6);
   }
@@ -321,6 +352,9 @@ class Writer {
     text_ring_->header.record_size = sizeof(TextRecord);
     text_ring_->header.magic = MAGIC;
     text_ring_->header.writer_pid = static_cast<uint32_t>(getpid());
+    text_ring_->header.run_id = static_cast<uint32_t>(
+        getenv("SIM_RUN_ID") ? atoi(getenv("SIM_RUN_ID")) : 0);
+    text_ring_->header._pad = 0;
     // Deliberately no printf here (unlike ensure_open() above): this path
     // exists SPECIFICALLY to retire printf from the application's own
     // call sites, so announcing its own success via printf would be the

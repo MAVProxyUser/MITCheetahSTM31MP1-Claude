@@ -32,8 +32,12 @@ Two ways to use it - "even the launcher itself can reap":
 Byte layout - MUST track ShmTrace.h exactly, verified by direct
 measurement (not hand-derived - a hand sum of the Record fields was
 wrong twice before landing on the right number):
-  Header  (24 bytes): uint64 write_seq, uint32 capacity, uint32
-           record_size, uint32 magic, uint32 writer_pid - the last field
+  Header  (32 bytes): uint64 write_seq, uint32 capacity, uint32
+           record_size, uint32 magic, uint32 writer_pid, uint32 run_id,
+           uint32 _pad. run_id is the conductor's $SIM_RUN_ID - the SAME
+           number the panel, the orchestration log, every archived
+           filename and each ctrl log's [RUNID] stamp use, so run identity
+           is checkable in the ring itself. writer_pid - the field
            fills what used to be 4 bytes of trailing pad (the struct's own
            8-byte alignment from the leading atomic<uint64_t>), so this
            did not grow the struct. writer_pid exists so watch() (below)
@@ -60,9 +64,13 @@ import struct
 import sys
 import time
 
-HEADER_FMT = "<QIIII"
+# MUST mirror ShmTrace.h::Header exactly. run_id was appended (with an
+# explicit _pad to keep write_seq's 8-byte alignment) so the conductor's
+# run number is carried in shared memory itself, not only in a log line -
+# see that struct's own comment for why identity in the ring matters.
+HEADER_FMT = "<QIIIIII"
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
-assert HEADER_SIZE == 24, f"Header format drifted from ShmTrace.h (got {HEADER_SIZE}, want 24)"
+assert HEADER_SIZE == 32, f"Header format drifted from ShmTrace.h (got {HEADER_SIZE}, want 32)"
 
 RECORD_FMT = "<dQ20s" + "f" * 15 + "BB"
 RECORD_SIZE = struct.calcsize(RECORD_FMT)
@@ -128,7 +136,7 @@ def attach(instance):
         os.close(fd)
         return None, None, None
     header = struct.unpack_from(HEADER_FMT, m, 0)
-    write_seq, capacity, record_size, magic, writer_pid = header
+    write_seq, capacity, record_size, magic, writer_pid, run_id, _pad = header
     if magic != MAGIC:
         # Either a stale segment from an unrelated process, or the writer
         # is mid-ensure_open() (a few instructions between shm_open and
@@ -227,7 +235,7 @@ def _pid_alive(pid):
     return True
 
 
-def tail_text_to_log(instance, log_path, poll_s=0.2):
+def tail_text_to_log(instance, log_path, poll_s=0.2, expect_run_id=None):
     """Continuously append new text-ring records for `instance` to
     `log_path`, in the order they were written - this IS the printf
     replacement's other half: RobotRunner.cpp/mit_sim_main.cpp no longer
@@ -259,7 +267,7 @@ def tail_text_to_log(instance, log_path, poll_s=0.2):
                 time.sleep(poll_s)
                 continue
             try:
-                write_seq, writer_pid = struct.unpack_from("<Q12xI", m, 0)
+                write_seq, writer_pid, run_id = struct.unpack_from("<Q12xII", m, 0)
                 if writer_pid != last_pid:
                     last_pid = writer_pid
                     # NEVER REPLAY A DEAD WRITER'S RING. The segment
@@ -294,7 +302,22 @@ def tail_text_to_log(instance, log_path, poll_s=0.2):
                     # its segment the pid changes again and this branch
                     # re-fires with a live pid, replaying that ring properly
                     # from 0 - so nothing the new run writes is ever lost.
-                    last_seq = 0 if _pid_alive(writer_pid) else write_seq
+                    # STALENESS, decided on the RUN ID first and the pid
+                    # only as a fallback. $SIM_RUN_ID is the same token the
+                    # conductor prints, every archived filename carries, and
+                    # each ctrl log's [RUNID] stamp shows - so "is this ring
+                    # mine?" is now answerable against the number a human
+                    # reads, not just an OS pid that gets reused and means
+                    # nothing in a log. A ring whose run_id is older than the
+                    # one we were told to follow is history with an archived
+                    # file of its own; skip to its end instead of replaying
+                    # it into a fresh log (that replay produced a false PASS
+                    # - see the long note below).
+                    stale = (expect_run_id is not None and run_id
+                             and run_id != expect_run_id)
+                    if not stale and not _pid_alive(writer_pid):
+                        stale = True
+                    last_seq = write_seq if stale else 0
                 if write_seq != last_seq:
                     start = max(last_seq, write_seq - TEXT_RING_CAPACITY)
                     for seq in range(start, write_seq):
@@ -399,7 +422,7 @@ def watch(instances, archive_dir, poll_s=0.5):
                 # st_ino=0 for every POSIX shm fd. writer_pid (stamped in
                 # ensure_open(), read fresh here every poll) is what
                 # actually changes between two different processes.
-                write_seq, writer_pid = struct.unpack_from("<Q12xI", m, 0)
+                write_seq, writer_pid, run_id = struct.unpack_from("<Q12xII", m, 0)
             finally:
                 m.close(); os.close(fd)
             if writer_pid != last_pid[i]:
@@ -451,6 +474,11 @@ def main():
     ap.add_argument("--tail-text", type=int, metavar="INSTANCE",
                      help="continuously append INSTANCE's text ring to --append-to "
                           "(the printf replacement's bridge - see tail_text_to_log())")
+    ap.add_argument("--expect-run-id", type=int, default=None,
+                     help="only follow a ring stamped with THIS $SIM_RUN_ID; a "
+                          "ring from any other run is treated as history and "
+                          "skipped to its end rather than replayed into the new "
+                          "log. One run number across SHM, conductor and logs.")
     ap.add_argument("--append-to", metavar="PATH",
                      help="log file --tail-text appends to, e.g. ctrl_<i>.log")
     args = ap.parse_args()
@@ -461,7 +489,8 @@ def main():
     if args.tail_text is not None:
         if not args.append_to:
             ap.error("--tail-text needs --append-to")
-        tail_text_to_log(args.tail_text, args.append_to, args.poll)
+        tail_text_to_log(args.tail_text, args.append_to, args.poll,
+                         args.expect_run_id)
         return
     if args.watch:
         instances = [int(x) for x in args.watch.split(",")]

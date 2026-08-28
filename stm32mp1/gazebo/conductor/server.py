@@ -1281,7 +1281,14 @@ class Fleet:
                 tbp = subprocess.Popen(
                     ["python3", os.path.join(GAZEBO_DIR, "shm_reaper.py"),
                      "--tail-text", str(i), "--append-to", ctrl_log_path,
-                     "--poll", "0.2"])
+                     "--poll", "0.2",
+                     # ONE RUN NUMBER EVERYWHERE. The reaper follows only
+                     # the ring stamped with THIS run id, so a previous
+                     # run's segment - which outlives its process, since
+                     # ShmTrace only unlinks at startup - can never be
+                     # replayed into this run's fresh log. It did exactly
+                     # that earlier tonight and produced a false PASS.
+                     "--expect-run-id", str(self.run_id)])
                 self.procs.append(tbp)
                 dash_note = (" +dash %.0fm" % s["dash"]) if s.get("dash") else ""
                 self._note("dog%d LOCKED: %s gait=%s cmd=%.2f m/s (cap %.2f) %s%s"
