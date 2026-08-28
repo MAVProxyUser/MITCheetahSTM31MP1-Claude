@@ -1341,6 +1341,7 @@ class Fleet:
                             % (len(ready), len(locked)))
 
             self._name_to_index = {"go1_%d" % s["index"]: s["index"] for s in locked}
+            self._gz_env = env   # kept for the poller's pose-feed self-heal
             self._subscribe_pose(env)
             self._subscribe_cameras(locked)
             threading.Thread(target=self._follow_chase_cams, args=(locked,),
@@ -1722,6 +1723,7 @@ class Fleet:
             # banner.
             desync = {}   # index -> dict(last=(x,y) or None, bad=0, alarmed=False)
             feed_warned = False
+            last_resub = 0.0
             while True:
                 with self.lock:
                     if self.phase not in ("running",):
@@ -1786,14 +1788,32 @@ class Fleet:
                         # the server to rebuild gz-transport state - the
                         # feed measured degrading partial->total across
                         # runs 747-748 while the dog demonstrably flew).
-                        if (not feed_warned and
-                                time.time() - getattr(self, "_pose_last_t", time.time()) > 5.0):
+                        _stalled = (time.time() -
+                                     getattr(self, "_pose_last_t", time.time()) > 5.0)
+                        if _stalled and not feed_warned:
                             feed_warned = True
                             self._note("POSE FEED STALLED >5s - trail/desync/"
-                                        "flown metrics unreliable from here; "
-                                        "dog state UNKNOWN (check bridge GPS); "
-                                        "restart server to rebuild gz "
-                                        "transport")
+                                        "flown metrics unreliable until it "
+                                        "recovers; dog state UNKNOWN (check "
+                                        "bridge GPS)")
+                        elif not _stalled and feed_warned:
+                            feed_warned = False
+                            self._note("pose feed RECOVERED")
+                        if _stalled and time.time() - last_resub > 20.0:
+                            # SELF-HEAL (OPEN-21): the feed measured dying
+                            # every ~6-15 launches of in-process Node churn;
+                            # a fresh Node + subscription usually revives it
+                            # without a server restart. Throttled to one
+                            # attempt per 20s.
+                            last_resub = time.time()
+                            try:
+                                self._gz_node = None
+                                self._subscribe_pose(getattr(self, "_gz_env", None) or {})
+                                self._note("pose feed: resubscribed on a fresh "
+                                            "gz node - watching for recovery")
+                            except Exception as e:  # noqa: BLE001
+                                self._note("pose resubscribe FAILED: %r - "
+                                            "server restart needed" % e)
                         # ---- live desync check (see poll() docstring) ----
                         # Only while the nav status line is FRESH (a new one
                         # appeared this tick): after arrival the line goes

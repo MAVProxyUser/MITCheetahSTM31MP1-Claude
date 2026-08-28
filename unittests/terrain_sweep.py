@@ -50,7 +50,7 @@ def done_cells():
     if os.path.exists(CSV_PATH):
         with open(CSV_PATH) as f:
             for row in csv.DictReader(f):
-                if row["verdict"] not in ("TIMEOUT", "REFUSED"):
+                if row["verdict"] not in ("TIMEOUT", "REFUSED", "NOFEED"):
                     cells.add((row["terrain"], row["mission"]))
     return cells
 
