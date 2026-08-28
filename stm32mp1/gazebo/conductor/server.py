@@ -128,6 +128,40 @@ DEFAULT_CAM_SLOT = dict(cam_front=False, cam_nadir=False, cam_chase=False,
 # (one waypoint - closing would silently make it an out-and-back) and for
 # an already-closed curve; see WaypointNav::closeFinalLeg.
 DEFAULT_CLOSE_LEG = True
+
+
+def kind_slot_defaults(kind):
+    """Per-mission-kind defaults for the two "what happens at the end"
+    fields, in ONE place so the panel, the REST API and any script all get
+    the same answer (this file has been bitten repeatedly by the same fact
+    living in two places and drifting).
+
+    A standalone `dash:` mission is the exception, and both fields flip:
+
+      dash=0        - "100m dash when done" appends a 100 m sprint AFTER a
+                      mission that already IS a 100 m sprint. Nonsense as a
+                      default, and it invites a 200 m run nobody asked for.
+      close_leg=0   - closing a dash's final leg walks it back to the origin,
+                      i.e. turns it into an out-and-back. That is a DIFFERENT
+                      mission this file already distinguishes by name, and
+                      makeDash() exists precisely because "a dash is ONE
+                      straight leg, ending at its own final waypoint" (see
+                      "The standalone dash: it was never a reversal").
+
+    Both are currently no-ops for a 1-waypoint dash by construction -
+    appendDash() returns at `_n < 2` and closeFinalLeg() skips `_n < 2` - so
+    this is not fixing live misbehaviour. It is making the CHECKBOXES honest
+    (they claimed two things that never happened) and removing the reliance
+    on that coupling, so a future dash variant with 2+ waypoints cannot
+    silently become an out-and-back-plus-sprint.
+
+    Every other mission keeps the dash finish and the closing leg, which is
+    what makes the loop courses rehearse the full stop/lie-down/stand/sprint
+    sequence.
+    """
+    if kind in ("dash", "outback"):
+        return {"dash": 0, "close_leg": False}
+    return {"dash": 100, "close_leg": DEFAULT_CLOSE_LEG}
 import terrain  # noqa: E402 - conductor/terrain.py, procedural heightmaps
 
 # ---------------------------------------------------------------------------
@@ -615,9 +649,8 @@ class Fleet:
         self.draft_slots = [
             dict(mission=spec,
                  gait=next(g for g, n in GAITS.items() if n == RECIPES[kind]["gait"]),
-                 speed=RECIPES[kind]["speed"], dash=100,
-                 close_leg=DEFAULT_CLOSE_LEG, model=DEFAULT_MODEL,
-                 **DEFAULT_CAM_SLOT)
+                 speed=RECIPES[kind]["speed"], model=DEFAULT_MODEL,
+                 **kind_slot_defaults(kind), **DEFAULT_CAM_SLOT)
             for kind, spec in _CORE_MISSIONS
         ]
         self.draft_cap = 3.5
@@ -700,8 +733,8 @@ class Fleet:
                 mission={"star": "star:10.514:5", "oval": "oval:40:5.0",
                          "atom": "atom:9.0:6"}.get(nxt, "star:10.514:5"),
                 gait=next(g for g, n in GAITS.items() if n == r["gait"]),
-                speed=r["speed"], dash=100, close_leg=DEFAULT_CLOSE_LEG,
-                model=DEFAULT_MODEL, **DEFAULT_CAM_SLOT))
+                speed=r["speed"], model=DEFAULT_MODEL,
+                **kind_slot_defaults(nxt), **DEFAULT_CAM_SLOT))
             return True, self.draft_slots
 
     def draft_remove_slot(self, i):
@@ -734,7 +767,20 @@ class Fleet:
                 return False, "no such slot"
             s = self.draft_slots[i]
             if "mission" in fields:
+                prev_kind = mission_kind(s.get("mission", ""))
                 s["mission"] = str(fields["mission"])
+                new_kind = mission_kind(s["mission"])
+                # Switching INTO or OUT OF a standalone dash re-applies that
+                # kind's own end-of-mission defaults, because they are
+                # opposites: a dash wants no sprint-finish and no closing leg,
+                # every loop course wants both. Only on an actual kind CHANGE,
+                # so re-selecting the same kind never stomps a deliberate
+                # per-slot override. An explicit dash/close_leg in the SAME
+                # request still wins - the branches below run after this and
+                # overwrite it, which is what lets the panel send
+                # mission+dash+close_leg together in one POST.
+                if new_kind != prev_kind:
+                    s.update(kind_slot_defaults(new_kind))
             if "gait" in fields and fields["gait"] in GAITS:
                 s["gait"] = fields["gait"]
             if "model" in fields and fields["model"] in MODEL_MAX_SPEED:

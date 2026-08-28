@@ -278,6 +278,20 @@ function renderSlots() {
       // state.recipes every render) but the actual command did not, so the
       // panel silently ran an untested, wrong-gait combination.
       if (f === "mission") {
+        // END-OF-MISSION DEFAULTS, mirroring server.py's kind_slot_defaults()
+        // so the checkboxes flip the moment the dropdown changes instead of
+        // waiting a poll tick. A standalone dash wants NEITHER a sprint
+        // finish (it already is one) nor a closing leg (that would make it
+        // an out-and-back); every loop course wants both. The server applies
+        // the same rule authoritatively on the same POST - this is purely
+        // for instant feedback, and the values are sent explicitly so the
+        // two can never disagree about what was intended.
+        const nk = kindOf(slots[i].mission);
+        const isDash = (nk === "dash" || nk === "outback");
+        slots[i].dash = isDash ? 0 : 100;
+        slots[i].close_leg = !isDash;
+        body.dash = slots[i].dash;
+        body.close_leg = slots[i].close_leg;
         const recipe = state.recipes[kindOf(slots[i].mission)];
         if (recipe) {
           const gaitName = gaitNameForIndex(recipe.gait);
