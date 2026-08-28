@@ -142,6 +142,7 @@ let slots = DEFAULT_MISSIONS.map((m, i) => ({
 // pre-removal index would act on the wrong slot or DELETE an already-
 // shifted one out from under a different slot. See the removal handler.
 let _removing = false;
+let _uiRev = null;   // the ui_rev this page booted with - see poll()
 
 function kindOf(spec) { return spec.split(":")[0]; }
 
@@ -172,8 +173,10 @@ function renderSlots() {
   const view = running
     ? state.slots.map(s => ({ ...s, gait: s.gait_name || s.gait }))
     : slots;
+  const tk = state.terrain;
+  const tnote = (state.terrain_types && state.terrain_types[tk] || {}).note || "";
   const banner = running
-    ? `<div class="cap-hint" style="margin-bottom:0.4rem">Showing the RUNNING fleet's ${view.length} slot(s); the draft returns when it ends.</div>`
+    ? `<div class="cap-hint" style="margin-bottom:0.4rem">Showing the RUNNING fleet's ${view.length} slot(s); the draft returns when it ends.<br><b>Terrain: ${tk || "?"}</b>${tnote ? " - " + tnote : ""}</div>`
     : "";
   el.innerHTML = banner + view.map((s, i) => {
     const recipe = state.recipes[kindOf(s.mission)] || {};
@@ -646,8 +649,17 @@ async function poll() {
     // entirely while focus is inside a slot control (mid-edit), and skip
     // the render when the incoming draft is byte-identical to what is
     // already showing (the common case, every 400ms, must stay a no-op).
+    // Stale-tab killer: if the panel's own JS/HTML changed on disk since
+    // this page loaded, reload to pick it up (guarded so it never eats an
+    // in-progress edit). Without this, a UI fix only reaches a tab that
+    // happens to get manually refreshed - which is exactly how a verified
+    // fix looked like no fix at all to the operator (2026-08-28).
     const editingASlot = document.activeElement &&
       document.activeElement.closest && document.activeElement.closest(".play-card");
+    if (state.ui_rev) {
+      if (_uiRev === null) _uiRev = state.ui_rev;
+      else if (state.ui_rev !== _uiRev && !editingASlot) { location.reload(); return; }
+    }
     if (state.draft_slots && !editingASlot) {
       const incoming = JSON.stringify(state.draft_slots);
       if (!_synced || incoming !== JSON.stringify(slots)) {

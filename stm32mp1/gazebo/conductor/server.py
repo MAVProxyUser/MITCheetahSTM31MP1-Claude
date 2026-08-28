@@ -718,6 +718,7 @@ class Fleet:
         # every campaign result was measured on; anything else is new,
         # unvalidated ground and stays opt-in for exactly that reason.
         self.draft_terrain = "flat"
+        self.run_terrain = None       # terrain of the ACTIVE/last run, for the panel label
         self.cameras = {}             # index -> {"front_cam": "data:...", "nadir_cam": "data:..."}
         self._gz_cam_nodes = []       # one Node per camera subscription, kept alive
         # RUN NUMBER. Monotonic, persisted across server restarts, so the
@@ -764,6 +765,16 @@ class Fleet:
                 "draft_slots": self.draft_slots,
                 "draft_cap": self.draft_cap,
                 "draft_terrain": self.draft_terrain,
+                "terrain": self.run_terrain,
+                # UI self-refresh stamp: app.js compares this to the value it
+                # booted with and reloads itself when it changes, so a fix to
+                # the panel's own JS reaches an already-open tab within one
+                # poll tick. Born of a real failure (2026-08-28): a running-
+                # view fix was live on disk + verified in a fresh tab while
+                # the operator's long-lived tab still ran the old code and
+                # showed 3 draft slots for a 1-dog run - "you did NOT fix
+                # the stale slot data."
+                "ui_rev": self._ui_rev(),
                 "terrain_types": terrain.TERRAIN_TYPES,
                 "cameras": self.cameras,
                 "host_load": self.host_load,
@@ -889,6 +900,14 @@ class Fleet:
             self.draft_cap = max(0.3, min(float(value), HARD_SPEED_CAP))
             return True, self.draft_cap
 
+    def _ui_rev(self):
+        try:
+            st = os.path.join(HERE, "static")
+            return max(os.stat(os.path.join(st, f)).st_mtime_ns
+                        for f in ("app.js", "index.html"))
+        except OSError:
+            return 0
+
     def draft_set_terrain(self, kind):
         with self.lock:
             if kind not in terrain.TERRAIN_TYPES:
@@ -928,6 +947,15 @@ class Fleet:
                 terrain_kind = self.draft_terrain
             if terrain_kind not in terrain.TERRAIN_TYPES:
                 return False, "unknown terrain %r" % terrain_kind
+            # Mirror the launched terrain into the draft (same treatment the
+            # camera fields got): the panel's Terrain dropdown reflects
+            # draft_terrain, so a body-launch that picked its own kind used
+            # to fly with the dropdown silently showing something else -
+            # operator: "I'm watching different types go by with no
+            # indication of what they are." run_terrain additionally rides
+            # /api/state so the fleet panel can label the ACTIVE run.
+            self.draft_terrain = terrain_kind
+            self.run_terrain = terrain_kind
             # An empty fleet is refused HERE, not by pinning the last draft
             # slot as unremovable - that pin is what left dog 0 with no
             # delete button. "You cannot launch nothing" is a launch-time
@@ -1148,6 +1176,9 @@ class Fleet:
     def _run(self, locked, terrain_kind="flat"):
         try:
             os.makedirs(RUN_DIR, exist_ok=True)
+            tnote = terrain.TERRAIN_TYPES.get(terrain_kind, {}).get("note", "")
+            self._note("TERRAIN for this run: %s%s"
+                        % (terrain_kind, (" - " + tnote) if tnote else ""))
             self._note("building fleet world: %s (terrain=%s)"
                         % (", ".join(s["mission"] for s in locked), terrain_kind))
             world_out = os.path.join(RUN_DIR, "fleet.sdf")
