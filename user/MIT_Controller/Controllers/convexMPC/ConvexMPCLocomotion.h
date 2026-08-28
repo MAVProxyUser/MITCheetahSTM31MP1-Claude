@@ -242,6 +242,17 @@ private:
   // stance onto airborne feet (5->9 mid-flight).
   int _gaitAdopted = -1;
   int _gaitDeferTicks = 0;
+  // Phase origin for the gait/MPC clock. Subtracted from iterationCounter
+  // everywhere a segment index or solve boundary is derived, and REBASED to
+  // the current counter whenever iterationsBetweenMPC changes - because
+  // phase = (counter / iters) % 10, and changing the divisor mid-count
+  // TELEPORTS the phase to an arbitrary segment (measured: the 26->22 ms
+  // schedule change ~1 s after a gait switch scrambled the cycle and
+  // collapsed the dog within 2 waypoints, the third and final transient
+  // behind the mid-motion switch falls). Rebasing at the change makes the
+  // new clock genuinely start at segment 0, which is what applySchedule's
+  // "only at a cycle boundary" guard always intended.
+  int _iterSegOffset = 0;
 
   Vec3<float> world_position_desired;
   Vec3<float> rpy_int;

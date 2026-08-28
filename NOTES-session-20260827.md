@@ -66,9 +66,9 @@ Ordered by my read of value, not by age.
 | 4 | `corner:` mission | **DONE.** It had no recipe - that WAS the bug. 45/90/135 deg all PASS on one tuning. Now in RECIPES + dropdown. |
 | 5 | Spawn pose | operator-flagged; two fixes reverted; feet still 10–17 cm under at settle |
 | 6 | Oval gait-switch fall | **SOLVED (Fable).** Chain: phase-gated gait adoption (fixed the mis-phased contact-table collapse) + pre-planner settle lead (`entry_settle_x * track_lag_s * v_cap` before the arc - fixed hot entry, per direct order) + archaeology: the milestone oval NEVER actually switched (phantom prints). Shipped: cap-only trotRunning@3.5, 4/4 at 37.0-37.1s then 3/3 at 38.1-38.3s with the settle lead (+1.2s, the ordered trade). REAL switching (WP_GAIT_CORNER=9 explicit) still falls - two causes removed, swing-phase jump is the narrowest remaining suspect. My 'second curve' claim was wrong - both falls bracketed ONE curve's two switches. |
-| 7 | Residual ~10 % estimator scale under-read (galloping) | new tonight, real, separate from the windup, uninvestigated |
+| 7 | Galloping ~10% estimator under-read | **SOLVED.** Discriminated with SIM_LEGVEL_DBG: the RAW odometry measurement is low (raw/fused=1.02, fused/truth=0.917) - foot slip/schedule mismatch, not KF blending. GPS velocity aiding closes it to 0.5% (0.995), zero cost on symmetric gaits (trotting 0.994 PASS). **Promoted default-ON**, sigma 0.02, pointer-wiring gate fixed to match. |
 | 8 | `parallel` closed-leg | never re-measured; largest gap in the catalog (46.1 m) + a 90→49.4° closing corner |
-| 9 | Chase camera position not live | flagged, deliberately not built pending a decision on per-tick cost |
+| 9 | Chase camera live position | **STALE ENTRY - already built** (free-floating model + set_pose follow at 10Hz, draft-live sliders). Measured A/B: zero control-loop cost (3.00 vs 3.05ms worst, 0 overruns either way); ~200-250ms visual lag analyzed and documented. GPU render load is the only real camera cost, identical in both designs. |
 | 10 | walking2 cornering at 90° / 120–147.5° | documented coverage gap |
 
 **#1 remains the single highest-value item.** Tonight's headline — all 8
@@ -277,3 +277,22 @@ Everything below is in CLAUDE.md in full; this is the index.
 - **Octagon named honestly**: dropdown says "Octagon search (8×45°)";
   the smooth circle `circle:9:36` is selectable and verified (33.7s).
 - **`corner:` probe shipped** with recipe + dropdown (45/90/135 all PASS).
+
+---
+
+## FABLE SESSION, PART 2 (03:00-03:30) — the three ordered targets
+
+1. **Full suite tier: 18 cases, 18/18 PASS first run** (~50 min; --fast
+   keeps the quick gate). Now 19 with `oval_real_switch`.
+2. **Galloping estimator: SOLVED** (see backlog row 7).
+3. **Mid-motion gait switching: SOLVED — 3/3 PASS, first in project
+   history.** The third transient was the CLOCK: applySchedule's
+   segment-time change alters the divisor in phase=(counter/iters)%10
+   mid-count, teleporting the segment index ~1s after the adoption the
+   gate had just aligned. Fixed with _iterSegOffset, a phase origin
+   rebased at every segment-time change. Swing-continuity re-capture
+   (firstSwing forced at adoption) added alongside — measured
+   insufficient alone, kept as correct-in-principle defense. Shipping
+   recipe stays cap-only (same time, fewer parts); the suite case keeps
+   the machinery pinned.
+4. **Chase cam: measured, not guessed** (see backlog row 9).

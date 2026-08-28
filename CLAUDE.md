@@ -7770,3 +7770,147 @@ minutes per suite run (lissajous 11:9 alone is ~9.5 min); adding them
 belongs with a tiering decision (fast suite vs full catalog sweep), not
 silently tripling the suite's runtime.
 
+
+## GALLOPING'S ~10% ESTIMATOR UNDER-READ: SOLVED - the odometry itself is biased, and velocity aiding closes it
+
+The residual from the windup investigation (truth 99.92 m vs estimate
+90.19 m on a passing dash). Two hypotheses produce that fused symptom and
+need OPPOSITE fixes, so a discriminating diagnostic came first:
+`$SIM_LEGVEL_DBG=1` logs each leg's trust and blended velocity plus the
+fused prior, from which the RAW leg-odometry measurement is recoverable
+offline (`meas = (vs - (1-t)*v0) / t` at trust > 0.9).
+
+Measured on a galloping dash (849 ESTERR + 1137 high-trust LEGVEL
+cruise samples):
+
+    fused / truth      = 0.917   (the under-read, confirmed)
+    raw-meas / fused   = 1.022   (the measurement IS the fused value)
+
+**H-measurement confirmed, H-blending exonerated**: the raw kinematic
+velocity is itself ~8-10 % low during confident stance - foot slip and/or
+schedule-vs-reality mismatch under a 40 %-flight gait's high per-foot
+forces. The KF blend is innocent, so no amount of trust-ramp tuning could
+have fixed this.
+
+**The fix is GPS velocity aiding - the feature built for exactly this and
+mis-evaluated for an entire session while the windup bug corrupted every
+test of it** (the robot was being commanded backward; the estimator
+faithfully reported a robot going nowhere; aiding got blamed). Measured
+clean, post-windup-fix:
+
+| run | fused/truth |
+|---|---|
+| galloping dash, no aiding | 0.917 |
+| galloping dash, `SIM_VEL_AIDING=1 SIM_GPS_VEL_SIGMA=0.02` | **0.995** |
+| trotting dash (symmetric-gait no-regression probe), aiding on | 0.994, PASS |
+
+**Promoted to DEFAULT ON** (`SIM_VEL_AIDING=0` disables), sigma default
+0.02 (the measured point of diminishing returns). The pointer-wiring gate
+was updated to match - the old "wire only when the variable is SET"
+condition would have left `absAiding` null on a default launch, silently
+reproducing the exact disconnected-pointer bug documented above. The
+NEO-M9V this sim's GPS models genuinely outputs Doppler velocity at
+50 Hz, so this is realistic sensor fusion, not a sim crutch.
+
+## MID-MOTION GAIT SWITCHING: SOLVED - three transients deep, and the third was the clock itself
+
+`WP_GAIT_CORNER=9` (a REAL 5->9/9->5 swap on the oval): **3/3 PASS at
+38.6-38.7 s** - the first genuine mid-motion gait-switch passes in this
+project's history, with the `[SCHED]` adoption lines verified in the log
+(the standing rule after the run500 near-false-claim).
+
+The complete chain, each transient measured before the next was visible:
+
+1. **Contact-table phase misalignment** -> phase-gated adoption (the trot
+   pair's tables disagree on 40 % of the cycle; adopt at seg 0 only).
+2. **Hot arc entry** -> the analyzer settle lead (brake to the cap
+   `2*track_lag_s*v_cap` BEFORE the arc).
+3. **The clock teleport** - the one that survived both fixes and 0/3'd
+   the swing-continuity attempt too. `applySchedule()`'s segment-time
+   change (`26 -> 22 ms, iters 13 -> 11`, firing ~1 s after adoption when
+   the new gait's schedule kicks in) changes the DIVISOR in
+   `phase = (iterationCounter / iters) % 10` mid-count - which TELEPORTS
+   the segment index to an arbitrary value, un-aligning the very cycle
+   the adoption gate had just aligned. The guard fired "at a cycle
+   boundary" of the OLD clock; under the NEW divisor that same instant is
+   a random segment. Fix: `_iterSegOffset`, a phase origin subtracted
+   everywhere a segment index or solve boundary derives from
+   `iterationCounter`, REBASED to the current count at every segment-time
+   change - so the new clock genuinely starts at segment 0 at the
+   boundary, which is what the guard always intended.
+
+Swing-trajectory re-capture at adoption (`firstSwing` forced, so a
+mid-air foot re-plans from where it physically is under the new timing)
+went in alongside and is kept - measured insufficient alone (0/3 with
+transients 1+2 fixed), correct in principle, and free.
+
+**The shipping oval recipe stays cap-only** - switching completes in the
+same 38.6 s as cap-only's 38.2 s, so on THIS course it buys nothing and
+adds moving parts. The machinery now genuinely works for courses that
+would benefit, and `oval_real_switch` (fast tier) keeps all three
+transients pinned in the suite.
+
+## CHASE CAM, live vs body-mounted: the live one already existed, and it costs nothing
+
+The backlog entry ("live position deliberately not built pending a
+decision on per-tick cost") was STALE - `fleet_world.make_chase_cam_model`
++ `Fleet._follow_chase_cams()` already implement the live design: a
+free-floating static camera model teleported via `/world/.../set_pose` at
+10 Hz from the dog's own trail-overlay pose, reading distance/height/
+degree from the DRAFT live (a slider drag lands within one tick).
+
+**Lag, analyzed**: pose-callback staleness + 100 ms follow tick +
+set_pose service + up to 100 ms to the next camera frame ~= 200-250 ms
+end-to-end -> the camera rubber-bands up to ~0.8 m behind at sprint
+speeds. A body-mounted sensor has zero lag but a config frozen at world
+build, and inherits gait bob/tilt (the follow loop deliberately composes
+yaw only, the standard chase-cam stabilization).
+
+**Performance, measured (3-dog fleet A/B)**:
+
+| | worst loop period | over 4 ms |
+|---|---|---|
+| cameras off | 3.05 ms | 0/243 |
+| 3 LIVE chase cams | 3.00 ms | 0/244 |
+
+Zero measurable control-loop cost from 30 set_pose/s + three
+480x270@10Hz renders. The historical "KILL THE CAMERAS" damage was GPU
+RENDER load (44-49 %), which is identical in both designs - the
+live-follow mechanism itself is free. If the ~0.8 m sprint rubber-band
+ever matters, halve the follow tick and raise the camera rate before
+anything fancier; measure the GPU then.
+
+
+### The aiding default's first casualty - caught by the suite, hidden by the suite, fixed in both places
+
+The first fast-suite run after velocity aiding went default-on produced a
+12/12 SUMMARY that was hiding a real regression, and the chain is worth
+recording precisely:
+
+1. **The regression**: star FROZE at engagement - nav took the stick, GPS
+   origin set, zero waypoints, and the tail showed `Operating Mode: ESTOP`
+   with `[recover] gave up... orientation never settled under 30 deg`.
+   Cause: `setSpawnYawRad()` is called by navThread long after boot, so
+   with aiding now firing from tick 1, the ENTIRE stand-up/engage sequence
+   ran velocity corrections rotated for the default NORTH spawn. Bearing-0
+   missions (dash/oval/atom) were unaffected - pi/2 is correct for them -
+   but the star spawns at bearing 162 deg, a 126-deg-wrong velocity
+   injection during the most fragile transition. The dog tipped and
+   ESTOPped. Fixed: the bridge constructor now initializes `_spawnYawRad`
+   from `$WP_SPAWN_BEARING_DEG` (the env server.py already passes),
+   correct from tick 1; `setSpawnYawRad()` stays as the authoritative
+   late set. Star with aiding on: PASS 63.8 s.
+
+2. **The suite hole**: `mission_runner` exit 2 (harness timeout, "not a
+   mission verdict") printed INCONCLUSIVE and then fell through WITHOUT
+   setting `ok = False` - an inconclusive counted as PASS in the SUMMARY.
+   Now: one retry (absorbs the legitimate finish-line races and tight
+   budgets), and a second non-zero attempt FAILS the case. An honest
+   uncertainty is a retry; two in a row is a failure.
+
+The general lesson repeats one this file already carries: a default flip
+exercises every code path that had only ever run with the feature off,
+and the FIRST full suite after any default change is the test that
+matters most - provided the suite itself cannot classify "no verdict" as
+"pass".
+

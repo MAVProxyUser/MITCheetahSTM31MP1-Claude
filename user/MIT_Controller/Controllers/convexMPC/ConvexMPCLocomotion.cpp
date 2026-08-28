@@ -513,7 +513,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       } else {
         // Segment index from the same arithmetic setIterations feeds the
         // gaits (every gait in the selector is built with 10 segments).
-        const int seg = (int)((iterationCounter / iterationsBetweenMPC) % 10);
+        const int seg = (int)(((iterationCounter - _iterSegOffset) / iterationsBetweenMPC) % 10);
         _gaitDeferTicks++;
         if (seg == 0 || _gaitDeferTicks > 300) {
           shmtrace::logf(0.0, "[SCHED] gait %d -> %d adopted at seg=%d (deferred %d ticks%s)",
@@ -618,11 +618,11 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // boundary change takes effect on the cycle that is just starting.
   applySchedule(gaitNumber, _x_vel_des, gait);
 
-  gait->setIterations(iterationsBetweenMPC, iterationCounter);
-  jumping.setIterations(iterationsBetweenMPC, iterationCounter);
+  gait->setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset);
+  jumping.setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset);
 
 
-  jumping.setIterations(27/2, iterationCounter);
+  jumping.setIterations(27/2, iterationCounter - _iterSegOffset);
 
   //printf("[%d] [%d]\n", jumping.get_current_gait_phase(), gait->get_current_gait_phase());
   // check jump trigger
@@ -971,7 +971,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // Latency is one segment, constant, by construction - the same zero-order
   // hold MIT already has between solves - and a gait-table change (standing ->
   // trot at engage) has its forces ready BEFORE its first tick executes.
-  if (_mpcAsync && (iterationCounter % iterationsBetweenMPC) == 0) {
+  if (_mpcAsync && ((iterationCounter - _iterSegOffset) % iterationsBetweenMPC) == 0) {
     // stage 1: promote last segment's solve result to the applied slot
     std::lock_guard<std::mutex> lk(_mpcMtx);
     if (_mpcHaveSolution.load()) {
@@ -982,11 +982,11 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   }
   // prefetch: the contact table one segment ahead, for the solve we dispatch now
   {
-    gait->setIterations(iterationsBetweenMPC, iterationCounter + iterationsBetweenMPC);
+    gait->setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset + iterationsBetweenMPC);
     int* nxt = gait->getMpcTable();
     for (int i = 0; i < 4 * horizonLength && i < (int)(sizeof(_mpcTableNext)/sizeof(int)); ++i)
       _mpcTableNext[i] = nxt[i];
-    gait->setIterations(iterationsBetweenMPC, iterationCounter);   // restore
+    gait->setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset);   // restore
   }
   updateMPCIfNeeded(_mpcAsync ? _mpcTableNext : mpcTable, data, omniMode);
 
@@ -1477,6 +1477,14 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
       iterationsBetweenMPC = wantIters;
       dtMPC = dt * iterationsBetweenMPC;
       _segMsCurrent = p.segMs;
+      // REBASE THE PHASE ORIGIN - see _iterSegOffset's comment. Without
+      // this, the new divisor re-reads the old counter as some arbitrary
+      // segment and the cycle teleports mid-stride; with it, the new
+      // clock starts at segment 0 exactly here, at the boundary this
+      // whole block is already gated to.
+      _iterSegOffset = iterationCounter;
+      shmtrace::logf(0.0, "[SCHED] phase origin rebased at iter=%d (new clock starts at seg 0)",
+             iterationCounter);
       setup_problem(dtMPC, horizonLength, 0.4, mpcForceCap());
     }
   } else if (_segMsCurrent == 0) {
@@ -1528,7 +1536,7 @@ void ConvexMPCLocomotion::updateMPCIfNeeded(int *mpcTable, ControlFSMData<float>
   // Boundary-only dispatch: the pipeline in run() hands this the NEXT
   // segment's contact table, and the solve (32 ms) fits inside the 45 ms
   // segment, so each boundary applies the previous solve and starts the next.
-  if((iterationCounter % iterationsBetweenMPC) == 0)
+  if(((iterationCounter - _iterSegOffset) % iterationsBetweenMPC) == 0)
   {
     auto seResult = data._stateEstimator->getResult();
     float* p = seResult.position.data();

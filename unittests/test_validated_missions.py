@@ -238,6 +238,28 @@ CASES = [
             "CLAUDE.md before assuming this tests continuous curvature."
         ),
     ),    Case(
+        name="oval_real_switch",
+        slots=["oval:40:5.0"], gaits=["trotRunning"], speeds=[3.5],
+        extras=["WP_GAIT_CORNER=9"],
+        min_s=25, max_s=75,
+        why=(
+            "REAL mid-motion gait switching (5->9 into the sustained curve, "
+            "9->5 out of it), the mechanism that had never passed on any "
+            "build until 2026-08-28. Exists to keep all three switch "
+            "transients pinned: (1) phase-gated adoption (contact tables "
+            "disagree on 40% of the trot-pair cycle), (2) the analyzer "
+            "settle lead (arrive at the arc at plan speed, not hot), (3) "
+            "the phase-origin rebase (changing iterationsBetweenMPC "
+            "mid-count teleports the segment index - the 26->22ms schedule "
+            "change ~1s after adoption was the last killer). 3/3 PASS at "
+            "38.6-38.7s the night it first worked. The SHIPPING oval "
+            "recipe is deliberately cap-only (same time, fewer moving "
+            "parts); this case is the switching machinery's own regression "
+            "guard, not the recommended config. Check the [SCHED] adoption "
+            "lines before believing anything about this case."
+        ),
+    ),
+    Case(
         name="sector_recipe", tier="full",
         slots=["sector:15:3"], gaits=[], speeds=[], extras=[],
         min_s=100, max_s=280,
@@ -410,8 +432,25 @@ def run_case(case: Case, repeats: int) -> bool:
         if proc.returncode == 0:
             print(f"{label} PASS (wall {elapsed_wall:.1f}s)")
         elif proc.returncode == 2:
-            print(f"{label} HARNESS TIMEOUT - not a mission verdict, treating as INCONCLUSIVE, not FAIL")
+            # A harness timeout is not a mission verdict - but it is NOT a
+            # pass either, and treating it as one hid a real frozen-at-spawn
+            # regression behind a 12/12 SUMMARY (the aiding-default star tip,
+            # 2026-08-28: the dog ESTOPped at engagement, the stall-timeout
+            # fired, exit 2 fell through this branch without touching `ok`,
+            # and the case printed PASS). One retry absorbs the legitimate
+            # exit-2 causes (finish-line races, a tight budget on a slow but
+            # healthy run); a SECOND inconclusive in a row on the same case
+            # is treated as the failure it almost certainly is.
+            print(f"{label} HARNESS TIMEOUT - not a mission verdict; retrying once")
             print(f"{label} tail of output:\n" + "\n".join(proc.stdout.splitlines()[-15:]))
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode == 0:
+                print(f"{label} retry PASS")
+            else:
+                ok = False
+                print(f"{label} retry exit {proc.returncode} - FAILING the case "
+                      f"(two inconclusive/failed attempts in a row)")
+                print(f"{label} tail:\n" + "\n".join(proc.stdout.splitlines()[-20:]))
         else:
             ok = False
             print(f"{label} FAIL (exit {proc.returncode})")

@@ -89,6 +89,17 @@ class Stm32mp1HardwareBridge {
   //! Absolute position aiding for the KF (baro/GPS). On the real Go1 these
   //! arrive over CAN; in SITL over UDP. Opt-in via $SIM_ABS_AIDING.
   AbsolutePositionAiding<float> _absAiding;
+  // Initialized from $WP_SPAWN_BEARING_DEG in the constructor body (the
+  // same env var server.py already passes for every shifted-spawn mission)
+  // rather than trusting this pi/2 default until navThread gets around to
+  // setSpawnYawRad(): with velocity aiding DEFAULT-ON, corrections fire
+  // from tick 1, and the whole boot/stand/engage sequence used to run them
+  // rotated for a NORTH spawn regardless of the real heading. Harmless at
+  // bearing 0; at the star's 162 deg spawn it was a 126-deg-wrong velocity
+  // injection during the most fragile transition, and the dog tipped and
+  // ESTOPped at engagement (measured, first fast-suite run after the
+  // aiding default flipped). setSpawnYawRad() remains the authoritative
+  // late set; with the env read it is a no-op when they agree.
   float _spawnYawRad = 1.5707963f;  // pi/2 - default matches every world file's own
                                     // universal spawn convention (yaw=+90deg, body-x
                                     // north) when nobody calls the setter

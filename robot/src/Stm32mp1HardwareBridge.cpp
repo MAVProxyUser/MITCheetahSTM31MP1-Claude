@@ -59,6 +59,13 @@ Stm32mp1HardwareBridge::Stm32mp1HardwareBridge(RobotController* controller,
   // _canImuCfg defaults: can0, node 124, msgs 20500/20501
   memset(&_spiData, 0, sizeof(_spiData));
   memset(&_spiCommand, 0, sizeof(_spiCommand));
+  // Spawn yaw from the env, CORRECT FROM TICK 1 - see the field's comment
+  // in the header for the measured engagement tip this closes now that
+  // velocity aiding defaults on. Same compass->Gazebo-yaw conversion
+  // mit_sim_main uses (world_yaw = pi/2 - bearing), same env var server.py
+  // already passes; unset = 0 deg = the old north-spawn behaviour exactly.
+  if (const char* sb = getenv("WP_SPAWN_BEARING_DEG"))
+    _spawnYawRad = 1.5707963f - (float)(atof(sb) * M_PI / 180.0);
   // Zero the operator command channel. It was left uninitialised, so the
   // waypoint driver's "wait until the sequencer has ramped the stick to SIM_VX"
   // gate saw garbage that already exceeded the target and took the stick at
@@ -143,7 +150,22 @@ void Stm32mp1HardwareBridge::runMotors() {
       static const bool aidOn = getenv("SIM_ABS_AIDING") &&
                                 atoi(getenv("SIM_ABS_AIDING")) != 0;
       // Independent of aidOn on purpose - see the velocity block below.
-      static const bool velAidOn = getenv("SIM_VEL_AIDING") &&
+      // DEFAULT ON as of 2026-08-28 ($SIM_VEL_AIDING=0 disables). The
+      // history matters: this feature was built for exactly the failure it
+      // now fixes, then mis-evaluated for a whole session because the
+      // x_comp_integral windup was corrupting every test of it (the robot
+      // was being commanded backward; the estimator faithfully reported a
+      // robot going nowhere and aiding got blamed). With the windup fixed,
+      // measured cleanly: galloping's leg odometry reads ~8-10% LOW during
+      // confident stance (the raw measurement itself, not the KF blend -
+      // discriminated with $SIM_LEGVEL_DBG: raw-meas/fused=1.02 while
+      // fused/truth=0.917), the signature of foot slip / schedule mismatch
+      // under a 40%-flight gait. GPS velocity aiding closes it to 0.5%
+      // (fused/truth 0.995) and costs symmetric gaits nothing (trotting
+      // dash with aiding: PASS, scale 0.994). The NEO-M9V this sim's GPS
+      // is modeled on genuinely outputs Doppler velocity at 50 Hz, so this
+      // is realistic sensor fusion, not a sim-only crutch.
+      static const bool velAidOn = !getenv("SIM_VEL_AIDING") ||
                                    atoi(getenv("SIM_VEL_AIDING")) != 0;
       if (aidOn || velAidOn) {
         SimAuxSensors aux;
@@ -245,8 +267,12 @@ void Stm32mp1HardwareBridge::runMotors() {
           const float ey = -ve * s + vn * c;
           _absAiding.velocity << ex, ey, -aux.gps_vel[2];
           _absAiding.haveVel = true;
+          // 0.02 = the measured point of diminishing returns from the
+          // sigma sweep (0.1 -> 24.9m progress, 0.02 -> 54.5m, 0.005 ->
+          // 53.7m in the windup era; post-fix, 0.02 is the value the 0.5%
+          // scale closure was measured at).
           const float vel_sig = getenv("SIM_GPS_VEL_SIGMA")
-                              ? atof(getenv("SIM_GPS_VEL_SIGMA")) : 0.1f;
+                              ? atof(getenv("SIM_GPS_VEL_SIGMA")) : 0.02f;
           _absAiding.velSigma << vel_sig, vel_sig, vel_sig;
         } else if (velAidOn) {
           // Must explicitly clear this every stale tick, not just skip
@@ -318,8 +344,13 @@ void Stm32mp1HardwareBridge::run() {
   // this->_robotRunner->absAiding stayed null, so
   // PositionVelocityEstimator's `if (aid && aid->haveVel)` never even
   // evaluated true. Both flags now wire the pointer independently.
+  // Velocity aiding now DEFAULTS ON (see the velAidOn comment above), so
+  // the pointer must be wired unless it is explicitly disabled - the old
+  // "wire only when the variable is set" condition would leave absAiding
+  // null on a default launch, silently reproducing the exact
+  // disconnected-pointer bug this comment block documents.
   if ((getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0) ||
-      (getenv("SIM_VEL_AIDING") && atoi(getenv("SIM_VEL_AIDING")) != 0))
+      (!getenv("SIM_VEL_AIDING") || atoi(getenv("SIM_VEL_AIDING")) != 0))
   {  _robotRunner->absAiding = &_absAiding;
      shmtrace::logf(0.0, "[stm32mp1] absAiding wired: %p", (void*)&_absAiding); }
   // CHEATER MODE IS DELETED. There is no environment variable, no yaml key and
