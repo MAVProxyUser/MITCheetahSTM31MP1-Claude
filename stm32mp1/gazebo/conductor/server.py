@@ -211,11 +211,31 @@ RECIPES = {
     # the whole course is slower (~46s vs the old ~30.5s best case) but
     # PASSED 2/2 clean where the old config's own documented history was
     # marginal. Do not revert without re-reading that section first.
-    "oval": dict(gait=9, speed=2.4, extra="WP_ANALYZER=0",
-                 note="trotting, whole course, no analyzer - trotRunning cannot hold this curve at any tested speed (see CLAUDE.md)"),
-    # OLD (marginal, ~1-in-3 failure at the sustained-curve entry):
-    # "oval": dict(gait=5, speed=3.5, extra="WP_ANALYZER=1 WP_VSUS=2.4",
-    #              note="trotRunning, analyzer, sustained cap 2.4 (re-swept 2026-08-24; 2.6 is past the current envelope)"),
+    # THE FAST OVAL, RESTORED (2026-08-28): trotRunning the whole way at
+    # 3.5, with the analyzer's SPEED CAP governing the sustained curves
+    # (WP_VSUS=2.4) and the gait SWITCH explicitly disabled by setting the
+    # sustained-segment gait to trotRunning itself (WP_GAIT_CORNER=5).
+    #
+    # Why cap-only: the mid-course gait switch is what killed every fast
+    # config, and phase-gating the switch (real fix, kept - see
+    # ConvexMPCLocomotion's PHASE-GATED GAIT ADOPTION) removed the
+    # contact-table collapse but a real 9->5/5->9 swap at 2.4+ m/s still
+    # fell every rep (earlier lead, lower cap - all fell). Cap-only passed
+    # 4/4 at 37.0-37.1s, a 0.1s spread, vs ~80s for trotting-only. And the
+    # historical "analyzer oval PASS" (fleet-complete-20260824) never
+    # actually switched either - the pre-fix SIM_GAIT override silently
+    # discarded the analyzer's cmpc_gait writes, so what that milestone
+    # really validated WAS cap-only trotRunning. This recipe makes the
+    # historically-validated behavior explicit instead of an accident of a
+    # since-fixed bug. "trotRunning cannot hold this curve" (the previous
+    # note) was measured UNCAPPED at 3.5 - capped at 2.4 it holds it fine.
+    "oval": dict(gait=5, speed=3.5,
+                 extra="WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5",
+                 note="trotRunning @ 3.5, analyzer speed cap 2.4 in the "
+                      "sustained curves, NO gait switch (WP_GAIT_CORNER=5 "
+                      "keeps trotRunning) - 4/4 PASS at 37.0-37.1s. The "
+                      "conservative fallback is trotting @ 2.4 with "
+                      "WP_ANALYZER=0 (~80s, long validated)."),
     # THE ATOM'S FAILURE IS PITCH, NOT ROLL - so the lever is LONGITUDINAL.
     # Every trip measured on this course reads pitch-dominant: 30.5, 33.0,
     # 35.6, 35.9, 36.6, 36.9 deg of PITCH with roll in the teens. Lowering

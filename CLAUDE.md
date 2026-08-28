@@ -7538,3 +7538,104 @@ specifically - both surviving failures are there, not at the switch - so
 whatever is left is about sustained R=5 cornering under a flight gait
 rather than about the gait change.
 
+
+## THE FAST OVAL, SOLVED - and the gait switch was the killer all along, in a way nobody could see until tonight
+
+Per direct instruction ("figure it out"). Three findings, in the order
+they fell, each verified before the next was trusted.
+
+### 1. My "second curve" claim was WRONG - both falls bracket ONE curve's switches
+
+Checked the geometry before theorizing: wp33 = 0.4 m before curve-1
+ENTRY; wp44 = 174 deg around curve 1, half a metre from its EXIT. The
+"failing in the SECOND curve" claim in the previous section is false -
+nothing ever failed mid-curve, or in the second curve. Both falls sit
+within a few hundred ms of a GAIT SWITCH: cap 175 died right after the
+5->9 at curve entry, cap 240/260 survived that and died right after the
+9->5 at curve exit. The "sustained R=5 cornering under a flight gait"
+hypothesis dies with it.
+
+### 2. The switch was firing at an arbitrary gait-cycle phase - 40% of which is lethal
+
+trotting and trotRunning share offsets (0,5,5,0) but differ in duration
+(5 vs 3 of 10 segments), so their stance tables DISAGREE on segments
+3,4,8,9 - trotting has a diagonal loaded there, trotRunning calls all
+four feet airborne. `gaitNumber` was adopted the INSTANT `cmpc_gait`
+changed, at whatever phase the cycle was in:
+
+* **9->5 landing in a disagree segment**: the diagonal CARRYING the robot
+  is instantly re-scheduled airborne while the other pair is mid-swing -
+  all four feet commanded off the ground from a non-ballistic state at
+  2.4+ m/s. Free fall, flat collapse. (The wp44 signature.)
+* **5->9 landing in segments 3-4/8-9**: those are trotRunning's FLIGHT
+  segments - the body is ballistic and the new table says two feet are
+  down, so the MPC solves force into airborne feet. Fatal at cap 175,
+  survivable at 240 - which reframes the force-cap dose-response: the
+  extra force was HEADROOM TO MUSCLE THROUGH A MIS-PHASED SWITCH, not
+  steady-state need.
+
+And because a mission replays almost tick-identically, the switch landed
+at the SAME phase every run - which is why the failures looked
+deterministic per config instead of the coin-flip a 40% hazard window
+suggests.
+
+**Fixed: PHASE-GATED GAIT ADOPTION** (`ConvexMPCLocomotion`, new
+`_gaitAdopted`/`_gaitDeferTicks`): a requested change waits (at most one
+cycle, ~300 ms; 600 ms hard cap) for the segment index to wrap to 0 -
+the one phase every gait table here is defined against - before it is
+applied. Switching INTO standing adopts immediately (all-stance can never
+de-load a loaded foot, and it is the safety direction: zeroVelHold, the
+async entry hold). This is the same discipline `applySchedule()` has
+applied to SEGMENT-TIME changes all along ("only at a cycle boundary");
+the gait number itself just never got it. Verified live: a 5->9 request
+landed at seg=8 - squarely in the hazard window - and was deferred 26
+ticks to the wrap, adopting cleanly. The flat collapse AT the switch is
+gone.
+
+**Honest half: the gate is necessary, not sufficient.** With clean
+adoptions the dog still fell ~1 s later, ~45 deg into the arc - entering
+hot (2.7-3.0 actual against the 2.4 plan; trotRunning overshoots its
+command and the follower brakes late) while finishing the deceleration
+on a freshly-swapped gait. Earlier switching (LEAD=8) and a lower cap
+(VSUS=2.2) both still fell. A real mid-motion gait swap at speed has
+transients beyond the contact table (swing-phase discontinuities - a
+mid-air foot's swingState jumps when the schedule changes - and the
+stacked segment-time change), and no tested variation survived them.
+
+### 3. The archaeology that settled the design: the milestone oval NEVER SWITCHED
+
+The fleet-complete-20260824 "analyzer oval PASS 95/95" predates the
+SIM_GAIT-override fix - its `[mission] gait 9 -> 5` prints were the
+analyzer's INTENT, silently discarded by the override every tick (this is
+documented in "THE REAL GAIT-SELECTION BUG" but its consequence for the
+oval recipe was never drawn). **What that milestone actually validated
+was trotRunning the whole way with the VSUS speed cap - cap-only, no
+switch.** Every historical "switching oval" pass was cap-only by
+accident; a REAL switch has never passed on any build.
+
+So the shipping fast recipe now makes the historically-validated
+behavior explicit instead of an accident of a since-fixed bug:
+
+    oval: trotRunning @ 3.5, WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5
+          (sustained-segment gait = trotRunning itself -> cap, no switch)
+
+| config | result |
+|---|---|
+| switch, phase-gated, default cap | FELL (~45 deg into the arc) |
+| switch, phase-gated, LEAD=8 | FELL |
+| switch, phase-gated, VSUS=2.2 | FELL |
+| **cap-only (WP_GAIT_CORNER=5)** | **PASS 4/4 - 37.0/37.0/37.0/37.1 s** |
+
+A 0.1 s spread over four reps, at nearly 2x the trotting fallback's
+pace. Also corrected in passing: "trotRunning cannot hold this curve"
+was measured UNCAPPED at 3.5 cruise - capped to 2.4 through the arc it
+holds it 4/4. The claim was about speed, not the gait.
+
+The phase gate STAYS despite cap-only not needing it: it is dormant on a
+course that never switches, it demonstrably converts a lethal
+mis-phased adoption into a clean one, and every ENGAGEMENT (standing ->
+dynamic gait at mission start) now happens at pair-A stance-start
+deterministically instead of at whatever phase the stick moved -
+plausibly relevant to the documented engagement coin-flips (pacing's
+~50%, historical bounding entry), not yet separately measured.
+

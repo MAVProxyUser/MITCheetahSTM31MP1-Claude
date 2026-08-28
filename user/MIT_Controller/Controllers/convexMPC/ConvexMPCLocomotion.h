@@ -235,6 +235,13 @@ private:
   float stand_traj[6];
   int current_gait;
   int gaitNumber;
+  // Phase-gated gait adoption - see the block in run() above the gait
+  // selector. _gaitAdopted is the gait actually RUNNING; a requested change
+  // waits at most one cycle for the segment index to wrap so the swap can
+  // never instantly de-load a loaded diagonal (9->5 mid-stance) or schedule
+  // stance onto airborne feet (5->9 mid-flight).
+  int _gaitAdopted = -1;
+  int _gaitDeferTicks = 0;
 
   Vec3<float> world_position_desired;
   Vec3<float> rpy_int;

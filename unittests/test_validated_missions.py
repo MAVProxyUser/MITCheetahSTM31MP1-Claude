@@ -97,25 +97,28 @@ CASES = [
     ),
     Case(
         name="oval",
-        slots=["oval:40:5.0"], gaits=["trotting"], speeds=[2.4],
-        extras=["WP_ANALYZER=0"],
-        min_s=35, max_s=70,
+        slots=["oval:40:5.0"], gaits=["trotRunning"], speeds=[3.5],
+        extras=["WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5"],
+        min_s=25, max_s=70,
         why=(
-            "CLAUDE.md 'THE OVAL'S MID-COURSE FALL: not the gait switch at "
-            "all - trotRunning itself can't hold this curve': the older "
-            "trotRunning+analyzer-switch config (3.5 m/s straights, switch "
-            "to trotting for the R=4.47m sustained curve) was investigated "
-            "at length - three different fixes to the SWITCH's timing/"
-            "gating all failed, and the decisive test (WP_ANALYZER=0, no "
-            "switch at all) showed trotRunning CANNOT hold this radius "
-            "regardless of switching, even down to 1.8 m/s. The validated "
-            "fix is trotting for the WHOLE course, no analyzer - slower "
-            "(~46s vs the old best-case ~30.5s) but actually reliable (2/2 "
-            "clean in the investigation, vs. the old config's own "
-            "documented ~1-in-3 failure rate at this exact spot). Do not "
-            "revert this case to trotRunning+WP_ANALYZER=1 without first "
-            "re-reading that section - it looks like a plausible speed "
-            "win and was measured, repeatedly, to not be one."
+            "THE FAST OVAL (2026-08-28): trotRunning @3.5 with the "
+            "analyzer's speed cap (WP_VSUS=2.4) governing the sustained "
+            "R=5 curves and the gait SWITCH disabled (WP_GAIT_CORNER=5 "
+            "makes the sustained-segment gait trotRunning itself). 4/4 "
+            "PASS at 37.0-37.1s, 0.1s spread. History, in order: (1) the "
+            "milestone-era 'analyzer oval PASS' never actually switched - "
+            "the pre-fix SIM_GAIT override silently discarded the "
+            "analyzer's cmpc_gait writes, so what it validated WAS "
+            "cap-only trotRunning; (2) once the gait fix made switches "
+            "real, EVERY switching config fell at a switch boundary - "
+            "first from the phase-misaligned contact table (fixed: "
+            "phase-gated adoption in ConvexMPCLocomotion), then from "
+            "hot-entry dynamics no lead/cap combination survived; (3) "
+            "'trotRunning cannot hold this curve' was measured UNCAPPED - "
+            "capped at 2.4 it holds fine. The conservative fallback is "
+            "trotting @2.4 WP_ANALYZER=0 (~46s course time, long "
+            "validated). If this case ever regresses, check the phase "
+            "gate and the analyzer cap before blaming the gait."
         ),
     ),
     Case(

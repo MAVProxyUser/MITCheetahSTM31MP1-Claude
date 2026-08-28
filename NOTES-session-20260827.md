@@ -65,7 +65,7 @@ Ordered by my read of value, not by age.
 | 3 | Contention experiment | **DONE - REFUTED at N<=3.** 9 runs, 876 samples, 0 ticks over 4ms at every N. Real stalls were Time Machine (external), not dogs competing. |
 | 4 | `corner:` mission | **DONE.** It had no recipe - that WAS the bug. 45/90/135 deg all PASS on one tuning. Now in RECIPES + dropdown. |
 | 5 | Spawn pose | operator-flagged; two fixes reverted; feet still 10–17 cm under at settle |
-| 6 | Oval gait-switch fall | **PARTIAL.** Force-cap bug found+fixed. Cap is binding: 175->wp33, 240/260->wp44 (clears the full switch cycle). Fast config still falls in the SECOND curve; also fails at 3.0. Oval itself runs fine at trotting@2.4. |
+| 6 | Oval gait-switch fall | **SOLVED (Fable).** Root cause chain: phase-misaligned gait adoption (fixed: phase-gated at cycle wrap) + hot-entry switch transients no variation survived + the archaeology that the milestone oval NEVER actually switched (phantom prints). Shipped: cap-only trotRunning@3.5, **4/4 PASS at 37.0-37.1s** vs 80.5s fallback. My earlier 'second curve' claim was wrong - both falls bracketed ONE curve's two switches. |
 | 7 | Residual ~10 % estimator scale under-read (galloping) | new tonight, real, separate from the windup, uninvestigated |
 | 8 | `parallel` closed-leg | never re-measured; largest gap in the catalog (46.1 m) + a 90→49.4° closing corner |
 | 9 | Chase camera position not live | flagged, deliberately not built pending a decision on per-tick cost |

@@ -455,6 +455,84 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   if (zeroVelHold())
     gaitNumber = 4;      // MIT's standing gait
 
+  /*
+   * PHASE-GATED GAIT ADOPTION - a requested gait change waits (at most one
+   * cycle, ~260-300 ms) for the segment index to wrap before it is applied.
+   *
+   * THE BUG THIS CLOSES, measured on the oval (the only course that
+   * switches gait mid-run): trotting and trotRunning share offsets
+   * (0,5,5,0) but differ in duration (5 vs 3 of 10 segments), so their
+   * stance tables DISAGREE on 4 of 10 segments (3,4 and 8,9 - trotting has
+   * a diagonal loaded there, trotRunning calls everything airborne). The
+   * number was adopted the instant cmpc_gait changed, at whatever phase the
+   * cycle happened to be in:
+   *
+   *   9 -> 5 landing in segs 3-4/8-9: the diagonal CURRENTLY CARRYING THE
+   *     ROBOT is instantly re-scheduled airborne while the other pair is
+   *     mid-swing - all four feet commanded off the ground from a
+   *     non-ballistic state at 2.4+ m/s. Free fall, flat collapse a few
+   *     hundred ms later. Measured at the oval curve EXIT (wp44, 174 deg
+   *     around the arc - roll 0, pitch 7, z=0.059).
+   *   5 -> 9 landing in segs 3-4/8-9: those are trotRunning's FLIGHT
+   *     segments - the body is ballistic and the new table says two feet
+   *     are down, so the MPC solves force into airborne feet (already
+   *     proven "strictly worse" by the old contact-table experiment).
+   *     Measured at the curve ENTRY (wp33): survivable with a 240 N/foot
+   *     cap, fatal at 175 - which is why the force cap looked binding: it
+   *     was buying headroom to muscle through a mis-phased switch, not
+   *     covering steady-state need.
+   *
+   * Both failures sat within a few hundred ms of a switch and NOTHING ever
+   * failed mid-curve - the "sustained R=5 cornering" reading in CLAUDE.md
+   * was wrong, corrected there. And because a mission is highly repeatable,
+   * the switch fired at nearly the same tick every run - same phase every
+   * run - which is why the failures looked deterministic per config rather
+   * than like the coin-flip the 40% disagreement window would suggest.
+   *
+   * The gate: adopt at segment 0 - the canonical cycle start every
+   * OffsetDurationGait table here is defined against, where the trot pair's
+   * tables agree (both start pair-A stance) and where entering FROM standing
+   * loads a pair that standing already had loaded. Switching INTO standing
+   * (gait 4) is exempt and adopts immediately: its table is all-stance, so
+   * it can never de-load a loaded foot, and it is the safety direction
+   * (zeroVelHold, the async entry hold). applySchedule() has applied this
+   * exact discipline to SEGMENT-TIME changes all along ("only at a cycle
+   * boundary", seg == 0) - the gait number itself just never got it.
+   *
+   * A 300-tick (~600 ms, 2+ cycles) cap adopts off-wrap with a warning in
+   * case a concurrent iterationsBetweenMPC change makes the phase skip 0.
+   */
+  {
+    if (_gaitAdopted < 0 || firstRun) _gaitAdopted = gaitNumber;
+    if (gaitNumber != _gaitAdopted) {
+      if (gaitNumber == 4) {
+        shmtrace::logf(0.0, "[SCHED] gait %d -> 4 (standing) adopted immediately - all-stance is always safe",
+               _gaitAdopted);
+        _gaitAdopted = 4;
+        _gaitDeferTicks = 0;
+      } else {
+        // Segment index from the same arithmetic setIterations feeds the
+        // gaits (every gait in the selector is built with 10 segments).
+        const int seg = (int)((iterationCounter / iterationsBetweenMPC) % 10);
+        _gaitDeferTicks++;
+        if (seg == 0 || _gaitDeferTicks > 300) {
+          shmtrace::logf(0.0, "[SCHED] gait %d -> %d adopted at seg=%d (deferred %d ticks%s)",
+                 _gaitAdopted, gaitNumber, seg, _gaitDeferTicks,
+                 _gaitDeferTicks > 300 ? " - CAP HIT, adopting off-wrap" : "");
+          _gaitAdopted = gaitNumber;
+          _gaitDeferTicks = 0;
+        } else {
+          if (_gaitDeferTicks == 1)
+            shmtrace::logf(0.0, "[SCHED] gait %d -> %d requested at seg=%d - deferring to cycle wrap",
+                   _gaitAdopted, gaitNumber, seg);
+          gaitNumber = _gaitAdopted;   // keep the active gait this tick
+        }
+      }
+    } else {
+      _gaitDeferTicks = 0;
+    }
+  }
+
   auto& seResult = data._stateEstimator->getResult();
 
   // Check if transition to standing
