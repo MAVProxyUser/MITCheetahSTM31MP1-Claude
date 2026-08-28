@@ -203,8 +203,17 @@ function renderSlots() {
     const speedOff = recipeSpeedHere !== null && Math.abs(s.speed - recipeSpeedHere) > 0.05;
     const offRecipe = gaitOff || speedOff;
     return `<div class="play-card active">
-      <h3>Dog ${i} <small>${(recipe.note || "").split(" - ")[1] || ""}</small></h3>
-      <p>${recipe.note || ""}</p>
+      <h3>Dog ${i}</h3>
+      ${(() => {
+        // Recipe notes grew from one-liners into documentation paragraphs;
+        // dumped raw they read as corrupted debug text on the card
+        // (operator-reported). Show the FIRST SENTENCE only, full note on
+        // hover.
+        const note = recipe.note || "";
+        const first = note.split(". ")[0];
+        const brief = first.length > 110 ? first.slice(0, 107) + "..." : first;
+        return note ? `<p title="${note.replace(/"/g, "&quot;")}">${brief}${note.length > brief.length ? " …" : ""}</p>` : "";
+      })()}
       ${offRecipe ? (running
         // A LOCKED, already-running card cannot be corrected, so the alarm
         // styling is wrong there - scripted probes (terrain matrix, corner
@@ -290,7 +299,7 @@ function renderSlots() {
           // VISIBLE text, not just a hover tooltip - the operator clicked a
           // greyed box twice and "got nothing" before this existed.
           const why = anyInert
-            ? `<div class="cap-hint" style="flex-basis:100%">Cameras unchecked at launch were never spawned in the world - they cannot come on mid-run, only relaunch enables them (panel checkbox, or mission_runner --chase for scripted runs).</div>`
+            ? `<div class="cap-hint" style="flex-basis:100%" title="A camera unchecked at launch is never spawned in the world; only a relaunch (panel checkbox, or mission_runner --chase) enables it.">cams off at launch never spawn - relaunch to enable</div>`
             : "";
           return camBox("cam_front", "Front cam")
                + camBox("cam_nadir", "Nadir cam")
@@ -576,8 +585,8 @@ function renderFleet() {
   } else {
     cards.innerHTML = rows.map(r => {
       const s = (state.slots || []).find(x => x.index === r.index) || {};
-      const cls = r.phase === "complete" ? "complete" : r.phase === "fell" ? "fell" : "";
-      const dot = r.phase === "complete" ? "up" : r.phase === "fell" ? "down" : "mid";
+      const cls = r.phase === "complete" ? "complete" : (r.phase === "fell" || r.phase === "invalid") ? "fell" : "";
+      const dot = r.phase === "complete" ? "up" : (r.phase === "fell" || r.phase === "invalid") ? "down" : "mid";
       const cam = (state.cameras || {})[r.index] || {};
       const tile = (name, label) => {
         const url = cam[name];
@@ -590,7 +599,8 @@ function renderFleet() {
       return `<div class="fleet-card ${cls}">
         <div class="fleet-head"><span class="dot ${dot}"></span>
           <span class="fleet-idx">#${r.index}</span>
-          <span class="fleet-name">${s.mission || ""}</span>
+          <span class="fleet-name">${(MISSION_OPTIONS.find(o => o.value === s.mission) || {}).label || s.mission || ""}</span>
+          <small style="opacity:.6">${s.mission || ""}</small>
           <span class="fleet-phase ${r.phase}">${r.phase}</span>
         </div>
         <div class="fleet-meta">gait=${s.gait_name || s.gait || "-"} cmd=${s.speed ?? "-"} m/s

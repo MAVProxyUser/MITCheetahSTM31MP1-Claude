@@ -559,6 +559,27 @@ EVENT_PATTERNS = [
 ]
 
 
+def mission_label(spec):
+    """Human-honest course name for log lines - the spec string stays
+    stable everywhere (recipes/history/generators key on it), but the
+    OPERATOR reads these lines, and 'circle:9:8' is an OCTAGON. Asked for
+    three times before it landed; spec strings alone are not a display."""
+    kind = spec.split(":")[0]
+    if kind == "circle":
+        try:
+            n = int(spec.split(":")[2])
+        except (IndexError, ValueError):
+            n = 0
+        if n and n < 24:
+            return "octagon" if n == 8 else "%d-gon polygon" % n
+        return "smooth circle (%d-gon)" % n if n else "circle"
+    return {"star": "5-point star", "oval": "oval", "atom": "atom",
+            "dash": "straight dash", "sector": "sector search",
+            "parallel": "parallel-track search", "expsquare": "expanding square",
+            "lissajous": "Lissajous", "spiro": "spirograph rosette",
+            "corner": "corner probe", "outback": "out-and-back"}.get(kind, kind)
+
+
 def mission_kind(spec):
     kind = spec.split(":", 1)[0]
     # The 100 m dash is spelled "outback:<m>" in WaypointNav (out and back
@@ -1150,13 +1171,22 @@ class Fleet:
             # draft's fail-dark defaults, and its tile never showed. Only
             # cam_*/chase_* sync; mission/gait/speed stay untouched, so
             # automation still never pollutes the draft's course config.
-            for s in locked:
-                i = s["index"]
-                if i < len(self.draft_slots):
-                    d = self.draft_slots[i]
-                    for k in ("cam_front", "cam_nadir", "cam_chase",
-                               "chase_distance", "chase_height", "chase_degree"):
-                        d[k] = s[k]
+            # Operator-ordered (asked three times, now the rule): the slots
+            # panel reflects THE CURRENT RUN - never stale or unused dogs.
+            # So the draft is REPLACED by what actually launched: same slot
+            # count, same config (gait by name, course label context rides
+            # in the note). A 1-dog run leaves a 1-slot panel, during AND
+            # after the run. The old preserve-the-draft behavior is gone on
+            # purpose; the next fleet is built from what last ran.
+            self.draft_slots = [dict(
+                mission=s["mission"], gait=s["gait_name"], speed=s["speed"],
+                dash=s["dash"], close_leg=s["close_leg"],
+                model=(self.draft_slots[s["index"]].get("model", "edu")
+                        if s["index"] < len(self.draft_slots) else "edu"),
+                extra="", cam_front=s["cam_front"], cam_nadir=s["cam_nadir"],
+                cam_chase=s["cam_chase"], chase_distance=s["chase_distance"],
+                chase_height=s["chase_height"], chase_degree=s["chase_degree"],
+            ) for s in locked]
             self.status = [dict(index=s["index"], phase="pending", text="",
                                  t="", waypoints="") for s in locked]
             self.planned = {}
@@ -1180,7 +1210,8 @@ class Fleet:
             self._note("TERRAIN for this run: %s%s"
                         % (terrain_kind, (" - " + tnote) if tnote else ""))
             self._note("building fleet world: %s (terrain=%s)"
-                        % (", ".join(s["mission"] for s in locked), terrain_kind))
+                        % (", ".join("%s [%s]" % (s["mission"], mission_label(s["mission"]))
+                                      for s in locked), terrain_kind))
             world_out = os.path.join(RUN_DIR, "fleet.sdf")
             cam_cfgs = [dict(front=s["cam_front"], nadir=s["cam_nadir"],
                               chase=s["cam_chase"], distance=s["chase_distance"],
@@ -1739,7 +1770,33 @@ class Fleet:
                         st["phase"] = "complete"
                         st["t"] = tm.group(1) + "s" if tm else ""
                         done.add(i)
-                        self._note("dog%d COMPLETE t=%s" % (i, st["t"]))
+                        # GROUND-TRUTH GATE, panel-side (same rule as
+                        # mission_runner's): the judge inside the controller
+                        # trusts the ESTIMATOR, so a dog whose belief flew
+                        # the course while its body went nowhere prints a
+                        # clean PASS - four of those happened on the rough/
+                        # rolling terrains before the runner's gate existed,
+                        # and the PANEL kept saying COMPLETE even after the
+                        # runner demoted them (operator saw exactly that,
+                        # run732). Compare the flown trail (gz world truth,
+                        # what the canvas draws) against the planned path;
+                        # essentially-no-travel becomes INVALID here too.
+                        with self.lock:
+                            plan = (self.planned or {}).get(i) or (self.planned or {}).get(str(i))
+                            trail = ((self.positions or {}).get(i) or {}).get("trail")
+                        def _plen(pts):
+                            return sum(((pts[k + 1][0] - pts[k][0]) ** 2 +
+                                         (pts[k + 1][1] - pts[k][1]) ** 2) ** 0.5
+                                       for k in range(len(pts) - 1)) if pts and len(pts) > 1 else 0.0
+                        plan_len, flown_len = _plen(plan), _plen(trail)
+                        if plan_len > 3.0 and flown_len < 0.3 * plan_len:
+                            st["phase"] = "invalid"
+                            self._note("dog%d INVALID: claimed PASS but flew "
+                                        "%.1fm of a %.1fm plan - belief completed, "
+                                        "body did not (estimator hallucination; "
+                                        "see OPEN-7)" % (i, flown_len, plan_len))
+                        else:
+                            self._note("dog%d COMPLETE t=%s" % (i, st["t"]))
                     elif "[FALL]" in text:
                         # Checked BEFORE "MISSION COMPLETE", not after: a dog
                         # can complete its loop+dash, print MISSION COMPLETE,

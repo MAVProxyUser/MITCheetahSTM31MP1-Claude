@@ -48,14 +48,20 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 - **OPEN-7 · Terrain: walking cannot traverse non-flat ground — now
   gate-verified, with a sharper symptom** — `UNEXPLAINED`/unfinished,
   upgraded 2026-08-28 from anecdote to measurement: on both procedural
-  geometry kinds (rolling ±0.35 m, rough ±0.15 m), dash and octagon,
-  walking @1.5 went **0/4 — every run INVALID**: the ESTIMATOR completes
-  the course (clean-looking "PASS" at plausible times) while gz truth
-  shows the body going essentially nowhere — the hallucination mechanism
-  in full, caught by mission_runner's flown-vs-planned gate on its first
-  day. So the old "standing works, walking doesn't" is confirmed on the
-  current build AND the failure is silent-by-default (the internal judge
-  trusts the estimator). Flat-surface kinds are NOT affected (all
+  geometry kinds (rolling ±0.35 m, rough ±0.15 m), walking @1.5 is
+  **INTERMITTENT, with a silent failure mode**: the first four runs
+  (dash + octagon on each kind, back-to-back in the matrix) all went
+  INVALID — the ESTIMATOR completed the course at plausible times while
+  gz truth shows the body going essentially nowhere, caught by the
+  flown-vs-planned gate on its first day — then two immediate solo
+  re-runs of the SAME octagon config genuinely walked it (46.7 m and
+  47.2 m real flown of a 55.1 m plan, operator watching the dog
+  visibly traverse). 0/4 then 2/2, across server restarts, cause of
+  the flip not isolated (per this project's own rule, treat marginal
+  cells as coin-flips until solo-repeated in both directions). What is
+  NOT in doubt: when it fails, it fails silently — the internal judge
+  trusts the estimator and prints PASS — so both gates (runner and
+  panel-side) stay mandatory for any terrain result. Flat-surface kinds are NOT affected (all
   ground-truth-verified clean — see TERRAIN.md Phase 1). Proper fix
   unchanged: touchdown-torque contact + plane fit per the old analysis;
   any future terrain result must come through the truth gate.
