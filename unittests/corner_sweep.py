@@ -48,8 +48,9 @@ def done_cells():
     if os.path.exists(CSV_PATH):
         with open(CSV_PATH) as f:
             for row in csv.DictReader(f):
-                # A TIMEOUT is not a verdict - retry those cells.
-                if row["verdict"] != "TIMEOUT":
+                # TIMEOUT (harness gave up) and REFUSED (launch gate - e.g.
+                # a Time Machine backup) are not verdicts - retry those.
+                if row["verdict"] not in ("TIMEOUT", "REFUSED"):
                     cells.add((row["gait"], float(row["speed"]),
                                int(float(row["angle"]))))
     return cells
@@ -64,7 +65,13 @@ def run_cell(gait, speed, angle, leg):
     p = subprocess.run(cmd, capture_output=True, text=True)
     wall = time.time() - t0
     out = p.stdout + p.stderr
-    if p.returncode == 2:
+    if "launch refused" in out:
+        # The conductor's launch gate said no (a Time Machine backup, a
+        # fleet still active, ...). NOT a mission verdict, and it burned an
+        # hour of this sweep's first attempt: the 2026-08-28 first run
+        # instant-"FAIL"ed 10 straight cells against the hourly backup.
+        verdict = "REFUSED"
+    elif p.returncode == 2:
         verdict = "TIMEOUT"
     elif "mission result: PASS" in out:
         verdict = "PASS"
@@ -75,7 +82,8 @@ def run_cell(gait, speed, angle, leg):
     # One line of forensic context for a non-pass, grepped from the stream.
     detail = ""
     for line in out.splitlines():
-        if any(k in line for k in ("FELL", "fell", "orientation", "RESULT")):
+        if any(k in line for k in ("FELL", "fell", "orientation", "RESULT",
+                                    "refused")):
             detail = line.strip()[-120:]
     return verdict, wall, detail
 
@@ -110,7 +118,18 @@ def main():
                     continue
                 print("[cell] %s@%g angle=%d ..." % (gait, speed, angle),
                       flush=True)
-                verdict, wall, detail = run_cell(gait, speed, angle, args.leg)
+                # A REFUSED launch (Time Machine et al.) is transient: wait
+                # it out and retry the SAME cell, up to ~30 min, instead of
+                # burning the rest of the grid against a closed gate.
+                for attempt in range(30):
+                    verdict, wall, detail = run_cell(gait, speed, angle,
+                                                     args.leg)
+                    if verdict != "REFUSED":
+                        break
+                    print("[gate] %s@%g angle=%d REFUSED (%s) - waiting 60s"
+                          % (gait, speed, angle, detail or "launch gate"),
+                          flush=True)
+                    time.sleep(60)
                 w.writerow([gait, speed, angle, verdict, "%.1f" % wall,
                             detail, time.strftime("%Y-%m-%d %H:%M:%S")])
                 f.flush()

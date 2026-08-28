@@ -1,0 +1,2 @@
+gait,speed,angle,verdict,wall_s,detail,when
+bounding,1.0,30,PASS,82.6,[runner] run 654 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0,2026-08-28 14:40:50
