@@ -7208,3 +7208,68 @@ own validated recipe is walking @ 1.5. The warning is doing its job -
 flagging that the launch is off-recipe - and the cases are off-recipe on
 purpose. It is not evidence of a misconfiguration.
 
+
+## EVERY GAIT NOW COMPLETES THE 100 m DASH - and the "three different mechanisms" reading was wrong
+
+Direct instruction, from earlier in the session: *"'The dash still
+doesn't complete' that is the dumbest shit ever. EVERY gait should at
+least be able to do the dash."* With the `x_comp_integral` windup fixed
+(`$CTRL_XDRAG_CLAMP=1.0` plus the firstRun reset), solo, one gait at a
+time, real estimator, `dash:100`:
+
+| gait | speed | before tonight | now |
+|---|---|---|---|
+| pronking | 0.6 | asymptotic stall ~33-40 m, **never completed at any speed** | **PASS 107.7 s** |
+| galloping | 0.8 | silent backward+lateral drift, **never completed** | **PASS 114.3 s** |
+| bounding | 1.0 | orientation tip-over ~47 s, **never completed** | **PASS 84.8 s** |
+| walking | 1.5 | - | **PASS 60.5 s** |
+| trotting | 2.0 | - | **PASS 46.1 s** |
+| trotRunning | 0.6 | walked BACKWARD to N=-19.7 m | **PASS 149.6 s** |
+
+**This retires the "three different mechanisms" framing in the
+flight-gait sections above, and that correction matters more than the
+pass table.** This file previously recorded, in good faith and with real
+data behind each observation, that pronking/bounding/galloping each
+failed the dash by a DIFFERENT physical mechanism - a flat height/force
+collapse, a delayed tip-over, and a silent positional drift respectively
+- and reasoned about them separately for a long time. They were ONE bug,
+in `ConvexMPCLocomotion` which every gait shares, presenting differently
+depending on which state the runaway drag term happened to disturb first
+in each gait's own dynamics. Three "mechanisms" was three symptoms.
+
+### The estimator finding: the measurement was right, the CAUSAL DIRECTION was backwards
+
+The section above titled "GALLOPING'S REAL CAUSE, CONFIRMED: the state
+estimator, not the swing leg" needs correcting, and precisely, because
+the numbers in it are real and were verified against Gazebo truth. What
+was measured: over a 171 s galloping dash the estimate ran to ~29-34 m
+while ground truth showed the robot peaking at ~10.8 m and drifting back
+to ~5.4 m. That happened. What was WRONG was concluding the estimator
+was the cause.
+
+Re-measured on the same gait and course, now that it passes:
+
+    truth  pT north  99.92 m        estimate  pE forward  90.19 m
+    velocity: vT 0.85-0.93 m/s      vE 0.72-0.92 m/s  (dvx -0.02..-0.16)
+
+A ~10% under-read that scales with distance, with velocity tracked
+closely - not a runaway. The old divergence was leg odometry faithfully
+integrating legs that were cycling while the BODY was being commanded
+backward and going nowhere: feet sweeping under a body that is not
+advancing is, to leg odometry, forward travel. The estimator was not
+lying about a healthy robot; it was reporting a robot the controller had
+stopped moving. Fix the controller and the same estimator tracks to 10%.
+
+**What survives as a real, separate, much smaller issue**: that residual
+~10% scale under-read on galloping. Worth its own investigation, worth
+nobody confusing it with the 34 m figure, and NOT the thing that was
+stopping the dash.
+
+**Scope**: N=1 per gait. The effect size is enormous (never completed ->
+completed cleanly, on six gaits including three that had never crossed
+100 m in this project's entire history) and the mechanism is derived
+from source and independently confirmed by a dose-response in commanded
+force, so this is not a small-sample inference of the kind this file
+keeps having to retract. But it is one run per cell, and the clamp is
+still opt-in pending exactly that repetition.
+
