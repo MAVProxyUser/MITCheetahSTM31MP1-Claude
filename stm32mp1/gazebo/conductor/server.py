@@ -117,7 +117,11 @@ CAM_FLAG_KEYS = {"front_cam": "cam_front", "nadir_cam": "cam_nadir", "chase_cam"
 # restart used to silently reset drafts back to all-on - which re-armed
 # them under the operator mid-session ("KILL THE CAMERAS"). Fail dark;
 # checking a box is deliberate.
-DEFAULT_CAM_SLOT = dict(cam_front=False, cam_nadir=False, cam_chase=False,
+# cam_chase defaults ON (operator, 2026-08-28) - one chase feed measured
+# at zero control-loop cost and a few % GPU; the nine-feed GPU incident
+# that created fail-dark was front+nadir+chase x3 dogs. Front/nadir stay
+# opt-in.
+DEFAULT_CAM_SLOT = dict(cam_front=False, cam_nadir=False, cam_chase=True,
                          chase_distance=3.0, chase_height=1.2, chase_degree=90.0)
 # "Close final leg" defaults ON, per direct instruction. Some courses end
 # where they started (the periodic curves - lissajous/spiro/atom/oval land

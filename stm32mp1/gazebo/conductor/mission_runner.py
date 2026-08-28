@@ -538,6 +538,12 @@ def main():
                      help="terrain/surface kind for this launch (flat, rolling, "
                           "rough, concrete, asphalt, grass, dirt, gravel, sand, "
                           "mud, rock, ice); omitted = the server draft's kind")
+    ap.add_argument("--no-chase", action="store_true",
+                     help="run camera-dark (chase is ON by default per "
+                          "operator, 2026-08-28: 'if there is no cost to "
+                          "enabling it, please keep the chase cam enabled' - "
+                          "measured cost of one chase feed: zero control-loop "
+                          "impact, a few %% GPU)")
     ap.add_argument("--chase", action="store_true",
                      help="spawn + stream each dog's chase camera (front/nadir "
                           "stay off). Since body-launch camera flags FAIL DARK, "
@@ -632,7 +638,7 @@ def main():
         slot["extra"] = args.extra[i] if i < len(args.extra) else ""
         if not args.keep_cameras:
             slot["cam_front"] = slot["cam_nadir"] = slot["cam_chase"] = False
-        if args.chase:
+        if args.chase or not args.no_chase:
             slot["cam_chase"] = True
         slots_body.append(slot)
 
