@@ -142,6 +142,50 @@ higher-demand configs (trotRunning sprints, tighter corners) where the
 demand line climbs into the sand/mud/gravel band - and OPEN-7's terrain
 following for the geometry kinds.
 
+## Phase 1b EXECUTED (2026-08-28 evening): the full friction characterization
+
+Per operator order ("systematically perfect each texture... keep track of
+the friction vibe in each world and how much it makes the runs deviate...
+a dash on each terrain... I suspect oval would handle with similar
+interest"). 20 cells, solo, every row ground-truth verified (flown-vs-
+planned gate + live desync monitor + bridge-GPS cross-checks); raw data
+in `unittests/terrain_friction.csv`.
+
+### The deviation ladder (xtrack_max = worst distance off the planned line)
+
+| terrain | mu | dash:30 walking 1.5 | oval trotRunning 3.5 (VSUS 2.4 curves) |
+|---|---|---|---|
+| flat | (default) | 20.3 s, 0.08 m | 43.0 s, 0.11 m |
+| concrete | 0.90 | 20.4 s, 0.09 m | 42.9 s, 0.14 m |
+| asphalt | 0.85 | 20.4 s, 0.09 m | 43.1 s, 0.14 m |
+| rock | 0.80 | 20.3 s, 0.13 m | 43.1 s, 0.13 m |
+| dirt | 0.70 | 20.3 s, 0.11 m | 43.0 s, 0.13 m |
+| grass | 0.60 | 20.3 s, 0.15 m | 43.0 s, 0.11 m |
+| gravel | 0.55 | 20.3 s, 0.08 m | 43.0 s, 0.09 m |
+| sand | 0.45 | 20.3 s, 0.14 m | 43.0 s, 0.15 m |
+| mud | 0.35 | 20.4 s, 0.20 m | 42.9 s, 0.20 m |
+| **ice** | **0.15** | **20.9 s, 0.47 m** | **FELL @49 s** |
+
+### What the numbers say
+
+- **mu above a gait's demand line costs NOTHING in time** (all passing
+  cells within 0.2 s of flat on both courses) - friction that does not
+  bind is free.
+- **Deviation scales with contact SOFTNESS, not mu**: the rigid set holds
+  0.08-0.14 m on both courses while mud (kp 4e4) wanders 0.20 m
+  everywhere - the dog visibly "works" on soft ground without slowing.
+- **Ice is the demand boundary in all three regimes**: walking dash PASS
+  with 5x wander and +0.6 s (demand ~0.04); trot octagon FELL (demand
+  ~0.25); oval sustained curves FELL @49 s (lateral ~0.13 + gait shear
+  vs 0.15). The boundary lands exactly where sqrt-friction physics puts
+  it, at every tier.
+- Everything above was collected THROUGH the monitoring stack built the
+  same evening: live belief-vs-world DESYNC alarms, the NOFEED verdict
+  (a dead pose feed is infrastructure, not a robot verdict - one mud
+  oval row shows the catch, its clean retry beside it), the pose-feed
+  heartbeat + fresh-node self-heal (OPEN-21), and bridge GPS as the
+  independent arbiter.
+
 ## How this feeds the test plan
 
 - **Phase 0** (no new assets): validate the panel's existing `rolling`/
