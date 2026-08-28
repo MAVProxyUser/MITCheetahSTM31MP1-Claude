@@ -121,6 +121,27 @@ a source at the moment of use.
   matters on sand/gravel where real feet auger in.
 - Heightmap collision: probe-sphere-validate every new ground (rule 2 above).
 
+## Phase 1 EXECUTED (2026-08-28): the surface matrix, ground-truth verified
+
+24 cells, solo sequential, every PASS re-verified against gz-truth flown
+path (mission_runner's flown-vs-planned gate; the full-course GPS ranges
+were additionally confirmed per run after a false-alarm scare - see
+ISSUES CLOSED (was OPEN-20)).
+
+| tier | config | result |
+|---|---|---|
+| T1: walking 1.5, dash:30 | flat + 9 surfaces | **10/10 PASS**, nine at 20.3-20.4 s; **ice 20.9 s** (micro-slip at walking's tiny ~0.04 mu demand) |
+| T2: trotting 2.5, octagon 45-deg | flat + 9 surfaces | **9/10 PASS** at 25.9-26.3 s (mu >= 0.35 all clear trot's ~0.25 demand - friction never binds, so no time cost); **ice (mu 0.15) FELL** - the demand boundary, found exactly where sqrt(a_lat/g) physics puts it |
+| T3: walking 1.5 on GEOMETRY kinds | rolling + rough, dash + octagon | **0/4 - all INVALID**: the dog's belief completes the course while the body goes nowhere (estimator hallucinating over terrain the gait cannot traverse). This is OPEN-7, now gate-verified instead of anecdotal |
+
+Read: the surface physics genuinely reaches the engine (dose-response at
+both ends - ice slower at T1, ice down at T2, everything above the
+demand line clean), and mu differences below a gait's demand cost
+NOTHING in time on flat ground. The next discriminating experiments are
+higher-demand configs (trotRunning sprints, tighter corners) where the
+demand line climbs into the sand/mud/gravel band - and OPEN-7's terrain
+following for the geometry kinds.
+
 ## How this feeds the test plan
 
 - **Phase 0** (no new assets): validate the panel's existing `rolling`/
