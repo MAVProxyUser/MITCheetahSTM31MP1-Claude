@@ -158,7 +158,24 @@ function renderSlots() {
   // Only an ACTIVE fleet locks the draft - "done" used to leave every input
   // disabled until a manual Stop, which read as the whole UI being broken.
   const locked = state.phase === "launching" || state.phase === "running" || _removing;
-  el.innerHTML = slots.map((s, i) => {
+  // While a fleet is ACTIVE, show the RUNNING fleet's own slots - exactly
+  // as many dogs as are actually running, with their actual launched
+  // config - not the draft (operator, 2026-08-28: "each run slots should
+  // be clear, and only the slots for the current run should be shown,
+  // never stale or unused dogs"). A body-launch (mission_runner) never
+  // touches the draft, so during automated runs the draft was showing
+  // three leftover default dogs while one ran. The draft comes back,
+  // untouched, the moment the fleet ends. Index alignment is preserved by
+  // construction (locked slot i IS dog i IS draft slot i for the live
+  // camera controls, which read/write the draft server-side).
+  const running = locked && !_removing && (state.slots || []).length > 0;
+  const view = running
+    ? state.slots.map(s => ({ ...s, gait: s.gait_name || s.gait }))
+    : slots;
+  const banner = running
+    ? `<div class="cap-hint" style="margin-bottom:0.4rem">Showing the RUNNING fleet's ${view.length} slot(s); the draft returns when it ends.</div>`
+    : "";
+  el.innerHTML = banner + view.map((s, i) => {
     const recipe = state.recipes[kindOf(s.mission)] || {};
     // Flag any drift from this course's own measured-good combo - a gait
     // swap that leaves a stale gait/speed behind (the bug that spun the
@@ -261,9 +278,16 @@ function renderSlots() {
             ? "OFF at launch for the RUNNING fleet - the sensor was never spawned, so it cannot come on mid-run. The box takes effect at the next launch."
             : "Live: unchecking mid-run mutes the stream instantly, re-checking resumes it. A camera unchecked at LAUNCH is never spawned in the world and cannot come back mid-run."}"><input type="checkbox" data-i="${i}" data-f="${k}"
                ${s[k] !== false ? "checked" : ""} ${inert(k) || _removing ? "disabled" : ""}> ${label}</label>`;
+          const anyInert = ["cam_front", "cam_nadir", "cam_chase"].some(inert);
+          // VISIBLE text, not just a hover tooltip - the operator clicked a
+          // greyed box twice and "got nothing" before this existed.
+          const why = anyInert
+            ? `<div class="cap-hint" style="flex-basis:100%">Cameras unchecked at launch were never spawned in the world - they cannot come on mid-run, only relaunch enables them (panel checkbox, or mission_runner --chase for scripted runs).</div>`
+            : "";
           return camBox("cam_front", "Front cam")
                + camBox("cam_nadir", "Nadir cam")
-               + camBox("cam_chase", "Chase cam");
+               + camBox("cam_chase", "Chase cam")
+               + why;
         })()}
       </div>
       ${(() => {

@@ -491,6 +491,13 @@ def main():
                      help="terrain/surface kind for this launch (flat, rolling, "
                           "rough, concrete, asphalt, grass, dirt, gravel, sand, "
                           "mud, rock, ice); omitted = the server draft's kind")
+    ap.add_argument("--chase", action="store_true",
+                     help="spawn + stream each dog's chase camera (front/nadir "
+                          "stay off). Since body-launch camera flags FAIL DARK, "
+                          "--keep-cameras alone can no longer turn a camera ON "
+                          "for an automated run - this can, and is the way to "
+                          "WATCH a scripted run live (operator-requested for "
+                          "the terrain matrix, 2026-08-28).")
     ap.add_argument("--keep-cameras", action="store_true",
                      help="don't force cameras off before launch (default: force off)")
     args = ap.parse_args()
@@ -578,6 +585,8 @@ def main():
         slot["extra"] = args.extra[i] if i < len(args.extra) else ""
         if not args.keep_cameras:
             slot["cam_front"] = slot["cam_nadir"] = slot["cam_chase"] = False
+        if args.chase:
+            slot["cam_chase"] = True
         slots_body.append(slot)
 
     if not args.keep_cameras:

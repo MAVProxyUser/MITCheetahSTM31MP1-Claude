@@ -1114,6 +1114,21 @@ class Fleet:
                                 chase_degree=float(s.get("chase_degree", 90.0))))
         with self.lock:
             self.slots = locked
+            # Mirror the LIVE camera fields of what actually LAUNCHED into
+            # the index-aligned draft slots. The per-frame mute gate and the
+            # chase follower deliberately read the DRAFT (that is what makes
+            # the checkboxes/sliders live mid-run) - so a body-launch with
+            # cameras ON (mission_runner --chase) was muted instantly by the
+            # draft's fail-dark defaults, and its tile never showed. Only
+            # cam_*/chase_* sync; mission/gait/speed stay untouched, so
+            # automation still never pollutes the draft's course config.
+            for s in locked:
+                i = s["index"]
+                if i < len(self.draft_slots):
+                    d = self.draft_slots[i]
+                    for k in ("cam_front", "cam_nadir", "cam_chase",
+                               "chase_distance", "chase_height", "chase_degree"):
+                        d[k] = s[k]
             self.status = [dict(index=s["index"], phase="pending", text="",
                                  t="", waypoints="") for s in locked]
             self.planned = {}
