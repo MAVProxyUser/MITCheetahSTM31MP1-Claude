@@ -23,14 +23,8 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### Probably stale — cheap re-tests (measured before the windup/force-cap fixes)
 
-- **OPEN-2 · Flight-gait 90–147.5° "mid-band" corner weakness** — `RETEST`.
-  Bounding/galloping/pronking failed parallel/expsquare (90°) and sector
-  (galloping/pronking) while passing 45° and 144/162° — solo-reproduced,
-  both hypotheses tested and refuted (flight-phase per se via trotRunning;
-  leg-sync symmetry via pacing). BUT: measured 2026-08-27 morning, with the
-  `x_comp_integral` windup active, minutes into missions with 30 m
-  straights — the windup is a live suspect for the whole finding. One
-  sweep on the current build settles whether the mid-band mystery exists.
+- ~~OPEN-2~~ **closed 2026-08-28 → see C-OPEN-2** (the 90° "mid-band"
+  weakness was the windup: 3/3 PASS on the exact historical failing course).
 - **OPEN-3 · Atom-in-fleet fragility** — `RETEST`. Historically 0/6 in a
   3-dog fleet while passing solo; blamed on host contention, which is now
   REFUTED at N≤3 (0/876 ticks over 4 ms). The failures were real; the
@@ -119,6 +113,23 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **C-OPEN-2 · Flight-gait 90–147.5° "mid-band" corner weakness** — closed
+  2026-08-28: **it was the `x_comp_integral` windup**, not a property of
+  the gaits or the angle. Retest on the current build (windup clamp +
+  force-cap fix + velocity aiding), same course shape as the historical
+  failures (`parallel:30:5:8`, close-leg off, no dash, solo, sequential):
+  bounding @1.0 **PASS** (run638), galloping @0.8 **PASS** (run639),
+  pronking @0.6 **PASS** (run640) — 3/3 where the 2026-08-27 record has
+  FELL ×2 for each (parallel AND expsquare). Mechanism fits the original
+  data exactly: parallel's 30 m straights gave the windup time to
+  accumulate (the failures landed at wp07-11, i.e. minutes in), while the
+  45° octagon's short legs and the star's hard-braked vertices kept
+  dropping speed through the 0.3 m/s gate — which is why the two EXTREMES
+  passed and the "mid-band" looked angle-shaped. The non-monotonic angle
+  pattern was a course-length artifact. The 105-150° band gets re-measured
+  at 15° resolution by the OPEN-8 envelope sweep (corner_envelope.csv); a
+  failure there reopens this with fresh data.
 
 - **C-47 · The dash interlude fell on the current build — two stacked,
   trace-proven bugs (found by an operator UI run; the suite was blind)** —
