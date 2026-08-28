@@ -151,6 +151,8 @@ def apply_terrain(world, kind, run_dir, slots=None):
     if gp is None:
         return
     spec = terrain.TERRAIN_TYPES[kind]
+    if "surface" in spec and spec["surface"].get("skip_ground"):
+        return
     if "surface" in spec:
         # SURFACE kind: same flat plane geometry (2D waypoints therefore sit
         # on the ground by construction), different contact physics + look.
@@ -199,7 +201,7 @@ def apply_surface_feet(proto, kind):
     compliance is the GROUND's job (apply_terrain), and the validated
     'flat' kind patches nothing at all."""
     spec = terrain.TERRAIN_TYPES.get(kind, {})
-    if "surface" not in spec:
+    if "surface" not in spec or spec["surface"].get("skip_feet"):
         return
     mu = spec["surface"]["mu"]
     n = 0

@@ -52,6 +52,28 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### In progress
 
+- **OPEN-20 · Surface terrains kill traction; a whole matrix of false
+  PASSes got through** — opened 2026-08-28, operator-caught ("the dog never
+  stands, it never moves but the simulator claims it is navigating").
+  On every patched SURFACE kind (concrete…ice) the dog stands but its feet
+  grip NOTHING: legs churn (bridge shows real q/tau), body stays at spawn
+  (gz truth x≈2.6 m, creeping ~0.03 m/s; bridge GPS frozen at the spawn
+  coordinate all run), while the ESTIMATOR integrates the cycling legs
+  into a clean 1.5 m/s belief — nav "reaches" every waypoint at almost
+  exactly the accept radius and the judge (which trusts the estimator)
+  passes the run. ALL non-flat surface-cell results from the 2026-08-28
+  matrix are INVALID (flat cells are real — flat patches nothing and its
+  times match the suite's known baselines). My "ice 20.9 s physics
+  signal" claim is RETRACTED with them. Two fixes so far: the
+  operator-prescribed ground-truth gate in mission_runner (a claimed
+  PASS whose FLOWN trail is <30% of the PLANNED path length is demoted
+  to INVALID, exit 1 — "checking the path actual vs path traveled
+  trails should have told you that"); and a bisect in flight (dbgfeet /
+  dbgground debug kinds) to isolate which half of the surface patch —
+  the ground <surface> insert or the foot mu rewrite — breaks contact.
+  gz's own console is silent (SDF parsed clean), so this is engine
+  behavior, not a parse rejection. Root cause OPEN.
+
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete
   (`unittests/corner_sweep.py` → `unittests/corner_envelope.csv`):

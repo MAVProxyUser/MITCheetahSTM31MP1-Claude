@@ -134,6 +134,26 @@ def render_report(run_id, slots, state, all_lines):
         mine = [l for l in all_lines if ("dog%d:" % i) in l or ("dog%d " % i) in l]
         if any("mission result: PASS" in l for l in mine):
             per_dog[i] = "PASS"
+            # GROUND-TRUTH GATE (operator-prescribed, 2026-08-28, after a
+            # whole terrain matrix of false PASSes): "checking the path
+            # actual vs path traveled trails should have told you that."
+            # A PASS whose FLOWN trail (world-frame gz poses, the same data
+            # the panel canvas and this report plot) is a tiny fraction of
+            # its PLANNED path length means the dog's own belief completed
+            # the course while its body went nowhere - the estimator
+            # hallucinating over slipping feet (frozen GPS, legs cycling in
+            # place). The judge inside the controller trusts the estimator,
+            # so the gate must live out here, against gz truth.
+            def _plen(pts):
+                return sum(math.hypot(pts[k + 1][0] - pts[k][0],
+                                       pts[k + 1][1] - pts[k][1])
+                           for k in range(len(pts) - 1)) if pts and len(pts) > 1 else 0.0
+            plan_pts = (state.get("planned") or {}).get(str(i))
+            trail_pts = ((state.get("positions") or {}).get(str(i)) or {}).get("trail")
+            plan_len = _plen(plan_pts)
+            flown_len = _plen(trail_pts)
+            if plan_len > 3.0 and flown_len < 0.3 * plan_len:
+                per_dog[i] = "INVALID"
         elif any("FELL" in l for l in mine):
             per_dog[i] = "FELL"
         elif any("mission result: FAIL" in l for l in mine):
@@ -160,7 +180,7 @@ def render_report(run_id, slots, state, all_lines):
     except ImportError:
         print("[runner] matplotlib not installed - skipping path plot "
               "(the text report above still has the full log)", flush=True)
-        return
+        return per_dog
 
     planned = state.get("planned") or {}
     positions = state.get("positions") or {}
@@ -197,7 +217,7 @@ def render_report(run_id, slots, state, all_lines):
         print("[runner] no planned/flown points in state yet - skipping path plot "
               "(run likely aborted before launch finished placing the fleet)",
               flush=True)
-        return
+        return per_dog
 
     # Fixed padding around the data bbox, same convention as app.js's own
     # canvas framing (pad=6, span floored at 1) - without this, aspect=
@@ -226,6 +246,7 @@ def render_report(run_id, slots, state, all_lines):
     fig.savefig(png_path, dpi=130, facecolor=fig.get_facecolor())
     plt.close(fig)
     print("[runner] report: %s" % png_path, flush=True)
+    return per_dog
 
 
 # Exit codes, DISTINCT on purpose:
@@ -277,7 +298,6 @@ _LISSAJOUS_RATIO_S = {(1, 2): 120, (5, 7): 400, (11, 9): 650}
 # stick" is ~20 s on its own; the end-of-mission sequence adds ~15 s),
 # rounded up to leave room for a slow launch.
 BOOT_OVERHEAD_S = 75.0
-
 
 def mission_path_length_m(spec):
     """Actual planned path length in metres, from the mission's OWN geometry
@@ -749,18 +769,28 @@ def main():
     fell = sum(1 for line in all_lines if "FELL" in line)
     world_fail = "world build FAILED" in log_text
 
-    render_report(run_id, args.slot, final_state, all_lines)
+    per_dog = render_report(run_id, args.slot, final_state, all_lines)
+    # The gate can demote a claimed PASS to INVALID (flown trail a tiny
+    # fraction of the planned path - the dog's belief finished, its body
+    # did not). Re-derive the counts from the GATED verdicts, not the raw
+    # log strings, or a hallucinated run still exits 0.
+    passes = sum(1 for v in per_dog.values() if v == "PASS")
+    invalid = sum(1 for v in per_dog.values() if v == "INVALID")
 
     print("=" * 60)
-    print("[runner] run %s phase=%s  dogs=%d  PASS=%d FAIL=%d FELL=%d"
-          % (run_id, final_state.get("phase"), n_dogs, passes, fails, fell))
+    print("[runner] run %s phase=%s  dogs=%d  PASS=%d FAIL=%d FELL=%d INVALID=%d"
+          % (run_id, final_state.get("phase"), n_dogs, passes, fails, fell, invalid))
+    if invalid:
+        print("[runner] ## INVALID: %d dog(s) claimed PASS with essentially no"
+              " real-world travel (flown << planned) - false positive, do NOT"
+              " count this as a result ##" % invalid)
     if world_fail:
         print("[runner] WORLD BUILD FAILED - nothing launched")
         sys.exit(1)
     if final_state.get("phase") == "error":
         print("[runner] server phase=error")
         sys.exit(1)
-    if passes == n_dogs and fails == 0 and fell == 0:
+    if passes == n_dogs and fails == 0 and fell == 0 and invalid == 0:
         print("[runner] VERDICT: PASS (%d/%d)" % (passes, n_dogs))
         sys.exit(0)
     print("[runner] VERDICT: FAIL (%d/%d passed)" % (passes, n_dogs))
