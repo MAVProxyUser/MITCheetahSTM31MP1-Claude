@@ -82,9 +82,20 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
   accumulated Node create/destroy cycles inside one server process.
   Mitigations shipped: NOFEED verdict (near-empty trail + claimed
   completion ≠ INVALID — infrastructure, not a robot verdict; cross-check
-  bridge GPS), and a pose-feed heartbeat (silence >5 s during a mission
-  logs POSE FEED STALLED naming the metrics as unreliable). Root fix
-  OPEN: rebuild/resubscribe the pose Node on stall, or bound Node churn.
+  bridge GPS), a pose-feed heartbeat (silence >5 s logs POSE FEED
+  STALLED), and a fresh-Node resubscribe self-heal. ESCALATED same
+  evening: the self-heal is only TRANSIENT — resubscribe→RECOVERED
+  cycles were observed, but the feed re-dies faster as launches
+  accumulate, and by ~25 launches it stayed dead through six OPEN-7 reps
+  (3× NOFEED) and an entire fast-suite run (11 of 12 cases demoted
+  NOFEED while their controllers printed genuine PASSes — the suite was
+  re-run on a fresh server for the real verdict). Root fix scoped, not
+  yet built: either the server self-restarts at a safe idle point when
+  the feed has been unhealthy, or (cleaner) the pose subscription moves
+  to a per-run SUBPROCESS (trail_daemon-style) so transport state dies
+  with each run instead of accumulating. Until then: restart the server
+  before/between long campaigns; a NOFEED row is a re-run, never a
+  verdict.
 
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete
