@@ -443,6 +443,25 @@ def run_case(case: Case, repeats: int) -> bool:
 
         if proc.returncode == 0:
             print(f"{label} PASS (wall {elapsed_wall:.1f}s)")
+        elif "NOFEED" in proc.stdout:
+            # OPEN-21: the conductor's pose feed decays with accumulated
+            # launches; a NOFEED verdict means the DOG's result is unknown
+            # because the panel's own telemetry died - infrastructure, not
+            # a robot verdict. The sanctioned response is a safe server
+            # recycle (conductor_ctl - /api/stop first, never a bare kill)
+            # and ONE retry on the fresh feed. A second NOFEED fails the
+            # case so a permanently broken feed cannot silently eat the
+            # suite.
+            print(f"{label} NOFEED - pose feed dead; recycling conductor and retrying")
+            sys.path.insert(0, str(REPO_ROOT / "stm32mp1/gazebo/conductor"))
+            import conductor_ctl
+            conductor_ctl.restart_server("NOFEED in " + case.name)
+            proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+            if proc.returncode == 0:
+                print(f"{label} retry PASS on fresh feed")
+            else:
+                print(f"{label} retry exit {proc.returncode} - FAILING the case")
+                ok = False
         elif proc.returncode == 2:
             # A harness timeout is not a mission verdict - but it is NOT a
             # pass either, and treating it as one hid a real frozen-at-spawn

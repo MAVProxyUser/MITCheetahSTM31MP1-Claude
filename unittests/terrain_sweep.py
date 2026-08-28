@@ -106,6 +106,11 @@ def main():
                 for attempt in range(30):
                     print("[cell] %s on %s ..." % (mission, t), flush=True)
                     r = run_cell(t, mission, gait, speed)
+                    if r["verdict"] == "NOFEED":
+                        sys.path.insert(0, os.path.join(ROOT, "stm32mp1/gazebo/conductor"))
+                        import conductor_ctl
+                        conductor_ctl.restart_server("NOFEED (OPEN-21)")
+                        continue
                     if r["verdict"] != "REFUSED":
                         break
                     print("[gate] refused - waiting 60s", flush=True)
