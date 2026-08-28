@@ -295,9 +295,15 @@ RECIPES = {
     "circle": dict(gait=20, speed=1.5,
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
                           "WP_TURN_SOFT=0.3 WP_TURN_HARD=0.79",
-                    note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
-                         "turn-grading ramp narrowed for circle's own 45deg "
-                         "corners, R=1.43m - PASS 30.2s (was 32.8s/34.3s at "
+                    note="walking @ 1.5 m/s. NOTE circle:R:N is an N-gon: N=8 is an "
+                         "OCTAGON (45deg/vertex - the dropdown now says so) and "
+                         "N=36 is the functionally-smooth real circle; both share "
+                         "this recipe. The turn-grading below was tuned for the "
+                         "octagon's 45deg vertices and is a structural no-op on "
+                         "the 36-gon (10deg turns sit below turn_soft=17deg, so "
+                         "no grading fires - it just walks the smooth arc). "
+                         "Graded corridor + gentle WP_ALON + turn-grading ramp "
+                         "narrowed for the 45deg corners, R=1.43m - PASS 30.2s (was 32.8s/34.3s at "
                          "earlier steps; R=7.48m/no braking untightened). "
                          "ALL TIMES HERE ARE LEG-OPEN. This course stops "
                          "6.89m from home, so 'Close final leg' (default ON) "

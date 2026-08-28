@@ -14,7 +14,15 @@ const MISSION_OPTIONS = [
   { value: "oval:40:5.0", label: "Oval (40m + R5)" },
   { value: "atom:9.0:6", label: "Atom (6-lobe, R=9)" },
   { value: "dash:100", label: "Dash (100m straight)" },
-  { value: "circle:9:8", label: "Circle search (SAR)" },
+  // circle:R:N is an N-gon - N=8 is a regular OCTAGON (45 deg per vertex),
+  // and labelling it "Circle" hid exactly the property (discrete sharp
+  // direction changes) that the cornering-envelope work showed matters
+  // most. N=36 (~10 deg/vertex) is functionally smooth at this port's
+  // corridor/lookahead scale and is the real circle. Spec strings stay
+  // stable (generator, history, recipes all key on "circle"); only the
+  // labels tell the truth now.
+  { value: "circle:9:8", label: "Octagon search (8\u00D745\u00B0, SAR)" },
+  { value: "circle:9:36", label: "Circle (smooth, 36-gon)" },
   { value: "sector:15:3", label: "Sector search (SAR)" },
   { value: "parallel:30:5:8", label: "Parallel track search (SAR)" },
   { value: "expsquare:5:12", label: "Expanding square search (SAR)" },
