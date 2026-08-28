@@ -73,7 +73,20 @@
            interlude's own lie-down) - see that file for why a bare threshold
            bump could not work here (spawn height ends up above the robot's
            own normal standing height). -->
-      <pose>0 0 0.42 0 0 1.5707963</pose>
+      <!-- Spawn z: 0.45 puts STRAIGHT legs' feet at +0.02 (leg reach 0.43),
+         so no solid ever starts inside the floor even at the spawn instant;
+         0.42 left them kissing -0.01. Settle equilibrium is IDENTICAL
+         (measured: 0.42 and 0.60 both settle to body z=0.073, knees
+         -1.71/-2.35, abad at the +-0.864 stop, feet within +-1cm of the
+         plane) - which matches Unitree's own documented startup pose
+         (belly pad flat, legs folded and splayed; source:
+         wiki.cci.arts.ac.uk/books/robotics-lab/page/
+         using-go1-edu-robot-dog-by-unitree, operator-provided
+         2026-08-28). The earlier "feet 10-17cm under at settle" claim
+         was a measurement error: gz pose/info reports LINK poses
+         relative to their MODEL, and the model's own +0.073 was not
+         added. Real limp-settle physics is correct. -->
+    <pose>0 0 0.45 0 0 1.5707963</pose>
       <link name="base">
         <inertial>
           <pose>0.020866157113366469 0.0018596720421213159 -0.00046917899041193459 0 0 0</pose>

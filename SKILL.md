@@ -877,3 +877,22 @@ system python lacks them and the server dies at import — which presents as
 "the whole UI stopped working". The venv interpreter path is pinned inside
 `conductor.sh`. A stale server running pre-edit code is the same trap as a
 stale `gz sim` — kill it and relaunch after ANY server.py change.
+
+## Measurement gotcha: gz pose/info is PARENT-relative below model level
+
+`/world/<w>/pose/info` publishes MODEL poses in the world frame but LINK
+poses relative to their MODEL (and visuals relative to their link). Reading
+a link's z as world-z without adding the model's own z produced the false
+"feet 10-17 cm under the floor at settle" record (real figure: within
+±1 cm, matching Unitree's documented startup pose - source:
+wiki.cci.arts.ac.uk/books/robotics-lab/page/using-go1-edu-robot-dog-by-unitree).
+Always compose child poses up the chain before comparing against world
+geometry - `base z = +0.0000` exactly is the tell that you are reading a
+relative pose.
+
+## Records of decisions and facts
+
+See CLAUDE.md's "RULE: records of decisions and facts" - operator
+decisions must be quoted verbatim with when/where, facts must state a
+source, and even sourced facts get re-checked before being used as a
+constraint. Correcting a broken implementation of X is NOT rejecting X.

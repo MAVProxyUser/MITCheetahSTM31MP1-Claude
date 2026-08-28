@@ -21,16 +21,6 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ## OPEN
 
-### Operator decision
-
-- **OPEN-1 · Spawn pose: feet 10-17 cm under the floor for the ~1 s boot
-  window** — `DECISION`. SDF 1.9 has no initial-joint-state; the
-  link-pose bake was rejected twice (topples stand-up); a joint-controller
-  plugin would fight the real controller all run; no set_joint_position
-  service exists. Shipped: z=0.42 (measured equilibrium), fall-z suspended
-  through boot. Recommendation: accept the cosmetic clip; revisit if gz
-  gains initial joint state. Every validated result shares this boot.
-
 ### Probably stale — cheap re-tests (measured before the windup/force-cap fixes)
 
 - **OPEN-2 · Flight-gait 90–147.5° "mid-band" corner weakness** — `RETEST`.
@@ -127,6 +117,28 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### Closed from the OPEN list
+
+- **C-OPEN-1 · Spawn pose** — closed 2026-08-28, and the
+  entry's own claims are the story. The "feet 10-17 cm under at settle"
+  figure was FALSE — a frame-misread (gz pose/info reports link poses
+  relative to their MODEL; the model's +0.073 was never added). Measured
+  correctly (source: direct pose probe with composed frames, 2026-08-28):
+  limp settle puts the belly pad flat, hips splayed to the ±0.864 stop,
+  knees legally folded (−1.71/−2.35), feet within ±11 mm of the plane —
+  which IS Unitree's own documented startup pose (source: operator-provided
+  manual, wiki.cci.arts.ac.uk/books/robotics-lab/page/
+  using-go1-edu-robot-dog-by-unitree). The physics was right all along.
+  Residual artifact = the spawn-instant frames before the legs fold, plus
+  ≤1 cm contact softness; fixed by spawn z 0.42→0.45 (straight-leg feet
+  start at +0.02 instead of −0.01, settle equilibrium measured identical).
+  ALSO corrected: this entry previously said the operator "rejected"
+  fixes "twice" — what they actually rejected was my BROKEN implementation
+  (it toppled the dog); recording that as rejection-of-the-approach was my
+  error, called out by the operator, and is now covered by CLAUDE.md's
+  "records of decisions and facts" rule.
+
 
 ### The two big control bugs (both stock MIT, 2019 import)
 

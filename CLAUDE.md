@@ -2,6 +2,34 @@
 
 Read before changing the port. Companion to `SKILL.md` (commands), `README.md`, and **`ISSUES.md` (the official issue tracker - every open and closed issue with symptom/cause/fix/evidence; update it when an issue opens or closes, this file stays the deep-dive archive)**.
 
+## RULE: records of decisions and facts (operator-ordered, 2026-08-28)
+
+Born from a real failure: I implemented a spawn-pose fix badly (it toppled
+the dog), the operator told me to revert the BROKEN THING, and I recorded
+that as "operator rejected the approach - twice - do not revisit," then
+used my own filing error as a wall ("no third approach exists") and argued
+it back at them. The claim beneath it ("feet 10-17 cm under at settle")
+was ALSO wrong - a frame-misread (see the spawn-pose closure). Two layers
+of confident record, both false.
+
+The rule, permanently:
+
+1. **A claim about an operator decision must quote their actual words**,
+   with when/where. "Operator rejected X" may only ever mean they rejected
+   X ITSELF - correcting a broken implementation of X is not rejecting X,
+   and must never be recorded as if it were.
+2. **A recorded fact must state its source** - the measurement, the log
+   line, the document, the commit. An unsourced assertion in this file is
+   a defect, not a record.
+3. **Even a sourced fact must be RE-CHECKED before it is used as a
+   constraint on action.** Sources go stale, measurements carry frame
+   errors, and "documented" is not "true" - this project has now retracted
+   sourced claims repeatedly (the cheater tables, KF_UNCAP, the 10-17 cm
+   feet, the phantom gait switches). Re-verify at the moment of use, at
+   the cost of one probe run.
+4. When a recorded claim is found false, the correction NAMES the original
+   error and how it was made - the wrong turn is part of the record.
+
 ## The board (Octavo OSD32MP1-RED)
 
 - STM32MP157: **dual Cortex-A7, armv7l 32-bit**, NEON/VFPv4; + a Cortex-M4 (unused here).
