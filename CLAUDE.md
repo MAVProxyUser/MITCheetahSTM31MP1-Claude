@@ -7176,3 +7176,35 @@ interlude's stop/lie-down/stand-back-up, and every end-of-mission stop.
 Now reset in the `firstRun` block beside `world_position_desired` and
 `_yaw_des`, which are reset there for the same reason.
 
+
+### The close-leg time cost, as a controlled A/B - and the recipe notes it invalidated
+
+Operator-spotted from the panel: "did you update all the validated
+combos with this new info?" No - the CLAUDE.md writeup went in but the
+RECIPES `note` fields, which are what the panel actually displays, still
+quoted leg-OPEN timings as though they were current. Fixed.
+
+The suite happened to run the same three `circle:9:8` cases immediately
+before and after `close_leg` was deployed - same binary otherwise, same
+cases, back to back - which makes it a genuine controlled A/B rather
+than a comparison across batches:
+
+| case | leg open | leg closed | delta |
+|---|---|---|---|
+| circle @ trotting 2.5 | 58.5 s | 62.5 s | **+6.8 %** |
+| circle @ bounding 1.0 | 76.6 s | 82.6 s | **+7.8 %** |
+| circle @ galloping 0.8 | 90.6 s | 98.6 s | **+8.8 %** |
+| expsquare @ walking 1.5 | 109.1 s | 121.3 s | **+11 %** |
+
+Consistent, and the ordering is the physically sensible one: the cost is
+the same walk home every time, so the SLOWER the gait, the larger the
+fraction it adds. Nothing regressed - all four still pass.
+
+**A note on the "not this course's validated combo" warning**, since it
+fired on those runs and looked alarming: it was correct and expected.
+The three octagon cases deliberately run `circle:9:8` at trotting 2.5 /
+bounding 1.0 / galloping 0.8 to probe the CORNERING ENVELOPE; circle's
+own validated recipe is walking @ 1.5. The warning is doing its job -
+flagging that the launch is off-recipe - and the cases are off-recipe on
+purpose. It is not evidence of a misconfiguration.
+

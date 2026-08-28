@@ -244,7 +244,13 @@ RECIPES = {
                     note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
                          "turn-grading ramp narrowed for circle's own 45deg "
                          "corners, R=1.43m - PASS 30.2s (was 32.8s/34.3s at "
-                         "earlier steps; R=7.48m/no braking untightened)"),
+                         "earlier steps; R=7.48m/no braking untightened). "
+                         "ALL TIMES HERE ARE LEG-OPEN. This course stops "
+                         "6.89m from home, so 'Close final leg' (default ON) "
+                         "adds a real leg: measured +6.8% (58.5->62.5s) at "
+                         "trotting 2.5, +7.8% at bounding 1.0, +8.8% at "
+                         "galloping 0.8 - the slower the gait, the longer "
+                         "that same walk home takes. Still passes either way."),
     # First attempt fell twice: once with the default corridor (tightest
     # First attempt fell twice: once with the default corridor (tightest
     # corner R=0.39-0.52m, untouched) at t~22s, once with only
@@ -299,6 +305,11 @@ RECIPES = {
                     note="walking, graded corridor + gentle WP_ALON + narrowed "
                          "turn-grading ramp + tightened corridor floor + tight "
                          "final-waypoint closure for star-tight corners - "
+                         "ends 15.0m from home, so 'Close final leg' "
+                         "(default ON) adds that walk; its sharpest angle "
+                         "is unchanged (32.5deg either way) since this "
+                         "course already had one that tight. Times below "
+                         "are LEG-OPEN and not yet re-measured closed. "
                          "PASS 141.5s/141.8s (2/2), final wp closes to "
                          "dist=0.25-0.27m (was 1.49m) "
                          "(prior step: PASS 140.9s at CORRIDOR_MIN=0.07; "
@@ -334,8 +345,12 @@ RECIPES = {
                       note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
                            "turn-grading ramp narrowed for parallel's own 90deg "
                            "corners, tightened further to R=0.181m - PASS 181-182s "
-                           "x2 (was 158.2s at the original untightened R=2.25m/"
-                           "no-braking baseline)"),
+                           "x2 LEG-OPEN (was 158.2s at the original untightened "
+                           "R=2.25m/no-braking baseline). This course ends 46.1m "
+                           "from home - the LARGEST gap in the catalog - so "
+                           "'Close final leg' (default ON) adds a substantial "
+                           "walk plus a 90->49.4deg closing corner. NOT yet "
+                           "re-measured closed; expect well over 182s."),
     # Same fix, same reasoning, same numbers as parallel immediately above -
     # expsquare's corners are ALSO a constant 90deg turn (its 5 non-trivial
     # legs alternate direction by exactly 90deg each), so it had the
@@ -356,7 +371,12 @@ RECIPES = {
                        note="walking @ 1.5 m/s, graded corridor + gentle WP_ALON + "
                             "turn-grading ramp narrowed for expsquare's own 90deg "
                             "corners, R=0.253m - PASS x4/FELL x1 in 5 attempts, "
-                            "109.0-109.2s each pass (was PASS 87.4s untightened, "
+                            "109.0-109.2s LEG-OPEN; with 'Close final leg' "
+                            "(default ON) PASS 121.3s, +11%, and the closing "
+                            "corner is the SHARPEST on the course (90->33.7deg) "
+                            "so this turn-grading tuning was never measured "
+                            "against it - it passes, but re-check if retuning. "
+                            "(was PASS 87.4s untightened, "
                             "R=2.25m/no braking at every corner). NOT tightened "
                             "further - see comment above."),
     # PASS 96.2s on 1:2 (141m), PASS 345.9s on 5:7 (558m) - same tuning as
