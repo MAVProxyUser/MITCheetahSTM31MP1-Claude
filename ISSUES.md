@@ -46,13 +46,26 @@ at recipe defaults, velocity aiding default-on, all fixes active together).
 
 ### Built, not run
 
-- **OPEN-8 · The per-gait × 5°-notch cornering sweep** — `IN PROGRESS`
-  (2026-08-28): `unittests/corner_sweep.py` is collecting the first
-  tranche into `unittests/corner_envelope.csv` — 5 gaits (bounding 1.0,
-  galloping 0.8, pronking 0.6, trotRunning 3.5, trotting 2.5) × 10 angles
-  (30–165° in 15° steps), solo `corner:25:<angle>` probes, close-leg off.
-  Resumable: re-running the script skips measured cells; 5°-notch
-  refinement goes around whatever transitions the 15° grid finds.
+- **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
+  2026-08-28; speed axis remains. First tranche complete
+  (`unittests/corner_sweep.py` → `unittests/corner_envelope.csv`):
+  5 gaits (bounding 1.0, galloping 0.8, pronking 0.6, trotRunning 3.5,
+  trotting 2.5) × 10 angles (30–165°, 15° steps), solo `corner:25:<angle>`
+  probes, close-leg off — **50/50 PASS, zero falls**. At its established
+  base speed, NO angle in the range breaks ANY of the five gaits on the
+  current build (consistent with C-OPEN-2: the old angle findings were the
+  windup). Wall time rises smoothly with angle (e.g. pronking 110.6 →
+  112.6 s), which is the planner braking harder for sharper corners —
+  the cost gradient, not a stability edge. Consequence: there are no
+  transitions for the planned 5°-notch refinement to bracket — the
+  5°-resolution half of the stretch goal is moot at base speeds. What
+  remains OPEN is the SPEED axis: per-angle speed ladders to find each
+  gait's ceiling as a function of angle (the literal "how fast into X
+  degrees" question — trotting's old 2.5 PASS / 3.0 FAIL at ≥120° is the
+  only such bracket measured, and it predates the windup fix, so even
+  that needs re-measuring). The harness is built for it: seed
+  `corner_sweep.py --gait <g>:<speed> --angles <list>` per rung; REFUSED/
+  TIMEOUT cells self-retry.
 - ~~OPEN-9~~ **closed 2026-08-28 → see C-OPEN-9** (run, twice over, and
   answered NEGATIVE: capped-speed management subsumes gait switching for
   lap time on every regime tested; the analyzer itself pays −11%).
