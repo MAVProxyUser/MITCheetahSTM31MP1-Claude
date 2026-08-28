@@ -487,6 +487,10 @@ def main():
                           "the two are tracked separately.")
     ap.add_argument("--poll", type=float, default=2.0,
                      help="state-poll interval in seconds (default 2)")
+    ap.add_argument("--terrain", default=None,
+                     help="terrain/surface kind for this launch (flat, rolling, "
+                          "rough, concrete, asphalt, grass, dirt, gravel, sand, "
+                          "mud, rock, ice); omitted = the server draft's kind")
     ap.add_argument("--keep-cameras", action="store_true",
                      help="don't force cameras off before launch (default: force off)")
     args = ap.parse_args()
@@ -587,7 +591,10 @@ def main():
               "--keep-cameras to keep the slot's own camera flags)")
 
     # --- launch -------------------------------------------------------
-    r = api("POST", "/api/launch", {"slots": slots_body})
+    body = {"slots": slots_body}
+    if args.terrain:
+        body["terrain"] = args.terrain
+    r = api("POST", "/api/launch", body)
     if not r.get("ok"):
         raise SystemExit("launch refused: %s" % r.get("message"))
 

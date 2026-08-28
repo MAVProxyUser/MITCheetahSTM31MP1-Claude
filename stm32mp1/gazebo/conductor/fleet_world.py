@@ -150,6 +150,27 @@ def apply_terrain(world, kind, run_dir, slots=None):
             break
     if gp is None:
         return
+    spec = terrain.TERRAIN_TYPES[kind]
+    if "surface" in spec:
+        # SURFACE kind: same flat plane geometry (2D waypoints therefore sit
+        # on the ground by construction), different contact physics + look.
+        # The ground half of the pair; the foot half is apply_surface_feet()
+        # on the proto, so the effective pair mu equals the surface value
+        # under any engine combine rule.
+        color = spec["surface"]["color"]
+        for link in gp.findall("link"):
+            for col in link.findall("collision"):
+                for old in col.findall("surface"):
+                    col.remove(old)
+                col.append(ET.fromstring(terrain.surface_xml(spec)))
+            for vis in link.findall("visual"):
+                mat = vis.find("material")
+                if mat is not None:
+                    for tag in ("ambient", "diffuse"):
+                        el = mat.find(tag)
+                        if el is not None:
+                            el.text = "%.2f %.2f %.2f 1" % color
+        return
     flatten_radius_m = 2.0
     if slots:
         import math
@@ -165,6 +186,32 @@ def apply_terrain(world, kind, run_dir, slots=None):
                 if geom is not None:
                     el.remove(geom)
                 el.append(ET.fromstring("<geometry>%s</geometry>" % hm_xml))
+
+
+def apply_surface_feet(proto, kind):
+    """The FOOT half of a surface kind's contact pair: set every
+    *foot_collision* mu/mu2 in the PROTO (before cloning, so all dogs
+    inherit) to the surface's mu. The proto ships foot mu=0.6; with only
+    the ground patched, the pair's effective friction would depend on the
+    engine's combine rule (min? product? sqrt-product?) - setting both
+    sides equal makes it the surface value under any of them. Everything
+    else in the foot surface block (kp 1e6, kd 1) is left alone: ground
+    compliance is the GROUND's job (apply_terrain), and the validated
+    'flat' kind patches nothing at all."""
+    spec = terrain.TERRAIN_TYPES.get(kind, {})
+    if "surface" not in spec:
+        return
+    mu = spec["surface"]["mu"]
+    n = 0
+    for col in proto.iter("collision"):
+        if "foot_collision" not in (col.get("name") or ""):
+            continue
+        for el in col.iter():
+            if el.tag in ("mu", "mu2"):
+                el.text = "%g" % mu
+                n += 1
+    if n != 8:   # 4 feet x (mu + mu2) - a proto change would break this silently
+        raise SystemExit("apply_surface_feet: expected 8 mu edits, made %d" % n)
 
 
 def layout(missions):
@@ -221,6 +268,7 @@ def main():
     slots = layout(missions)
     tree, world, proto = load_proto(src)
     apply_terrain(world, terrain_kind, os.path.dirname(os.path.abspath(out)), slots=slots)
+    apply_surface_feet(proto, terrain_kind)
 
     for i, (spec, north, east, bbox) in enumerate(slots):
         yaw = mission_spawn_yaw_rad(spec)

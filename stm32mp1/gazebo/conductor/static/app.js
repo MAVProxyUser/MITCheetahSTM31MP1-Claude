@@ -629,6 +629,7 @@ async function poll() {
       if (!_synced || incoming !== JSON.stringify(slots)) {
         slots = state.draft_slots;
         document.getElementById("capSlider").value = state.draft_cap ?? 3.5;
+        syncTerrainOptions(state);
         if (state.draft_terrain) document.getElementById("terrainSelect").value = state.draft_terrain;
         renderSlots();
       }
@@ -648,6 +649,25 @@ document.getElementById("capSlider").addEventListener("change", e => {
     body: JSON.stringify({ value: +e.target.value }),
   });
 });
+function syncTerrainOptions(state) {
+  // Populate the terrain dropdown from the SERVER's terrain_types instead
+  // of a hardcoded list - the old markup shipped flat/rolling/rough only,
+  // so the surface kinds (concrete/grass/sand/mud/ice/... - and even the
+  // pre-existing "ramp") were selectable over REST but invisible in the
+  // panel. Each option's tooltip carries the kind's own note (mu etc.).
+  const kinds = state.terrain_types;
+  if (!kinds) return;
+  const sel = document.getElementById("terrainSelect");
+  const want = Object.keys(kinds);
+  const have = [...sel.options].map(o => o.value);
+  if (want.length === have.length && want.every((k, i) => k === have[i])) return;
+  const cur = sel.value;
+  sel.innerHTML = want.map(k =>
+    `<option value="${k}" title="${(kinds[k].note || "").replace(/"/g, "&quot;")}">` +
+    `${k}${kinds[k].note ? " - " + kinds[k].note : ""}</option>`).join("");
+  if (want.includes(cur)) sel.value = cur;
+}
+
 document.getElementById("terrainSelect").addEventListener("change", e => {
   fetch("/api/terrain", {
     method: "POST", headers: { "Content-Type": "application/json" },

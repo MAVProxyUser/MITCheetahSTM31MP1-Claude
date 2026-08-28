@@ -29,7 +29,59 @@ TERRAIN_TYPES = {
     "rolling": dict(amplitude=0.35, note="gentle hills, ~0.35 m peak-to-trough"),
     "rough":   dict(amplitude=0.15, note="short-wavelength bumps, ~0.15 m - tests foot placement"),
     "ramp":    dict(amplitude=0.0,  note="flat ground_plane with a fixed pitch"),
+    # ---- SURFACE kinds (2026-08-28, per operator: "organize the respective
+    # representative types of terrain, make them selectable for a fleet run").
+    # Same flat plane GEOMETRY as "flat" - so 2D waypoints sit on the ground
+    # by construction - but different CONTACT PHYSICS and look. A surface's
+    # mu is applied to BOTH the ground AND the four foot collisions (proto
+    # ships foot mu=0.6), so the contact pair's effective friction equals
+    # the surface value under any engine combine rule. mu anchors are
+    # TERRAIN.md's cheat-sheet (rubber-on-concrete 0.8-1.0, URDF foot 0.6);
+    # soft ground (sand/mud) additionally lowers contact stiffness kp and
+    # allows a few mm of min_depth - the only mud/sand lever rigid-body gz
+    # has (TERRAIN.md: "the slip IS the mud"). kp/kd/min_depth pass-through
+    # on this engine is UNVERIFIED until the first A/B; mu is known-honored.
+    "concrete": dict(amplitude=0.0, note="mu 0.90, rigid - the high-traction reference",
+                     surface=dict(mu=0.90, kp=1e6, kd=1, min_depth=0.0,
+                                   torsional=1.0, color=(0.58, 0.58, 0.58))),
+    "asphalt":  dict(amplitude=0.0, note="mu 0.85, rigid",
+                     surface=dict(mu=0.85, kp=1e6, kd=1, min_depth=0.0,
+                                   torsional=1.0, color=(0.25, 0.25, 0.28))),
+    "grass":    dict(amplitude=0.0, note="mu 0.60, slightly compliant",
+                     surface=dict(mu=0.60, kp=4e5, kd=20, min_depth=0.001,
+                                   torsional=0.8, color=(0.30, 0.52, 0.24))),
+    "dirt":     dict(amplitude=0.0, note="mu 0.70, packed",
+                     surface=dict(mu=0.70, kp=3e5, kd=30, min_depth=0.001,
+                                   torsional=0.8, color=(0.45, 0.36, 0.25))),
+    "gravel":   dict(amplitude=0.0, note="mu 0.55, low torsional grip",
+                     surface=dict(mu=0.55, kp=2e5, kd=40, min_depth=0.002,
+                                   torsional=0.3, color=(0.48, 0.45, 0.42))),
+    "sand":     dict(amplitude=0.0, note="mu 0.45, soft, feet auger (low torsional)",
+                     surface=dict(mu=0.45, kp=8e4, kd=100, min_depth=0.003,
+                                   torsional=0.15, color=(0.76, 0.68, 0.50))),
+    "mud":      dict(amplitude=0.0, note="mu 0.35, softest - the slip IS the mud",
+                     surface=dict(mu=0.35, kp=4e4, kd=200, min_depth=0.006,
+                                   torsional=0.2, color=(0.30, 0.24, 0.18))),
+    "rock":     dict(amplitude=0.0, note="mu 0.80, rigid slab (uneven rock = later phase)",
+                     surface=dict(mu=0.80, kp=1e6, kd=1, min_depth=0.0,
+                                   torsional=0.9, color=(0.44, 0.42, 0.40))),
+    "ice":      dict(amplitude=0.0, note="mu 0.15 - deliberately past any gait's envelope; adhesion diagnostic",
+                     surface=dict(mu=0.15, kp=1e6, kd=1, min_depth=0.0,
+                                   torsional=0.05, color=(0.72, 0.80, 0.88))),
 }
+
+
+def surface_xml(spec):
+    """The <surface> block for the GROUND collision of a surface kind."""
+    s = spec["surface"]
+    torsional = ("<torsional><coefficient>%g</coefficient></torsional>"
+                 % s["torsional"])
+    return ("<surface>"
+            "<contact><ode><kp>%g</kp><kd>%g</kd><min_depth>%g</min_depth>"
+            "</ode></contact>"
+            "<friction><ode><mu>%g</mu><mu2>%g</mu2></ode>%s</friction>"
+            "</surface>"
+            % (s["kp"], s["kd"], s["min_depth"], s["mu"], s["mu"], torsional))
 
 SIZE_M = 400.0     # matches the existing ground_plane's <size>
 GRID = 129         # 2^7+1 - the conventional heightmap dimension for terrain engines
