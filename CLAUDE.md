@@ -7224,7 +7224,30 @@ time, real estimator, `dash:100`:
 | bounding | 1.0 | orientation tip-over ~47 s, **never completed** | **PASS 84.8 s** |
 | walking | 1.5 | - | **PASS 60.5 s** |
 | trotting | 2.0 | - | **PASS 46.1 s** |
-| trotRunning | 0.6 | walked BACKWARD to N=-19.7 m | **PASS 149.6 s** |
+| trotRunning | 0.6 | walked BACKWARD to N=-19.7 m | **PASS 149.6 s / 148.3 s** |
+| pacing | 0.6 | - | **PASS 149.8 s** |
+| walking2 | 0.5 | - | **PASS 235.1 s** |
+| walking2 | 0.8 | - | FELL - its OWN ceiling, see below |
+
+**8 of 8 gaits in the usable set now complete the 100 m dash.** That is
+the whole of the instruction, satisfied: there is no longer a gait in
+this port that cannot run 100 m in a straight line.
+
+`walking2` is the one that needs a caveat, and it is not this bug. At
+0.8 m/s it fell at **t=20.7 s having travelled 1.46 m**, with an
+orientation ESTOP - far too early for the windup, which needs 35-60 s of
+sustained cruise before it dominates, and with the wrong signature (an
+attitude trip at a standstill, not a velocity decay). Dropped to 0.5 it
+completes cleanly in 235.1 s. So this is `walking2`'s own long-documented
+fragility/speed ceiling (this file has it failing on any course with real
+curvature at 1.0, and partially at 0.6), unchanged and unrelated.
+
+The `trotRunning` cell is the one deliberate repeat: 149.6 s and 148.3 s
+on independent runs, a 0.9 % spread, which is this project's usual
+precision when a mission genuinely works. And `walking2 @0.5`'s 235 s is
+incidentally the longest single sustained cruise run in this table - well
+past the windup threshold - so it is a further duration check on the fix
+rather than just another pass.
 
 **This retires the "three different mechanisms" framing in the
 flight-gait sections above, and that correction matters more than the
