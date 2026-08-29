@@ -200,3 +200,72 @@ in `unittests/terrain_friction.csv`.
 - **Phase 3**: native meshes — PX4 `lawn`/`ridge`/`baylands`, Fuel "Harmonic
   Terrain".
 - **Phase 4**: SubT tiles (rubble/rock/mud floors) for the underground set.
+
+## Phase 2 EXECUTED (2026-08-28 night): the planner now KNOWS the ground
+
+Operator instruction: "add the rest to the pre-planner for each terrain
+type and gait on said terrain." This is the first half of that — the
+friction axis, which is the one Phase 1b already measured well enough to
+encode as physics rather than as a tuned table.
+
+**The rule, and why it is a rule and not a lookup.** A body turning at
+speed v on a path of curvature kappa needs lateral acceleration
+`a_lat = v^2 * kappa`, and the ground can only supply `mu * g` before the
+feet slide. So the planner's lateral budget is not a free parameter on a
+surface with known friction:
+
+    a_lat_max <= safety * mu * g        (safety = 0.9, $WP_TERRAIN_SAFETY)
+
+`BodyLimits::mu_terrain` (`common/include/Planning/BodyPathPlanner.h`)
+carries it; `plan()` applies it BEFORE `buildPath`/`computeGeometry`/
+`computeSpeedProfile`, so every downstream number — corner speeds, the
+backward braking pass, the analyzer's sustained-segment caps — is
+computed against what this ground can actually deliver, not against the
+2.5 default and then trimmed afterwards. Unset (`-1`) is stock behaviour
+bit-for-bit, which is what keeps every validated flat result valid.
+
+**The conductor is the only thing that knows which ground it built**, so
+it is the only thing that can tell the planner: `server.py`'s controller
+launch line now carries `WP_TERRAIN_MU=<mu>` taken straight from
+`terrain.py`'s own `TERRAIN_TYPES[kind]["surface"]["mu"]` — the same
+number that goes into the SDF's `<surface>` block and into the foot
+collisions. One source, both sides of the contact pair, and the planner.
+
+**Verified live, not argued** (`dash:20`, walking @1.5, terrain `ice`):
+
+    [plan] terrain mu=0.15 caps lateral budget 2.50 -> 1.32 m/s^2
+    [plan] 201 pts, 20.0 m, tightest R=0.00 m -> 1.50 m/s (cruise 1.50,
+           a_lat 1.32, corridor 1.00)          <- PASS, ratio 1.03
+
+0.9 x 0.15 x 9.81 = 1.324, which is what it printed. Flat and the
+geometry kinds send nothing at all, so they plan exactly as before.
+
+**A defect this exposed and fixed in passing**: the `[plan] ... a_lat`
+summary read the CALLER's `lim` copy, not the planner's post-cap `_lim`,
+so it printed `a_lat 2.50` one line under a `terrain mu` line saying the
+budget was now 1.32. A summary that contradicts the line above it is
+worse than no summary; it now prints `planner.limits()`.
+
+**What is deliberately NOT encoded yet**: `v_terrain_max` (the per-kind
+SPEED ceiling) exists in `BodyLimits` and is wired to `$WP_TERRAIN_VMAX`,
+and it is left UNSET on every kind. Phase 1b measured that mu above a
+gait's demand line costs nothing in time, so there is no measured speed
+ceiling to encode for the surface kinds; the geometry kinds (rolling,
+rough) plausibly have one, and `unittests/terrain_envelope.py` is the
+sweep that would measure it. Encoding a guess there is precisely what
+this whole terrain program exists to avoid.
+
+### Predicted from the rule, for the record (not yet measured)
+
+At the 2.5 default budget the cap binds only below mu ~= 0.283, so:
+
+| kind | mu | capped a_lat | binds? |
+|---|---|---|---|
+| concrete .90 / asphalt .85 / rock .80 / dirt .70 | — | — | no |
+| grass .60 / gravel .55 / sand .45 / mud .35 | — | — | no |
+| **ice** | 0.15 | **1.32** | **yes** |
+
+Which reproduces Phase 1b's own measured outcome — ice was the only
+surface that failed anything, and it failed at trot+oval, the highest
+lateral demand in the matrix. The rule and the data agree without the
+rule having been fitted to the data.

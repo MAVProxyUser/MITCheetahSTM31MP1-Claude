@@ -1,0 +1,22 @@
+cell,terrain,gait,speed,load_spinners,rep,blips,fields,first_t_s,first_iter,verdict,when
+load0,flat,walking,1.5,0,1,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:33:54
+load0,flat,walking,1.5,0,2,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:34:35
+load0,flat,walking,1.5,0,3,0,-,,,PASS,2026-08-28 21:35:17
+load4,flat,walking,1.5,4,1,3,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:35:58
+load4,flat,walking,1.5,4,2,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:36:40
+load4,flat,walking,1.5,4,3,0,-,,,PASS,2026-08-28 21:37:21
+load8,flat,walking,1.5,8,1,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:38:03
+load8,flat,walking,1.5,8,2,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:38:44
+load8,flat,walking,1.5,8,3,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:39:26
+mud,mud,walking,1.5,0,1,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:40:07
+mud,mud,walking,1.5,0,2,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:40:49
+mud,mud,walking,1.5,0,3,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:41:30
+rough,rough,walking,1.5,0,1,3,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:42:12
+rough,rough,walking,1.5,0,2,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:42:54
+rough,rough,walking,1.5,0,3,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:43:35
+gait_trotRunning,flat,trotRunning,1.5,0,1,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:44:17
+gait_trotRunning,flat,trotRunning,1.5,0,2,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:44:58
+gait_trotRunning,flat,trotRunning,1.5,0,3,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:45:40
+aiding_off,flat,walking,1.5,0,1,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:46:21
+aiding_off,flat,walking,1.5,0,2,0,-,,,PASS,2026-08-28 21:47:03
+aiding_off,flat,walking,1.5,0,3,2,pos[0] pos[1] pos[2] vWorld[0] vWorld[1] vWorld[2] vBody[0] vBody[1] vBody[2],0.002,0,PASS,2026-08-28 21:47:44

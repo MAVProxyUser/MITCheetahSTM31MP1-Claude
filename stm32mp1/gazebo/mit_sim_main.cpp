@@ -362,7 +362,11 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     shmtrace::logf(0.0, "[plan] %zu pts, %.1f m, tightest R=%.2f m -> %.2f m/s "
            "(cruise %.2f, a_lat %.2f, corridor %.2f)",
            planner.path().size(), planner.path().empty() ? 0.0 : planner.path().back().s,
-           kk > 1e-6 ? 1.0/kk : 0.0, vv, lim.v_cruise, lim.a_lat_max, corridor);
+           kk > 1e-6 ? 1.0/kk : 0.0, vv,
+           // the PLANNER's own post-terrain-cap limits, not the caller's
+           // pre-cap copy - a summary that contradicts the [plan] terrain
+           // line two rows above it is worse than no summary.
+           planner.limits().v_cruise, planner.limits().a_lat_max, corridor);
   }
 
   /*
