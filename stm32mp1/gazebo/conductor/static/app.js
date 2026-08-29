@@ -649,8 +649,23 @@ function renderFleet() {
   document.getElementById("launchBtn").textContent =
     running ? "Fleet running..." : (state.phase === "done" ? "Re-launch fleet" : "Launch fleet");
   document.getElementById("stopBtn").disabled = !running;
-  document.getElementById("caption").textContent =
-    "STM32MP1 -> Go1 SITL fleet control - phase: " + state.phase;
+  // LIVE ACTIVITY INDICATOR. Operator report, 2026-08-29: "things are
+  // running, but your little thing isn't pulsing" - the caption named the
+  // phase in flat text, so a rig grinding through a 40-cell campaign looked
+  // exactly like a rig sitting idle. The phase word now carries a pulsing
+  // dot while anything is in flight, plus the run number and how long this
+  // run has been going, so "is it working?" is answerable at a glance from
+  // across the room.
+  const cap = document.getElementById("caption");
+  const secs = state.elapsed_s != null ? Math.round(state.elapsed_s) : null;
+  const t = secs != null ? ` - ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s`
+                          : "";
+  const runTxt = state.run_id != null ? ` - run ${state.run_id}` : "";
+  cap.innerHTML =
+    `STM32MP1 -> Go1 SITL fleet control - <span class="phase-tag ${state.phase}">`
+    + `${running ? '<span class="pulse"></span>' : ""}${state.phase}</span>`
+    + runTxt + (running ? t : "");
+  document.title = (running ? "* " : "") + "Conductor - " + state.phase;
 
   renderLoadWidget();
 }

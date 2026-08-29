@@ -176,3 +176,21 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 .legend { padding: 0.6rem 0.85rem; border-top: 1px solid #243028; font-family: var(--font-mono); font-size: 0.68rem; color: var(--muted); }
 .legend b { color: var(--ink); }
+
+/* LIVE ACTIVITY INDICATOR (2026-08-29). A campaign can run for hours; the
+   header used to state the phase in flat text, so a rig grinding through a
+   40-cell sweep looked identical to an idle one. */
+.phase-tag { font-weight: 600; letter-spacing: .02em; }
+.phase-tag.running, .phase-tag.launching { color: #7ee787; }
+.phase-tag.error { color: #ff7b72; }
+.phase-tag.done { color: #a5d6ff; }
+.pulse {
+  display: inline-block; width: .55em; height: .55em; border-radius: 50%;
+  background: currentColor; margin-right: .45em; vertical-align: baseline;
+  animation: pulse-beat 1.1s ease-in-out infinite;
+}
+@keyframes pulse-beat {
+  0%, 100% { opacity: 1;   transform: scale(1);   box-shadow: 0 0 0 0 currentColor; }
+  50%      { opacity: .35; transform: scale(.78); box-shadow: 0 0 .5em .12em currentColor; }
+}
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; opacity: .85; } }

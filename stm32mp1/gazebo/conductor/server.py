@@ -1012,6 +1012,13 @@ class Fleet:
                 "draft_cap": self.draft_cap,
                 "draft_terrain": self.draft_terrain,
                 "discovery": self._discovery_stats(),   # OPEN-22 rate
+                # How long the current run has been going, so the panel can
+                # show a live clock rather than a static phase word (a
+                # campaign looked identical to an idle rig without it).
+                "elapsed_s": (time.time() - self.started_at)
+                              if (self.started_at and
+                                  self.phase in ("launching", "running"))
+                              else None,
                 "terrain": self.run_terrain,
                 # UI self-refresh stamp: app.js compares this to the value it
                 # booted with and reloads itself when it changes, so a fix to
@@ -1254,6 +1261,11 @@ class Fleet:
             if not (1 <= len(slots) <= 3):
                 return False, "1 to 3 slots only"
             self.phase = "launching"
+            # start the clock at LAUNCH, not at gait engage - the world
+            # build and the discovery wait are part of what the operator is
+            # waiting through, and a clock that only starts later reads as
+            # a stall during exactly the slowest part.
+            self.started_at = time.time()
             self.run_id += 1
             try:
                 os.makedirs(RUN_DIR, exist_ok=True)
