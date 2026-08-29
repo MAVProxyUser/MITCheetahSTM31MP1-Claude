@@ -16,8 +16,10 @@ archive), this file is the index of where we've been and what's left. Rules:
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
 
-Last full validation: **19/19 suite PASS** (2026-08-28 ~05:15, every mission
-at recipe defaults, velocity aiding default-on, all fixes active together).
+Last full validation: **19/19 suite PASS** (2026-08-28 ~05:15); last FAST
+validation: **12/12** (2026-08-28 ~19:35, on the final build of the terrain
+session - 5 cases on a fresh server + 7 with NOFEED recycling proving
+itself in-line twice).
 
 ---
 
