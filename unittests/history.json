@@ -4439,5 +4439,122 @@
   },
   "verdict": "FAIL",
   "wall_s": 266.4
+ },
+ {
+  "ts": "2026-08-28 22:58:09",
+  "case": "expsquare_recipe",
+  "config": {
+   "slots": [
+    "expsquare:5:12"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 165.6
+ },
+ {
+  "ts": "2026-08-28 23:00:16",
+  "case": "lissajous_1_2",
+  "config": {
+   "slots": [
+    "lissajous:15:1:2"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 126.8
+ },
+ {
+  "ts": "2026-08-28 23:03:30",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 194.0,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260828_230302_run881_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-08-28 23:14:03",
+  "case": "lissajous_11_9",
+  "config": {
+   "slots": [
+    "lissajous:15:11:9"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 632.8
+ },
+ {
+  "ts": "2026-08-28 23:16:45",
+  "case": "spiro_recipe",
+  "config": {
+   "slots": [
+    "spiro:9.0:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 162.5
+ },
+ {
+  "ts": "2026-08-28 23:18:20",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 95.1
+ },
+ {
+  "ts": "2026-08-28 23:21:36",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 101.3
  }
 ]

@@ -95,74 +95,49 @@ itself in-line twice).
   went star INCONCLUSIVE→PASS on retry, then 8 PASS, then three "FAIL"s
   that were all this).
 
-- **OPEN-7 · Terrain-aware planning: document the per-terrain envelope,
-  then feed it to the pre-planner** — `IN PROGRESS`, re-scoped by operator
-  instruction 2026-08-28: "work it to the point of simply documenting
-  which gaits work at which max speeds, and angles on the different
-  terrains to build logic for the path planner to be aware of said terrain
-  ... there are obviously certain limitations that we have to live with,
-  we just need to document them, and add the rest to the pre-planner for
-  each terrain type and gait on said terrain."
-  So this is no longer "make walking traverse rough ground" (a controller
-  problem that may not be solvable here) — it is **characterise, document,
-  and plan around**. Three parts:
-  1. **The capability matrix** — gait × terrain × speed (and, where it
-     matters, corner angle) → PASS/FAIL, measured through the ground-truth
-     gate. Flat surface kinds are DONE (TERRAIN.md Phase 1: 20 cells, μ
-     never binds above a gait's demand line, deviation scales with contact
-     softness, ice is the boundary at every tier). What remains is the
-     GEOMETRY kinds (rolling ±0.35 m, rough ±0.15 m) per gait and speed.
-  2. **The documented limitations** — the cells that simply do not work
-     stay written down as limits, not as bugs to keep re-opening. Already
-     known: walking on rolling/rough is intermittent, and when it fails it
-     fails SILENTLY (the estimator completes the course while the body
-     does not) — 0/4 in the matrix batch, then 2/2 solo, cause of the flip
-     not isolated. Any terrain result must come through the gates.
-  3. **The planner integration** — `DONE for the friction axis`
-     (2026-08-28 night, d9cde6e, TERRAIN.md "Phase 2 EXECUTED"):
-     `BodyLimits::mu_terrain` caps the lateral budget at
-     `0.9 · μ · g` inside `plan()`, BEFORE any geometry is built, so
-     corner speeds, braking zones and the analyzer's segment caps are all
-     computed against the ground the conductor actually built; `server.py`
-     passes `WP_TERRAIN_MU` from the same `terrain.py` entry that writes
-     the SDF `<surface>` block and the foot collisions, so μ has ONE
-     source across ground, feet and plan. Verified live on ice:
-     `[plan] terrain mu=0.15 caps lateral budget 2.50 -> 1.32 m/s^2`,
-     PASS at ratio 1.03 (0.9·0.15·9.81 = 1.324). Unset = −1 = stock
-     behaviour bit-for-bit, which is what keeps every validated flat
-     result valid. The rule also REPRODUCES Phase 1b's measured outcome
-     without having been fitted to it: at the 2.5 default the cap binds
-     only below μ≈0.283, i.e. ice alone — and ice was the only surface
-     that failed anything.
-     **What is left of part 3**: the SPEED axis. `v_terrain_max` exists
-     and is wired to `$WP_TERRAIN_VMAX`, and is deliberately UNSET on
-     every kind — Phase 1b measured that μ above a gait's demand costs no
-     time, so there is no surface-kind ceiling to encode, and the geometry
-     kinds' ceiling has not been measured yet. That measurement is part 1
-     (`unittests/terrain_envelope.py`, built for it), and encoding a guess
-     ahead of it is exactly what this program exists to avoid. DEM/
-     heightmap sampling at waypoint-generation time also remains.
+- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — the friction
+  axis is done and closed separately (CLOSED-49). What is left is the
+  ground that has SHAPE rather than just grip: `rough` (±0.15 m short
+  wavelength) and `rolling` (±0.35 m hills), where the gaits command every
+  foot to a fixed depth below the body and the ground is not where that
+  assumes.
+  1. **Measure the envelope** — gait × speed on each geometry kind, and
+     corner angle on each, through the ground-truth gate.
+     `unittests/terrain_envelope.py` is built for exactly this (speed
+     ladders on `dash:30`, angle cells on `corner:25:<angle>`, both
+     resumable, NOFEED cells recycle the conductor rather than recording a
+     fake failure).
+  2. **Write the limitations down as limits.** Known going in: walking on
+     rolling/rough is intermittent, and when it fails it fails SILENTLY —
+     the estimator completes the course while the body does not (0/4 in
+     the first matrix batch, then 2/2 solo; the flip was never isolated).
+     That is why every terrain cell must come through the gate, and why
+     the gate itself now arbitrates with bridge GPS (see OPEN-21).
+  3. **Feed the measured ceiling to the pre-planner.** The mechanism is
+     already shipped and inert: `BodyLimits::v_terrain_max` /
+     `$WP_TERRAIN_VMAX`, deliberately UNSET on every kind because nothing
+     has measured a ceiling to put there yet. Part 1 produces the number;
+     encoding a guess ahead of it is the exact failure this whole program
+     exists to avoid. DEM/heightmap sampling at waypoint-generation time
+     (so the plan knows the ground PROFILE, not just a scalar cap) also
+     remains.
 
-- **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
-  2026-08-28; speed axis remains. First tranche complete
-  (`unittests/corner_sweep.py` → `unittests/corner_envelope.csv`):
-  5 gaits (bounding 1.0, galloping 0.8, pronking 0.6, trotRunning 3.5,
-  trotting 2.5) × 10 angles (30–165°, 15° steps), solo `corner:25:<angle>`
-  probes, close-leg off — **50/50 PASS, zero falls**. At its established
-  base speed, NO angle in the range breaks ANY of the five gaits on the
-  current build (consistent with CLOSED (was OPEN-2): the old angle findings were the
-  windup). Wall time rises smoothly with angle (e.g. pronking 110.6 →
-  112.6 s), which is the planner braking harder for sharper corners —
-  the cost gradient, not a stability edge. Consequence: there are no
-  transitions for the planned 5°-notch refinement to bracket — the
-  5°-resolution half of the stretch goal is moot at base speeds. What
-  remains OPEN is the SPEED axis: per-angle speed ladders to find each
-  gait's ceiling as a function of angle (the literal "how fast into X
-  degrees" question — trotting's old 2.5 PASS / 3.0 FAIL at ≥120° is the
-  only such bracket measured, and it predates the windup fix, so even
-  that needs re-measuring). The harness is built for it: seed
-  `corner_sweep.py --gait <g>:<speed> --angles <list>` per rung; REFUSED/
-  TIMEOUT cells self-retry.
+- **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — the
+  angle axis is done and closed separately (CLOSED-48); what is left is
+  the literal "how fast into X degrees before it lets go" question.
+  Per-angle speed LADDERS per gait, on `corner:25:<angle>` probes so the
+  angle is the only thing that varies and no other course's tuning rides
+  along. The one bracket this project has ever measured — trotting 2.5
+  PASS / 3.0 FAIL at ≥120° — PREDATES the `x_comp_integral` windup fix,
+  so it is not evidence about the current build and has to be
+  re-measured, not cited. Harness is built and resumable:
+  `corner_sweep.py --gait <g>:<speed> --angles <list>` per rung, REFUSED/
+  TIMEOUT cells self-retry, measured cells skip.
+  **Method constraint, learned twice in this file**: run the ladder LOW to
+  HIGH and measure EVERY rung — a stop-at-first-failure ladder has twice
+  recorded a ceiling here that had to be retracted, because a marginal
+  cell that fails one rung and passes the next is the normal case on this
+  stack, not an anomaly.
 
 ### Hardware (nothing in this repo is hardware-validated)
 
@@ -218,6 +193,51 @@ itself in-line twice).
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED-49 · Terrain-aware planning, FRICTION axis** (split out of
+  OPEN-7, closed 2026-08-28 night, d9cde6e) — **characterised, documented,
+  and wired into the pre-planner.**
+  *Characterised*: TERRAIN.md Phase 1 (24-cell surface matrix) and
+  Phase 1b (20-cell friction run) — nine selectable surface kinds from
+  concrete μ0.90 to ice μ0.15, ground AND foot collisions patched on both
+  sides of the contact pair so effective μ is unambiguous. The result:
+  μ above a gait's demand line costs NO time, deviation scales with
+  contact SOFTNESS not grip (rigid 0.08–0.14 m, mud 0.20 m, ice 0.47 m),
+  and ice is the only surface that fails anything — at trot+oval, the
+  highest lateral demand in the matrix.
+  *Documented*: the deviation ladder and the per-kind table live in
+  TERRAIN.md.
+  *Wired*: `BodyLimits::mu_terrain` caps the lateral budget at
+  `safety · μ · g` (safety 0.9) inside `plan()`, BEFORE any geometry is
+  built, so corner speeds, braking zones and the analyzer's segment caps
+  are all computed against the ground the conductor actually built.
+  `server.py` passes `WP_TERRAIN_MU` from the same `terrain.py` entry that
+  writes the SDF `<surface>` block and the foot collisions — ONE source of
+  μ across ground, feet and plan. Verified live on ice:
+  `[plan] terrain mu=0.15 caps lateral budget 2.50 -> 1.32 m/s^2`, PASS at
+  ratio 1.03 (0.9·0.15·9.81 = 1.324). Unset = −1 = stock behaviour
+  bit-for-bit, which is what keeps every validated flat result valid.
+  **The rule is physics, not a fitted table, and it reproduces the data it
+  was not fitted to**: at the 2.5 default budget the cap binds only below
+  μ≈0.283 — i.e. ice alone — which is exactly the one surface Phase 1b
+  measured failing. Fixed in passing: the `[plan]` summary printed the
+  CALLER's pre-cap limits, contradicting the terrain line directly above
+  it; it reads `planner.limits()` now.
+
+- **CLOSED-48 · The per-gait cornering envelope, ANGLE axis** (split out
+  of OPEN-8, closed 2026-08-28) — **question**: which corner angles break
+  which gaits? **Answer: none of them, at base speed.**
+  `unittests/corner_sweep.py` → `unittests/corner_envelope.csv`: 5 gaits
+  (bounding 1.0, galloping 0.8, pronking 0.6, trotRunning 3.5, trotting
+  2.5) × 10 angles (30–165°, 15° steps), solo `corner:25:<angle>` probes,
+  close-leg off — **50/50 PASS, zero falls**. Wall time rises smoothly
+  with angle (pronking 110.6 → 112.6 s): that is the planner braking
+  harder for a sharper corner, a cost gradient, not a stability edge.
+  **Consequence**: the planned 5°-notch refinement is MOOT at base speeds
+  — there are no transitions left for a finer grid to bracket. Consistent
+  with CLOSED (was OPEN-2): the older "flight gaits fail at 90–147.5°"
+  finding was the `x_comp_integral` windup, not the angle. The speed axis
+  is a different question and stays open as OPEN-8.
 
 - **CLOSED (was OPEN-6) · Boot-time "state estimate went non-finite —
   reinitialising"** — closed 2026-08-28 night. **Symptom**: ~2/3 of every
