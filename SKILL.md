@@ -40,6 +40,58 @@ odd, and the table was still worthless.
 
 ---
 
+# 🛑 RULE ONE: NEVER LEAVE THE RIG IDLE. A FINITE CHAIN IS A BUG.
+
+**Before you start waiting on anything, ask: what runs after this finishes?
+If the answer is "nothing", you have already failed.**
+
+The operator leaves this machine running for hours specifically so work
+happens while they are away. A batch script that ends is not "done" - it is
+a rig that has gone dark, and the time between it finishing and someone
+noticing is time that produced nothing at all. This has now cost two
+separate multi-hour blocks:
+
+- a terrain sweep finished at 00:49 and the panel sat on its last run for
+  **55 minutes** until the operator asked why nothing had moved;
+- an overnight campaign scoped for five hours finished in **82 minutes** and
+  the rig sat idle from 04:46 until the operator woke at 09:50 - and the
+  conductor had died in the meantime, so the idle time was invisible.
+
+Both times the individual work was fine. Both times the failure was the
+same: **the queue ended and nothing was behind it.**
+
+The rules that follow from that:
+
+1. **Size the queue to the absence, then double it.** "Back in an hour" and
+   "going to bed for five hours" are both statements about how much work to
+   have queued. A campaign that can finish early MUST have another stage
+   behind it. Over-queueing costs nothing - a resumable sweep skips measured
+   cells - while under-queueing costs the whole remaining window.
+2. **Never block on a monitor as your only plan.** Waiting on a background
+   watcher is not work. If the thing you are waiting for might end, the next
+   stage must already be chained to it in the same script, not in your head.
+3. **`pgrep -f <script>.py` matches the watcher itself.** An `until ! pgrep`
+   loop written that way never exits, so you sit there believing something
+   is still running when it finished long ago. Bracket the pattern, or check
+   the artefact (a CSV row count, a DONE marker) instead of the process.
+   This has fired more than once - see the memory note of the same name.
+4. **Check elapsed time against the clock before diagnosing a stall.** Twice
+   in one night a 14-second-old launch was investigated as a wedge because
+   `ps` etime was misread. `date` first, then the log's own timestamp.
+5. **A queue that survives a dead conductor.** Every stage must be gated on
+   the server actually answering (`server_healthy()` in `corner_sweep.py` /
+   `terrain_envelope.py`) and must RECYCLE rather than record. Otherwise the
+   rig is not idle - it is worse, busily writing fiction.
+
+The check that catches all of this in one line, before walking away:
+
+```bash
+# what is queued behind the thing currently running?
+tail -3 /tmp/<campaign>.log && grep -c '^say\|^######' /tmp/<campaign>.sh
+```
+
+---
+
 ## The repeatable 100 m STAR MISSION (42.6 s, 13/13)
 
 ```bash
