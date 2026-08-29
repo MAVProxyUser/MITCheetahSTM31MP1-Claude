@@ -36,77 +36,19 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-22 · gz-transport discovery intermittently fails at launch
-  (`0/N dogs advertised sensors`)** — opened 2026-08-29. The world builds
-  fine and gz starts, but no sensor topic ever appears, so nothing can
-  subscribe. Same family as the documented multicast-route failure that
-  `GZ_IP=127.0.0.1` fixed, but this one happens on loopback with that
-  already set, so it is NOT the same cause. `MITIGATED`, not solved: the
-  launch now ABORTS cleanly instead of "continuing anyway" — it tears the
-  sim down through `_reap_and_confirm`, sets `phase=error`, and leaves the
-  server idle, and `mission_runner` reports it as **exit 3** (`LAUNCH
-  ABORTED BY THE SERVER`) so callers retry the cell rather than recording a
-  verdict. Before that mitigation this single failure took the conductor
-  down, orphaned a gz at ~a full core, and let a sweep write nine cells as
-  FAIL that never ran. Root cause not isolated: it needs the gz side
-  instrumented at the moment discovery fails (gz.log was empty, which is
-  itself a clue — the failure is silent).
-  **Instrumented 2026-08-29, per the operator's constraint that it "can NOT
-  bog down the process"**: gz now starts at `-v 3` (its own INFO level) with
-  `GZ_VERBOSE=1` for gz-transport, both landing in the per-run `gz.log` that
-  is already archived. Measured cost on a 12 s headless run: **22 → 32 log
-  lines**, all at startup, and the ten extra are exactly the ones worth
-  having here — `Bind at: [udp://...] for msg discovery`, `Bind at:
-  [udp://...] for srv discovery`, `Current host address`, `Process UUID`.
-  Verbosity gates console output rather than adding work to the publish
-  path, so there is no per-message cost; level 4 (debug) IS chatty enough to
-  matter on a long run and is reachable via `CONDUCTOR_GZ_VERBOSITY` but is
-  not the default. The next occurrence leaves evidence instead of an empty
-  file.
-  **Also knobbed**: `CONDUCTOR_DISCOVERY_WAIT_S` (default 30) and
-  `CONDUCTOR_DISCOVERY_ATTEMPTS` (default 4) — ordinary config for a slower
-  host, and incidentally what makes the retry path testable without faking a
-  failure: set the window to two seconds and attempt 1 genuinely times out.
-  **Version context**, since it was asked: gz-sim 8.14.0 / gz-transport
-  13.5.0 (Harmonic LTS). Branch tip is 13.6.0 — one patch behind — and the
-  newer collections are Ionic (transport 14, Jan 2025) and Jetty (transport
-  15, Oct 2025). This is not a stale-version problem.
-
-- **OPEN-21 · The panel's gz pose feed degrades across accumulated
-  in-process launches** — `ROOT FIX BUILT 2026-08-29, ON SOAK`. The
-  instrument-corruption half is fixed and closed separately (CLOSED-51);
-  what is left is the decay itself.
-  **Symptom**: the in-process `gz.transport13.Node` subscription measurably
-  decayed with the number of launches a single server process had done —
-  partial trails first (run747 lost ~40% of its trail at a wall time
-  matching flat to 0.1 s), then a fully dead feed (run748: empty trail
-  while bridge GPS showed the complete oval flown, 50.1×9.7 m, 93
-  waypoints, 42.8 s). The in-process self-heal (drop the Node, build a
-  fresh one) only ever bought a transient recovery, and by ~20–25 launches
-  the feed stayed dead — an entire fast-suite run was demoted that way.
-  **Frequency, measured 2026-08-29**: three recycles in ~20 launches of one
-  geometry sweep, worse than the ~25 previously seen. Harnesses recycle and
-  re-run the cell so campaigns still complete; the cost was wall time.
-  **ROOT FIX (built, `stm32mp1/gazebo/conductor/pose_feed.py`)**: a
-  subscription cannot outlive a process that has exited, so it now lives in
-  one that does. The pose subscription runs in a per-RUN subprocess that is
-  killed with the run, taking every scrap of discovery state, socket and
-  subscriber bookkeeping with it; the server's long-lived process no longer
-  touches gz-transport at all. It streams one JSON line per sample on
-  stdout at ≤20 Hz and the server applies it through the SAME
-  `_apply_pose()` the old callback now also calls — identical trail
-  decimation, speed EMA and freshness heartbeat — so this swaps the SOURCE
-  without re-deriving validated behaviour. The poller's self-heal now
-  restarts that PROCESS rather than rebuilding a Node inside a server that
-  has been accumulating state all session, which is why the old heal was
-  only transient. `CONDUCTOR_POSE_INPROC=1` restores the old path for A/B.
-  **Verified up**: `[pose_feed] subscribe /world/go1_world/dynamic_pose/info
-  -> ok`, `pose feed up (per-run subprocess, pid ...)`, trail filling
-  normally on a live run.
-  **WHY THIS IS STILL OPEN**: the whole failure mode is "degrades over
-  MANY launches", so a working first run proves nothing. It closes on a
-  long campaign — dozens of launches in one server — with zero NOFEED
-  recycles. That soak is running.
+- **OPEN-21 · Confirm the discovery fix over a long soak** — the ONLY bit
+  of the old OPEN-21/OPEN-22 pair still open, and it is a measurement, not
+  a defect. Everything diagnosed and built is closed as CLOSED-51 (the
+  instruments), CLOSED-52 (the per-run feed + deaf detection) and
+  CLOSED-53 (the discovery root cause and `GZ_RELAY`). What is unproven is
+  simply that it STAYS fixed: the failure was always intermittent and
+  rate-based, so the close condition is a long campaign on ONE server
+  process with **zero** NOFEED/deaf events — 40+ launches. `unittests/
+  feed_health.py` is the meter (it splits the conductor log per server
+  lifetime, because a count spanning restarts hides the very effect).
+  Reopen as a real defect only if that soak shows events; the counters in
+  `discovery_stats.json` and the `pose_feed.log` per-run archive will say
+  which layer failed.
 
 - **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `MEASURED, one
   open question left`. The envelope and the angle cells are done and closed
@@ -209,6 +151,83 @@ passed on its own in-suite retry.
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED-53 · gz-transport discovery silently failed because it never
+  used loopback** (was OPEN-22, and the shared root of OPEN-21, closed
+  2026-08-29) — **symptom**, two faces of one bug: launches where no sensor
+  topic ever advertised (`0/N dogs came up`, world built fine, `gz.log`
+  EMPTY), and runs where a brand-new subscriber logged `subscribe -> ok`
+  and then received nothing at all (trail 0.0 m of a 71.2 m plan while
+  bridge GPS showed the whole course flown). **Root cause**: `GZ_IP=127.0.0.1`
+  — already set, and already credited with fixing an earlier multicast
+  failure — only sets the address a participant ADVERTISES. Discovery
+  itself still multicasts to 239.255.0.7, and this host routes `224.0.0/4`
+  out over **en0/en1**, the physical interfaces, never loopback:
+
+  ```
+  $ netstat -rn -f inet | grep 224
+  224.0.0/4   link#20  UmCS   en0 !
+  224.0.0/4   link#17  UmCSI  en1 !
+  ```
+
+  So every discovery packet in a single-host simulation was leaving the
+  machine's real network interface, and any moment that path was unhealthy
+  — a flapping Wi-Fi link, a VPN toggle, a DHCP renewal, an interface
+  asleep — discovery failed. SILENTLY, because a send that merely goes
+  nowhere logs nothing (unlike the documented "No route to host" case,
+  which does). That is why it was never root-caused: there was no evidence
+  to read. **Found by instrumenting it**: `gz -v 3` + `GZ_VERBOSE=1` into
+  the per-run archived `gz.log` printed `Bind at: [udp://239.255.0.7:10317]
+  for msg discovery`, which is the whole answer. Cost measured before
+  shipping, per the operator's constraint that instrumentation must not bog
+  the process down: **22 → 32 log lines on a 12 s run, all at startup**,
+  no per-message cost (verbosity gates console output, not publishing).
+  **Fix**: `GZ_RELAY=127.0.0.1` — gz-transport's unicast discovery relay.
+  Discovery now also unicasts to the listed peer, so on a single-host rig a
+  participant is found without any multicast packet needing to succeed. One
+  extra datagram per discovery beat, no privileges required (the
+  alternative is a root-only `route add -net 239.0.0.0/8 -interface lo0`),
+  and nothing changes about how data flows once peers connect.
+  **Also shipped, and kept**: the launch retries discovery up to 4 times on
+  fresh gz processes before giving up, announcing each attempt through the
+  orchestration log, and counts every occurrence in
+  `RUN_DIR/discovery_stats.json` (persisted, because an in-memory counter
+  would reset exactly when this failure takes the server with it) with the
+  running rate on every line. `CONDUCTOR_DISCOVERY_WAIT_S` /
+  `_ATTEMPTS` / `CONDUCTOR_GZ_VERBOSITY` are ordinary config.
+
+- **CLOSED-52 · The pose feed's in-process subscription decayed with
+  accumulated launches** (was the substance of OPEN-21, closed 2026-08-29)
+  — **symptom**: the conductor's `gz.transport13.Node`, held for the life
+  of the server, measurably lost the feed as launches accumulated — partial
+  trails first, then a dead feed, with the in-process self-heal only ever
+  transient. Measured from the server's own logs, per server lifetime:
+
+  | feed | launches in one server | feed-trouble events / launch |
+  |---|---|---|
+  | in-process | 7 | 0.143 |
+  | in-process | 15 | 0.467 |
+  | in-process | 37 | **0.838** |
+
+  The rate CLIMBS with launches inside one process, which is what
+  accumulation looks like from outside. **Fix**: a subscription cannot
+  outlive a process that has exited, so it now lives in one that does —
+  `stm32mp1/gazebo/conductor/pose_feed.py`, started per RUN, killed with
+  the run, taking its discovery state with it; the server's long-lived
+  process no longer touches gz-transport at all. It streams JSON lines at
+  ≤20 Hz and the server applies them through the SAME `_apply_pose()` the
+  old callback now also calls — identical trail decimation, speed EMA and
+  freshness heartbeat — so the SOURCE changed and no validated behaviour
+  was re-derived. `CONDUCTOR_POSE_INPROC=1` restores the old path for A/B.
+  **And the soak immediately showed this was necessary but NOT sufficient**,
+  which is what led to CLOSED-53: at launch 8 a brand-new feed process
+  logged `subscribe -> ok` and received nothing. So `pose_feed.py` now
+  fails loudly on its own behalf — no first message within 8 s of a
+  successful subscribe, or a 10 s gap mid-run, and it exits non-zero saying
+  which. The server restarts it (3 attempts per run, then deliberately
+  leaves it down so the bridge-GPS arbiter gates that run NOFEED rather
+  than fabricating a verdict), and `pose_feed.log` is archived per run.
+  A silent failure is now a reported and retried one at every layer.
 
 - **CLOSED-51 · The dead pose feed was corrupting the INSTRUMENTS, not
   just the trail** (split out of OPEN-21, closed 2026-08-28/29) —

@@ -93,6 +93,32 @@ os.environ["GZ_PARTITION"] = PARTITION
 # 127.0.0.1" in every ctrl log) - there was never a reason for gz-transport's
 # OWN discovery to leave loopback in the first place.
 os.environ["GZ_IP"] = "127.0.0.1"
+# ...AND GZ_IP IS NOT ENOUGH, which is what OPEN-21/22 turned out to be.
+# GZ_IP only sets the address a participant ADVERTISES. DISCOVERY itself
+# still multicasts to 239.255.0.7, and this host's own routing table sends
+# 224.0.0/4 out over en0/en1 - the physical interfaces - never loopback:
+#
+#   $ netstat -rn -f inet | grep 224
+#   224.0.0/4   link#20  UmCS   en0 !
+#   224.0.0/4   link#17  UmCSI  en1 !
+#
+# So every discovery packet in a single-host simulation was leaving the
+# machine's real network interface, and any moment that path is unhealthy -
+# a flapping Wi-Fi link, a VPN toggle, a DHCP renewal, an interface asleep -
+# discovery silently fails. It fails SILENTLY because gz.log records nothing
+# when the send merely goes nowhere (as opposed to erroring, which is the
+# already-documented "No route to host" case). That is exactly the shape of
+# both open items: OPEN-22 sees it as "no topics ever advertised", OPEN-21
+# sees it as "subscribe -> ok and then not one message" - the same handshake
+# not happening, observed from the two different ends.
+#
+# GZ_RELAY makes discovery ALSO unicast to the listed peers. On a
+# single-host rig that is 127.0.0.1, and it means a participant can be found
+# without any multicast packet succeeding at all. Cheap (one extra unicast
+# datagram per discovery beat), no privileges (the alternative is a
+# root-only `route add -net 239.0.0.0/8 -interface lo0`), and it changes
+# nothing about how data flows once peers are connected.
+os.environ.setdefault("GZ_RELAY", "127.0.0.1")
 
 # mission_waypoints() is pure geometry with no gz imports triggered at call
 # time, but the FILE it lives in imports gz.transport13 at module level - safe
