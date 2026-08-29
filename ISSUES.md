@@ -25,50 +25,40 @@ itself in-line twice).
 
 ## OPEN
 
-### Real, reproduced, unexplained
-
-- **OPEN-4 · Four-or-more dogs: `STATE ESTIMATE WENT NON-FINITE` before
-  standing** — `UNEXPLAINED`. Every dog, both fleet architectures. Ruled
-  out: RTF, loop starvation, sensor wiring, startup race, settling.
-  Distinct from contention (refuted at N≤3).
-- **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"**
-  — `UNEXPLAINED`, minor, and CURRENT: log archaeology (2026-08-28,
-  operator-asked "when did we last see it") found the last sighting is
-  the session's FINAL run (15:54, ×2 at boot, the classic signature).
-  Two prior claims in this entry corrected against 641 archived ctrl
-  logs: (1) it is NOT "×2 every run" — it appears in ~2/3 of runs,
-  stable for three days (Aug 26: 77/110, Aug 27: 198/298, Aug 28:
-  167/233; occasionally ×1 or ×3), and blip-free runs complete missions
-  cleanly (runs 638/640, full PASSes); (2) the "likely tied to the
-  spawn clip" hypothesis is REFUTED — the z=0.45 spawn fix landed 11:56
-  (a4cc804) and the rate is statistically identical either side of it
-  (87/122 before, 80/111 after, same day). It is an independent,
-  intermittent boot-window estimator transient; verdicts look
-  uncorrelated (passes and fails exist in both populations). Root cause
-  still unknown — but the search space no longer includes the spawn
-  pose.
-- **OPEN-7 · Terrain: walking cannot traverse non-flat ground — now
-  gate-verified, with a sharper symptom** — `UNEXPLAINED`/unfinished,
-  upgraded 2026-08-28 from anecdote to measurement: on both procedural
-  geometry kinds (rolling ±0.35 m, rough ±0.15 m), walking @1.5 is
-  **INTERMITTENT, with a silent failure mode**: the first four runs
-  (dash + octagon on each kind, back-to-back in the matrix) all went
-  INVALID — the ESTIMATOR completed the course at plausible times while
-  gz truth shows the body going essentially nowhere, caught by the
-  flown-vs-planned gate on its first day — then two immediate solo
-  re-runs of the SAME octagon config genuinely walked it (46.7 m and
-  47.2 m real flown of a 55.1 m plan, operator watching the dog
-  visibly traverse). 0/4 then 2/2, across server restarts, cause of
-  the flip not isolated (per this project's own rule, treat marginal
-  cells as coin-flips until solo-repeated in both directions). What is
-  NOT in doubt: when it fails, it fails silently — the internal judge
-  trusts the estimator and prints PASS — so both gates (runner and
-  panel-side) stay mandatory for any terrain result. Flat-surface kinds are NOT affected (all
-  ground-truth-verified clean — see TERRAIN.md Phase 1). Proper fix
-  unchanged: touchdown-torque contact + plane fit per the old analysis;
-  any future terrain result must come through the truth gate.
-
 ### In progress
+
+- **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"**
+  — `IN PROGRESS` (moved from unexplained by operator instruction,
+  2026-08-28: "move open 6 to in progress and come up with a plan to
+  attack it better and rule it out through looking JUST the sequence it
+  has issues with under different scenarios (including artificial system
+  load that we control)").
+  **What is established**: last seen the final run of 2026-08-28 (it is
+  current, not historical); present in ~2/3 of runs, stable across three
+  days (Aug 26: 77/110, Aug 27: 198/298, Aug 28: 167/233), occasionally ×1
+  or ×3; blip-free runs pass missions cleanly, so it is not fatal on its
+  own; and it is NOT the spawn clip — the z=0.45 spawn fix (a4cc804,
+  11:56) left the rate statistically identical either side of it (87/122
+  before, 80/111 after, same day).
+  **THE PLAN** (`unittests/boot_probe.py`, built for exactly this): stop
+  running whole missions and isolate the ~10 s BOOT SEQUENCE alone —
+  spawn → limp settle → stand → balance-stand → LOCOMOTION entry — with
+  the mission truncated so nothing downstream can confound it. For each
+  cell record blip COUNT and the tick each blip lands on, then vary ONE
+  factor at a time:
+  1. **artificial host load we control** (0 / 4 / 8 spinners) — the
+     hypothesis this session's own tooling makes testable: if the blip
+     rate tracks controlled load, it is a scheduling/timing transient at
+     boot, not a physics or estimator-math problem;
+  2. **terrain/surface** (flat vs a soft surface kind) — contact-solver
+     transient at first touch;
+  3. **spawn height** (0.42 shipped vs higher/lower) — settle energy;
+  4. **gait seeded at boot**, and **velocity aiding on/off** — the two
+     boot-window code paths that changed most recently.
+  Success = either a factor that moves the rate (then fix that), or a
+  measured NULL across all four (which promotes "harmless deterministic
+  transient" from assumption to evidence, and the entry closes as
+  accepted). Either outcome ends the item; today it is neither.
 
 - **OPEN-21 · The panel's gz pose feed degrades across accumulated
   in-process launches** — opened 2026-08-28, caught live by the new
@@ -98,6 +88,36 @@ itself in-line twice).
   with each run instead of accumulating. Until then: restart the server
   before/between long campaigns; a NOFEED row is a re-run, never a
   verdict.
+
+- **OPEN-7 · Terrain-aware planning: document the per-terrain envelope,
+  then feed it to the pre-planner** — `IN PROGRESS`, re-scoped by operator
+  instruction 2026-08-28: "work it to the point of simply documenting
+  which gaits work at which max speeds, and angles on the different
+  terrains to build logic for the path planner to be aware of said terrain
+  ... there are obviously certain limitations that we have to live with,
+  we just need to document them, and add the rest to the pre-planner for
+  each terrain type and gait on said terrain."
+  So this is no longer "make walking traverse rough ground" (a controller
+  problem that may not be solvable here) — it is **characterise, document,
+  and plan around**. Three parts:
+  1. **The capability matrix** — gait × terrain × speed (and, where it
+     matters, corner angle) → PASS/FAIL, measured through the ground-truth
+     gate. Flat surface kinds are DONE (TERRAIN.md Phase 1: 20 cells, μ
+     never binds above a gait's demand line, deviation scales with contact
+     softness, ice is the boundary at every tier). What remains is the
+     GEOMETRY kinds (rolling ±0.35 m, rough ±0.15 m) per gait and speed.
+  2. **The documented limitations** — the cells that simply do not work
+     stay written down as limits, not as bugs to keep re-opening. Already
+     known: walking on rolling/rough is intermittent, and when it fails it
+     fails SILENTLY (the estimator completes the course while the body
+     does not) — 0/4 in the matrix batch, then 2/2 solo, cause of the flip
+     not isolated. Any terrain result must come through the gates.
+  3. **The planner integration** — the pre-planner learns the terrain it
+     is planning on: a per-(terrain, gait) speed/angle cap table applied at
+     waypoint-generation time, sampling ground height (DEM/heightmap) when
+     the terrain has real geometry so the plan knows what it is crossing.
+     That is the operator's "add the rest to the pre-planner" and it is
+     the deliverable this item closes on.
 
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete
@@ -174,6 +194,28 @@ itself in-line twice).
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED (was OPEN-4) · Four-or-more dogs fail before standing** — closed
+  2026-08-28 as an ACCEPTED LIMITATION by operator decision ("I think we can
+  ignore open 4, and any time 3 dogs has trouble downgrade to 2 dogs and
+  leave it there by warning the user"). The failure is real and was never
+  root-caused (every dog hits `STATE ESTIMATE WENT NON-FINITE` before
+  standing at N≥4, in both fleet architectures; RTF, loop starvation,
+  sensor wiring, startup race and settling were all ruled out) — but N≥4
+  has no operational value here: N≤3 is measured clean (contention refuted,
+  0/876 ticks over 4 ms) and the panel caps at 3 slots by construction.
+  **Mitigation shipped with the closure**, so fleet size self-limits
+  instead of needing a human to remember: any 3-dog run in which a dog
+  does not finish clean (fell / gated INVALID / no verdict) permanently
+  drops the cap to 2 and says so — an orchestration-log line, a persistent
+  banner on the panel, `fleet_cap`/`fleet_cap_reason` in `/api/state`, and
+  a refusal (with the reason) when adding a third slot. It PERSISTS across
+  server restarts (`RUN_DIR/fleet_cap.txt`) because "leave it there" means
+  it must not quietly come back; only a deliberate `DELETE /api/fleet_cap`
+  restores 3. A launch that still carries too many slots is TRIMMED with a
+  loud log line rather than refused, so an automated caller cannot wedge.
+  Verified: cap survives restart, third slot refused with the reason,
+  restore works.
 
 - **CLOSED (was OPEN-20) · The surface false-positive incident** — closed
   2026-08-28, same day, with every layer resolved and the story worth

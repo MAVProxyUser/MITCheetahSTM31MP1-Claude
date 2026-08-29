@@ -744,6 +744,21 @@ class Fleet:
         # unvalidated ground and stays opt-in for exactly that reason.
         self.draft_terrain = "flat"
         self.run_terrain = None       # terrain of the ACTIVE/last run, for the panel label
+        # FLEET SIZE CAP (operator-ordered 2026-08-28: "any time 3 dogs has
+        # trouble downgrade to 2 dogs and leave it there by warning the
+        # user"). Starts at 3; a 3-dog run in which any dog does not finish
+        # cleanly drops it to 2 PERMANENTLY (persisted to RUN_DIR, so it
+        # survives restarts - "leave it there"). Raise it back only
+        # deliberately: DELETE /api/fleet_cap.
+        self.fleet_cap = 3
+        self.fleet_cap_reason = ""
+        try:
+            with open(os.path.join(RUN_DIR, "fleet_cap.txt")) as _f:
+                _parts = _f.read().split("|", 1)
+                self.fleet_cap = max(1, min(3, int(_parts[0].strip())))
+                self.fleet_cap_reason = _parts[1].strip() if len(_parts) > 1 else ""
+        except (OSError, ValueError):
+            pass
         self.cameras = {}             # index -> {"front_cam": "data:...", "nadir_cam": "data:..."}
         self._gz_cam_nodes = []       # one Node per camera subscription, kept alive
         # RUN NUMBER. Monotonic, persisted across server restarts, so the
@@ -782,6 +797,8 @@ class Fleet:
                 "log": self.log[-60:],
                 "run_id": self.run_id,
                 "hard_cap": HARD_SPEED_CAP,
+                "fleet_cap": self.fleet_cap,
+                "fleet_cap_reason": self.fleet_cap_reason,
                 "model_max_speed": MODEL_MAX_SPEED,
                 "recipes": RECIPES,
                 "gaits": GAITS,
@@ -811,7 +828,11 @@ class Fleet:
     # code path and can never drift apart.
     def draft_add_slot(self):
         with self.lock:
-            if len(self.draft_slots) >= 3:
+            if len(self.draft_slots) >= self.fleet_cap:
+                if self.fleet_cap < 3:
+                    return False, ("fleet capped at %d dogs - %s (DELETE "
+                                    "/api/fleet_cap to restore 3)"
+                                    % (self.fleet_cap, self.fleet_cap_reason))
                 return False, "max 3 slots"
             used = {mission_kind(s["mission"]) for s in self.draft_slots}
             # "+ Add dog" only cycles the three courses with an actual
@@ -933,6 +954,17 @@ class Fleet:
         except OSError:
             return 0
 
+    def restore_fleet_cap(self):
+        with self.lock:
+            self.fleet_cap = 3
+            self.fleet_cap_reason = ""
+        try:
+            os.remove(os.path.join(RUN_DIR, "fleet_cap.txt"))
+        except OSError:
+            pass
+        self._note("fleet cap restored to 3 dogs by operator request")
+        return True, 3
+
     def draft_set_terrain(self, kind):
         with self.lock:
             if kind not in terrain.TERRAIN_TYPES:
@@ -988,6 +1020,13 @@ class Fleet:
             if not slots:
                 return False, ("no dogs in the fleet - add at least one slot "
                                "before launching")
+            if len(slots) > self.fleet_cap:
+                dropped = len(slots) - self.fleet_cap
+                slots = slots[:self.fleet_cap]
+                self._note("FLEET CAPPED AT %d: dropped %d slot(s) from this "
+                            "launch - %s. DELETE /api/fleet_cap to restore 3."
+                            % (self.fleet_cap, dropped,
+                                self.fleet_cap_reason or "operator policy"))
             if self.phase in ("launching", "running"):
                 return False, "a fleet is already active - stop it first"
             # TIME MACHINE GATE (operator-diagnosed): hourly backups on this
@@ -1941,6 +1980,34 @@ class Fleet:
                             if old["index"] == i:
                                 self.status[j] = st
                 if len(done) == len(locked):
+                    # 3-DOG TROUBLE -> PERMANENT DOWNGRADE TO 2 (see
+                    # __init__). "Trouble" = any dog in a 3-dog fleet that
+                    # did not finish clean: fell, was gated INVALID, or
+                    # never reached a verdict. Deliberately does NOT
+                    # inspect WHY - the operator's rule is about fleet
+                    # size, and the whole point is to stop paying for
+                    # 3-dog flakiness run after run.
+                    with self.lock:
+                        bad = [st for st in self.status
+                               if st.get("phase") != "complete"]
+                        if len(locked) >= 3 and bad and self.fleet_cap > 2:
+                            self.fleet_cap = 2
+                            self.fleet_cap_reason = (
+                                "run %s: %d of %d dogs did not finish clean (%s)"
+                                % (self.run_id, len(bad), len(locked),
+                                    ", ".join("dog%d=%s" % (b["index"],
+                                                             b.get("phase", "?"))
+                                               for b in bad)))
+                            try:
+                                with open(os.path.join(RUN_DIR, "fleet_cap.txt"),
+                                           "w") as _f:
+                                    _f.write("2|%s" % self.fleet_cap_reason)
+                            except OSError:
+                                pass
+                            self._note("FLEET DOWNGRADED TO 2 DOGS - %s. "
+                                        "3-dog fleets are disabled until you "
+                                        "restore them (DELETE /api/fleet_cap)."
+                                        % self.fleet_cap_reason)
                     with self.lock:
                         self.phase = "done"
                         procs = list(self.procs)
@@ -2173,6 +2240,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             ok, res = FLEET.draft_clear_slots()
             return self._json({"ok": ok, "slots": res if ok else None,
                                 "message": None if ok else res})
+        if self.path == "/api/fleet_cap":
+            # Deliberate operator action to re-allow 3 dogs after an
+            # auto-downgrade ("leave it there" means it does NOT come back
+            # on its own - only a person clears it).
+            ok, res = FLEET.restore_fleet_cap()
+            return self._json({"ok": ok, "fleet_cap": res})
         m = re.match(r"^/api/slots/(\d+)$", self.path)
         if m:
             ok, res = FLEET.draft_remove_slot(int(m.group(1)))

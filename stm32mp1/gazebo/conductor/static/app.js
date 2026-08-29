@@ -175,10 +175,16 @@ function renderSlots() {
     : slots;
   const tk = state.terrain;
   const tnote = (state.terrain_types && state.terrain_types[tk] || {}).note || "";
+  // Persistent, unmissable notice when 3-dog fleets have been disabled by
+  // the auto-downgrade (operator: "any time 3 dogs has trouble downgrade to
+  // 2 dogs and leave it there by warning the user").
+  const capWarn = (state.fleet_cap && state.fleet_cap < 3)
+    ? `<div class="gait-warning" style="margin-bottom:0.4rem">&#9888; FLEET CAPPED AT ${state.fleet_cap} DOGS - ${state.fleet_cap_reason || "a 3-dog fleet had trouble"}. Larger fleets stay disabled until you restore them (DELETE /api/fleet_cap).</div>`
+    : "";
   const banner = running
     ? `<div class="cap-hint" style="margin-bottom:0.4rem">Showing the RUNNING fleet's ${view.length} slot(s); the draft returns when it ends.<br><b>Terrain: ${tk || "?"}</b>${tnote ? " - " + tnote : ""}</div>`
     : "";
-  el.innerHTML = banner + view.map((s, i) => {
+  el.innerHTML = capWarn + banner + view.map((s, i) => {
     const recipe = state.recipes[kindOf(s.mission)] || {};
     // Flag any drift from this course's own measured-good combo - a gait
     // swap that leaves a stale gait/speed behind (the bug that spun the
@@ -436,7 +442,8 @@ function renderSlots() {
       }
     });
   });
-  document.getElementById("addSlot").disabled = locked || slots.length >= 3;
+  document.getElementById("addSlot").disabled =
+    locked || slots.length >= (state.fleet_cap || 3);
   const clearBtn = document.getElementById("clearSlots");
   if (clearBtn) clearBtn.disabled = locked || slots.length === 0;
 }
