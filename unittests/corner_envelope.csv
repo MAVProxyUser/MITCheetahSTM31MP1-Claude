@@ -91,3 +91,4 @@ trotting,2.8,90,FELL,48.6,[runner] run 1036 phase=done  dogs=1  PASS=0 FAIL=0 FE
 trotting,2.8,135,PASS,61.3,[runner] run 1037 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:16:52
 galloping,1.2,45,PASS,75.1,[runner] run 1038 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:18:10
 galloping,1.2,90,PASS,77.9,[runner] run 1039 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:19:32
+galloping,1.2,135,PASS,83.8,[runner] run 1040 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:21:00

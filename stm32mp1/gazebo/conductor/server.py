@@ -1550,8 +1550,24 @@ class Fleet:
             # fix is worth the effort.
             def _start_gz():
                 gz_log = open(os.path.join(RUN_DIR, "gz.log"), "w")
-                gp = subprocess.Popen(["gz", "sim", "-s", "-r", world_out],
-                                       cwd=GAZEBO_DIR, env=env, stdout=gz_log,
+                # INSTRUMENT THE ONE FAILURE WE CANNOT SEE (OPEN-22).
+                # When discovery fails, gz.log is EMPTY - there is literally
+                # nothing to read, which is why it has never been root-caused.
+                # `-v 3` is gz sim's own INFO level: it goes to this per-run
+                # log file, is archived with the run, and touches neither the
+                # physics step nor the transport hot path (verbosity gates
+                # console output, it does not add work to publishing). Level
+                # 4 is debug and IS chatty enough to matter on a long run, so
+                # it is available but not the default. GZ_VERBOSE does the
+                # same for gz-transport's own discovery chatter, which is the
+                # layer actually suspected here.
+                genv = dict(env)
+                lvl = os.environ.get("CONDUCTOR_GZ_VERBOSITY", "3")
+                if os.environ.get("CONDUCTOR_GZ_TRANSPORT_VERBOSE", "1") == "1":
+                    genv["GZ_VERBOSE"] = "1"
+                gp = subprocess.Popen(["gz", "sim", "-s", "-r",
+                                       "-v", lvl, world_out],
+                                       cwd=GAZEBO_DIR, env=genv, stdout=gz_log,
                                        stderr=subprocess.STDOUT,
                                        start_new_session=True)
                 self.procs.append(gp)
