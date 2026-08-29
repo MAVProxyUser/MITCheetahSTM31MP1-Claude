@@ -70,11 +70,20 @@ The rules that follow from that:
 2. **Never block on a monitor as your only plan.** Waiting on a background
    watcher is not work. If the thing you are waiting for might end, the next
    stage must already be chained to it in the same script, not in your head.
-3. **`pgrep -f <script>.py` matches the watcher itself.** An `until ! pgrep`
-   loop written that way never exits, so you sit there believing something
-   is still running when it finished long ago. Bracket the pattern, or check
-   the artefact (a CSV row count, a DONE marker) instead of the process.
-   This has fired more than once - see the memory note of the same name.
+3. **NEVER GATE A STAGE ON `pgrep -f <script name>`.** Two separate
+   40-minute stalls came from this, and the bracket trick does NOT save you:
+   * `until ! pgrep -f "script.py"` matches the watcher's OWN command line,
+     so it never exits. `[s]cript.py` fixes that one.
+   * `[m]ain2.sh` still matches a THIRD process - the shell wrapper that
+     created the script, whose argv contains the entire heredoc including
+     the literal string `main2.sh`. Bracketing does nothing about that, and
+     the queue deadlocked with a live conductor, an idle rig, and two
+     scripts sleeping on each other.
+   The fix is structural, not a better pattern: **chain stages inside ONE
+   script**, sequentially, in one process. If stages genuinely must be
+   separate processes, gate on an ARTEFACT the finishing stage writes (a
+   DONE marker file, a CSV row count) - never on the existence of a process
+   whose name appears in somebody else's argv.
 4. **Check elapsed time against the clock before diagnosing a stall.** Twice
    in one night a 14-second-old launch was investigated as a wedge because
    `ps` etime was misread. `date` first, then the log's own timestamp.

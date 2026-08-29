@@ -4849,5 +4849,73 @@
   },
   "verdict": "PASS",
   "wall_s": 395.8
+ },
+ {
+  "ts": "2026-08-29 13:44:44",
+  "case": "lissajous_11_9",
+  "config": {
+   "slots": [
+    "lissajous:15:11:9"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 633.4
+ },
+ {
+  "ts": "2026-08-29 13:47:25",
+  "case": "spiro_recipe",
+  "config": {
+   "slots": [
+    "spiro:9.0:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 160.8
+ },
+ {
+  "ts": "2026-08-29 13:48:57",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 91.9
+ },
+ {
+  "ts": "2026-08-29 13:50:45",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 108.3
  }
 ]
