@@ -365,3 +365,51 @@ no time, so there is nothing to encode; on the geometry axis the only
 candidate ceilings are the two N=1 rough edges above, and encoding a
 ceiling from a single sample is precisely the mistake this program exists
 to avoid. The mechanism is shipped and inert, waiting on repeats.
+
+
+## Phase 3b (2026-08-29): the control experiment, and what it retracted
+
+The geometry sweep found two rungs that failed on `rough` and passed on
+`rolling` — `walking @2.5` and `trotting @3.5` — and the obvious reading
+was "rough has a ceiling at both". Running the FLAT control first, before
+writing either number into the planner, split that claim in half:
+
+| rung | flat | rolling | rough |
+|---|---|---|---|
+| walking @2.5 | **PASS, PASS** | **PASS, PASS** | **FELL, FELL** |
+| trotting @3.5 | **FELL, FELL** | FELL (+1 infra) | FELL ×3 |
+
+* **`walking @2.5` is genuinely rough-specific.** It passes on flat AND on
+  rolling and fails only on stride-scale relief. That is a real terrain
+  ceiling.
+* **`trotting @3.5` is not a terrain result at all** — it fails on FLAT.
+  That is simply past trotting's own speed envelope, consistent with the
+  cornering work finding trotting failing at 3.0. Listing it as a
+  "rough-specific edge" was wrong and is retracted here.
+
+### The bracket
+
+Every rung measured, low to high, `dash:30`, through the ground-truth gate:
+
+```
+rough  walking     2.0 PASS      2.25 FELL,PASS   2.5 FELL,FELL
+rough  trotting    2.5 PASS x3   3.0  PASS,FELL   3.25 FELL,FELL   3.5 FELL x3
+```
+
+So on `rough`, walking is marginal by 2.25 and gone by 2.5, and trotting is
+marginal by 3.0 and gone by 3.25. The walking number is the one that is
+already anchored: flat walks 2.5 cleanly, so **rough costs walking roughly
+0.25–0.5 m/s**. The trotting number is NOT yet anchored — flat trotting is
+only known at 2.5 (PASS) and 3.5 (FELL), so without flat at 3.0/3.25 there
+is no way to say whether rough costs trotting anything at all. That control
+is queued; until it lands, no trotting ceiling is claimed for rough.
+
+### What goes into the planner, and what does not
+
+`BodyLimits::v_terrain_max` / `$WP_TERRAIN_VMAX` is the mechanism, shipped
+and inert. It is a per-TERRAIN scalar, and the measurement is per (terrain,
+gait) — so the honest encoding is the tightest measured gait ceiling for
+that ground, not an average. On the current data that is walking's, and it
+is deliberately not written yet: one of the two brackets is still missing
+its control, and encoding half a result is the exact failure mode this
+program exists to avoid.
