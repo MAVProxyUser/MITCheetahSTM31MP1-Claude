@@ -45,6 +45,12 @@ def main():
                     help="comma list of model=index, e.g. go1_0=0,go1_1=1")
     ap.add_argument("--rate", type=float, default=20.0,
                     help="max lines per second (default 20)")
+    ap.add_argument("--warmup", type=float, default=8.0,
+                    help="seconds to wait for the FIRST message before "
+                         "declaring the subscription deaf (default 8)")
+    ap.add_argument("--deaf-after", type=float, default=10.0,
+                    help="seconds without a message mid-run before exiting "
+                         "so the parent restarts the feed (default 10)")
     args = ap.parse_args()
 
     name_to_index = {}
@@ -55,10 +61,12 @@ def main():
         name_to_index[n.strip()] = int(i)
 
     min_dt = 1.0 / max(args.rate, 0.1)
-    state = dict(last_emit=0.0)
+    state = dict(last_emit=0.0, last_msg=0.0, count=0)
 
     def on_pose(msg):
         now = time.time()
+        state["last_msg"] = now
+        state["count"] += 1
         if now - state["last_emit"] < min_dt:
             return
         out = {}
@@ -91,9 +99,48 @@ def main():
     sys.stderr.flush()
     if not ok:
         raise SystemExit(2)
-    # Nothing else to do: gz-transport delivers on its own thread. Park.
+
+    # A SUBSCRIPTION THAT SAYS "ok" AND THEN DELIVERS NOTHING IS THE ACTUAL
+    # FAILURE. Measured 2026-08-29 on this very process: `subscribe -> ok`
+    # in a brand-new process with a fresh Node, and zero messages ever
+    # arrived - the run's trail was 0.0 m of a 71.2 m plan while bridge GPS
+    # showed the whole course flown. So moving the subscription into a
+    # per-run process was necessary and NOT sufficient: the failure is not
+    # accumulated in-process state, it is gz-transport's discovery handshake
+    # silently not connecting this subscriber to the publisher - very likely
+    # the same underlying defect as OPEN-22, which presents as "no topics
+    # visible" instead of "subscribed but deaf".
+    #
+    # It cannot be fixed here, but it CAN be detected here, which is what
+    # turns a silent failure into a retried one: if nothing arrives within
+    # --warmup seconds of a successful subscribe, say so and exit non-zero
+    # so the parent can restart us on a fresh process. Same afterwards - a
+    # feed that goes deaf mid-run exits rather than pretending.
+    warm_deadline = time.time() + args.warmup
+    while state["count"] == 0 and time.time() < warm_deadline:
+        time.sleep(0.2)
+    if state["count"] == 0:
+        sys.stderr.write("[pose_feed] SUBSCRIBED BUT DEAF: no message in "
+                         "%.1fs on %s - gz-transport discovery did not "
+                         "connect this subscriber (OPEN-21/22). Exiting so "
+                         "the parent can retry on a fresh process.\n"
+                         % (args.warmup, topic))
+        sys.stderr.flush()
+        raise SystemExit(3)
+    sys.stderr.write("[pose_feed] receiving (%d msgs in warmup)\n"
+                     % state["count"])
+    sys.stderr.flush()
+
+    # Alive. Watch for going deaf mid-run, and exit if it happens.
     while True:
-        time.sleep(3600)
+        time.sleep(1.0)
+        gap = time.time() - state["last_msg"]
+        if gap > args.deaf_after:
+            sys.stderr.write("[pose_feed] WENT DEAF: %.1fs since the last "
+                             "message - exiting so the parent can restart "
+                             "the feed.\n" % gap)
+            sys.stderr.flush()
+            raise SystemExit(4)
 
 
 if __name__ == "__main__":

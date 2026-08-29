@@ -1889,7 +1889,9 @@ class Fleet:
         if not names:
             self._note("pose feed NOT started - no models placed")
             return
-        ferr = open(os.path.join(RUN_DIR, "pose_feed.log"), "w")
+        archive_log(os.path.join(RUN_DIR, "pose_feed.log"),
+                    self.run_id - 1)
+        ferr = open(os.path.join(RUN_DIR, "pose_feed.log"), "a")
         fp = subprocess.Popen(
             [PYBIN, "-u", os.path.join(HERE, "pose_feed.py"),
              "--world", WORLD, "--names", names, "--rate", "20"],
@@ -1900,6 +1902,10 @@ class Fleet:
         self._pose_proc = fp
 
         def reader():
+            # The feed EXITS on its own when it is subscribed-but-deaf or
+            # goes deaf mid-run (see pose_feed.py). That is the signal to
+            # start a fresh one - a silent failure turned into a retried
+            # one. Bounded, so a genuinely broken host does not spin.
             try:
                 for line in fp.stdout:
                     line = line.strip()
@@ -1917,6 +1923,29 @@ class Fleet:
                             continue
             except Exception as e:  # noqa: BLE001 - reader must never kill a run
                 self._note("pose feed reader stopped: %r" % e)
+                return
+            # stdout closed => the feed process ended. If the fleet is still
+            # running, that was a deaf/dead subscription reporting itself.
+            rc = fp.poll()
+            with self.lock:
+                still_running = self.phase == "running"
+            if still_running and rc not in (0, None):
+                n = getattr(self, "_pose_restarts", 0) + 1
+                self._pose_restarts = n
+                if n <= 3:
+                    self._note("pose feed exited rc=%s (subscribed but deaf, "
+                                "or went deaf mid-run - OPEN-21/22). "
+                                "Restarting it: attempt %d of 3." % (rc, n))
+                    try:
+                        self._start_pose_feed(getattr(self, "_gz_env", None)
+                                               or os.environ.copy())
+                    except Exception as e:  # noqa: BLE001
+                        self._note("pose feed restart FAILED: %r" % e)
+                else:
+                    self._note("pose feed has exited %d times this run - "
+                                "leaving it down; the run's own verdict will "
+                                "be gated NOFEED by the bridge-GPS arbiter, "
+                                "which is the correct outcome" % n)
 
         threading.Thread(target=reader, daemon=True).start()
         self._note("pose feed up (per-run subprocess, pid %d - OPEN-21: "
@@ -2557,6 +2586,7 @@ class Fleet:
             self._last_pose = {}       # a stale (x,y,t) would spike the next launch's speed EMA
             self._gz_node = None       # drops the pose subscription
             self._pose_proc = None     # per-run feed dies with the run
+            self._pose_restarts = 0
             self._gz_cam_nodes = []    # drops every camera subscription
             self.cameras = {}
             if self._chase_stop is not None:
