@@ -16,10 +16,16 @@ archive), this file is the index of where we've been and what's left. Rules:
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
 
-Last full validation: **19/19 suite PASS** (2026-08-28 ~05:15); last FAST
-validation: **12/12** (2026-08-28 ~19:35, on the final build of the terrain
-session - 5 cases on a fresh server + 7 with NOFEED recycling proving
-itself in-line twice).
+Last validation: **19/19 fast-suite PASS** (2026-08-28 ~23:20 + two
+re-runs ~23:55, on the build carrying the OPEN-6 boot fix, the terrain
+planner caps and the GPS-arbitrated instruments). Read honestly: the run
+itself scored 17/19 with `sector_recipe` and `lissajous_5_7` FAILing, and
+both were the OPEN-21 pose feed, not the robot - sector's bridge GPS
+spanned the correct 16.7 x 18.6 m box with 17/17 waypoints and
+`RESULT: PASS` while the trail showed 43.1 m of 178.4 m. Both re-ran clean
+on a fresh server (178.9 s and 394.5 s). Every other FAIL in that run
+(`star`, `octagon_recipe`, `parallel_recipe`, `bounding_octagon_45deg`)
+passed on its own in-suite retry.
 
 ---
 

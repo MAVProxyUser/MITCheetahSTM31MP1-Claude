@@ -4556,5 +4556,35 @@
   },
   "verdict": "PASS",
   "wall_s": 101.3
+ },
+ {
+  "ts": "2026-08-28 23:42:06",
+  "case": "sector_recipe",
+  "config": {
+   "slots": [
+    "sector:15:3"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 178.9
+ },
+ {
+  "ts": "2026-08-28 23:48:56",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 394.5
  }
 ]
