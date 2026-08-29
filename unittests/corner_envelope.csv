@@ -121,3 +121,17 @@ bounding,2.0,105,FELL,152.3,[runner] run 1072 phase=done  dogs=1  PASS=0 FAIL=0 
 bounding,2.0,120,FELL,123.9,[runner] run 1073 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:12:40
 bounding,2.0,150,FELL,198.4,[runner] run 1074 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:16:05
 bounding,2.0,165,PASS,64.6,[runner] run 1118 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:25:53
+galloping,1.3,30,PASS,70.6,[runner] run 1119 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:27:06
+galloping,1.3,60,PASS,73.1,[runner] run 1120 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:28:23
+galloping,1.3,75,PASS,73.6,[runner] run 1121 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:29:40
+galloping,1.3,105,PASS,79.7,[runner] run 1122 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:31:03
+galloping,1.3,120,PASS,79.8,[runner] run 1123 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:32:26
+galloping,1.3,150,PASS,80.5,[runner] run 1124 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:33:50
+galloping,1.3,165,PASS,84.9,[runner] run 1125 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:35:19
+pronking,0.9,30,PASS,98.3,[runner] run 1126 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:37:01
+pronking,0.9,60,PASS,97.5,[runner] run 1127 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:38:43
+pronking,0.9,75,PASS,101.0,[runner] run 1128 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:40:28
+pronking,0.9,105,PASS,100.9,[runner] run 1129 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:42:14
+pronking,0.9,120,PASS,103.7,[runner] run 1130 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:44:02
+pronking,0.9,150,PASS,106.2,[runner] run 1131 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:45:52
+pronking,0.9,165,PASS,114.1,[runner] run 1132 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:47:51

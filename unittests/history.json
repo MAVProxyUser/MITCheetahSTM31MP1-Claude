@@ -4586,5 +4586,268 @@
   },
   "verdict": "PASS",
   "wall_s": 394.5
+ },
+ {
+  "ts": "2026-08-29 12:50:57",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [
+    100
+   ],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 167.1
+ },
+ {
+  "ts": "2026-08-29 12:53:02",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 125.2
+ },
+ {
+  "ts": "2026-08-29 12:54:49",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 107.0
+ },
+ {
+  "ts": "2026-08-29 12:56:28",
+  "case": "dash_trotRunning",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 99.1
+ },
+ {
+  "ts": "2026-08-29 13:00:29",
+  "case": "dash_long_duration",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    0.6
+   ],
+   "dashes": [],
+   "extras": [
+    "CTRL_XDRAG_CLAMP=1.0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 240.8
+ },
+ {
+  "ts": "2026-08-29 13:02:06",
+  "case": "octagon_recipe",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 96.7
+ },
+ {
+  "ts": "2026-08-29 13:03:44",
+  "case": "circle_smooth_36gon",
+  "config": {
+   "slots": [
+    "circle:9:36"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 98.1
+ },
+ {
+  "ts": "2026-08-29 13:05:55",
+  "case": "corner_probe_90deg",
+  "config": {
+   "slots": [
+    "corner:25:90"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 130.6
+ },
+ {
+  "ts": "2026-08-29 13:07:43",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 108.0
+ },
+ {
+  "ts": "2026-08-29 13:09:32",
+  "case": "oval_real_switch",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_GAIT_CORNER=9"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 109.0
+ },
+ {
+  "ts": "2026-08-29 13:13:19",
+  "case": "sector_recipe",
+  "config": {
+   "slots": [
+    "sector:15:3"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 227.7
+ },
+ {
+  "ts": "2026-08-29 13:18:18",
+  "case": "parallel_recipe",
+  "config": {
+   "slots": [
+    "parallel:30:5:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 298.5
+ },
+ {
+  "ts": "2026-08-29 13:25:29",
+  "case": "expsquare_recipe",
+  "config": {
+   "slots": [
+    "expsquare:5:12"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 165.0
+ },
+ {
+  "ts": "2026-08-29 13:27:35",
+  "case": "lissajous_1_2",
+  "config": {
+   "slots": [
+    "lissajous:15:1:2"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 126.0
+ },
+ {
+  "ts": "2026-08-29 13:34:11",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 395.8
  }
 ]

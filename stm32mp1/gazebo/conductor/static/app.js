@@ -656,7 +656,7 @@ function renderFleet() {
   // dot while anything is in flight, plus the run number and how long this
   // run has been going, so "is it working?" is answerable at a glance from
   // across the room.
-  const cap = document.getElementById("caption");
+  const capEl = document.getElementById("caption");
   const secs = state.elapsed_s != null ? Math.round(state.elapsed_s) : null;
   const t = secs != null ? ` - ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s`
                           : "";
@@ -677,7 +677,7 @@ function renderFleet() {
       + (c.stage ? ` &middot; ${c.stage}` : "") + prog + elTxt
       + (c.note ? ` &middot; ${c.note}` : "") + `</div>`;
   }
-  cap.innerHTML =
+  capEl.innerHTML =
     `STM32MP1 -> Go1 SITL fleet control - <span class="phase-tag ${state.phase}">`
     + `${running ? '<span class="pulse"></span>' : ""}${state.phase}</span>`
     + runTxt + (running ? t : "") + campTxt;
