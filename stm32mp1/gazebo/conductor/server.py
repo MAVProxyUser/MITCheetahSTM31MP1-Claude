@@ -936,10 +936,19 @@ class Fleet:
             except OSError:
                 leads_group = False
             target = "-%d" % proc.pid if leads_group else "%d" % proc.pid
+            # Exit as soon as EITHER we or the child is gone, and only kill
+            # the child if WE were the one that died. The first version
+            # looped purely on the server's pid, so every child ever spawned
+            # left a sleeping `sh` alive for the server's entire lifetime -
+            # 215 of them had accumulated over one campaign. Harmless
+            # individually, a leak in aggregate, and exactly the kind of
+            # process pile-up that makes a healthy rig look sick in `ps`.
             subprocess.Popen(
                 ["sh", "-c",
-                 "while kill -0 %d 2>/dev/null; do sleep 2; done; "
-                 "kill -9 %s 2>/dev/null" % (os.getpid(), target)],
+                 "while kill -0 %d 2>/dev/null && kill -0 %d 2>/dev/null; "
+                 "do sleep 2; done; "
+                 "kill -0 %d 2>/dev/null || kill -9 %s 2>/dev/null"
+                 % (os.getpid(), proc.pid, os.getpid(), target)],
                 start_new_session=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:  # noqa: BLE001 - never break a launch over this
