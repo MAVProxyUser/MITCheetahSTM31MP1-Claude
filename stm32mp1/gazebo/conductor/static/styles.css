@@ -194,3 +194,5 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   50%      { opacity: .35; transform: scale(.78); box-shadow: 0 0 .5em .12em currentColor; }
 }
 @media (prefers-reduced-motion: reduce) { .pulse { animation: none; opacity: .85; } }
+.campaign { margin-top: .25rem; font-size: .82rem; opacity: .9; }
+.campaign.stale { opacity: .45; font-style: italic; }

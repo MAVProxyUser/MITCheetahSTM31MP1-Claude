@@ -33,6 +33,8 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, os.path.join(ROOT, 'stm32mp1/gazebo/conductor'))
+import campaign as _campaign   # noqa: E402  (panel progress)
 RUNNER = os.path.join(ROOT, "stm32mp1/gazebo/conductor/mission_runner.py")
 CSV_PATH = os.path.join(HERE, "corner_envelope.csv")
 
@@ -117,6 +119,8 @@ def main():
     angles = ([int(a) for a in args.angles.split(",")] if args.angles
               else DEFAULT_ANGLES)
     seen = done_cells()
+    _total = len(gaits) * len(angles)
+    _done = 0
 
     new_file = not os.path.exists(CSV_PATH)
     with open(CSV_PATH, "a", newline="") as f:
@@ -134,6 +138,10 @@ def main():
                     continue
                 print("[cell] %s@%g angle=%d ..." % (gait, speed, angle),
                       flush=True)
+                _done += 1
+                _campaign.set_stage("OPEN-8 cornering envelope",
+                                    "%s @%g" % (gait, speed), _done, _total,
+                                    "angle %d deg" % angle)
                 # A REFUSED launch (Time Machine et al.) is transient: wait
                 # it out and retry the SAME cell, up to ~30 min, instead of
                 # burning the rest of the grid against a closed gate.
@@ -177,6 +185,7 @@ def main():
                 print("[cell] %s@%g angle=%d -> %s (%.0fs)"
                       % (gait, speed, angle, verdict, wall), flush=True)
                 time.sleep(3)
+    _campaign.clear()
     print("SWEEP_DONE", flush=True)
 
 

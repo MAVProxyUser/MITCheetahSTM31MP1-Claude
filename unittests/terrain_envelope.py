@@ -42,6 +42,8 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, os.path.join(ROOT, 'stm32mp1/gazebo/conductor'))
+import campaign as _campaign   # noqa: E402  (panel progress)
 RUNNER = os.path.join(ROOT, "stm32mp1/gazebo/conductor/mission_runner.py")
 SPEED_CSV = os.path.join(HERE, "terrain_envelope_speed.csv")
 ANGLE_CSV = os.path.join(HERE, "terrain_envelope_angle.csv")
@@ -172,6 +174,9 @@ def sweep_speed(terrains):
                         print("[skip] %s %s @%g (measured)" % (t, gait, spd), flush=True)
                         continue
                     print("[cell] %s %s @%g ..." % (t, gait, spd), flush=True)
+                    _campaign.set_stage("OPEN-7 terrain envelope",
+                                        "%s / %s" % (t, gait), 0, 0,
+                                        "@%g m/s" % spd)
                     r = cell_with_retries(t, "dash:30", gait, spd,
                                           "WP_CLOSE_LEG=0")
                     w.writerow([t, gait, "%g" % spd, r["verdict"], r.get("t", ""),
@@ -183,6 +188,7 @@ def sweep_speed(terrains):
                           % (t, gait, spd, r["verdict"], r.get("ratio", "?"),
                              r.get("xtrack", "?")), flush=True)
                     time.sleep(4)
+    _campaign.clear()
     print("SPEED_SWEEP_DONE", flush=True)
 
 

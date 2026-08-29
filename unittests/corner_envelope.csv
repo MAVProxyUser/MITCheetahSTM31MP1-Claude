@@ -111,3 +111,11 @@ walking,2.0,30,PASS,82.6,[runner] run 1062 phase=done  dogs=1  PASS=1 FAIL=0 FEL
 walking,2.0,60,PASS,79.3,[runner] run 1063 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:51:35
 walking,2.0,75,PASS,86.5,[runner] run 1064 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:53:06
 walking,2.0,105,PASS,96.9,[runner] run 1065 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:54:47
+walking,2.0,120,PASS,94.7,[runner] run 1066 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:56:27
+walking,2.0,150,FELL,175.0,[runner] run 1067 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 10:59:27
+walking,2.0,165,PASS,96.8,[runner] run 1068 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 11:01:09
+bounding,2.0,30,FELL,124.7,[runner] run 1069 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:03:18
+bounding,2.0,60,PASS,94.4,[runner] run 1070 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=1,2026-08-29 11:04:58
+bounding,2.0,75,FELL,169.7,[runner] run 1071 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:07:53
+bounding,2.0,105,FELL,152.3,[runner] run 1072 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:10:31
+bounding,2.0,120,FELL,123.9,[runner] run 1073 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:12:40

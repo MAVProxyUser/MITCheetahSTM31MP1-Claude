@@ -127,6 +127,7 @@ os.environ.setdefault("GZ_RELAY", "127.0.0.1")
 # python3 any more.
 sys.path.insert(0, GAZEBO_DIR)
 from trail_daemon import mission_waypoints  # noqa: E402
+import campaign as _campaign                # noqa: E402
 
 DISCOVERY_STATS = os.path.join(RUN_DIR, "discovery_stats.json")
 _GPS_RE = re.compile(r"gps=\(([-0-9.]+),([-0-9.]+)\)")
@@ -1012,6 +1013,12 @@ class Fleet:
                 "draft_cap": self.draft_cap,
                 "draft_terrain": self.draft_terrain,
                 "discovery": self._discovery_stats(),   # OPEN-22 rate
+                # WHAT CAMPAIGN IS RUNNING. The conductor only ever knew
+                # about one run; an 80-run sweep therefore looked like 80
+                # unrelated launches with quiet gaps, which is why a working
+                # rig kept reading as an idle one. Harnesses publish their
+                # progress through campaign.py and it surfaces here.
+                "campaign": _campaign.read(),
                 # How long the current run has been going, so the panel can
                 # show a live clock rather than a static phase word (a
                 # campaign looked identical to an idle rig without it).

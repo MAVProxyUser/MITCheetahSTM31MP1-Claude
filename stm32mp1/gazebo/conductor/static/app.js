@@ -661,10 +661,26 @@ function renderFleet() {
   const t = secs != null ? ` - ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s`
                           : "";
   const runTxt = state.run_id != null ? ` - run ${state.run_id}` : "";
+  const c = state.campaign;
+  let campTxt = "";
+  if (c && c.name) {
+    const age = c.updated ? (Date.now() / 1000 - c.updated) : 1e9;
+    // A record older than 5 minutes is stale (the harness died or finished
+    // without clearing) - say so rather than showing a frozen counter as if
+    // it were live.
+    const stale = age > 300;
+    const prog = c.total ? ` ${c.done}/${c.total}` : "";
+    const el = c.started ? Math.round(Date.now() / 1000 - c.started) : null;
+    const elTxt = el != null ? ` - ${Math.floor(el / 60)}m` : "";
+    campTxt = `<div class="campaign ${stale ? "stale" : ""}">`
+      + `${stale ? "last campaign (idle)" : "campaign"}: <b>${c.name}</b>`
+      + (c.stage ? ` &middot; ${c.stage}` : "") + prog + elTxt
+      + (c.note ? ` &middot; ${c.note}` : "") + `</div>`;
+  }
   cap.innerHTML =
     `STM32MP1 -> Go1 SITL fleet control - <span class="phase-tag ${state.phase}">`
     + `${running ? '<span class="pulse"></span>' : ""}${state.phase}</span>`
-    + runTxt + (running ? t : "");
+    + runTxt + (running ? t : "") + campTxt;
   document.title = (running ? "* " : "") + "Conductor - " + state.phase;
 
   renderLoadWidget();
