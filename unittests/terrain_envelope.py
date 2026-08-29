@@ -33,6 +33,7 @@ straight out of the measured data rather than guessed from mu.
 """
 import argparse
 import csv
+import json
 import os
 import re
 import subprocess
@@ -93,10 +94,35 @@ def recycle(reason):
     conductor_ctl.restart_server(reason)
 
 
+def server_healthy():
+    """Is the conductor actually answering? A sweep that keeps launching at
+    a dead or wedged server writes a column of FAIL rows that look exactly
+    like robot results - which is what happened the night this was added:
+    a 'only 0/1 dogs came up' launch took the server down and the next NINE
+    cells were recorded as failures without a mission ever running."""
+    try:
+        import urllib.request
+        with urllib.request.urlopen("http://127.0.0.1:8420/api/state",
+                                     timeout=5) as f:
+            json.load(f)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def cell_with_retries(terrain, mission, gait, speed, extra):
     """NOFEED is infrastructure (OPEN-21), not a robot verdict - recycle
-    the conductor and re-run rather than recording a fake failure."""
+    the conductor and re-run rather than recording a fake failure. Same for
+    a server that has stopped answering at all."""
     for _ in range(6):
+        if not server_healthy():
+            print("[gate] conductor not answering - recycling before this "
+                  "cell (no verdict recorded)", flush=True)
+            recycle("server unreachable")
+            if not server_healthy():
+                print("[gate] STILL not answering - stopping rather than "
+                      "recording fake failures", flush=True)
+                return dict(verdict="ABORTED-NO-SERVER", wall=0.0)
         r = run_cell(terrain, mission, gait, speed, extra)
         if r["verdict"] == "NOFEED":
             recycle("NOFEED (OPEN-21)")

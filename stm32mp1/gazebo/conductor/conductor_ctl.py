@@ -40,8 +40,33 @@ def restart_server(reason=""):
     except Exception:  # noqa: BLE001 - already down is fine
         pass
     time.sleep(2)
+    # KILL, THEN CONFIRM THE PORT IS ACTUALLY FREE BEFORE RELAUNCHING.
+    # A plain SIGTERM + sleep(2) is not enough: a server busy in a launch
+    # (or blocked on a wedged gz) can outlive the sleep, and then the
+    # relaunch produces a SECOND listener on 8420. Two listeners is worse
+    # than none - the browser's requests land on whichever the kernel
+    # hands them, so the panel appears to hang at random while a healthy
+    # server sits right next to it. Measured the night this was written:
+    # the operator could not refresh the page, and lsof showed two.
     subprocess.run("kill $(lsof -ti :8420) 2>/dev/null", shell=True)
-    time.sleep(2)
+    for _ in range(15):
+        time.sleep(1)
+        if not subprocess.run("lsof -ti :8420", shell=True,
+                              capture_output=True).stdout.strip():
+            break
+    else:
+        subprocess.run("kill -9 $(lsof -ti :8420) 2>/dev/null", shell=True)
+        time.sleep(2)
+    # A gz left running with no conductor to reap it idles at about a full
+    # core simulating an empty world - the documented load leak that has
+    # framed unrelated results before now.
+    subprocess.run("pkill -f 'gz sim -s -r /tmp/cheetah_conductor' "
+                   "2>/dev/null", shell=True)
+    if subprocess.run("lsof -ti :8420", shell=True,
+                      capture_output=True).stdout.strip():
+        print("[conductor_ctl] REFUSING to relaunch: 8420 is still held",
+              flush=True)
+        return False
     subprocess.Popen([PYBIN, "server.py"], cwd=HERE,
                      stdout=open("/tmp/conductor_server.log", "a"),
                      stderr=subprocess.STDOUT,
