@@ -99,6 +99,18 @@ os.environ["GZ_IP"] = "127.0.0.1"
 # python3 any more.
 sys.path.insert(0, GAZEBO_DIR)
 from trail_daemon import mission_waypoints  # noqa: E402
+
+_GPS_RE = re.compile(r"gps=\(([-0-9.]+),([-0-9.]+)\)")
+
+
+def _plan_span(pts):
+    """Bounding-box diagonal of a planned path, metres - the scale the GPS
+    span is compared against, since a trail LENGTH and a bounding BOX are
+    different quantities and must not be compared directly."""
+    if not pts or len(pts) < 2:
+        return 0.0
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    return ((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2) ** 0.5
 from mission_geometry import mission_opening_bearing_rad  # noqa: E402
 import shm_reaper  # noqa: E402 - "even the launcher itself can reap"
 import gz.transport13 as _gz_transport      # noqa: E402
@@ -676,6 +688,7 @@ class Fleet:
         self._poll_thread = None
         self.planned = {}            # index -> [[x,y], ...] world frame, frozen at launch
         self.positions = {}          # index -> {"x","y","z","yaw","speed","trail":[[x,y],...]}
+        self._gps_tail = {}          # index -> byte offset + last fix in bridge_N.log
         self._name_to_index = {}     # "go1_2" -> 2, for the pose subscriber
         self._last_pose = {}         # index -> (x, y, t) for the speed EMA
         self._gz_node = None         # keep the Node alive - gc'ing it drops the subscription
@@ -781,6 +794,68 @@ class Fleet:
             with self.lock:
                 self.host_load = load
             time.sleep(1.5)
+
+    # BRIDGE GPS AS THE INDEPENDENT ARBITER (2026-08-28 night, operator
+    # report: "sometimes I look up and the dog is moving and that message
+    # pops other times it's just stopped dead" - both happen, and the
+    # instruments could not tell them apart).
+    #
+    # Every world-motion instrument on this panel - the drawn trail, the
+    # live DESYNC monitor, the post-run INVALID gate - reads ONE source:
+    # the in-process gz pose feed. That feed is the subject of OPEN-21: it
+    # degrades and dies as launches accumulate. When it goes quiet the
+    # dog's own displacement reads ZERO, so a perfectly healthy run gets
+    # accused of hallucinating. Measured, twice, the night this was added:
+    #   run869  DESYNC fired twice ("world/GPS moving 0.00 m/s") on a dash
+    #           whose BRIDGE GPS moved 37.4275 -> 37.4284 lat, ~100 m, and
+    #           which passed 1/1 waypoints.
+    #   run876  gated INVALID at "flew 43.1m of a 178.4m plan" on a sector
+    #           whose bridge GPS spans 16.7 x 18.6 m - the right box for a
+    #           15 m flower - with 17/17 waypoints and RESULT: PASS.
+    # The bridge writes GPS from the sim's own NavSat sensor over a
+    # completely separate path (UDP to the controller, no gz-transport),
+    # so it is genuinely independent of the failing feed. Read
+    # incrementally by byte offset - this runs once per dog per second.
+    def _bridge_gps(self, i):
+        """Latest (lat, lon) the bridge logged for dog i, or None."""
+        st = self._gps_tail.setdefault(i, dict(off=0, fix=None, box=None))
+        path = os.path.join(RUN_DIR, "bridge_%d.log" % i)
+        try:
+            with open(path, "r", errors="ignore") as f:
+                f.seek(st["off"])
+                chunk = f.read()
+                st["off"] = f.tell()
+        except OSError:
+            return st["fix"]
+        for m in _GPS_RE.finditer(chunk):
+            la, lo = float(m.group(1)), float(m.group(2))
+            st["fix"] = (la, lo)
+            b = st["box"]
+            st["box"] = (la, la, lo, lo) if b is None else (
+                min(b[0], la), max(b[1], la), min(b[2], lo), max(b[3], lo))
+        return st["fix"]
+
+    def _gps_span(self, i):
+        """Bounding-box diagonal, in metres, of every GPS fix the bridge has
+        logged for dog i this run - i.e. how much ground the body actually
+        covered, measured off a source the gz pose feed cannot corrupt."""
+        self._bridge_gps(i)          # advance the tail
+        b = (self._gps_tail.get(i) or {}).get("box")
+        if not b:
+            return None
+        dn = (b[1] - b[0]) * 111320.0
+        de = (b[3] - b[2]) * 111320.0 * math.cos(math.radians(b[0]))
+        return (dn * dn + de * de) ** 0.5
+
+    def _gps_moved_m(self, i, since):
+        """Metres the bridge GPS has moved for dog i since `since`
+        (a fix tuple), or None when there is nothing to compare."""
+        fix = self._bridge_gps(i)
+        if fix is None or since is None:
+            return None
+        dn = (fix[0] - since[0]) * 111320.0
+        de = (fix[1] - since[1]) * 111320.0 * math.cos(math.radians(fix[0]))
+        return (dn * dn + de * de) ** 0.5
 
     def _note(self, msg):
         tag = ("run%d " % self.run_id) if self.run_id else ""
@@ -1234,6 +1309,7 @@ class Fleet:
                                  t="", waypoints="") for s in locked]
             self.planned = {}
             self.positions = {}
+            self._gps_tail = {}
             # Stale camera frames from the PREVIOUS run otherwise persist
             # (only stop() cleared this): the new run's /api/state carries the
             # old run's last frozen JPEGs until a fresh frame overwrites each
@@ -1877,16 +1953,31 @@ class Fleet:
                         # dash showed desync=1 with ratio=1.00 - the tell).
                         fresh = "[nav] wp" in new_text
                         ds = desync.setdefault(i, dict(last=None, bad=0,
-                                                        alarmed=False))
+                                                        alarmed=False,
+                                                        gps=None))
 
                         with self.lock:
                             p = self.positions.get(i)
                             pos = (p["x"], p["y"]) if p else None
+                        # THE FEED MUST BE ALIVE BEFORE IT MAY ACCUSE.
+                        # This monitor differences two pose samples; if the
+                        # feed stopped delivering, both reads are the SAME
+                        # stale sample and the difference is zero - which is
+                        # indistinguishable from a dog standing still, and
+                        # is exactly how run869 got two DESYNC alarms while
+                        # its bridge GPS moved 100 m (see _bridge_gps).
+                        # _pose_last_t is stamped by the pose callback.
+                        pose_age = time.time() - getattr(self, "_pose_last_t",
+                                                          0.0)
+                        gps_now = self._bridge_gps(i)
                         try:
                             believed_v = float(v)
                         except ValueError:
                             believed_v = 0.0
-                        if not fresh:
+                        if not fresh or pose_age > 2.0:
+                            # stale nav line, or a feed that has not spoken
+                            # this tick: no measurement is possible, so make
+                            # no claim and re-baseline.
                             ds["last"] = pos
                             ds["bad"] = 0
                         elif pos is not None and ds["last"] is not None:
@@ -1901,18 +1992,40 @@ class Fleet:
                                     ds["alarmed"] = False
                                 ds["bad"] = 0
                             if ds["bad"] >= 5 and not ds["alarmed"]:
-                                ds["alarmed"] = True
-                                st["text"] += " [DESYNC]"
-                                self._note("dog%d DESYNC: belief moving %.2f "
-                                            "m/s but world/GPS moving %.2f m/s "
-                                            "for %ds - feet slipping or blocked, "
-                                            "estimator hallucinating (spot-check "
-                                            "the track; SHM trace has per-tick "
-                                            "detail)" % (i, believed_v, true_v,
-                                                          ds["bad"]))
+                                # ARBITRATE before accusing. Bridge GPS comes
+                                # off the sim's NavSat over UDP, nothing to do
+                                # with the gz-transport feed this monitor
+                                # reads - so if GPS says the body moved while
+                                # the pose feed says it did not, the FEED is
+                                # the liar and the dog is fine.
+                                gps_m = self._gps_moved_m(i, ds["gps"])
+                                if gps_m is not None and gps_m > 0.5:
+                                    ds["bad"] = 0
+                                    self._note("dog%d pose feed is LYING, not "
+                                                "the dog: feed shows %.2f m/s "
+                                                "but bridge GPS moved %.1f m "
+                                                "over the same window - "
+                                                "suppressing DESYNC (OPEN-21)"
+                                                % (i, true_v, gps_m))
+                                else:
+                                    ds["alarmed"] = True
+                                    st["text"] += " [DESYNC]"
+                                    self._note("dog%d DESYNC: belief moving "
+                                                "%.2f m/s, gz pose feed shows "
+                                                "%.2f m/s and bridge GPS agrees "
+                                                "(%s) for %ds - feet slipping "
+                                                "or blocked, estimator "
+                                                "hallucinating (SHM trace has "
+                                                "per-tick detail)"
+                                                % (i, believed_v, true_v,
+                                                    ("%.1f m" % gps_m) if gps_m
+                                                    is not None else "no fix",
+                                                    ds["bad"]))
                             elif ds["alarmed"]:
                                 st["text"] += " [DESYNC]"
                         ds["last"] = pos
+                        if ds["bad"] == 0:
+                            ds["gps"] = gps_now   # window start for the arbiter
                     if "[mission] RESULT" in text:
                         # A dog is DONE at its JUDGE line, not at "MISSION
                         # COMPLETE": the judge prints ~9 s later, after the
@@ -1946,11 +2059,38 @@ class Fleet:
                                        for k in range(len(pts) - 1)) if pts and len(pts) > 1 else 0.0
                         plan_len, flown_len = _plen(plan), _plen(trail)
                         if plan_len > 3.0 and flown_len < 0.3 * plan_len:
-                            st["phase"] = "invalid"
-                            self._note("dog%d INVALID: claimed PASS but flew "
-                                        "%.1fm of a %.1fm plan - belief completed, "
-                                        "body did not (estimator hallucination; "
-                                        "see OPEN-7)" % (i, flown_len, plan_len))
+                            # SHORT TRAIL IS TWO DIFFERENT FAULTS and they
+                            # must not share a verdict: a dog that really did
+                            # not move (a robot result), and a pose feed that
+                            # stopped delivering samples (OPEN-21, our
+                            # infrastructure). Arbitrate with bridge GPS,
+                            # which comes off the sim's NavSat over UDP and
+                            # is untouched by the gz-transport feed.
+                            # Measured the night this went in: run876's
+                            # sector was gated INVALID at "flew 43.1m of a
+                            # 178.4m plan" while its bridge GPS spanned
+                            # 16.7 x 18.6 m - the correct box for a 15 m
+                            # flower - with 17/17 waypoints and RESULT: PASS.
+                            span = self._gps_span(i)
+                            if span is not None and span > 0.5 * _plan_span(plan):
+                                st["phase"] = "nofeed"
+                                self._note("dog%d NOFEED: trail has %.1fm of a "
+                                            "%.1fm plan, but bridge GPS spans "
+                                            "%.1fm of a %.1fm course - the POSE "
+                                            "FEED failed, not the dog "
+                                            "(OPEN-21; re-run, do not read this "
+                                            "as a verdict)"
+                                            % (i, flown_len, plan_len, span,
+                                               _plan_span(plan)))
+                            else:
+                                st["phase"] = "invalid"
+                                self._note("dog%d INVALID: claimed PASS but flew "
+                                            "%.1fm of a %.1fm plan and bridge GPS "
+                                            "agrees (%s) - belief completed, body "
+                                            "did not (estimator hallucination)"
+                                            % (i, flown_len, plan_len,
+                                               ("%.1fm span" % span) if span
+                                               is not None else "no fix"))
                         else:
                             self._note("dog%d COMPLETE t=%s" % (i, st["t"]))
                     elif "[FALL]" in text:

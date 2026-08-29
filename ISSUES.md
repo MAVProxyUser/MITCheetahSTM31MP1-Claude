@@ -27,39 +27,6 @@ itself in-line twice).
 
 ### In progress
 
-- **OPEN-6 · Boot-time "state estimate went non-finite — reinitialising"**
-  — `IN PROGRESS` (moved from unexplained by operator instruction,
-  2026-08-28: "move open 6 to in progress and come up with a plan to
-  attack it better and rule it out through looking JUST the sequence it
-  has issues with under different scenarios (including artificial system
-  load that we control)").
-  **What is established**: last seen the final run of 2026-08-28 (it is
-  current, not historical); present in ~2/3 of runs, stable across three
-  days (Aug 26: 77/110, Aug 27: 198/298, Aug 28: 167/233), occasionally ×1
-  or ×3; blip-free runs pass missions cleanly, so it is not fatal on its
-  own; and it is NOT the spawn clip — the z=0.45 spawn fix (a4cc804,
-  11:56) left the rate statistically identical either side of it (87/122
-  before, 80/111 after, same day).
-  **THE PLAN** (`unittests/boot_probe.py`, built for exactly this): stop
-  running whole missions and isolate the ~10 s BOOT SEQUENCE alone —
-  spawn → limp settle → stand → balance-stand → LOCOMOTION entry — with
-  the mission truncated so nothing downstream can confound it. For each
-  cell record blip COUNT and the tick each blip lands on, then vary ONE
-  factor at a time:
-  1. **artificial host load we control** (0 / 4 / 8 spinners) — the
-     hypothesis this session's own tooling makes testable: if the blip
-     rate tracks controlled load, it is a scheduling/timing transient at
-     boot, not a physics or estimator-math problem;
-  2. **terrain/surface** (flat vs a soft surface kind) — contact-solver
-     transient at first touch;
-  3. **spawn height** (0.42 shipped vs higher/lower) — settle energy;
-  4. **gait seeded at boot**, and **velocity aiding on/off** — the two
-     boot-window code paths that changed most recently.
-  Success = either a factor that moves the rate (then fix that), or a
-  measured NULL across all four (which promotes "harmless deterministic
-  transient" from assumption to evidence, and the entry closes as
-  accepted). Either outcome ends the item; today it is neither.
-
 - **OPEN-21 · The panel's gz pose feed degrades across accumulated
   in-process launches** — opened 2026-08-28, caught live by the new
   instruments mid-terrain-sweep: run747 (asphalt oval) lost ~40% of its
@@ -89,6 +56,45 @@ itself in-line twice).
   before/between long campaigns; a NOFEED row is a re-run, never a
   verdict.
 
+  **2026-08-28 night — the feed was corrupting the INSTRUMENTS, not just
+  the trail, and that is now fixed.** Operator report: "I keep randomly
+  seeing [DESYNC] ... sometimes I look up and the dog is moving and that
+  message pops, other times it's just stopped dead." Both happen, and
+  nothing on the panel could tell them apart, because EVERY world-motion
+  instrument here — the drawn trail, the live DESYNC monitor, the
+  post-run INVALID gate — read the SAME failing gz pose feed. When it
+  goes quiet a healthy dog's displacement reads zero and the instruments
+  accuse the robot. Measured, on runs that had already passed:
+  - **run869** (`dash:100`): DESYNC fired twice, "world/GPS moving 0.00
+    m/s" — while the BRIDGE GPS moved 37.4275 → 37.4284 lat (~100 m) and
+    the mission passed 1/1 waypoints. The DESYNC/CLEARED/DESYNC/CLEARED
+    alternation was the tell: a genuinely blocked dog does not recover
+    and re-block every five seconds.
+  - **run876** (`sector:15:3`): gated INVALID at "flew 43.1 m of a
+    178.4 m plan" — while bridge GPS spanned 16.7 × 18.6 m, the correct
+    box for a 15 m flower, with 17/17 waypoints and RESULT: PASS.
+  - **run870 / run877** (octagon, parallel): same, at 0.0 m of trail.
+  The message text also *named GPS it never read* — the monitor only ever
+  differenced two pose samples.
+  **Fixes (server.py):** bridge GPS is now the independent ARBITER for
+  both instruments — it comes off the sim's NavSat over UDP and is
+  untouched by gz-transport. DESYNC will not fire while the pose feed is
+  stale (`_pose_last_t` older than the tick — two stale reads difference
+  to zero, which is indistinguishable from a stopped dog), and when the
+  window does look bad it checks GPS first: GPS moving ⇒ log "pose feed
+  is LYING, not the dog" and suppress. The gate splits a short trail into
+  NOFEED (GPS span ≳ the planned course's span ⇒ our infrastructure,
+  re-run) versus INVALID (GPS agrees the body did not move ⇒ a robot
+  result). Validated offline against the archived bridge logs before
+  shipping: run876 25.0 m GPS span vs 24.8 m plan span → NOFEED, run870
+  25.1 vs 25.5 → NOFEED; a stationary dog still reads INVALID.
+  **And this explains the suite cascade**: INVALID does not trigger the
+  harness's conductor recycle, NOFEED does — so misclassifying a feed
+  failure as INVALID sent it down the path that never recovers, and every
+  case after the feed died inherited it (the 2026-08-28 ~22:5x fast run
+  went star INCONCLUSIVE→PASS on retry, then 8 PASS, then three "FAIL"s
+  that were all this).
+
 - **OPEN-7 · Terrain-aware planning: document the per-terrain envelope,
   then feed it to the pre-planner** — `IN PROGRESS`, re-scoped by operator
   instruction 2026-08-28: "work it to the point of simply documenting
@@ -112,12 +118,30 @@ itself in-line twice).
      fails SILENTLY (the estimator completes the course while the body
      does not) — 0/4 in the matrix batch, then 2/2 solo, cause of the flip
      not isolated. Any terrain result must come through the gates.
-  3. **The planner integration** — the pre-planner learns the terrain it
-     is planning on: a per-(terrain, gait) speed/angle cap table applied at
-     waypoint-generation time, sampling ground height (DEM/heightmap) when
-     the terrain has real geometry so the plan knows what it is crossing.
-     That is the operator's "add the rest to the pre-planner" and it is
-     the deliverable this item closes on.
+  3. **The planner integration** — `DONE for the friction axis`
+     (2026-08-28 night, d9cde6e, TERRAIN.md "Phase 2 EXECUTED"):
+     `BodyLimits::mu_terrain` caps the lateral budget at
+     `0.9 · μ · g` inside `plan()`, BEFORE any geometry is built, so
+     corner speeds, braking zones and the analyzer's segment caps are all
+     computed against the ground the conductor actually built; `server.py`
+     passes `WP_TERRAIN_MU` from the same `terrain.py` entry that writes
+     the SDF `<surface>` block and the foot collisions, so μ has ONE
+     source across ground, feet and plan. Verified live on ice:
+     `[plan] terrain mu=0.15 caps lateral budget 2.50 -> 1.32 m/s^2`,
+     PASS at ratio 1.03 (0.9·0.15·9.81 = 1.324). Unset = −1 = stock
+     behaviour bit-for-bit, which is what keeps every validated flat
+     result valid. The rule also REPRODUCES Phase 1b's measured outcome
+     without having been fitted to it: at the 2.5 default the cap binds
+     only below μ≈0.283, i.e. ice alone — and ice was the only surface
+     that failed anything.
+     **What is left of part 3**: the SPEED axis. `v_terrain_max` exists
+     and is wired to `$WP_TERRAIN_VMAX`, and is deliberately UNSET on
+     every kind — Phase 1b measured that μ above a gait's demand costs no
+     time, so there is no surface-kind ceiling to encode, and the geometry
+     kinds' ceiling has not been measured yet. That measurement is part 1
+     (`unittests/terrain_envelope.py`, built for it), and encoding a guess
+     ahead of it is exactly what this program exists to avoid. DEM/
+     heightmap sampling at waypoint-generation time also remains.
 
 - **OPEN-8 · The per-gait cornering envelope** — angle axis ANSWERED
   2026-08-28; speed axis remains. First tranche complete
@@ -194,6 +218,57 @@ itself in-line twice).
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED (was OPEN-6) · Boot-time "state estimate went non-finite —
+  reinitialising"** — closed 2026-08-28 night. **Symptom**: ~2/3 of every
+  run printed 1–3 non-finite-estimate lines in the first few
+  milliseconds, stable across three days (Aug 26 77/110, Aug 27 198/298,
+  Aug 28 167/233); blip-free runs passed missions cleanly, so it was
+  never fatal on its own and sat unexplained for exactly that reason.
+  **Root cause**: `VectorNavData` (`common/include/SimUtilities/IMUTypes.h`)
+  is a plain struct of Eigen members, and Eigen does NOT zero-initialise —
+  nothing ever initialised it, so the estimator read STACK GARBAGE on
+  control iterations 0 and 1, before the first sensor packet landed. Found
+  by instrumenting the guard itself to name the offending field and tick
+  (the item had stalled precisely because the old line said only THAT the
+  estimate was non-finite): `NONFINITE-FIELDS (1) t=0.002 iter=0 bad:
+  pos[0..2] vWorld[0..2] vBody[0..2] | quat=0.000 5.6e28 0.000 0.000
+  pos=nan nan nan`. A quaternion of magnitude 5.6e28 goes through
+  `quaternionToRotationMatrix` unnormalised, overflows, and the NaN
+  reaches the KF's own state — which is what the guard was catching.
+  **Fix, in two parts, and the second one is the interesting one**:
+  (a) default-initialise `VectorNavData` (identity quat, zero rates);
+  (b) `VectorNavData::valid`, raised by whichever backend actually
+  delivers a packet (gazebo, CAN IMU, VectorNav), with
+  `VectorNavOrientationEstimator` deferring its HEADING DATUM capture
+  until then, and `_ori_ini_inv` explicitly identity-initialised.
+  Part (b) exists because part (a) alone would have removed something
+  that was doing real work by accident: the estimator captures its datum
+  on first visit and keeps it for the whole run, and the old garbage was
+  non-finite, so `RobotRunner`'s guard caught it and RE-CREATED the
+  estimator — re-arming the capture until real data arrived. Clear the
+  garbage without gating the datum and every run latches its heading
+  reference to the default identity pose, i.e. the world frame instead of
+  the spawn pose — the same defect shape as the star freeze when velocity
+  aiding went default-on. **Evidence**: `unittests/boot_probe.py`, the
+  same 21 cells (host load 0/4/8 spinners we control, terrain flat/mud/
+  rough, gait, aiding on/off) run three times —
+
+  | | blips | runs with a blip | non-PASS |
+  |---|---|---|---|
+  | baseline | 38 | **18/21** | 0/21 |
+  | + default-init | 0 | **0/21** | 1/21 |
+  | + datum gate | 0 | **0/21** | 0/21 |
+
+  (`unittests/boot_blips_{baseline,defaultinit,datumgate}.csv`.) The
+  symptom is gone, and the plan's own success criterion — "a factor that
+  moves the rate, or a measured NULL" — was met in the strongest form:
+  NONE of load, terrain, gait or aiding moved the rate (every cell sat at
+  2–3 blips at `t=0.002 iter=0`), which is what said the cause was
+  deterministic boot state rather than a scheduling or physics transient,
+  and pointed the instrumentation at the right place. The one non-PASS in
+  the middle column (a load-8 tip) did not recur and is N=1 — it is NOT
+  claimed as evidence for part (b), which stands on its own correctness.
 
 - **CLOSED (was OPEN-4) · Four-or-more dogs fail before standing** — closed
   2026-08-28 as an ACCEPTED LIMITATION by operator decision ("I think we can
