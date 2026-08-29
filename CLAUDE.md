@@ -7962,3 +7962,243 @@ ceiling (~1.0 m/s), with no angle-specific weakness anywhere** - the
 indifferent to corner sharpness. The envelope table has no remaining
 uncovered cells for the usable gait set.
 
+
+## SESSION 2026-08-28/29: OPEN-6 root-caused, the instruments were lying, and the terrain was flat
+
+Five things landed. Two of them are corrections to work done EARLIER IN
+THE SAME SESSION, which is the part worth reading.
+
+### 1. OPEN-6 SOLVED: nothing ever initialised `VectorNavData`
+
+The boot-time `STATE ESTIMATE WENT NON-FINITE - reinitialising` line had
+been in ~2/3 of every run for three days and sat unexplained because the
+guard said only THAT the estimate was bad, never which field or when.
+Instrumenting the guard itself answered it on the first run:
+
+```
+NONFINITE-FIELDS (1) t=0.002 iter=0 bad: pos[0..2] vWorld[0..2] vBody[0..2]
+  | quat=0.000 55897929535656111338801856512.000 0.000 0.000 pos=nan nan nan
+```
+
+Control iterations 0 and 1, before the first sensor packet. `VectorNavData`
+(`common/include/SimUtilities/IMUTypes.h`) is a plain struct of Eigen
+members and **Eigen does not zero-initialise**, so the estimator read stack
+garbage. A quaternion of magnitude 5.6e28 goes through
+`quaternionToRotationMatrix` unnormalised, overflows, and the NaN reaches
+the KF's own state. Same defect class as the already-documented
+uninitialised `GamepadCommand`.
+
+**The fix is in two parts and the second one is the interesting one.**
+Default-initialising the struct (identity quat, zero rates) removes the
+undefined-behaviour read - but it also removes something that was doing
+real work BY ACCIDENT. `VectorNavOrientationEstimator` captures its heading
+DATUM on first visit and keeps it for the whole run; the old garbage was
+non-finite, so `RobotRunner`'s guard caught it and RE-CREATED the
+estimator, which re-armed the capture, over and over, until real data
+arrived. Clear the garbage without gating the datum and every run latches
+its heading reference to the default identity pose - the world frame
+instead of the spawn pose - which is the same defect shape as the star
+freeze when velocity aiding went default-on. So `VectorNavData` also
+carries a `valid` flag, raised by whichever backend actually delivers a
+packet (gazebo, CAN IMU, VectorNav - the hardware paths matter more here,
+since on hardware a never-captured datum would be permanent), and the
+estimator defers its capture until then. `_ori_ini_inv` is explicitly
+identity-initialised, because leaving an Eigen quat default-constructed
+there would reintroduce the exact defect being closed.
+
+**Evidence** - `unittests/boot_probe.py`, the same 21 cells (host load
+0/4/8 spinners we control, terrain flat/mud/rough, gait, aiding on/off),
+run three times:
+
+| build | blips | runs with a blip | non-PASS |
+|---|---|---|---|
+| baseline | 38 | **18/21** | 0/21 |
+| + default-init | 0 | **0/21** | 1/21 |
+| + datum gate | 0 | **0/21** | 0/21 |
+
+The plan's own success criterion was "a factor that moves the rate, or a
+measured NULL". It was met in the strongest form: NONE of load, terrain,
+gait or aiding moved the rate - every cell sat at 2-3 blips at
+`t=0.002 iter=0` - and that is what said the cause was deterministic boot
+state rather than a scheduling or physics transient, which is what pointed
+the instrumentation at the right place.
+
+### 2. THE PANEL'S INSTRUMENTS WERE ACCUSING THE ROBOT OF THE FEED'S SINS
+
+Operator report: "I keep randomly seeing [DESYNC]... sometimes I look up
+and the dog is moving and that message pops, other times it's just stopped
+dead." Both happen, and nothing could tell them apart, because every
+world-motion instrument on this panel - the drawn trail, the live DESYNC
+monitor, the post-run INVALID gate - reads ONE source: the in-process
+gz pose feed, which is the subject of OPEN-21 and dies as launches
+accumulate. When it goes quiet a healthy dog's displacement reads ZERO.
+
+Measured on runs that had already PASSED:
+
+| run | what the instrument said | what BRIDGE GPS says |
+|---|---|---|
+| 869 `dash:100` | DESYNC x2, "world/GPS moving 0.00 m/s" | lat 37.4275 -> 37.4284, **~100 m**, 1/1 wp, PASS |
+| 876 `sector:15:3` | INVALID, "flew 43.1 m of a 178.4 m plan" | GPS spans **16.7 x 18.6 m** - the right box for a 15 m flower - 17/17 wp, `RESULT: PASS` |
+| 870 / 877 | same, at 0.0 m of trail | same: the whole course flown |
+
+The `DESYNC -> CLEARED -> DESYNC -> CLEARED` alternation was the tell: a
+genuinely blocked dog does not recover and re-block every five seconds.
+The message text also NAMED GPS it never read - the monitor only ever
+differenced two pose samples.
+
+**Fix**: bridge GPS is now the independent ARBITER for both instruments.
+It comes off the sim's NavSat over UDP and is untouched by gz-transport.
+DESYNC will not fire while the pose feed is stale (`_pose_last_t` older
+than the tick - two stale reads difference to zero, indistinguishable from
+a stopped dog), and when a window does look bad it checks GPS first:
+GPS moving => log "pose feed is LYING, not the dog" and suppress. The gate
+splits a short trail into NOFEED (GPS span ~ the planned course's span:
+infrastructure, re-run) versus INVALID (GPS agrees the body did not move:
+a robot result). Validated offline against the archived bridge logs BEFORE
+shipping: run876 25.0 m GPS span vs 24.8 m plan span -> NOFEED, run870
+25.1 vs 25.5 -> NOFEED; a stationary dog still reads INVALID.
+
+**And this explains a suite cascade**: INVALID does not trigger the
+harness's conductor recycle, NOFEED does - so misclassifying a feed failure
+as INVALID sent it down the path that never recovers, and every case after
+the feed died inherited it.
+
+### 3. THE GEOMETRY TERRAINS WERE FLAT, AND AN 18/18 SWEEP MEASURED THE GENERATOR
+
+Caught before it became a capability claim, and only because the result
+looked too clean. `rough`/`rolling` passed 18 of 18 gait x speed cells, so
+the next question was what the dog had actually crossed. Sampling the
+generated heightmap along the 30 m dash corridor:
+
+```
+rough    0.142 m of relief over 30 m, max grade 1.9%
+rolling  0.102 m of relief over 30 m, max grade 1.5%
+```
+
+That is flat. Two causes, both in `terrain.py`:
+
+* **`GRID = 129` over a 400 m map is 3.12 m PER PIXEL**, so the finest
+  feature representable was ~6 m wide - about ten body lengths. `rough`
+  could not exercise foot placement at ANY amplitude, because all four feet
+  were always on one plane.
+* **The frequency bands were cycles-per-map**, not metres: `rough`'s band
+  of 6-14 meant wavelengths of **28-67 m**. The code comment said "short
+  bumps, meant to exercise foot placement"; the generator produced hills.
+  Both comments described the intent correctly and neither matched the
+  output.
+
+Fixed: `GRID = 1025` (0.39 m/px, shortest honest wavelength ~1.6 m - stride
+scale) and wavelengths declared in METRES (rough 1.5-6 m, rolling
+25-80 m). Verified on the regenerated maps before use, same corridor:
+
+| kind | relief over 30 m | mean grade | per-stride (0.35 m) height mismatch |
+|---|---|---|---|
+| rough | 0.141 m | 5.4% | mean **21 mm**, max **69 mm** |
+| rolling | **0.365 m** (was 0.102) | 2.9%, 41.5% local | up to **162 mm** |
+
+The per-stride mismatch is the number that matters - it is now impossible
+for all four feet to be on a common plane, which is the thing `rough`
+exists to test. And the 4x finer collision mesh was MEASURED free rather
+than assumed: a walking `dash:30` on the new terrain passes at `maxPeriod`
+2.99-3.14 ms with zero over-4 ms ticks. The coarse-grid rows are kept as
+`unittests/terrain_envelope_speed_coarsegrid.csv` - they are the evidence
+for this entry, not a result.
+
+### 4. A FAILED LAUNCH COULD TAKE THE CONDUCTOR DOWN AND ORPHAN THE SIM
+
+Operator: "that should not be a thing." It isn't any more, and the fix is
+in the server, not in each caller.
+
+* **No more "continuing anyway".** When the dogs never advertise sensors in
+  30 s the launch ABORTS: it tears the sim back down through the same
+  `_reap_and_confirm` every other teardown uses, sets `phase=error`, and
+  leaves the server idle. The old path started gz, found nothing to
+  subscribe to, carried on, and left a gz running with nobody to reap it -
+  idling at about a full core simulating an empty world.
+* **No child can outlive the server.** SIGTERM/SIGINT/SIGHUP now route
+  through the reaper, but a SIGKILL or a crash runs no handler and macOS
+  has no PDEATHSIG. Every child now gets a detached watcher that polls the
+  server's pid and kills it within ~2 s of the server disappearing, however
+  it disappears. Children start in their own SESSION so the watcher can
+  kill the process GROUP: the controller is `bash -> timeout ->
+  mit_ctrl_sim`, and killing the wrapper alone left the binary running
+  (measured - one survivor of four).
+* **No second server.** `main()` refuses to start if 8420 already answers.
+  Two listeners is worse than none: requests land on whichever the kernel
+  picks, so a wedged server beside a healthy one reads as "the panel is
+  hung" with nothing obviously wrong - which is exactly what the operator
+  hit, and it is why `conductor_ctl.restart_server` now confirms the port
+  is genuinely FREE (poll, then SIGKILL) before relaunching.
+
+Verified end to end rather than argued: with a full run in flight (gz,
+bridge, bash, timeout, mit_ctrl_sim, shm_reaper - 5 tracked children) the
+server was SIGKILLed and 9 s later **SURVIVORS: 0**.
+
+**One self-inflicted consequence, and its fix.** Making the abort FAST and
+CLEAN also made it look exactly like a quick robot failure: the overnight
+sweep recorded several cells as FAIL at ~29 s that never ran a mission.
+`mission_runner` now exits **3** with an unmissable banner for
+`phase=error` - the way exit 2 already means "harness timeout, not a
+verdict" - and both sweeps treat that as ABORTED: recycle and retry the
+same cell rather than grade it.
+
+### 5. THE MEASUREMENTS THIS BOUGHT
+
+**Terrain, friction axis (CLOSED-49)**: nine surface kinds, 44 cells across
+two phases. mu above a gait's demand line costs NO time; deviation scales
+with contact SOFTNESS not grip; ice is the only surface that fails
+anything, at trot+oval. Wired into the pre-planner as physics rather than a
+table - `a_lat_max <= 0.9 * mu * g`, applied in `plan()` before any
+geometry is built - and the rule REPRODUCES the measured data it was not
+fitted to: at the 2.5 default the cap binds only below mu ~= 0.283, which
+is ice alone.
+
+**Terrain, geometry axis**: on the FIXED terrain, 27 speed cells (flat as
+the control) and 9 angle cells.
+
+```
+                walking            trotting              trotRunning
+                1.0 1.5 2.0 2.5    1.5 2.0 2.5 3.0 3.5   2.0 3.0 3.5 4.0 4.5
+flat            P   P   P   -      P   P   P   -   -     P   P   P   -   -
+rough           P   P   P   FELL   P   P   P*  P   FELL  P   P   P   P   P
+rolling         P   P   P   P      P   P   P   P   P     P   P   P   P   P
+```
+`*` the one overnight FELL at rough/trotting/2.5 did NOT reproduce -
+3/3 PASS at ratio 1.00 on repeat, which is the repeat rule earning its
+keep again. The rough-specific edges (walking 2.5, trotting 3.5) are still
+N=1 and are being repeated.
+Deviation is the cleaner signal: walking's worst cross-track is 0.06-0.12 m
+on flat, 0.09-0.10 m on rolling, and **0.25-0.29 m on rough** - stride-scale
+relief perturbs foot placement, long-wavelength hills do not.
+Angle cells: 9/9 PASS at 45/90/135 deg on all three terrains, wall times
+matching across terrains to under 0.3 s. CAVEAT: the `xtrack` column on
+`corner:` cells reads 6.9-10.3 m and is IDENTICAL across terrains, so it is
+an artefact of measuring cross-track against a 2-point plan the dog starts
+25 m behind - not a deviation result.
+
+**Cornering, speed axis (OPEN-8)**: 34 valid cells at 45/90/135 deg.
+
+| gait | measured |
+|---|---|
+| trotting | **FELL at 3.0 and 3.5 at every angle** (3.0/45 deg reproduced 3/3) - ceiling is between 2.5 and 3.0 |
+| trotRunning | PASS at 4.0 AND 4.5, all angles - no ceiling found yet |
+| walking | PASS 2.0 all; 2.5 passes 45/90 but FELL at 135 - angle-dependent |
+| bounding | PASS at 1.5 and 2.0, all angles - no ceiling found |
+| galloping | PASS 1.1; FELL at 1.4 (45/90) - ceiling 1.1-1.4 |
+| pronking | PASS 0.8; 1.0 marginal |
+
+The old "trotting 2.5 PASS / 3.0 FAIL at >=120 deg" bracket predated the
+`x_comp_integral` windup fix and could not be cited; it is now re-measured
+on the current build and holds at EVERY angle, not just the tight ones.
+
+### 6. AND THE PROCESS FAILURE THAT COST THE MOST
+
+Twice the science was fine and the window was wasted anyway: a sweep
+finished at 00:49 and the panel sat for 55 minutes; an overnight campaign
+scoped for five hours finished in 82 minutes and the rig sat from 04:46
+until 09:50 - with the conductor dead in the meantime, so the idle time was
+invisible. This is now **RULE ONE in SKILL.md**, next to RULE ZERO: a
+finite chain is a bug, size the queue to the absence and double it, never
+make a background monitor the only plan, and gate every stage on the
+conductor actually answering so a dead server stops the sweep instead of
+filling a CSV with fiction.

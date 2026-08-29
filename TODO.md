@@ -47,6 +47,19 @@ Grouped by what it would actually take to close it.
 
 ## Genuine unsolved mysteries (cause not isolated — do not re-guess without new evidence)
 
+- [ ] **gz-transport discovery silently fails at launch** (`0/N dogs
+      advertised sensors`) even on loopback with `GZ_IP=127.0.0.1` set —
+      the world builds, gz starts, no sensor topic ever appears, and
+      `gz.log` is EMPTY, which is itself the clue: the failure is silent.
+      Mitigated (the launch now aborts cleanly, `mission_runner` exit 3,
+      sweeps retry rather than record) but not root-caused. ISSUES OPEN-22.
+- [ ] **The gz pose feed needed a recycle 3 times in ~20 launches** on
+      2026-08-29 — worse than the ~25 previously documented. Harnesses
+      recover, so this costs wall time rather than correctness, but the
+      root fix (pose subscription in a per-run subprocess, so transport
+      state dies with each run instead of accumulating) is the
+      highest-value infrastructure item open. ISSUES OPEN-21.
+
 - [ ] **The zero-debounce orientation ESTOP occasionally fires, and WHY it
       fires is still not isolated** — two distinct manifestations seen so
       far, and it is not yet known whether they share one cause:
@@ -179,10 +192,15 @@ Grouped by what it would actually take to close it.
       `BalanceController` demo controllers' own per-tick bodies (their
       one-shot boot-time construction messages were left as printf) -
       flag for a future pass if any of those turn out to matter.
-- [ ] **Four or more dogs in one fleet always fail at boot** with `STATE
-      ESTIMATE WENT NON-FINITE`. Ruled out: real-time factor, loop
-      starvation, sensor topic wiring, a startup race (readiness gate didn't
-      fix it), settling time (20s didn't either).
+- [x] **Four or more dogs in one fleet always fail at boot** with `STATE
+      ESTIMATE WENT NON-FINITE`. CLOSED 2026-08-28 as an accepted limitation
+      by operator decision, with an automatic downgrade to 2 dogs and a
+      warning when 3 give trouble (ISSUES CLOSED (was OPEN-4)). Note the
+      SINGLE-dog version of that same message was a genuinely different bug
+      and is now fixed: `VectorNavData` was never initialised, so the
+      estimator read stack garbage at control iterations 0-1 — 38 blips over
+      21 runs went to 0 (ISSUES CLOSED (was OPEN-6)). Whether that also
+      moves the N>=4 case has NOT been re-tested.
 - [ ] **The trotting 100 m dash fails 0/6 in a 3-dog fleet but passes
       reliably solo**, with clean loop health (p50 2.48-2.92ms, 0% over
       4ms) and RTF 1.005 in both cases. trotRunning and walking dashes are

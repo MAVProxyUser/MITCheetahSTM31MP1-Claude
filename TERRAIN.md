@@ -269,3 +269,99 @@ Which reproduces Phase 1b's own measured outcome — ice was the only
 surface that failed anything, and it failed at trot+oval, the highest
 lateral demand in the matrix. The rule and the data agree without the
 rule having been fitted to the data.
+
+## Phase 3 EXECUTED (2026-08-29): the geometry axis - and the generator bug that nearly faked it
+
+### The correction first, because it invalidates an earlier result
+
+An 18-cell gait x speed sweep passed **18/18** on `rough` and `rolling`,
+and that number measured the GENERATOR, not the gaits. Sampling the
+generated heightmap along the 30 m dash corridor showed what the dog had
+actually crossed:
+
+    rough    0.142 m of relief over 30 m, max grade 1.9%
+    rolling  0.102 m of relief over 30 m, max grade 1.5%
+
+Flat. Two causes, both in `terrain.py`, and both had a correct comment
+sitting directly above incorrect code:
+
+* `GRID = 129` over a `SIZE_M = 400` map is **3.12 m per pixel**. The finest
+  representable feature was ~6 m wide - about ten body lengths - so `rough`
+  could not exercise foot placement at any amplitude: all four feet were
+  always on one plane.
+* the frequency bands were **cycles-per-map**, not metres. `rough`'s 6-14
+  meant wavelengths of **28-67 m**. The comment said "short bumps... meant
+  to exercise foot placement rather than balance on a slope".
+
+Fixed: `GRID = 1025` (0.39 m/px; shortest honest wavelength ~1.6 m, which
+is stride scale) and wavelengths declared in metres - rough 1.5-6 m,
+rolling 25-80 m. Verified on the regenerated maps BEFORE re-running
+anything, same corridor:
+
+| kind | relief / 30 m | mean grade | per-stride (0.35 m) height mismatch |
+|---|---|---|---|
+| rough | 0.141 m | 5.4% | mean **21 mm**, max **69 mm** |
+| rolling | **0.365 m** (was 0.102) | 2.9% (41.5% local) | up to **162 mm** |
+
+The per-stride mismatch is the number that matters: it is now impossible
+for all four feet to sit on a common plane, which is the whole point of
+`rough`. The finer collision mesh was measured free rather than assumed -
+a walking `dash:30` on the new terrain passes at `maxPeriod` 2.99-3.14 ms
+with zero over-4 ms ticks. The coarse-grid rows are kept as
+`unittests/terrain_envelope_speed_coarsegrid.csv`: evidence, not a result.
+
+### The envelope, on ground that can actually challenge a gait
+
+`unittests/terrain_envelope.py`, `dash:30`, ladders run LOW TO HIGH with
+EVERY rung measured (never stop at the first failure - this project has
+twice retracted a ceiling that came from a stop-at-first-failure ladder),
+all cells through the flown-vs-planned ground-truth gate.
+
+```
+                walking            trotting              trotRunning
+                1.0 1.5 2.0 2.5    1.5 2.0 2.5 3.0 3.5   2.0 3.0 3.5 4.0 4.5
+flat            P   P   P   -      P   P   P   -   -     P   P   P   -   -
+rough           P   P   P   FELL   P   P   P*  P   FELL  P   P   P   P   P
+rolling         P   P   P   P      P   P   P   P   P     P   P   P   P   P
+```
+
+`*` the single overnight FELL at rough/trotting/2.5 did **not** reproduce -
+3/3 PASS at ratio 1.00. The two remaining rough-specific edges (walking
+2.5, trotting 3.5) are still N=1 and are being repeated before either is
+called a ceiling.
+
+**Deviation is the cleaner signal than pass/fail.** Worst cross-track for
+walking:
+
+| terrain | xtrack_max |
+|---|---|
+| flat | 0.06-0.12 m |
+| rolling | 0.09-0.10 m |
+| **rough** | **0.25-0.29 m** |
+
+Rough costs ~2.5x the deviation of flat; rolling costs nothing. That is
+exactly the shape the geometry predicts - `rough`'s stride-scale relief
+perturbs foot placement, `rolling`'s long-wavelength hills are something
+the body walks over without the feet ever disagreeing.
+
+### Angles on terrain
+
+9/9 PASS at 45/90/135 deg on flat/rough/rolling (trotting @1.5), wall
+times matching across terrains to under 0.3 s - cornering at these angles
+is simply unaffected by the ground.
+
+**CAVEAT, recorded so nobody quotes it as a result**: the `xtrack` column
+on `corner:` cells reads 6.9-10.3 m and is IDENTICAL across the three
+terrains for a given angle. That is an artefact of measuring cross-track
+against a 2-point plan the dog starts 25 m behind, not a deviation
+measurement. Only the verdict and the wall time are meaningful in those
+rows.
+
+### What this means for the pre-planner
+
+`v_terrain_max` / `$WP_TERRAIN_VMAX` is still deliberately UNSET on every
+kind. On the friction axis Phase 1b showed mu above a gait's demand costs
+no time, so there is nothing to encode; on the geometry axis the only
+candidate ceilings are the two N=1 rough edges above, and encoding a
+ceiling from a single sample is precisely the mistake this program exists
+to avoid. The mechanism is shipped and inert, waiting on repeats.

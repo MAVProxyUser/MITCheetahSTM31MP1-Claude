@@ -18,7 +18,10 @@ archive), this file is the index of where we've been and what's left. Rules:
 
 Last validation: **19/19 fast-suite PASS** (2026-08-28 ~23:20 + two
 re-runs ~23:55, on the build carrying the OPEN-6 boot fix, the terrain
-planner caps and the GPS-arbitrated instruments). Read honestly: the run
+planner caps and the GPS-arbitrated instruments). NOT yet re-run on the
+2026-08-29 conductor changes (launch-abort, orphan watchdog, single-server
+guard) - those are server-side and touch no controller code, but the suite
+is the thing that says so and it is queued. Read honestly: the run
 itself scored 17/19 with `sector_recipe` and `lissajous_5_7` FAILing, and
 both were the OPEN-21 pose feed, not the robot - sector's bridge GPS
 spanned the correct 16.7 x 18.6 m box with 17/17 waypoints and
@@ -32,6 +35,22 @@ passed on its own in-suite retry.
 ## OPEN
 
 ### In progress
+
+- **OPEN-22 · gz-transport discovery intermittently fails at launch
+  (`0/N dogs advertised sensors`)** — opened 2026-08-29. The world builds
+  fine and gz starts, but no sensor topic ever appears, so nothing can
+  subscribe. Same family as the documented multicast-route failure that
+  `GZ_IP=127.0.0.1` fixed, but this one happens on loopback with that
+  already set, so it is NOT the same cause. `MITIGATED`, not solved: the
+  launch now ABORTS cleanly instead of "continuing anyway" — it tears the
+  sim down through `_reap_and_confirm`, sets `phase=error`, and leaves the
+  server idle, and `mission_runner` reports it as **exit 3** (`LAUNCH
+  ABORTED BY THE SERVER`) so callers retry the cell rather than recording a
+  verdict. Before that mitigation this single failure took the conductor
+  down, orphaned a gz at ~a full core, and let a sweep write nine cells as
+  FAIL that never ran. Root cause not isolated: it needs the gz side
+  instrumented at the moment discovery fails (gz.log was empty, which is
+  itself a clue — the failure is silent).
 
 - **OPEN-21 · The panel's gz pose feed degrades across accumulated
   in-process launches** — opened 2026-08-28, caught live by the new
@@ -61,6 +80,15 @@ passed on its own in-suite retry.
   with each run instead of accumulating. Until then: restart the server
   before/between long campaigns; a NOFEED row is a re-run, never a
   verdict.
+
+  **Frequency, measured 2026-08-29**: the feed died and needed a recycle
+  **3 times in ~20 launches** during one geometry sweep — considerably
+  worse than the ~25 launches documented above, and it is now the single
+  largest tax on any long campaign. Every harness recycles and re-runs the
+  cell, so the campaigns complete; the cost is wall time, not correctness.
+  The root fix (pose subscription in a per-run SUBPROCESS so transport
+  state dies with each run instead of accumulating) is still scoped and not
+  built, and is the highest-value infrastructure item on this board.
 
   **2026-08-28 night — the feed was corrupting the INSTRUMENTS, not just
   the trail, and that is now fixed.** Operator report: "I keep randomly
@@ -101,49 +129,52 @@ passed on its own in-suite retry.
   went star INCONCLUSIVE→PASS on retry, then 8 PASS, then three "FAIL"s
   that were all this).
 
-- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — the friction
-  axis is done and closed separately (CLOSED-49). What is left is the
-  ground that has SHAPE rather than just grip: `rough` (±0.15 m short
-  wavelength) and `rolling` (±0.35 m hills), where the gaits command every
-  foot to a fixed depth below the body and the ground is not where that
-  assumes.
-  1. **Measure the envelope** — gait × speed on each geometry kind, and
-     corner angle on each, through the ground-truth gate.
-     `unittests/terrain_envelope.py` is built for exactly this (speed
-     ladders on `dash:30`, angle cells on `corner:25:<angle>`, both
-     resumable, NOFEED cells recycle the conductor rather than recording a
-     fake failure).
-  2. **Write the limitations down as limits.** Known going in: walking on
-     rolling/rough is intermittent, and when it fails it fails SILENTLY —
-     the estimator completes the course while the body does not (0/4 in
-     the first matrix batch, then 2/2 solo; the flip was never isolated).
-     That is why every terrain cell must come through the gate, and why
-     the gate itself now arbitrates with bridge GPS (see OPEN-21).
-  3. **Feed the measured ceiling to the pre-planner.** The mechanism is
-     already shipped and inert: `BodyLimits::v_terrain_max` /
-     `$WP_TERRAIN_VMAX`, deliberately UNSET on every kind because nothing
-     has measured a ceiling to put there yet. Part 1 produces the number;
-     encoding a guess ahead of it is the exact failure this whole program
-     exists to avoid. DEM/heightmap sampling at waypoint-generation time
-     (so the plan knows the ground PROFILE, not just a scalar cap) also
-     remains.
+- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `MEASURED, one
+  open question left`. The envelope and the angle cells are done and closed
+  separately (CLOSED-50); what remains is whether `rough` has a real
+  speed ceiling.
+  On the FIXED terrain (see CLOSED-50 for the generator bug that made the
+  first attempt meaningless), two cells failed on `rough` that pass on
+  `rolling` — **walking @2.5** and **trotting @3.5** — and both are N=1.
+  A third, trotting @2.5, ALSO failed once and then passed 3/3 on repeat at
+  ratio 1.00, which is exactly why neither of the remaining two may be
+  called a ceiling yet. Repeats are running.
+  **If they reproduce**, `BodyLimits::v_terrain_max` / `$WP_TERRAIN_VMAX`
+  (shipped, inert, unset on every kind) gets `rough`'s number and this
+  closes. **If they do not**, the honest result is that no geometry ceiling
+  exists inside the tested envelope and the field stays unset — which is
+  also a close, just a different one. Encoding a ceiling from a single
+  sample is the mistake this whole program exists to avoid.
+  Still open beyond that: DEM/heightmap SAMPLING at waypoint-generation
+  time, so the plan knows the ground PROFILE rather than a scalar cap.
 
-- **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — the
-  angle axis is done and closed separately (CLOSED-48); what is left is
-  the literal "how fast into X degrees before it lets go" question.
-  Per-angle speed LADDERS per gait, on `corner:25:<angle>` probes so the
-  angle is the only thing that varies and no other course's tuning rides
-  along. The one bracket this project has ever measured — trotting 2.5
-  PASS / 3.0 FAIL at ≥120° — PREDATES the `x_comp_integral` windup fix,
-  so it is not evidence about the current build and has to be
-  re-measured, not cited. Harness is built and resumable:
-  `corner_sweep.py --gait <g>:<speed> --angles <list>` per rung, REFUSED/
-  TIMEOUT cells self-retry, measured cells skip.
+- **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
+  TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at
+  45/90/135° on solo `corner:25:<angle>` probes, ladders run low to high
+  with every rung measured:
+
+  | gait | measured | what it means |
+  |---|---|---|
+  | trotting | FELL at 3.0 AND 3.5 at every angle; 3.0/45° reproduced **3/3** | ceiling between 2.5 and 3.0 |
+  | trotRunning | PASS at 4.0 **and 4.5**, all angles | no ceiling found yet |
+  | walking | PASS 2.0 all; 2.5 passes 45/90 but FELL at 135° | angle-dependent |
+  | bounding | PASS at 1.5 and 2.0, all angles | no ceiling found yet |
+  | galloping | PASS 1.1; FELL at 1.4 (45/90) | ceiling 1.1–1.4 |
+  | pronking | PASS 0.8; 1.0 marginal | ceiling ~0.8–1.0 |
+
+  **This retires a citation that could not be used.** The old "trotting 2.5
+  PASS / 3.0 FAIL at ≥120°" bracket predated the `x_comp_integral` windup
+  fix, so it was not evidence about the current build. Re-measured, it
+  holds — and at EVERY angle, not just the tight ones, which makes it a
+  speed limit rather than a cornering one.
+  **What is left**: finer rungs inside each bracket (trotting 2.6/2.8,
+  galloping 1.2/1.3, pronking 0.9/1.0), ×3 repeats on every N=1 non-PASS,
+  and the wider angle grid (30/60/75/105/120/150/165°) at each gait's
+  measured ceiling. All of it is running; `corner_sweep.py` is resumable
+  and now recycles rather than records when a launch aborts.
   **Method constraint, learned twice in this file**: run the ladder LOW to
   HIGH and measure EVERY rung — a stop-at-first-failure ladder has twice
-  recorded a ceiling here that had to be retracted, because a marginal
-  cell that fails one rung and passes the next is the normal case on this
-  stack, not an anomaly.
+  recorded a ceiling here that had to be retracted.
 
 ### Hardware (nothing in this repo is hardware-validated)
 
@@ -199,6 +230,41 @@ passed on its own in-suite retry.
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED-50 · Terrain, GEOMETRY axis: the envelope, the angle cells, and
+  the generator bug underneath both** (split out of OPEN-7, closed
+  2026-08-29) — **symptom**: `rough`/`rolling` passed 18 of 18 gait × speed
+  cells, which was too clean. **Root cause of the false result**: the
+  terrain generator could not produce ground rough enough to challenge
+  anything. `GRID = 129` over a 400 m map is **3.12 m per pixel**, so the
+  finest representable feature was ~6 m — about ten body lengths, meaning
+  all four feet were always on one plane — and the frequency bands were
+  written as cycles-per-map rather than metres, so `rough`'s band of 6–14
+  meant wavelengths of **28–67 m**. Both code comments described the intent
+  correctly ("short bumps... exercise foot placement") and neither matched
+  the output. Measured along the 30 m dash corridor, the ground the dog
+  actually crossed was 0.10–0.14 m of relief at a **≤1.9% grade**: flat.
+  **Fix**: `GRID = 1025` (0.39 m/px, shortest honest wavelength ~1.6 m —
+  stride scale) and wavelengths declared in metres (rough 1.5–6 m, rolling
+  25–80 m), verified on the regenerated maps BEFORE re-running anything —
+  rough now gives a per-stride (0.35 m) height mismatch of 21 mm mean /
+  69 mm max where it was ~0, and rolling 0.365 m of relief where it was
+  0.102. The 4× finer collision mesh was measured free, not assumed:
+  `maxPeriod` 2.99–3.14 ms, zero over-4 ms ticks.
+  **Result on real ground**: 27 speed cells (flat as the control) and 9
+  angle cells. flat and rolling pass every rung tried, up to walking 2.5 /
+  trotting 3.5 / trotRunning 4.5. Angles: **9/9 PASS at 45/90/135° on all
+  three terrains**, wall times matching across terrains to under 0.3 s.
+  The useful signal is DEVIATION, not pass/fail — walking's worst
+  cross-track is 0.06–0.12 m on flat, 0.09–0.10 m on rolling and
+  **0.25–0.29 m on rough**, which is the shape the geometry predicts:
+  stride-scale relief perturbs foot placement, long-wavelength hills do
+  not. The coarse-grid rows are kept as
+  `unittests/terrain_envelope_speed_coarsegrid.csv` — evidence for this
+  entry, not a result. **Caveat recorded so nobody quotes it**: the
+  `xtrack` column on `corner:` cells reads 6.9–10.3 m and is identical
+  across terrains, an artefact of measuring cross-track against a 2-point
+  plan the dog starts 25 m behind.
 
 - **CLOSED-49 · Terrain-aware planning, FRICTION axis** (split out of
   OPEN-7, closed 2026-08-28 night, d9cde6e) — **characterised, documented,
