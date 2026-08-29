@@ -45,11 +45,13 @@ import os
 import re
 import socketserver
 import shutil
+import signal
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAZEBO_DIR = os.path.abspath(os.path.join(HERE, ".."))
@@ -816,6 +818,45 @@ class Fleet:
     # completely separate path (UDP to the controller, no gz-transport),
     # so it is genuinely independent of the failing feed. Read
     # incrementally by byte offset - this runs once per dog per second.
+    def _watch_child(self, proc):
+        """Make sure this child cannot outlive us.
+
+        Normal teardown reaps every child through _reap_and_confirm, and
+        SIGTERM/SIGINT/SIGHUP now route there too - but a SIGKILL or a hard
+        crash runs no handler at all, and macOS has no PDEATHSIG, so the
+        child simply survives. Every one of ours is harmful as an orphan: a
+        stray gz idles at about a full core simulating an empty world, and a
+        stray bridge keeps holding UDP 9100/9101, which this project has
+        already lost a day to (a fresh controller talking to a bridge with
+        no sim behind it, reporting a frozen roll of exactly -3.14159).
+        So each child gets a detached watcher that polls OUR pid and kills
+        it within ~2 s of us disappearing, however we disappear.
+        """
+        try:
+            # Kill the process GROUP, not just the pid, when the child leads
+            # one. The controller is launched as `bash -c "... timeout 900
+            # ./mit_ctrl_sim ..."`, so the thing we hold a handle to is two
+            # levels above the binary: SIGKILLing it reaped the wrapper and
+            # left ./mit_ctrl_sim running (measured - one survivor out of
+            # four children). A group kill takes the whole tree. Guarded on
+            # the child actually BEING the group leader, because if it is
+            # not, its group is OURS and killing it would take the server
+            # down with it.
+            try:
+                leads_group = os.getpgid(proc.pid) == proc.pid
+            except OSError:
+                leads_group = False
+            target = "-%d" % proc.pid if leads_group else "%d" % proc.pid
+            subprocess.Popen(
+                ["sh", "-c",
+                 "while kill -0 %d 2>/dev/null; do sleep 2; done; "
+                 "kill -9 %s 2>/dev/null" % (os.getpid(), target)],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:  # noqa: BLE001 - never break a launch over this
+            self._note("could not arm the orphan watchdog for pid %d: %r"
+                        % (proc.pid, e))
+
     def _bridge_gps(self, i):
         """Latest (lat, lon) the bridge logged for dog i, or None."""
         st = self._gps_tail.setdefault(i, dict(off=0, fix=None, box=None))
@@ -1437,8 +1478,10 @@ class Fleet:
             gz_log = open(os.path.join(RUN_DIR, "gz.log"), "w")
             p = subprocess.Popen(["gz", "sim", "-s", "-r", world_out],
                                   cwd=GAZEBO_DIR, env=env, stdout=gz_log,
-                                  stderr=subprocess.STDOUT)
+                                  stderr=subprocess.STDOUT,
+                                  start_new_session=True)
             self.procs.append(p)
+            self._watch_child(p)
 
             self._note("waiting for %d dog(s) to advertise sensors" % len(locked))
             deadline = time.time() + 30
@@ -1452,8 +1495,31 @@ class Fleet:
                         ready.add(s["index"])
                 time.sleep(1)
             if len(ready) < len(locked):
-                self._note("only %d/%d dogs came up - continuing anyway"
-                            % (len(ready), len(locked)))
+                # ABORT. This used to say "continuing anyway", and that one
+                # decision is what cost the operator an evening: the sensors
+                # never advertised (the documented gz-transport discovery
+                # failure), the run was dead on arrival, the pose
+                # subscription that follows had nothing to attach to, and
+                # the gz we had just started was left running with nobody
+                # to reap it - idling at about a full core simulating an
+                # empty world. Downstream, a sweep kept firing cells at the
+                # wreckage and recorded nine of them as FAIL without a
+                # mission ever running. A launch that cannot work must fail
+                # LOUDLY and CLEANLY, leaving the server idle and the host
+                # quiet, not half-started.
+                self._note("only %d/%d dogs advertised sensors in 30 s - "
+                            "ABORTING this launch and tearing the sim back "
+                            "down (gz-transport discovery failure; the world "
+                            "built fine, nothing subscribed). Re-launch to "
+                            "retry." % (len(ready), len(locked)))
+                self._teardown_done.clear()
+                try:
+                    self._reap_and_confirm(list(self.procs))
+                finally:
+                    self._teardown_done.set()
+                with self.lock:
+                    self.phase = "error"
+                return
 
             self._name_to_index = {"go1_%d" % s["index"]: s["index"] for s in locked}
             self._gz_env = env   # kept for the poller's pose-feed self-heal
@@ -1473,8 +1539,10 @@ class Fleet:
                 bp = subprocess.Popen(
                     [PYBIN, "-u", "cheetah_gazebo_bridge.py"],
                     cwd=GAZEBO_DIR, env=dict(senv, BRIDGE_CONV="mit"),
-                    stdout=blog, stderr=subprocess.STDOUT)
+                    stdout=blog, stderr=subprocess.STDOUT,
+                    start_new_session=True)
                 self.procs.append(bp)
+                self._watch_child(bp)
                 self._note("dog%d bridge up (%s, ports %d/%d)"
                             % (i, name, 9100 + 10 * i, 9101 + 10 * i))
 
@@ -1548,9 +1616,16 @@ class Fleet:
                 ctrl_log_path = os.path.join(RUN_DIR, "ctrl_%d.log" % i)
                 archive_log(ctrl_log_path, self.run_id - 1)
                 clog = open(ctrl_log_path, "w")
+                # start_new_session so this bash -> timeout -> mit_ctrl_sim
+                # chain is its own process GROUP: killing the wrapper alone
+                # left ./mit_ctrl_sim running (measured), and a group kill
+                # takes the whole chain.
                 cp = subprocess.Popen(["bash", "-c", cmd], cwd=HOST_RUN,
-                                       env=cenv, stdout=clog, stderr=subprocess.STDOUT)
+                                       env=cenv, stdout=clog,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
                 self.procs.append(cp)
+                self._watch_child(cp)
                 # THE PRINTF REPLACEMENT'S OTHER HALF. RobotRunner.cpp and
                 # mit_sim_main.cpp no longer write their debug/event lines
                 # to stdout at all (see ShmTrace.h) - they go into a SHM
@@ -1569,6 +1644,10 @@ class Fleet:
                 # optional extra. Torn down with every other process on
                 # stop/done (self.procs is killed as one list).
                 tbp = subprocess.Popen(
+                    # own session: the tail reaper holds NO port, so the
+                    # launch-time port sweep cannot see it, and a stale one
+                    # appends the PREVIOUS run's text into the NEW run's log
+                    # (documented). It must die with us like everything else.
                     ["python3", os.path.join(GAZEBO_DIR, "shm_reaper.py"),
                      "--tail-text", str(i), "--append-to", ctrl_log_path,
                      "--poll", "0.2",
@@ -1578,8 +1657,9 @@ class Fleet:
                      # ShmTrace only unlinks at startup - can never be
                      # replayed into this run's fresh log. It did exactly
                      # that earlier tonight and produced a false PASS.
-                     "--expect-run-id", str(self.run_id)])
+                     "--expect-run-id", str(self.run_id)], start_new_session=True)
                 self.procs.append(tbp)
+                self._watch_child(tbp)
                 dash_note = (" +dash %.0fm" % s["dash"]) if s.get("dash") else ""
                 self._note("dog%d LOCKED: %s gait=%s cmd=%.2f m/s (cap %.2f) %s%s"
                             % (i, s["mission"], s["gait_name"], s["speed"],
@@ -2409,8 +2489,46 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self._json({"ok": False, "error": "no such route"}, 404)
 
 
+def _shutdown(signum, _frame):
+    """Reap the fleet before dying. Without this a SIGTERM - which is how
+    every restart path stops the server - leaves gz/bridge/controller
+    children running, and the next server starts blind to them (self.procs
+    is empty in a fresh process). The per-gz parent-death watchdog covers
+    the SIGKILL/crash case; this covers the polite one, and does it through
+    the same _reap_and_confirm every other teardown uses."""
+    try:
+        print("[conductor] signal %d - reaping the fleet before exit" % signum,
+              flush=True)
+        FLEET._reap_and_confirm(list(FLEET.procs))
+    except Exception as e:  # noqa: BLE001 - dying anyway, say why
+        print("[conductor] teardown on exit failed: %r" % e, flush=True)
+    os._exit(0)
+
+
 def main():
     os.makedirs(RUN_DIR, exist_ok=True)
+    # REFUSE TO BE THE SECOND SERVER. allow_reuse_address plus a previous
+    # instance that has not finished dying is enough to end up with two
+    # processes answering on 8420, and then the browser's requests land on
+    # whichever the kernel picks - so a wedged server sitting next to a
+    # healthy one reads as "the panel is hung" with nothing obviously wrong.
+    # Measured exactly that. Checking first turns a confusing hang into a
+    # one-line refusal.
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/api/state" % PORT,
+                                     timeout=3) as f:
+            f.read(1)
+        print("A conductor is ALREADY answering on %d - refusing to start a "
+              "second one. Stop that one first (POST /api/stop, then kill "
+              "it) or use conductor_ctl.restart_server()." % PORT, flush=True)
+        raise SystemExit(1)
+    except SystemExit:
+        raise
+    except Exception:  # noqa: BLE001 - nothing there, which is what we want
+        pass
+    signal.signal(signal.SIGTERM, _shutdown)
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGHUP, _shutdown)
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     with socketserver.ThreadingTCPServer(("127.0.0.1", PORT), Handler) as httpd:
         print("Conductor on http://127.0.0.1:%d" % PORT, flush=True)

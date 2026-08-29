@@ -1,0 +1,10 @@
+terrain,angle_deg,gait,speed,verdict,t_s,wall_s,ratio,xtrack_max_m,when
+flat,45,trotting,1.5,PASS,32.8,68.9,0.68,6.93,2026-08-29 02:12:52
+flat,90,trotting,1.5,PASS,33.2,72.4,0.81,10.31,2026-08-29 02:14:09
+flat,135,trotting,1.5,PASS,35.8,70.6,1.10,9.98,2026-08-29 02:16:46
+rough,45,trotting,1.5,PASS,32.8,69.1,0.68,6.89,2026-08-29 02:17:59
+rough,90,trotting,1.5,PASS,33.3,68.7,0.81,10.29,2026-08-29 02:19:12
+rough,135,trotting,1.5,PASS,35.9,71.1,1.11,9.96,2026-08-29 02:20:28
+rolling,45,trotting,1.5,PASS,32.6,72.7,0.68,6.88,2026-08-29 02:21:44
+rolling,90,trotting,1.5,PASS,33.1,74.7,0.55,10.33,2026-08-29 02:23:04
+rolling,135,trotting,1.5,PASS,35.9,70.7,1.11,9.98,2026-08-29 02:25:41
