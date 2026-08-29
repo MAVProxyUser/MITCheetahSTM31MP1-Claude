@@ -84,7 +84,16 @@ def surface_xml(spec):
             % (s["kp"], s["kd"], s["min_depth"], s["mu"], s["mu"], torsional))
 
 SIZE_M = 400.0     # matches the existing ground_plane's <size>
-GRID = 129         # 2^7+1 - the conventional heightmap dimension for terrain engines
+# 2^n+1 is the conventional heightmap dimension for terrain engines. 129
+# over a 400 m map is 3.12 m PER PIXEL, and that silently made the geometry
+# kinds meaningless: the finest feature representable was ~6 m wide - about
+# ten body lengths - so "rough" could not exercise foot placement at all,
+# and a measured 30 m dash corridor came out at 0.10-0.14 m of relief at a
+# <=1.9% grade, i.e. flat. An 18-cell gait x speed sweep duly passed 18/18
+# on it, which measured the GENERATOR, not the gaits. 1025 gives 0.39 m per
+# pixel, so the shortest honestly-representable wavelength (~4 px) is ~1.6 m
+# - stride scale, which is the scale the claim is about.
+GRID = 1025
 
 
 def _png(path, w, h, gray_rows):
@@ -132,22 +141,32 @@ def generate(kind, out_path, seed_text="", flatten_radius_m=2.0):
     X, Y = np.meshgrid(x, y)
     z = np.zeros_like(X)
 
+    # WAVELENGTHS ARE IN METRES, converted to cycles-per-map here. They used
+    # to be written directly as cycles-per-map (rolling 1-3, rough 6-14),
+    # which reads like a frequency band but on a 400 m map meant rolling
+    # hills 133-400 m long and "short bumps" 28-67 m long. Both comments
+    # described the intent correctly and neither matched what was generated.
+    def _band(lo_m, hi_m):
+        return SIZE_M / rng.uniform(lo_m, hi_m, 2)   # -> (fx, fy) cycles/map
+
     if kind == "rolling":
-        # A handful of random low-frequency sine components - smooth hills,
-        # nothing sharper than the robot's own footprint needs to negotiate.
+        # Smooth hills on the scale of a whole mission leg: the robot is
+        # walking up and down something, never stepping over it.
         for _ in range(5):
-            fx, fy = rng.uniform(1, 3, 2)
+            fx, fy = _band(25.0, 80.0)
             phase = rng.uniform(0, 6.283)
             amp_k = rng.uniform(0.4, 1.0)
             z += amp_k * np.sin(2 * np.pi * fx * X + phase) * np.cos(2 * np.pi * fy * Y)
         z /= max(1e-6, np.abs(z).max())
     elif kind == "rough":
-        # High-frequency components dominate - short bumps, small amplitude,
-        # meant to exercise foot placement rather than balance on a slope.
+        # Stride-scale relief: 1.5-6 m wavelengths, so a single stride crosses
+        # a meaningful fraction of one and the four feet are genuinely NOT on
+        # a common plane. That is the whole point of this kind, and it is what
+        # the old band could not express at any amplitude.
         for _ in range(30):
-            fx, fy = rng.uniform(6, 14, 2)
+            fx, fy = _band(1.5, 6.0)
             phase = rng.uniform(0, 6.283)
-            amp_k = rng.uniform(0.2, 1.0) / fx
+            amp_k = rng.uniform(0.2, 1.0) * (SIZE_M / max(fx, fy)) / 6.0
             z += amp_k * np.sin(2 * np.pi * fx * X + phase) * np.sin(2 * np.pi * fy * Y)
         z /= max(1e-6, np.abs(z).max())
     # Flatten a margin at the centre so every dog's spawn point is level - a
