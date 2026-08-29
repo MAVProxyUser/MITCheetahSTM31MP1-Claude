@@ -102,6 +102,7 @@ os.environ["GZ_IP"] = "127.0.0.1"
 sys.path.insert(0, GAZEBO_DIR)
 from trail_daemon import mission_waypoints  # noqa: E402
 
+DISCOVERY_STATS = os.path.join(RUN_DIR, "discovery_stats.json")
 _GPS_RE = re.compile(r"gps=\(([-0-9.]+),([-0-9.]+)\)")
 
 
@@ -691,6 +692,7 @@ class Fleet:
         self.planned = {}            # index -> [[x,y], ...] world frame, frozen at launch
         self.positions = {}          # index -> {"x","y","z","yaw","speed","trail":[[x,y],...]}
         self._gps_tail = {}          # index -> byte offset + last fix in bridge_N.log
+        self._discovery_failed_this_run = False   # OPEN-22
         self._name_to_index = {}     # "go1_2" -> 2, for the pose subscriber
         self._last_pose = {}         # index -> (x, y, t) for the speed EMA
         self._gz_node = None         # keep the Node alive - gc'ing it drops the subscription
@@ -818,6 +820,65 @@ class Fleet:
     # completely separate path (UDP to the controller, no gz-transport),
     # so it is genuinely independent of the failing feed. Read
     # incrementally by byte offset - this runs once per dog per second.
+    # ---- OPEN-22 discovery statistics -------------------------------------
+    # "tracking how often it occurs can help us decide if we put more effort
+    # into a fix" (operator, 2026-08-29). Persisted across server restarts,
+    # because the whole point is a rate over many launches - an in-memory
+    # counter would reset exactly when the failure takes the server with it.
+    def _discovery_stats(self):
+        try:
+            with open(DISCOVERY_STATS) as f:
+                return json.load(f)
+        except Exception:  # noqa: BLE001
+            return dict(launches=0, failed_launches=0, retries=0,
+                        recovered=0, gave_up=0, first_seen=None,
+                        last_seen=None, recent=[])
+
+    def _discovery_save(self, st):
+        try:
+            with open(DISCOVERY_STATS, "w") as f:
+                json.dump(st, f, indent=1)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _discovery_launch_counted(self):
+        """One per launch attempt - the denominator of the rate."""
+        st = self._discovery_stats()
+        st["launches"] = st.get("launches", 0) + 1
+        self._discovery_save(st)
+        self._discovery_failed_this_run = False
+
+    def _discovery_note(self, ready, want, retry_index):
+        """Record a discovery failure and return a one-line rate summary
+        suitable for the orchestration log."""
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        st = self._discovery_stats()
+        st["retries"] = st.get("retries", 0) + 1
+        if not self._discovery_failed_this_run:
+            st["failed_launches"] = st.get("failed_launches", 0) + 1
+            st["first_seen"] = st.get("first_seen") or now
+            st["last_seen"] = now
+            st.setdefault("recent", []).append(
+                dict(run=self.run_id, when=now, ready=ready, want=want))
+            st["recent"] = st["recent"][-40:]
+        self._discovery_save(st)
+        self._discovery_failed_this_run = True
+        n, f = st.get("launches", 0), st.get("failed_launches", 0)
+        return ("OPEN-22 rate: %d of %d launches (%.0f%%), %d retries, "
+                "%d recovered, %d gave up"
+                % (f, n, (100.0 * f / n) if n else 0.0, st.get("retries", 0),
+                   st.get("recovered", 0), st.get("gave_up", 0)))
+
+    def _discovery_recovered(self):
+        st = self._discovery_stats()
+        st["recovered"] = st.get("recovered", 0) + 1
+        self._discovery_save(st)
+
+    def _discovery_gave_up(self):
+        st = self._discovery_stats()
+        st["gave_up"] = st.get("gave_up", 0) + 1
+        self._discovery_save(st)
+
     def _watch_child(self, proc):
         """Make sure this child cannot outlive us.
 
@@ -923,6 +984,7 @@ class Fleet:
                 "draft_slots": self.draft_slots,
                 "draft_cap": self.draft_cap,
                 "draft_terrain": self.draft_terrain,
+                "discovery": self._discovery_stats(),   # OPEN-22 rate
                 "terrain": self.run_terrain,
                 # UI self-refresh stamp: app.js compares this to the value it
                 # booted with and reloads itself when it changes, so a fix to
@@ -1475,27 +1537,81 @@ class Fleet:
             self._note("starting Gazebo HEADLESS (no GUI, no marker traffic - "
                        "this page renders the fleet itself)")
             archive_log(os.path.join(RUN_DIR, "gz.log"), self.run_id - 1)
-            gz_log = open(os.path.join(RUN_DIR, "gz.log"), "w")
-            p = subprocess.Popen(["gz", "sim", "-s", "-r", world_out],
-                                  cwd=GAZEBO_DIR, env=env, stdout=gz_log,
-                                  stderr=subprocess.STDOUT,
-                                  start_new_session=True)
-            self.procs.append(p)
-            self._watch_child(p)
+
+            # DISCOVERY GUARD (OPEN-22). gz-transport intermittently comes up
+            # without ever advertising the sensor topics - the world builds,
+            # gz runs, and nothing is ever discoverable. gz.log is EMPTY when
+            # it happens, so there is nothing to read; it is silent.
+            # Not root-caused, and it does not need to be to be survivable:
+            # a fresh gz process discovers fine, so RETRY, say so through the
+            # normal log, and COUNT it. The count is the point - it turns
+            # "this happens sometimes" into a number that says whether a real
+            # fix is worth the effort.
+            def _start_gz():
+                gz_log = open(os.path.join(RUN_DIR, "gz.log"), "w")
+                gp = subprocess.Popen(["gz", "sim", "-s", "-r", world_out],
+                                       cwd=GAZEBO_DIR, env=env, stdout=gz_log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                self.procs.append(gp)
+                self._watch_child(gp)
+                return gp
+
+            def _wait_for_sensors(seconds):
+                dl = time.time() + seconds
+                seen = set()
+                while time.time() < dl and len(seen) < len(locked):
+                    try:
+                        topics = subprocess.run(
+                            ["gz", "topic", "-l"], env=env, capture_output=True,
+                            text=True, timeout=5).stdout
+                    except subprocess.TimeoutExpired:
+                        topics = ""
+                    for sl in locked:
+                        if "/go1_%d/imu" % sl["index"] in topics:
+                            seen.add(sl["index"])
+                    if len(seen) < len(locked):
+                        time.sleep(1)
+                return seen
+
+            self._discovery_launch_counted()
+            p = _start_gz()
 
             self._note("waiting for %d dog(s) to advertise sensors" % len(locked))
-            deadline = time.time() + 30
-            ready = set()
-            while time.time() < deadline and len(ready) < len(locked):
-                topics = subprocess.run(["gz", "topic", "-l"], env=env,
-                                         capture_output=True, text=True,
-                                         timeout=5).stdout
-                for s in locked:
-                    if "/go1_%d/imu" % s["index"] in topics:
-                        ready.add(s["index"])
-                time.sleep(1)
+            ATTEMPTS = 4
+            ready = _wait_for_sensors(30)
+            for attempt in range(2, ATTEMPTS + 1):
+                if len(ready) >= len(locked):
+                    break
+                # Count it BEFORE retrying, so a run that eventually succeeds
+                # still records that discovery failed once.
+                stats = self._discovery_note(len(ready), len(locked), attempt - 1)
+                self._note("dogs did not advertise sensors (%d/%d) - "
+                            "gz-transport discovery failure (OPEN-22, not "
+                            "root-caused, gz.log is silent). Restarting gz "
+                            "and retrying: attempt %d of %d. %s"
+                            % (len(ready), len(locked), attempt, ATTEMPTS,
+                               stats))
+                for gp in list(self.procs):
+                    try:
+                        gp.kill()
+                    except Exception:  # noqa: BLE001
+                        pass
+                self.procs = []
+                subprocess.run("pkill -9 -f 'gz[ ]sim -s -r' 2>/dev/null",
+                               shell=True)
+                time.sleep(2)
+                p = _start_gz()
+                ready = _wait_for_sensors(30)
+            if len(ready) >= len(locked) and self._discovery_failed_this_run:
+                self._note("sensors advertised after the retry - discovery "
+                            "recovered, run proceeding normally")
+                self._discovery_recovered()
             if len(ready) < len(locked):
-                # ABORT. This used to say "continuing anyway", and that one
+                self._discovery_gave_up()
+                # ABORT, but only after ATTEMPTS fresh gz processes have each
+                # failed to advertise. This used to say "continuing anyway",
+                # and that one
                 # decision is what cost the operator an evening: the sensors
                 # never advertised (the documented gz-transport discovery
                 # failure), the run was dead on arrival, the pose
