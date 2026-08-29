@@ -243,6 +243,16 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     planning::BodyLimits lim;
     lim.v_cruise  = vx;
     lim.a_lat_max = getenv("WP_ALAT") ? atof(getenv("WP_ALAT")) : 2.5;
+    // TERRAIN AWARENESS (OPEN-7): the conductor knows which ground it built
+    // the world on and passes that ground's friction (and, for the
+    // procedural heightmap kinds, a measured speed ceiling) here. Unset =
+    // -1 = the planner behaves exactly as before, so every validated flat
+    // result is untouched. See BodyLimits::mu_terrain for why mu*g is the
+    // right cap and how it matches the measured terrain sweep.
+    lim.mu_terrain = getenv("WP_TERRAIN_MU")
+                       ? atof(getenv("WP_TERRAIN_MU")) : -1.0;
+    lim.v_terrain_max = getenv("WP_TERRAIN_VMAX")
+                       ? atof(getenv("WP_TERRAIN_VMAX")) : -1.0;
 
     lim.yaw_rate_max = nav.max_yawrate;
     lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;

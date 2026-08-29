@@ -6,6 +6,7 @@
  */
 
 #include <atomic>
+#include <cstdio>   // snprintf, for the non-finite field report
 #include <chrono>
 #include <unistd.h>
 
@@ -171,6 +172,32 @@ void RobotRunner::run() {
       _shmFiniteOk = false;
       static int nanCount = 0;
       ++nanCount;
+      // NAME THE CULPRIT (OPEN-6, 2026-08-28). The blip fires in ~2/3 of all
+      // runs, always in the boot window, and was never diagnosable because
+      // this line said only THAT the estimate was non-finite, never WHICH
+      // field or WHEN. A guard that reinitialises without reporting what it
+      // caught cannot be investigated - the whole item stalled on that.
+      char who[160]; int wl = 0;
+      const char* nm3[4] = {"pos", "vWorld", "vBody", "rpy"};
+      const float* v3[4] = {r.position.data(), r.vWorld.data(),
+                             r.vBody.data(), r.rpy.data()};
+      for (int f = 0; f < 4 && wl < 120; ++f)
+        for (int i = 0; i < 3 && wl < 120; ++i)
+          if (!std::isfinite(v3[f][i]))
+            wl += snprintf(who + wl, sizeof(who) - wl, "%s[%d] ", nm3[f], i);
+      for (int i = 0; i < 4 && wl < 120; ++i)
+        if (!std::isfinite(r.orientation[i]))
+          wl += snprintf(who + wl, sizeof(who) - wl, "quat[%d] ", i);
+      if (!wl) snprintf(who, sizeof(who), "(none? race) ");
+      shmtrace::logf(_shmElapsed,
+                     "[stm32mp1] NONFINITE-FIELDS (%d) t=%.3f iter=%llu bad: %s"
+                     " | quat=%.3f %.3f %.3f %.3f pos=%.3f %.3f %.3f",
+                     nanCount, _shmElapsed,
+                     (unsigned long long)_iterations, who,
+                     (double)r.orientation[0], (double)r.orientation[1],
+                     (double)r.orientation[2], (double)r.orientation[3],
+                     (double)r.position[0], (double)r.position[1],
+                     (double)r.position[2]);
       shmtrace::logf(_shmElapsed, "[stm32mp1] STATE ESTIMATE WENT NON-FINITE (%d) - reinitialising", nanCount);
       initializeStateEstimator(_cheaterModeEnabled);
       _stateEstimator->run();

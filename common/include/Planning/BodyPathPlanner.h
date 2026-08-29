@@ -83,6 +83,27 @@ struct BodyLimits {
    * robot can turn at without tripping, and 2.5 leaves margin.
    */
   double a_lat_max = 2.5;
+  /*! TERRAIN AWARENESS (OPEN-7, 2026-08-28). Friction coefficient of the
+   *  ground this mission is planned on, -1 when unknown (then nothing
+   *  below changes and every previously validated result is bit-identical).
+   *  Set from the conductor's own terrain kind via $WP_TERRAIN_MU.
+   *
+   *  The rule is physics, not a tuned table: a turn needs lateral
+   *  acceleration a_lat = v*omega, and the ground can only supply mu*g of
+   *  it before the feet slide, so the planner must never PLAN a corner it
+   *  cannot be pushed around. It matches the measured terrain sweep
+   *  exactly (TERRAIN.md Phase 1, 20 ground-truthed cells): with the
+   *  default budget 2.5 m/s^2, mu*g binds only below mu ~= 0.26 - and ice
+   *  (mu 0.15 -> 1.32 m/s^2) is the ONE surface that failed, at every tier
+   *  that asked for real lateral force, while every surface at mu >= 0.35
+   *  passed with no time cost at all. So this predicts the observed
+   *  boundary rather than encoding it. */
+  double mu_terrain = -1.0;
+  double terrain_safety = 0.9;   //!< margin on mu*g (feet are point contacts)
+  /*! Hard speed ceiling for terrains whose GEOMETRY (not friction) is the
+   *  limit - the procedural rolling/rough heightmaps, where walking is
+   *  measured INTERMITTENT and fails silently. -1 = no ceiling. */
+  double v_terrain_max = -1.0;
   /*!
    * Longitudinal accel/decel used to build the profile - DELIBERATELY BELOW the
    * achievable rate, and this is the single most important number here.
@@ -246,6 +267,22 @@ class BodyPathPlanner {
     // zone because the lag distance (v * ~1 s) grows with speed while the
     // corner speed it must reach does not.
     if (!_alonExplicit) _lim.a_lon_max = (_lim.v_cruise >= 2.2) ? 0.4 : 1.5;
+    // TERRAIN CAPS, applied before any geometry is built so the whole
+    // profile (corner speeds, braking zones, the analyzer's own segment
+    // caps) is computed against what this ground can actually deliver.
+    if (_lim.mu_terrain > 0.0) {
+      const double a_fric = _lim.terrain_safety * _lim.mu_terrain * 9.81;
+      if (a_fric < _lim.a_lat_max) {
+        printf("[plan] terrain mu=%.2f caps lateral budget %.2f -> %.2f m/s^2\n",
+               _lim.mu_terrain, _lim.a_lat_max, a_fric);
+        _lim.a_lat_max = a_fric;
+      }
+    }
+    if (_lim.v_terrain_max > 0.0 && _lim.v_terrain_max < _lim.v_cruise) {
+      printf("[plan] terrain caps cruise %.2f -> %.2f m/s\n",
+             _lim.v_cruise, _lim.v_terrain_max);
+      _lim.v_cruise = _lim.v_terrain_max;
+    }
     buildPath(wx, wy, ds, loop, corridor);
     computeGeometry();
     computeSpeedProfile();

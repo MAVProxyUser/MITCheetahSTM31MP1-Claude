@@ -1446,13 +1446,28 @@ class Fleet:
                 # which stopped being true the moment spawn heading became
                 # mission-specific instead of a universal fixed north.
                 spawn_bearing_deg = math.degrees(mission_opening_bearing_rad(s["mission"]))
+                # TERRAIN AWARENESS (OPEN-7): the server is the only place
+                # that knows which ground it just built, so it is the only
+                # place that can tell the pre-planner. A surface kind's own
+                # mu goes straight through; the planner caps its lateral
+                # budget at mu*g (see BodyLimits::mu_terrain). Kinds without
+                # a surface block (flat, and the procedural heightmaps) send
+                # nothing at all, so the planner behaves exactly as it did
+                # for every validated result. The heightmap kinds' own
+                # SPEED ceiling is deliberately absent until the geometry
+                # sweep measures one - encoding a guess here is what the
+                # whole terrain program exists to avoid.
+                tspec = terrain.TERRAIN_TYPES.get(terrain_kind, {})
+                terrain_env = ""
+                if "surface" in tspec:
+                    terrain_env = "WP_TERRAIN_MU=%.3f " % tspec["surface"]["mu"]
                 cmd = (
                     "env DYLD_LIBRARY_PATH=. SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
                     "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
-                    "WP_MAX_YAWRATE=1.2 WP_SPAWN_BEARING_DEG=%.4f %s timeout 900 ./mit_ctrl_sim 127.0.0.1 "
+                    "WP_MAX_YAWRATE=1.2 WP_SPAWN_BEARING_DEG=%.4f %s%s timeout 900 ./mit_ctrl_sim 127.0.0.1 "
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"
                     % (self.run_id, i, s["gait"], s["speed"], delay_s, s["mission"],
-                       spawn_bearing_deg, s["extra"])
+                       spawn_bearing_deg, terrain_env, s["extra"])
                 )
                 ctrl_log_path = os.path.join(RUN_DIR, "ctrl_%d.log" % i)
                 archive_log(ctrl_log_path, self.run_id - 1)
