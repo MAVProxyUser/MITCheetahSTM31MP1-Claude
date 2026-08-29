@@ -61,12 +61,19 @@ def main():
         name_to_index[n.strip()] = int(i)
 
     min_dt = 1.0 / max(args.rate, 0.1)
-    state = dict(last_emit=0.0, last_msg=0.0, count=0)
+    state = dict(last_emit=0.0, last_msg=0.0, last_raw=0.0, count=0)
 
     def on_pose(msg):
         now = time.time()
-        state["last_msg"] = now
-        state["count"] += 1
+        # COUNT MATCHED POSES, NOT RAW MESSAGES. Counting messages was
+        # wrong and the data caught it: run1081 logged "receiving (13 msgs
+        # in warmup)" and still produced an EMPTY trail, because
+        # /dynamic_pose/info carries whatever moved - a message can arrive
+        # with not one of OUR models in it. A liveness check that passes on
+        # traffic we cannot use is worse than none: it reports healthy while
+        # the panel has nothing. So the counter below moves only when a
+        # message actually contains a model we placed.
+        state["last_raw"] = now
         if now - state["last_emit"] < min_dt:
             return
         out = {}
@@ -81,6 +88,8 @@ def main():
                              round(p.position.z, 4), round(yaw, 4)]
         if not out:
             return
+        state["last_msg"] = now      # a pose WE can use
+        state["count"] += 1
         state["last_emit"] = now
         try:
             sys.stdout.write(json.dumps({"t": now, "p": out}) + "\n")
@@ -120,14 +129,15 @@ def main():
     while state["count"] == 0 and time.time() < warm_deadline:
         time.sleep(0.2)
     if state["count"] == 0:
-        sys.stderr.write("[pose_feed] SUBSCRIBED BUT DEAF: no message in "
-                         "%.1fs on %s - gz-transport discovery did not "
-                         "connect this subscriber (OPEN-21/22). Exiting so "
-                         "the parent can retry on a fresh process.\n"
-                         % (args.warmup, topic))
+        raw = "some traffic, but none of our models" if state["last_raw"] \
+              else "no traffic at all"
+        sys.stderr.write("[pose_feed] SUBSCRIBED BUT USELESS: no pose for any "
+                         "of [%s] in %.1fs on %s (%s). Exiting so the parent "
+                         "can retry on a fresh process.\n"
+                         % (args.names, args.warmup, topic, raw))
         sys.stderr.flush()
         raise SystemExit(3)
-    sys.stderr.write("[pose_feed] receiving (%d msgs in warmup)\n"
+    sys.stderr.write("[pose_feed] receiving (%d usable poses in warmup)\n"
                      % state["count"])
     sys.stderr.flush()
 
