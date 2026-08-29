@@ -51,6 +51,26 @@ passed on its own in-suite retry.
   FAIL that never ran. Root cause not isolated: it needs the gz side
   instrumented at the moment discovery fails (gz.log was empty, which is
   itself a clue — the failure is silent).
+  **Instrumented 2026-08-29, per the operator's constraint that it "can NOT
+  bog down the process"**: gz now starts at `-v 3` (its own INFO level) with
+  `GZ_VERBOSE=1` for gz-transport, both landing in the per-run `gz.log` that
+  is already archived. Measured cost on a 12 s headless run: **22 → 32 log
+  lines**, all at startup, and the ten extra are exactly the ones worth
+  having here — `Bind at: [udp://...] for msg discovery`, `Bind at:
+  [udp://...] for srv discovery`, `Current host address`, `Process UUID`.
+  Verbosity gates console output rather than adding work to the publish
+  path, so there is no per-message cost; level 4 (debug) IS chatty enough to
+  matter on a long run and is reachable via `CONDUCTOR_GZ_VERBOSITY` but is
+  not the default. The next occurrence leaves evidence instead of an empty
+  file.
+  **Also knobbed**: `CONDUCTOR_DISCOVERY_WAIT_S` (default 30) and
+  `CONDUCTOR_DISCOVERY_ATTEMPTS` (default 4) — ordinary config for a slower
+  host, and incidentally what makes the retry path testable without faking a
+  failure: set the window to two seconds and attempt 1 genuinely times out.
+  **Version context**, since it was asked: gz-sim 8.14.0 / gz-transport
+  13.5.0 (Harmonic LTS). Branch tip is 13.6.0 — one patch behind — and the
+  newer collections are Ionic (transport 14, Jan 2025) and Jetty (transport
+  15, Oct 2025). This is not a stale-version problem.
 
 - **OPEN-21 · The panel's gz pose feed degrades across accumulated
   in-process launches** — `ROOT FIX BUILT 2026-08-29, ON SOAK`. The
