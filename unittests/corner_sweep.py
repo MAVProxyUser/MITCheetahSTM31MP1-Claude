@@ -56,6 +56,19 @@ def done_cells():
     return cells
 
 
+def server_healthy():
+    """Is the conductor answering at all? See the call site."""
+    try:
+        import json as _json
+        import urllib.request
+        with urllib.request.urlopen("http://127.0.0.1:8420/api/state",
+                                     timeout=5) as f:
+            _json.load(f)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def run_cell(gait, speed, angle, leg):
     spec = "corner:%g:%g" % (leg, angle)
     cmd = [sys.executable, RUNNER, "--slot", spec, "--gait", gait,
@@ -122,6 +135,22 @@ def main():
                 # it out and retry the SAME cell, up to ~30 min, instead of
                 # burning the rest of the grid against a closed gate.
                 for attempt in range(30):
+                    # A conductor that has stopped answering must never be
+                    # recorded as a robot verdict. Nine cells were written as
+                    # FAIL that way on 2026-08-29 without a mission ever
+                    # running; recycle instead, and abort rather than
+                    # manufacture results if it stays down.
+                    if not server_healthy():
+                        print("[gate] conductor not answering - recycling",
+                              flush=True)
+                        sys.path.insert(0, os.path.join(
+                            ROOT, "stm32mp1/gazebo/conductor"))
+                        import conductor_ctl
+                        conductor_ctl.restart_server("server unreachable")
+                        if not server_healthy():
+                            print("[gate] STILL down - stopping rather than "
+                                  "recording fake failures", flush=True)
+                            return
                     verdict, wall, detail = run_cell(gait, speed, angle,
                                                      args.leg)
                     if verdict != "REFUSED":

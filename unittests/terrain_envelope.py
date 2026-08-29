@@ -58,10 +58,16 @@ GEOM_TERRAINS = ["flat", "rough", "rolling"]
 # so the speed envelope carries a mu axis without re-running all nine.
 SURF_TERRAINS = ["concrete", "mud"]
 
+# Low to high, EVERY rung measured - never stop at the first failure. This
+# project has twice recorded a ceiling from a stop-at-first-failure ladder
+# and twice had to retract it, because a cell that fails one rung and passes
+# the next is the normal case here. Rungs above each gait's established base
+# speed are where a terrain-specific ceiling would actually show up; the
+# base rungs are the control.
 GAIT_LADDER = {
-    "walking":     [1.0, 1.5, 2.0],
-    "trotting":    [1.5, 2.0, 2.5],
-    "trotRunning": [2.0, 3.0, 3.5],
+    "walking":     [1.0, 1.5, 2.0, 2.5],
+    "trotting":    [1.5, 2.0, 2.5, 3.0, 3.5],
+    "trotRunning": [2.0, 3.0, 3.5, 4.0, 4.5],
 }
 ANGLES = [45, 90, 135]
 CORNER_EXTRA = ("WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
