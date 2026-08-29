@@ -1579,8 +1579,15 @@ class Fleet:
             p = _start_gz()
 
             self._note("waiting for %d dog(s) to advertise sensors" % len(locked))
-            ATTEMPTS = 4
-            ready = _wait_for_sensors(30)
+            # Both knobs are ordinary config, not test-only hooks: a slower
+            # host legitimately needs a longer window, and a campaign that
+            # would rather fail fast than retry can say so. They also make
+            # the retry path TESTABLE without faking a failure - set the
+            # window to a couple of seconds and attempt 1 genuinely times
+            # out, exercising kill -> fresh gz -> wait -> recover -> count.
+            WAIT_S = float(os.environ.get("CONDUCTOR_DISCOVERY_WAIT_S", "30"))
+            ATTEMPTS = int(os.environ.get("CONDUCTOR_DISCOVERY_ATTEMPTS", "4"))
+            ready = _wait_for_sensors(WAIT_S)
             for attempt in range(2, ATTEMPTS + 1):
                 if len(ready) >= len(locked):
                     break
@@ -1603,7 +1610,7 @@ class Fleet:
                                shell=True)
                 time.sleep(2)
                 p = _start_gz()
-                ready = _wait_for_sensors(30)
+                ready = _wait_for_sensors(WAIT_S)
             if len(ready) >= len(locked) and self._discovery_failed_this_run:
                 self._note("sensors advertised after the retry - discovery "
                             "recovered, run proceeding normally")
