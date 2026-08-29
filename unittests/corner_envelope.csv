@@ -120,3 +120,4 @@ bounding,2.0,75,FELL,169.7,[runner] run 1071 phase=done  dogs=1  PASS=0 FAIL=0 F
 bounding,2.0,105,FELL,152.3,[runner] run 1072 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:10:31
 bounding,2.0,120,FELL,123.9,[runner] run 1073 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:12:40
 bounding,2.0,150,FELL,198.4,[runner] run 1074 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 11:16:05
+bounding,2.0,165,PASS,64.6,[runner] run 1118 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 12:25:53

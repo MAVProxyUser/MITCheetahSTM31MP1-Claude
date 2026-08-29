@@ -36,20 +36,6 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-21 · Confirm the discovery fix over a long soak** — the ONLY bit
-  of the old OPEN-21/OPEN-22 pair still open, and it is a measurement, not
-  a defect. Everything diagnosed and built is closed as CLOSED-51 (the
-  instruments), CLOSED-52 (the per-run feed + deaf detection) and
-  CLOSED-53 (the discovery root cause and `GZ_RELAY`). What is unproven is
-  simply that it STAYS fixed: the failure was always intermittent and
-  rate-based, so the close condition is a long campaign on ONE server
-  process with **zero** NOFEED/deaf events — 40+ launches. `unittests/
-  feed_health.py` is the meter (it splits the conductor log per server
-  lifetime, because a count spanning restarts hides the very effect).
-  Reopen as a real defect only if that soak shows events; the counters in
-  `discovery_stats.json` and the `pose_feed.log` per-run archive will say
-  which layer failed.
-
 - **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `MEASURED, one
   open question left`. The envelope and the angle cells are done and closed
   separately (CLOSED-50); what remains is whether `rough` has a real
@@ -151,6 +137,35 @@ passed on its own in-suite retry.
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED-54 · The pose-feed decay is gone: measured over 43 launches on
+  one server** (was the last of OPEN-21, closed 2026-08-29) — the close
+  condition was a long campaign on a single never-restarted server, because
+  the failure was always rate-based and a working first run proves nothing.
+  Measured with `unittests/feed_health.py`, which splits the conductor's own
+  log per SERVER LIFETIME (a count spanning restarts hides exactly this
+  effect):
+
+  | feed | launches in ONE server | feed-trouble events / launch |
+  |---|---|---|
+  | in-process Node | 7 | 0.143 |
+  | in-process Node | 15 | 0.467 |
+  | in-process Node | 37 | **0.838** |
+  | per-run subprocess + `GZ_RELAY` | 25 | 0.080 |
+  | per-run subprocess + `GZ_RELAY` | **43** | **0.023** |
+
+  **The accumulation signature is gone**, and that is the actual claim: on
+  the old path the rate CLIMBED with launches (0.14 → 0.47 → 0.84); on the
+  new path it does not (0.080 at 25, 0.023 at 43). At 43 launches — MORE
+  than the 37 that produced 0.838 — the rate is 36× lower.
+  **One residual event in 43 remains**, and it is not the decay: it is the
+  intermittent discovery failure of CLOSED-53, which is now DETECTED and
+  retried at every layer instead of being silent (`pose_feed.py` reports
+  itself useless, the server restarts it, the launch retries discovery on a
+  fresh gz, and the bridge-GPS arbiter gates the run NOFEED rather than
+  letting a bad verdict through). Reopen only if `feed_health.py` shows the
+  rate climbing with launch count again — that, not the presence of any
+  single event, is what this issue was ever about.
 
 - **CLOSED-53 · gz-transport discovery silently failed because it never
   used loopback** (was OPEN-22, and the shared root of OPEN-21, closed
