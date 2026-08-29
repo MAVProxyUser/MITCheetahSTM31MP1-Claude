@@ -829,8 +829,19 @@ def main():
         print("[runner] WORLD BUILD FAILED - nothing launched")
         sys.exit(1)
     if final_state.get("phase") == "error":
-        print("[runner] server phase=error")
-        sys.exit(1)
+        # A LAUNCH THAT NEVER RAN IS NOT A MISSION VERDICT. The server aborts
+        # a launch when the world build fails or the dogs never advertise
+        # sensors (the gz-transport discovery failure) - and it now does so
+        # in ~25 s, cleanly, instead of half-starting and orphaning the sim.
+        # That made the failure FASTER, which is good, but it also made it
+        # look exactly like a quick robot failure to every caller: the
+        # overnight sweep recorded several of these as FAIL at ~29 s. Exit 3
+        # says "infrastructure, re-run" the way exit 2 says "harness timeout,
+        # not a verdict" - callers that grade cells must treat it that way.
+        print("[runner] ## LAUNCH ABORTED BY THE SERVER (phase=error) - "
+              "the mission never ran. This is INFRASTRUCTURE, not a verdict: "
+              "do NOT record it as a failure, re-run the cell. ##")
+        sys.exit(3)
     if passes == n_dogs and fails == 0 and fell == 0 and invalid == 0:
         print("[runner] VERDICT: PASS (%d/%d)" % (passes, n_dogs))
         sys.exit(0)

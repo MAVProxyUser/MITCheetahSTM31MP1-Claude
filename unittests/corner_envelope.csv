@@ -49,3 +49,37 @@ trotting,2.5,120,PASS,62.5,[runner] run 700 phase=done  dogs=1  PASS=1 FAIL=0 FE
 trotting,2.5,135,PASS,62.6,[runner] run 701 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0,2026-08-28 15:52:37
 trotting,2.5,150,PASS,62.6,[runner] run 702 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0,2026-08-28 15:53:42
 trotting,2.5,165,PASS,62.6,[runner] run 703 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0,2026-08-28 15:54:48
+trotting,3.0,45,FELL,43.1,[runner] run 981 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 03:39:31
+trotting,3.0,90,FELL,50.1,[runner] run 982 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 03:40:25
+trotting,3.0,135,FELL,52.4,[runner] run 983 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 03:41:20
+trotting,3.5,45,FELL,43.7,[runner] run 984 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 03:42:08
+trotting,3.5,90,FELL,60.1,[runner] run 985 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 03:43:11
+trotting,3.5,135,FELL,204.3,[runner] run 986 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 03:46:39
+trotRunning,4.0,45,PASS,70.9,[runner] run 987 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:47:54
+trotRunning,4.0,90,PASS,69.4,[runner] run 988 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:49:07
+trotRunning,4.0,135,PASS,74.3,[runner] run 989 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:50:24
+trotRunning,4.5,45,PASS,72.3,[runner] run 990 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:51:41
+trotRunning,4.5,90,PASS,76.7,[runner] run 991 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:53:01
+trotRunning,4.5,135,PASS,82.0,[runner] run 992 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:54:27
+walking,2.0,45,PASS,77.6,[runner] run 993 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:55:50
+walking,2.0,90,PASS,85.4,[runner] run 994 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:57:19
+walking,2.0,135,PASS,96.5,[runner] run 995 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 03:59:01
+walking,2.5,45,PASS,86.6,[runner] run 996 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:00:32
+walking,2.5,90,PASS,88.6,[runner] run 997 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:02:06
+walking,2.5,135,FELL,220.3,[runner] run 998 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 04:05:52
+bounding,1.5,45,PASS,91.0,[runner] run 999 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:07:28
+bounding,1.5,90,PASS,98.4,[runner] run 1000 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:09:11
+bounding,1.5,135,PASS,109.0,[runner] run 1001 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:11:05
+bounding,2.0,45,PASS,100.0,[runner] run 1002 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:12:51
+bounding,2.0,90,PASS,93.3,[runner] run 1003 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:14:29
+bounding,2.0,135,PASS,105.4,[runner] run 1004 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:16:20
+galloping,1.1,45,PASS,120.3,[runner] run 1005 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:18:27
+galloping,1.1,90,PASS,120.1,[runner] run 1006 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:20:33
+galloping,1.1,135,PASS,125.0,[runner] run 1007 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:22:44
+galloping,1.4,45,FELL,171.1,[runner] run 1008 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 04:25:41
+galloping,1.4,90,FELL,166.8,[runner] run 1009 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 04:28:33
+galloping,1.4,135,PASS,118.4,[runner] run 1010 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:30:39
+pronking,0.8,45,PASS,142.3,[runner] run 1011 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:33:07
+pronking,0.8,90,PASS,145.2,[runner] run 1012 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:35:38
+pronking,0.8,135,PASS,147.8,[runner] run 1013 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:38:13
+pronking,1.0,90,FELL,271.0,[runner] run 1015 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 04:45:48

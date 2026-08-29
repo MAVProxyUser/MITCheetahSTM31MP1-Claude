@@ -78,6 +78,9 @@ def run_cell(gait, speed, angle, leg):
     p = subprocess.run(cmd, capture_output=True, text=True)
     wall = time.time() - t0
     out = p.stdout + p.stderr
+    if p.returncode == 3 or "LAUNCH ABORTED BY THE SERVER" in out:
+        # The launch never ran (world build / gz discovery). Not a verdict.
+        return "ABORTED", wall, "launch aborted by the server - re-run"
     if "launch refused" in out:
         # The conductor's launch gate said no (a Time Machine backup, a
         # fleet still active, ...). NOT a mission verdict, and it burned an
@@ -153,6 +156,15 @@ def main():
                             return
                     verdict, wall, detail = run_cell(gait, speed, angle,
                                                      args.leg)
+                    if verdict == "ABORTED":
+                        print("[gate] %s@%g angle=%d launch ABORTED (never "
+                              "ran) - recycling and retrying"
+                              % (gait, speed, angle), flush=True)
+                        sys.path.insert(0, os.path.join(
+                            ROOT, "stm32mp1/gazebo/conductor"))
+                        import conductor_ctl
+                        conductor_ctl.restart_server("launch aborted")
+                        continue
                     if verdict != "REFUSED":
                         break
                     print("[gate] %s@%g angle=%d REFUSED (%s) - waiting 60s"

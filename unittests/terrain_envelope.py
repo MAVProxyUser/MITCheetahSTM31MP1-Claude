@@ -82,6 +82,8 @@ def run_cell(terrain, mission, gait, speed, extra):
     p = subprocess.run(cmd, capture_output=True, text=True)
     wall = time.time() - t0
     out = p.stdout + p.stderr
+    if p.returncode == 3 or "LAUNCH ABORTED BY THE SERVER" in out:
+        return dict(verdict="ABORTED", wall=wall)   # never ran - not a verdict
     if "launch refused" in out:
         return dict(verdict="REFUSED", wall=wall)
     mo = METRICS_RE.search(out)
@@ -130,6 +132,11 @@ def cell_with_retries(terrain, mission, gait, speed, extra):
                       "recording fake failures", flush=True)
                 return dict(verdict="ABORTED-NO-SERVER", wall=0.0)
         r = run_cell(terrain, mission, gait, speed, extra)
+        if r["verdict"] == "ABORTED":
+            print("[gate] launch ABORTED (never ran) - recycling, retrying",
+                  flush=True)
+            recycle("launch aborted")
+            continue
         if r["verdict"] == "NOFEED":
             recycle("NOFEED (OPEN-21)")
             continue
