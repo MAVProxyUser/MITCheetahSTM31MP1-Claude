@@ -1,0 +1,22 @@
+cell,terrain,gait,speed,load_spinners,rep,blips,fields,first_t_s,first_iter,verdict,when
+load0,flat,walking,1.5,0,1,0,-,,,PASS,2026-08-28 21:50:39
+load0,flat,walking,1.5,0,2,0,-,,,PASS,2026-08-28 21:51:21
+load0,flat,walking,1.5,0,3,0,-,,,PASS,2026-08-28 21:52:02
+load4,flat,walking,1.5,4,1,0,-,,,PASS,2026-08-28 21:52:44
+load4,flat,walking,1.5,4,2,0,-,,,PASS,2026-08-28 21:53:25
+load4,flat,walking,1.5,4,3,0,-,,,PASS,2026-08-28 21:54:07
+load8,flat,walking,1.5,8,1,0,-,,,FELL,2026-08-28 21:54:36
+load8,flat,walking,1.5,8,2,0,-,,,PASS,2026-08-28 21:55:18
+load8,flat,walking,1.5,8,3,0,-,,,PASS,2026-08-28 21:55:59
+mud,mud,walking,1.5,0,1,0,-,,,PASS,2026-08-28 21:56:41
+mud,mud,walking,1.5,0,2,0,-,,,PASS,2026-08-28 21:57:23
+mud,mud,walking,1.5,0,3,0,-,,,PASS,2026-08-28 21:58:04
+rough,rough,walking,1.5,0,1,0,-,,,PASS,2026-08-28 21:58:46
+rough,rough,walking,1.5,0,2,0,-,,,PASS,2026-08-28 21:59:27
+rough,rough,walking,1.5,0,3,0,-,,,PASS,2026-08-28 22:00:09
+gait_trotRunning,flat,trotRunning,1.5,0,1,0,-,,,PASS,2026-08-28 22:00:50
+gait_trotRunning,flat,trotRunning,1.5,0,2,0,-,,,PASS,2026-08-28 22:01:32
+gait_trotRunning,flat,trotRunning,1.5,0,3,0,-,,,PASS,2026-08-28 22:02:13
+aiding_off,flat,walking,1.5,0,1,0,-,,,PASS,2026-08-28 22:02:55
+aiding_off,flat,walking,1.5,0,2,0,-,,,PASS,2026-08-28 22:03:36
+aiding_off,flat,walking,1.5,0,3,0,-,,,PASS,2026-08-28 22:04:18

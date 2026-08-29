@@ -203,6 +203,7 @@ void vectornav_handler(void* userData, VnUartPacket* packet,
     vectornav_lcm_data.q[i] = quat.c[i];
     g_vn_data->quat[i] = quat.c[i];
   }
+  g_vn_data->valid = true;   // a real VN packet has landed (see IMUTypes.h)
 
   for (int i = 0; i < 3; i++) {
     vectornav_lcm_data.w[i] = omega.c[i];

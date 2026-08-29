@@ -51,7 +51,12 @@ void VectorNavOrientationEstimator<T>::run() {
   this->_stateEstimatorData.result->orientation[3] =
       this->_stateEstimatorData.vectorNavData->quat[2];
 
-  if(_b_first_visit){
+  // Capture the heading datum from the FIRST REAL PACKET, not from tick
+  // 0's default pose (IMUTypes.h explains why this used to work by
+  // accident). Until then _ori_ini_inv is identity, so these few ticks
+  // pass the orientation through unrotated instead of latching a datum
+  // the robot never measured.
+  if(_b_first_visit && this->_stateEstimatorData.vectorNavData->valid){
     Vec3<T> rpy_ini = ori::quatToRPY(this->_stateEstimatorData.result->orientation);
     rpy_ini[0] = 0;
     rpy_ini[1] = 0;

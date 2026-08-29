@@ -36,7 +36,9 @@ class VectorNavOrientationEstimator : public GenericEstimator<T> {
   
  protected:
   bool _b_first_visit = true;
-  Quat<T> _ori_ini_inv;
+  // identity until the datum is captured - an UNINITIALISED Eigen quat
+  // here would reintroduce the very defect the datum gate closes.
+  Quat<T> _ori_ini_inv = (Quat<T>() << T(1), T(0), T(0), T(0)).finished();
 };
 
 

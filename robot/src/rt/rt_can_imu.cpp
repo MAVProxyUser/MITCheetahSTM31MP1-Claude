@@ -122,6 +122,7 @@ void reader_loop() {
       if (g_out) {
         g_out->gyro[0] = g_gyro[0]; g_out->gyro[1] = g_gyro[1]; g_out->gyro[2] = g_gyro[2];
         g_out->quat[0] = q1; g_out->quat[1] = q2; g_out->quat[2] = q3; g_out->quat[3] = q0; // [x,y,z,w]
+        g_out->valid = true;   // a real IMU frame has landed (see IMUTypes.h)
       }
       gyro_cnt++;
     } else if (msg_type == g_cfg.msg_accel) {

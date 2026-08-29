@@ -54,6 +54,7 @@ void unpack_sensor(const sim_sensor_packet& p) {
   if (g_imu) {
     for (int i = 0; i < 3; ++i) { g_imu->accelerometer[i] = p.accel[i]; g_imu->gyro[i] = p.gyro[i]; }
     for (int i = 0; i < 4; ++i) g_imu->quat[i] = p.quat[i];   // [x,y,z,w]
+    g_imu->valid = true;   // a real packet has landed (see IMUTypes.h)
   }
   g_aux.baro_alt = p.baro_alt; g_aux.baro_pressure = p.baro_pressure;
   g_aux.gps_lat = p.gps_lat; g_aux.gps_lon = p.gps_lon; g_aux.gps_alt = p.gps_alt;

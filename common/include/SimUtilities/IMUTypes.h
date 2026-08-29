@@ -26,6 +26,16 @@ struct VectorNavData {
   Vec3<float> accelerometer = Vec3<float>::Zero();
   Vec3<float> gyro = Vec3<float>::Zero();
   Quat<float> quat = (Quat<float>() << 1.f, 0.f, 0.f, 0.f).finished();
+  // TRUE once a real sensor packet has landed. The orientation
+  // estimator captures its heading DATUM on first visit and keeps it
+  // for the whole run, so capturing it from the default pose above
+  // would fix the run's heading reference to the world frame instead
+  // of the spawn pose. Before the default-init went in, the boot
+  // garbage happened to trip RobotRunner's non-finite guard, which
+  // re-created the estimator and so re-armed the capture until real
+  // data arrived - the datum was correct BY ACCIDENT. This flag makes
+  // that dependency explicit instead of relying on a guard firing.
+  bool valid = false;
   // todo is there status for the vectornav?
 };
 

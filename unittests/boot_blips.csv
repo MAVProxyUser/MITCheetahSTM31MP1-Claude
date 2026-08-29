@@ -1,3 +1,0 @@
-cell,terrain,gait,speed,load_spinners,rep,blips,fields,first_t_s,first_iter,verdict,when
-load0,flat,walking,1.5,0,1,0,-,,,PASS,2026-08-28 21:50:39
-load0,flat,walking,1.5,0,2,0,-,,,PASS,2026-08-28 21:51:21
