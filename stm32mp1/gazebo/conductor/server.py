@@ -696,6 +696,7 @@ class Fleet:
         self._name_to_index = {}     # "go1_2" -> 2, for the pose subscriber
         self._last_pose = {}         # index -> (x, y, t) for the speed EMA
         self._gz_node = None         # keep the Node alive - gc'ing it drops the subscription
+        self._pose_proc = None       # OPEN-21: the per-run pose_feed.py subprocess
         self._chase_stop = None      # threading.Event - signals _follow_chase_cams to exit
         # THE ASYNC-TEARDOWN RACE, closed structurally. self.phase = "done"
         # was being set the INSTANT the poller noticed every dog finished,
@@ -1801,11 +1802,105 @@ class Fleet:
 
     # ---- Conductor's OWN rendering: subscribe to world pose ourselves -----
     def _subscribe_pose(self, env):
-        """One subscription covers every dog - Gazebo publishes ALL models'
-        poses in a single message on this topic (trail_daemon.py already
-        relied on that, filtering to one name; here we keep every name we
-        placed). Runs for the life of the fleet; gz.transport13 fires the
-        callback on its own thread, so this just has to register once."""
+        """Start the per-run pose feed and consume it.
+
+        OPEN-21 ROOT FIX. This used to open a `gz.transport13.Node` inside
+        the SERVER process and hold it for the life of the fleet. The
+        subscription then accumulated transport state across every launch
+        the server ever did, and measurably decayed with it: partial trails
+        first, then a dead feed, with the in-process self-heal (drop the
+        Node, make a fresh one) only ever transient - by ~20-25 launches it
+        stayed dead. Measured 2026-08-29: three recycles in ~20 launches of
+        one sweep. And a dead feed is not a cosmetic loss, because every
+        world-motion instrument reads it - a healthy dog gets accused of
+        hallucinating (which is what the bridge-GPS arbiter exists to
+        catch).
+
+        A subscription cannot outlive a process that has exited, so it now
+        lives in one that does: `pose_feed.py`, started per RUN, killed with
+        the run, taking all of its discovery state with it. The server's own
+        long-lived process no longer touches gz-transport at all.
+
+        Everything downstream of the callback is UNCHANGED - same trail
+        decimation, same speed EMA, same `_pose_last_t` heartbeat - so this
+        swaps the SOURCE without re-deriving any of the behaviour that was
+        already validated. `CONDUCTOR_POSE_INPROC=1` restores the old
+        in-process path for A/B.
+        """
+        if os.environ.get("CONDUCTOR_POSE_INPROC") == "1":
+            return self._subscribe_pose_inproc(env)
+        return self._start_pose_feed(env)
+
+    def _apply_pose(self, idx, x, y, z, yaw, now):
+        """The one place a world pose becomes panel state: trail decimation,
+        the speed EMA and the freshness heartbeat. Both the subprocess feed
+        and the legacy in-process subscriber call THIS, so switching source
+        cannot silently change behaviour."""
+        SEG_MIN = 0.15
+        TRAIL_MAX = 20000
+        self._pose_last_t = now
+        with self.lock:
+            speed = 0.0
+            cur = self.positions.get(idx)
+            prev = self._last_pose.get(idx)
+            if prev is not None:
+                px, py, pt = prev
+                dt_s = now - pt
+                if 1e-3 < dt_s < 1.0:   # skip the first fix after a launch/gap
+                    raw = math.hypot(x - px, y - py) / dt_s
+                    prev_speed = cur["speed"] if cur else raw
+                    speed = 0.3 * raw + 0.7 * prev_speed
+            self._last_pose[idx] = (x, y, now)
+            trail = cur["trail"] if cur else []
+            if not trail or ((x - trail[-1][0]) ** 2
+                              + (y - trail[-1][1]) ** 2) >= SEG_MIN ** 2:
+                trail = (trail + [[round(x, 3), round(y, 3)]])[-TRAIL_MAX:]
+            self.positions[idx] = dict(x=round(x, 3), y=round(y, 3),
+                                        z=round(z, 3), yaw=round(yaw, 3),
+                                        speed=round(speed, 2), trail=trail)
+
+    def _start_pose_feed(self, env):
+        """Spawn pose_feed.py for THIS run and read its lines."""
+        names = ",".join("%s=%d" % (n, i)
+                         for n, i in (self._name_to_index or {}).items())
+        if not names:
+            self._note("pose feed NOT started - no models placed")
+            return
+        ferr = open(os.path.join(RUN_DIR, "pose_feed.log"), "w")
+        fp = subprocess.Popen(
+            [PYBIN, "-u", os.path.join(HERE, "pose_feed.py"),
+             "--world", WORLD, "--names", names, "--rate", "20"],
+            cwd=HERE, env=env, stdout=subprocess.PIPE, stderr=ferr,
+            text=True, bufsize=1, start_new_session=True)
+        self.procs.append(fp)
+        self._watch_child(fp)
+        self._pose_proc = fp
+
+        def reader():
+            try:
+                for line in fp.stdout:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        msg = json.loads(line)
+                    except ValueError:
+                        continue
+                    now = time.time()
+                    for k, v in (msg.get("p") or {}).items():
+                        try:
+                            self._apply_pose(int(k), v[0], v[1], v[2], v[3], now)
+                        except (ValueError, IndexError, TypeError):
+                            continue
+            except Exception as e:  # noqa: BLE001 - reader must never kill a run
+                self._note("pose feed reader stopped: %r" % e)
+
+        threading.Thread(target=reader, daemon=True).start()
+        self._note("pose feed up (per-run subprocess, pid %d - OPEN-21: "
+                    "transport state dies with this run)" % fp.pid)
+
+    def _subscribe_pose_inproc(self, env):
+        """The pre-OPEN-21 in-process subscriber. Kept for A/B only."""
         node = _gz_transport.Node()
         self._gz_node = node  # keep alive - a gc'd Node drops the subscription
         SEG_MIN = 0.15        # m between recorded trail points, matches
@@ -1828,39 +1923,15 @@ class Fleet:
 
         def on_pose(msg):
             now = time.time()
-            self._pose_last_t = now   # heartbeat for the poller's feed alarm
-            with self.lock:
-                for p in msg.pose:
-                    idx = self._name_to_index.get(p.name)
-                    if idx is None:
-                        continue
-                    x, y, z = p.position.x, p.position.y, p.position.z
-                    # orientation is a quaternion, not Euler - yaw about world Z
-                    o = p.orientation
-                    yaw = math.atan2(2.0 * (o.w * o.z + o.x * o.y),
-                                      1.0 - 2.0 * (o.y * o.y + o.z * o.z))
-                    # Ground speed from consecutive fixes, not a field Pose_V
-                    # carries - lightly EMA'd (alpha 0.3) so the per-dog
-                    # readout does not flicker at whatever rate gz publishes,
-                    # while staying responsive enough to show a real change.
-                    speed = 0.0
-                    prev_t = self._last_pose.get(idx)
-                    cur = self.positions.get(idx)
-                    if prev_t is not None:
-                        px, py, pt = prev_t
-                        dt_s = now - pt
-                        if 1e-3 < dt_s < 1.0:  # skip the first fix after a launch/gap
-                            raw = math.hypot(x - px, y - py) / dt_s
-                            prev_speed = cur["speed"] if cur else raw
-                            speed = 0.3 * raw + 0.7 * prev_speed
-                    self._last_pose[idx] = (x, y, now)
-                    trail = cur["trail"] if cur else []
-                    if not trail or ((x - trail[-1][0]) ** 2
-                                      + (y - trail[-1][1]) ** 2) >= SEG_MIN ** 2:
-                        trail = (trail + [[round(x, 3), round(y, 3)]])[-TRAIL_MAX:]
-                    self.positions[idx] = dict(x=round(x, 3), y=round(y, 3),
-                                                z=round(z, 3), yaw=round(yaw, 3),
-                                                speed=round(speed, 2), trail=trail)
+            for p in msg.pose:
+                idx = self._name_to_index.get(p.name)
+                if idx is None:
+                    continue
+                o = p.orientation
+                yaw = math.atan2(2.0 * (o.w * o.z + o.x * o.y),
+                                  1.0 - 2.0 * (o.y * o.y + o.z * o.z))
+                self._apply_pose(idx, p.position.x, p.position.y,
+                                  p.position.z, yaw, now)
 
         ok = node.subscribe(Pose_V, "/world/%s/dynamic_pose/info" % WORLD, on_pose)
         self._note("pose subscriber %s" % ("up" if ok else "FAILED to register"))
@@ -2133,12 +2204,25 @@ class Fleet:
                             # attempt per 20s.
                             last_resub = time.time()
                             try:
+                                # With the feed in its own process (OPEN-21
+                                # root fix) the heal is a genuinely fresh
+                                # PROCESS, not a fresh Node inside a server
+                                # that has been accumulating transport state
+                                # all session - which is why the old version
+                                # of this was only ever transient.
+                                fp = getattr(self, "_pose_proc", None)
+                                if fp is not None:
+                                    try:
+                                        fp.kill()
+                                    except Exception:  # noqa: BLE001
+                                        pass
+                                    self._pose_proc = None
                                 self._gz_node = None
                                 self._subscribe_pose(getattr(self, "_gz_env", None) or {})
-                                self._note("pose feed: resubscribed on a fresh "
-                                            "gz node - watching for recovery")
+                                self._note("pose feed: restarted - watching "
+                                            "for recovery")
                             except Exception as e:  # noqa: BLE001
-                                self._note("pose resubscribe FAILED: %r - "
+                                self._note("pose feed restart FAILED: %r - "
                                             "server restart needed" % e)
                         # ---- live desync check (see poll() docstring) ----
                         # Only while the nav status line is FRESH (a new one
@@ -2449,6 +2533,7 @@ class Fleet:
             self._name_to_index = {}
             self._last_pose = {}       # a stale (x,y,t) would spike the next launch's speed EMA
             self._gz_node = None       # drops the pose subscription
+            self._pose_proc = None     # per-run feed dies with the run
             self._gz_cam_nodes = []    # drops every camera subscription
             self.cameras = {}
             if self._chase_stop is not None:

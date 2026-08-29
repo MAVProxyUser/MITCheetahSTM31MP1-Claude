@@ -83,3 +83,8 @@ pronking,0.8,45,PASS,142.3,[runner] run 1011 phase=done  dogs=1  PASS=0 FAIL=0 F
 pronking,0.8,90,PASS,145.2,[runner] run 1012 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:35:38
 pronking,0.8,135,PASS,147.8,[runner] run 1013 phase=done  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 04:38:13
 pronking,1.0,90,FELL,271.0,[runner] run 1015 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 04:45:48
+trotting,2.6,45,PASS,56.5,[runner] run 1032 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:12:19
+trotting,2.6,90,PASS,58.9,[runner] run 1033 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:13:21
+trotting,2.6,135,FELL,33.6,[runner] run 1034 phase=idle  dogs=1  PASS=0 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:13:58
+trotting,2.8,45,PASS,54.6,[runner] run 1035 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 10:14:56
+trotting,2.8,90,FELL,48.6,[runner] run 1036 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-08-29 10:15:47

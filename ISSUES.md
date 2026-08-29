@@ -53,81 +53,40 @@ passed on its own in-suite retry.
   itself a clue — the failure is silent).
 
 - **OPEN-21 · The panel's gz pose feed degrades across accumulated
-  in-process launches** — opened 2026-08-28, caught live by the new
-  instruments mid-terrain-sweep: run747 (asphalt oval) lost ~40% of its
-  trail (flown ratio 0.59 at xtrack 0.12 with wall time matching flat to
-  0.1 s — a feed gap, not a dog gap; the DESYNC alarm fired and CLEARED
-  around an ~8 s stall), then run748 (grass oval) had a fully dead feed:
-  trail empty, gate demoted to INVALID — while bridge GPS shows the dog
-  flew the complete oval (50.1×9.7 m range, 93 waypoints, 42.8 s). So
-  the feed failed partial→total across two launches; a server restart
-  (fresh gz-transport state) cleared it. Same family as the documented
-  gz-transport discovery fragility, now measured degrading with
-  accumulated Node create/destroy cycles inside one server process.
-  Mitigations shipped: NOFEED verdict (near-empty trail + claimed
-  completion ≠ INVALID — infrastructure, not a robot verdict; cross-check
-  bridge GPS), a pose-feed heartbeat (silence >5 s logs POSE FEED
-  STALLED), and a fresh-Node resubscribe self-heal. ESCALATED same
-  evening: the self-heal is only TRANSIENT — resubscribe→RECOVERED
-  cycles were observed, but the feed re-dies faster as launches
-  accumulate, and by ~25 launches it stayed dead through six OPEN-7 reps
-  (3× NOFEED) and an entire fast-suite run (11 of 12 cases demoted
-  NOFEED while their controllers printed genuine PASSes — the suite was
-  re-run on a fresh server for the real verdict). Root fix scoped, not
-  yet built: either the server self-restarts at a safe idle point when
-  the feed has been unhealthy, or (cleaner) the pose subscription moves
-  to a per-run SUBPROCESS (trail_daemon-style) so transport state dies
-  with each run instead of accumulating. Until then: restart the server
-  before/between long campaigns; a NOFEED row is a re-run, never a
-  verdict.
-
-  **Frequency, measured 2026-08-29**: the feed died and needed a recycle
-  **3 times in ~20 launches** during one geometry sweep — considerably
-  worse than the ~25 launches documented above, and it is now the single
-  largest tax on any long campaign. Every harness recycles and re-runs the
-  cell, so the campaigns complete; the cost is wall time, not correctness.
-  The root fix (pose subscription in a per-run SUBPROCESS so transport
-  state dies with each run instead of accumulating) is still scoped and not
-  built, and is the highest-value infrastructure item on this board.
-
-  **2026-08-28 night — the feed was corrupting the INSTRUMENTS, not just
-  the trail, and that is now fixed.** Operator report: "I keep randomly
-  seeing [DESYNC] ... sometimes I look up and the dog is moving and that
-  message pops, other times it's just stopped dead." Both happen, and
-  nothing on the panel could tell them apart, because EVERY world-motion
-  instrument here — the drawn trail, the live DESYNC monitor, the
-  post-run INVALID gate — read the SAME failing gz pose feed. When it
-  goes quiet a healthy dog's displacement reads zero and the instruments
-  accuse the robot. Measured, on runs that had already passed:
-  - **run869** (`dash:100`): DESYNC fired twice, "world/GPS moving 0.00
-    m/s" — while the BRIDGE GPS moved 37.4275 → 37.4284 lat (~100 m) and
-    the mission passed 1/1 waypoints. The DESYNC/CLEARED/DESYNC/CLEARED
-    alternation was the tell: a genuinely blocked dog does not recover
-    and re-block every five seconds.
-  - **run876** (`sector:15:3`): gated INVALID at "flew 43.1 m of a
-    178.4 m plan" — while bridge GPS spanned 16.7 × 18.6 m, the correct
-    box for a 15 m flower, with 17/17 waypoints and RESULT: PASS.
-  - **run870 / run877** (octagon, parallel): same, at 0.0 m of trail.
-  The message text also *named GPS it never read* — the monitor only ever
-  differenced two pose samples.
-  **Fixes (server.py):** bridge GPS is now the independent ARBITER for
-  both instruments — it comes off the sim's NavSat over UDP and is
-  untouched by gz-transport. DESYNC will not fire while the pose feed is
-  stale (`_pose_last_t` older than the tick — two stale reads difference
-  to zero, which is indistinguishable from a stopped dog), and when the
-  window does look bad it checks GPS first: GPS moving ⇒ log "pose feed
-  is LYING, not the dog" and suppress. The gate splits a short trail into
-  NOFEED (GPS span ≳ the planned course's span ⇒ our infrastructure,
-  re-run) versus INVALID (GPS agrees the body did not move ⇒ a robot
-  result). Validated offline against the archived bridge logs before
-  shipping: run876 25.0 m GPS span vs 24.8 m plan span → NOFEED, run870
-  25.1 vs 25.5 → NOFEED; a stationary dog still reads INVALID.
-  **And this explains the suite cascade**: INVALID does not trigger the
-  harness's conductor recycle, NOFEED does — so misclassifying a feed
-  failure as INVALID sent it down the path that never recovers, and every
-  case after the feed died inherited it (the 2026-08-28 ~22:5x fast run
-  went star INCONCLUSIVE→PASS on retry, then 8 PASS, then three "FAIL"s
-  that were all this).
+  in-process launches** — `ROOT FIX BUILT 2026-08-29, ON SOAK`. The
+  instrument-corruption half is fixed and closed separately (CLOSED-51);
+  what is left is the decay itself.
+  **Symptom**: the in-process `gz.transport13.Node` subscription measurably
+  decayed with the number of launches a single server process had done —
+  partial trails first (run747 lost ~40% of its trail at a wall time
+  matching flat to 0.1 s), then a fully dead feed (run748: empty trail
+  while bridge GPS showed the complete oval flown, 50.1×9.7 m, 93
+  waypoints, 42.8 s). The in-process self-heal (drop the Node, build a
+  fresh one) only ever bought a transient recovery, and by ~20–25 launches
+  the feed stayed dead — an entire fast-suite run was demoted that way.
+  **Frequency, measured 2026-08-29**: three recycles in ~20 launches of one
+  geometry sweep, worse than the ~25 previously seen. Harnesses recycle and
+  re-run the cell so campaigns still complete; the cost was wall time.
+  **ROOT FIX (built, `stm32mp1/gazebo/conductor/pose_feed.py`)**: a
+  subscription cannot outlive a process that has exited, so it now lives in
+  one that does. The pose subscription runs in a per-RUN subprocess that is
+  killed with the run, taking every scrap of discovery state, socket and
+  subscriber bookkeeping with it; the server's long-lived process no longer
+  touches gz-transport at all. It streams one JSON line per sample on
+  stdout at ≤20 Hz and the server applies it through the SAME
+  `_apply_pose()` the old callback now also calls — identical trail
+  decimation, speed EMA and freshness heartbeat — so this swaps the SOURCE
+  without re-deriving validated behaviour. The poller's self-heal now
+  restarts that PROCESS rather than rebuilding a Node inside a server that
+  has been accumulating state all session, which is why the old heal was
+  only transient. `CONDUCTOR_POSE_INPROC=1` restores the old path for A/B.
+  **Verified up**: `[pose_feed] subscribe /world/go1_world/dynamic_pose/info
+  -> ok`, `pose feed up (per-run subprocess, pid ...)`, trail filling
+  normally on a live run.
+  **WHY THIS IS STILL OPEN**: the whole failure mode is "degrades over
+  MANY launches", so a working first run proves nothing. It closes on a
+  long campaign — dozens of launches in one server — with zero NOFEED
+  recycles. That soak is running.
 
 - **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `MEASURED, one
   open question left`. The envelope and the angle cells are done and closed
@@ -230,6 +189,44 @@ passed on its own in-suite retry.
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED-51 · The dead pose feed was corrupting the INSTRUMENTS, not
+  just the trail** (split out of OPEN-21, closed 2026-08-28/29) —
+  **symptom**, operator-reported: "I keep randomly seeing [DESYNC] ...
+  sometimes I look up and the dog is moving and that message pops, other
+  times it's just stopped dead." Both were happening and nothing on the
+  panel could tell them apart. **Root cause**: EVERY world-motion
+  instrument — the drawn trail, the live DESYNC monitor, the post-run
+  INVALID gate — read the SAME gz pose feed, so when it went quiet a
+  healthy dog's displacement read zero and the instruments accused the
+  robot. The DESYNC message even *named GPS it never read*; the monitor
+  only ever differenced two pose samples. **Evidence**, all on runs that
+  had already PASSED:
+  - **run869** (`dash:100`): DESYNC ×2, "world/GPS moving 0.00 m/s", while
+    bridge GPS moved 37.4275 → 37.4284 lat (~100 m), 1/1 waypoints. The
+    `DESYNC → CLEARED → DESYNC → CLEARED` alternation was the tell — a
+    genuinely blocked dog does not recover and re-block every five seconds.
+  - **run876** (`sector:15:3`): gated INVALID at "flew 43.1 m of a 178.4 m
+    plan", while bridge GPS spanned 16.7 × 18.6 m — the correct box for a
+    15 m flower — with 17/17 waypoints and `RESULT: PASS`.
+  - **run870 / run877**: same, at 0.0 m of trail.
+  **Fix**: bridge GPS is the independent ARBITER for both instruments — it
+  comes off the sim's NavSat over UDP and is untouched by gz-transport.
+  DESYNC will not fire while the pose feed is stale (`_pose_last_t` older
+  than the tick — two stale reads difference to zero, indistinguishable
+  from a stopped dog), and a bad-looking window checks GPS first: GPS
+  moving ⇒ log `pose feed is LYING, not the dog` and suppress. The gate
+  splits a short trail into NOFEED (GPS span ≳ the planned course's span ⇒
+  infrastructure, re-run) versus INVALID (GPS agrees the body did not move
+  ⇒ a robot result). **Validated offline against the archived bridge logs
+  before shipping** — run876 25.0 m GPS span vs 24.8 m plan span → NOFEED,
+  run870 25.1 vs 25.5 → NOFEED, a stationary dog still INVALID — and then
+  seen firing live: `pose feed is LYING, not the dog: feed shows 0.00 m/s
+  but bridge GPS moved 29.2 m over the same window`.
+  **This also explains a suite cascade**: INVALID does not trigger the
+  harness's conductor recycle and NOFEED does, so misclassifying a feed
+  failure as INVALID sent it down the path that never recovers, and every
+  case after the feed died inherited it.
 
 - **CLOSED-50 · Terrain, GEOMETRY axis: the envelope, the angle cells, and
   the generator bug underneath both** (split out of OPEN-7, closed
