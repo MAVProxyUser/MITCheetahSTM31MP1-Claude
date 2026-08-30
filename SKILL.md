@@ -88,7 +88,22 @@ The rules that follow from that:
    not `grep -c`: the grep's own command line contains the pattern, so
    `grep -c` reports one more than is running. Measured in this repo's own
    status tool: 6 reported against 3 real.
-6. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
+6. **LIVENESS MEANS "WORK IS HAPPENING", AND ONLY ONE SIGNAL SAYS THAT.**
+   Two plausible liveness checks were tried here and BOTH were wrong, in
+   opposite directions:
+   * *"is the producer process alive?"* - FALSE NEGATIVE. It reported
+     `night2.sh IS GONE` while pid 98594 was plainly running, and the same
+     check re-run by hand answered correctly. Process-name checks are
+     unreliable even with `grep -v grep`.
+   * *"is the stage's log fresh?"* - FALSE POSITIVE. A stage still queued
+     behind another has an untouched log BY DEFINITION; it read 69 minutes
+     stale while the rig was busy the whole time.
+   The signal that actually means work is happening is the **conductor's run
+   number advancing**. It is independent of which stage owns the queue, of
+   how the stages were spawned, and of whether any particular log is being
+   written. Watch that, with a generous window (a cell can take 150 s), and
+   nothing else.
+7. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
    `until grep -q DONE <log>` outlives the job when the job is killed,
    replaced, or crashes - one sat for THREE HOURS on a marker that could
    never appear because the script that would have written it had been
