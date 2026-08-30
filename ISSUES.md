@@ -812,3 +812,50 @@ passed on its own in-suite retry.
   for the panel warning (now moot: automation no longer touches the draft).
 - The first full suite after a DEFAULT change is the test that matters
   most — and the suite must never count "no verdict" as "pass".
+
+---
+
+## 2026-08-29: THE ENVELOPE TABLES ARE MOSTLY N=1, AND N=1 IS NOISE HERE
+
+The experiment that had to be run before any more cells were added, and it
+invalidates the per-angle reading of the whole cornering matrix.
+
+The single-rep grid showed failures scattered across angles at the rung
+above each gait's ceiling - `bounding@2.0` failing 30/75/105/120/150 while
+passing 45/60/90/135/165. That reads like an angle effect. Five reps at one
+"FELL" angle and one "PASS" angle, per gait, says it is not:
+
+| cell | grid said (N=1) | 5 reps say |
+|---|---|---|
+| bounding@2.0 30° | FELL | **PASS ×4, FAIL ×1** |
+| bounding@2.0 45° | PASS | **FAIL ×1, PASS ×4** |
+| trotRunning@4.5 60° | FELL | **PASS ×5** |
+| trotRunning@4.5 75° | PASS | **PASS ×5** |
+| walking@2.0 150° | FELL | **PASS ×5** |
+| walking@2.0 135° | PASS | **PASS ×5** |
+
+A cell recorded as FELL reproduces 5/5 PASS. A cell recorded as PASS
+reproduces 4/5. **The scatter was marginality, not geometry** - a gait
+sitting on its own ceiling fails a fraction of the time regardless of the
+corner, and a one-rep-per-cell grid samples that fraction and draws a
+picture of it.
+
+The same holds on the terrain side. flat `trotting@3.0` is 2/3, flat
+`trotting@3.25` is 2/3, flat `walking@2.25` is 2/3 - all rungs previously
+scored from one run.
+
+**Consequences, stated plainly:**
+1. **No per-angle ceiling in OPEN-8 is trustworthy at N=1.** The full
+   10-angle grids are still useful as a coarse map of where a gait is
+   comfortable, but "FELL at 150°" is not a finding.
+2. **The rough-vs-flat walking result survives but is weaker than it
+   looked**: rough@2.5 FELL 2/2 against flat@2.5 PASS 2/2 is a real
+   difference in the right direction, but both are N=2 on a stack now
+   demonstrated to be marginal at these rungs. It needs N≥5 per cell
+   before `v_terrain_max` gets a number.
+3. **The measurement standard changes**: a cell near a ceiling needs ≥5
+   reps, and a ceiling is where the PASS RATE crosses (say) 80%, not where
+   the first failure appears. This is the same lesson this file already
+   carries as "repeat every marginal cell before believing it" and as the
+   stop-at-first-failure ladder trap - applied to a whole matrix rather
+   than a single cell.
