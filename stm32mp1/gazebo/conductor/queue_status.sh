@@ -32,7 +32,14 @@ else:
 PY
 
 # 3. is a queue script actually alive?
-n=$(ps -eo command | grep -cE "/tmp/(w2pace|night2|run_all|main2)\.sh")
+# grep -v grep, and count with wc rather than grep -c: the grep process's
+# OWN command line contains the pattern, so `grep -c` reports one more than
+# is really running. Measured here: 6 vs the true 3. That is the same
+# self-match family as the pgrep gate that deadlocked this queue for 40
+# minutes, and it is worth being pedantic about in a tool whose entire job
+# is answering "is anything actually running?"
+n=$(ps -eo command | grep -E "/tmp/(w2pace|night2|night3|run_all|main2)\.sh" \
+      | grep -v grep | wc -l | tr -d " ")
 say "queue scripts alive" "$n"
 
 # 4. is the RUN NUMBER advancing? the only check that cannot be faked by a

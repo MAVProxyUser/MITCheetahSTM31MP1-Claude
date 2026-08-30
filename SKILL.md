@@ -84,6 +84,18 @@ The rules that follow from that:
    separate processes, gate on an ARTEFACT the finishing stage writes (a
    DONE marker file, a CSV row count) - never on the existence of a process
    whose name appears in somebody else's argv.
+   And when you DO count processes, `grep -v grep` and count with `wc -l`,
+   not `grep -c`: the grep's own command line contains the pattern, so
+   `grep -c` reports one more than is running. Measured in this repo's own
+   status tool: 6 reported against 3 real.
+6. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
+   `until grep -q DONE <log>` outlives the job when the job is killed,
+   replaced, or crashes - one sat for THREE HOURS on a marker that could
+   never appear because the script that would have written it had been
+   deliberately replaced. Every wait needs a second exit condition: bail
+   when the producer is gone (`ps ... | grep -v grep` for it), and bound the
+   loop with a maximum iteration count so the worst case is a stale watcher
+   for minutes, not for the rest of the session.
 4. **Check elapsed time against the clock before diagnosing a stall.** Twice
    in one night a 14-second-old launch was investigated as a wedge because
    `ps` etime was misread. `date` first, then the log's own timestamp.
