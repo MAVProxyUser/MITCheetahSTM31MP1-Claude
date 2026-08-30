@@ -1850,10 +1850,20 @@ class Fleet:
                 png = os.path.join(RUN_DIR, "terrain_%s.png" % terrain_kind)
                 if amp > 0.0 and os.path.exists(png):
                     try:
-                        wpts = ";".join("%.3f,%.3f" % (n, e) for (n, e) in
-                                         mission_waypoints(
-                                             s["mission"],
-                                             close_leg=s.get("close_leg", True)))
+                        # ANCHOR AT THE TRUE SPAWN, same as the drawn plan.
+                        # dash:30 is ONE waypoint, so without this the
+                        # sampler got a single point, could not resample a
+                        # polyline, and emitted one row - the controller
+                        # duly reported "DEM profile: 1 samples over 0.0 m"
+                        # and the relief cap had nothing to act on. A
+                        # profile that loads successfully and describes
+                        # nothing is worse than none: it reads as evidence.
+                        _wp = mission_waypoints(
+                            s["mission"], close_leg=s.get("close_leg", True))
+                        if _spawns_behind_wp0(s["mission"]) and _wp \
+                                and _wp[0] != (0.0, 0.0):
+                            _wp = [(0.0, 0.0)] + _wp
+                        wpts = ";".join("%.3f,%.3f" % (n, e) for (n, e) in _wp)
                         r = subprocess.run(
                             [sys.executable,
                              os.path.join(HERE, "terrain_profile.py"),
