@@ -99,10 +99,41 @@ passed on its own in-suite retry.
 - **OPEN-12 · RS485 bench validation** — `HARDWARE`. Field scalings, FOC
   mode value, CRC word count, per-joint gear/sign/offset — all unverified
   on a live motor; waiting on the fast RS485 adapter.
-- **OPEN-13 · Pre-hardware env-var consolidation** — `HARDWARE`. Fold the
-  load-bearing SIM_ vars into yaml, rework the fall detector for hardware
-  (attitude/kinematics, latch-limp not process-exit), delete the dead
-  flags. Scoped long ago in CLAUDE.md's SIM_ audit; untouched.
+- **OPEN-13 · Pre-hardware env-var consolidation** — `TWO OF THREE DONE`.
+  1. **Dead flags deleted** (2026-08-29). All eight the `SIM_` audit called
+     dead now have zero live reads, and the FEATURES went with them rather
+     than being left as unreachable code with a knob on it:
+     `SIM_FLIGHT_COST_GATE` (harmful: force 39-42 N/foot → 6.1),
+     `SIM_CONTACT_DETECT`/`_BAND`/`SIM_FREEFALL_G` (regression:
+     5.64/5.67/5.71 m vs a 20.68-25.24 m baseline),
+     `SIM_BALLISTIC_Z` (null), `SIM_KF_UNCAP` (solved a problem that does
+     not exist — Unitree ship the byte-identical cap),
+     `SIM_ABS_AIDING`/`SIM_AID_TAU` (position aiding, net-harmful: same
+     mean, catastrophic tail). Each removal carries the measurement that
+     killed it. VELOCITY aiding is untouched and still defaults ON.
+  2. **Tuning folded into yaml** (2026-08-29) —
+     `host-run/ctrl_tuning.yaml`, mirrored into `stm32mp1/deploy_pkg/`.
+     Every `CTRL_*` tuning value now resolves
+     **environment > `ctrl_tuning.yaml` > code default** via
+     `common/include/Utilities/CtrlTuning.h`. The env override is kept
+     deliberately: every sweep harness in this repo drives configuration
+     that way, and removing it would break the tooling that produced every
+     measurement on record. What changed is that the DEFAULT is written
+     down in one readable file instead of being spread across eight source
+     files as literals next to `getenv`. The file is loaded EAGERLY at
+     startup so a run says which config it found before the robot moves
+     (`[ctrl_tuning] loaded N values from <path>`), and it carries the
+     reasoning inline — including the levers measured and REJECTED
+     (`CTRL_BANK`, `CTRL_CORNER_CROUCH`) so nobody re-derives them.
+  3. **STILL OPEN: the fall detector is wrong for hardware.** It zeroes the
+     legs and then `_exit()`s the process, which is right for a sweep and
+     dangerous on a machine — process exit also stops whatever was feeding
+     the motor watchdog. Hardware wants latch-limp-and-hold under
+     supervision, keyed off ATTITUDE and kinematics rather than the
+     ESTIMATED height it uses now (that threshold already killed a day of
+     valid runs when the estimate drifted near it). `SIM_FALL_*` stays as
+     harness controls until that rework lands.
+
 - **OPEN-14 · The QA ladder on the real machine** — `HARDWARE` umbrella.
   Stand → lie → stand → slow walk, legs off the ground first; validates
   joint signs, gearing, RS485 framing, torque scaling, IMU orientation

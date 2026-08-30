@@ -12,6 +12,7 @@
 #include <Utilities/Timer.h>
 #include <JCQP/QpProblem.h>
 #include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "Utilities/CtrlTuning.h"
 
 // Precision for the JCQP solve. Float on the A7 (no double-precision SIMD);
 // SIM_MPC_DOUBLE restores MIT's double at build time if ever needed.
@@ -511,7 +512,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
         for(s32 g = 0; g < ng; g++) if(prev_gait[g] != update->gait[g]) { same_table = false; break; }
       for(s32 g = 0; g < ng; g++) prev_gait[g] = update->gait[g];
       prev_ng = ng;
-      static const bool warm_ok = !(getenv("CTRL_MPC_WARM") && atoi(getenv("CTRL_MPC_WARM")) == 0);
+      static const bool warm_ok = !(ctrl_tuning::raw("CTRL_MPC_WARM") && ctrl_tuning::integer("CTRL_MPC_WARM", 1) == 0);
       if(!fresh && same_table && warm_ok) jc->hotStart();
       jc->runFromDense(update->max_iterations, true, false);
       for(s32 rI = 0; rI < nv; rI++) q_soln[vi[rI]] = jc->getSolution()[rI];
@@ -538,7 +539,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
     // costs 56-85 ms for the 12*horizon variable problem against a 2 ms control
     // period. MIT's x86 UP board did the same solve in 1-2 ms and never noticed.
     // $CTRL_MPC_NWSR trades optimality for latency.
-    static const int _nwsr_env = getenv("CTRL_MPC_NWSR") ? atoi(getenv("CTRL_MPC_NWSR")) : 100;
+    static const int _nwsr_env = ctrl_tuning::integer("CTRL_MPC_NWSR", 100);
     qpOASES::int_t nWSR = _nwsr_env;
 
 

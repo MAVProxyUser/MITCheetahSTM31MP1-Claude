@@ -159,6 +159,25 @@ BOARD=192.168.0.90     # STM32MP1 (re-check the lease)
 MAC=192.168.0.75       # this Mac's LAN IP (Gazebo/bridge host)
 ```
 
+## Controller tuning lives in `ctrl_tuning.yaml`
+
+```bash
+host-run/ctrl_tuning.yaml          # the shipped defaults, with the reasoning
+stm32mp1/deploy_pkg/ctrl_tuning.yaml   # the board's copy
+```
+
+Resolution order is **environment > `ctrl_tuning.yaml` > code default**, so
+every sweep harness keeps working unchanged (they all export `CTRL_*`), and
+the DEFAULT is finally somewhere you can read it. The controller prints
+`[ctrl_tuning] loaded N values from <path>` at boot - if that line names the
+wrong file or says "not found", the robot is not running the config you
+think it is. `CTRL_TUNING_YAML=<path>` points it elsewhere.
+
+Values commented out in the file are AT their code default; an uncommented
+line is a decision about the shipped robot. The file also records the levers
+that were measured and REJECTED (`CTRL_BANK` null at 5/8 vs 8/11,
+`CTRL_CORNER_CROUCH` harmful at 0/2) so they do not get re-derived.
+
 ## One-time setup (Mac)
 ```bash
 brew tap messense/macos-cross-toolchains

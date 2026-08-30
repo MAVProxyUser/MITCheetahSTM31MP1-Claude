@@ -8202,3 +8202,62 @@ finite chain is a bug, size the queue to the absence and double it, never
 make a background monitor the only plan, and gate every stage on the
 conductor actually answering so a dead server stops the sweep instead of
 filling a CSV with fiction.
+
+## OPEN-13: the tuning finally has a home (2026-08-29)
+
+Two of the three parts are done, and the operator's question that forced it
+is worth quoting: *"you said you'd put those in a yaml? where is said yaml
+file now?"* There wasn't one. The first pass deleted the dead flags and
+called it progress, which is half the item.
+
+**Part 1, the dead flags are gone - and so is the code behind them.** All
+eight the `SIM_` audit listed as "measured null or harmful, should be
+DELETED" now have zero live reads. Each removal carries the measurement
+that killed it, so the idea does not get re-derived from scratch:
+
+| removed | why |
+|---|---|
+| `SIM_FLIGHT_COST_GATE` | HARMFUL: zeroing z/vz cost on all-swing horizon steps cut solved force 39-42 N/foot to 6.1 - the cost is what makes the optimiser command force at the CONTACT steps |
+| `SIM_CONTACT_DETECT` `_BAND` `SIM_FREEFALL_G` | REGRESSION: 5.64/5.67/5.71 m against a 20.68-25.24 m baseline, reproducible to 0.07 m. It overwrote the KF's graded stance phase with a two-level signal, throwing away the trust ramp |
+| `SIM_BALLISTIC_Z` | NULL: the vertical reference was never what was broken; pronking's dash failure was the shared `x_comp_integral` windup |
+| `SIM_KF_UNCAP` | solved a problem that does not exist - Unitree ship the byte-identical covariance cap on hardware that walks 2.5-4.7 m/s |
+| `SIM_ABS_AIDING` `SIM_AID_TAU` | POSITION aiding, net-harmful to locomotion: same mean, catastrophic tail (0.25 m on one run). Absolute position belongs in the NAV layer, where `WaypointNav` already reads it |
+
+VELOCITY aiding is untouched and still defaults ON - a different
+measurement with its own justification (it closed galloping's 8-10% leg
+odometry under-read, 0.917 -> 0.995 against ground truth).
+
+**Part 2, `host-run/ctrl_tuning.yaml`.** Every `CTRL_*` tuning value now
+resolves **environment > yaml > code default**, through
+`common/include/Utilities/CtrlTuning.h`.
+
+The env override is kept ON PURPOSE. Every sweep harness in this repo
+drives configuration that way, and taking it away would break the tooling
+that produced every measurement on record. What changed is that the DEFAULT
+is written down: it used to exist only as a literal sitting next to a
+`getenv` in one of eight source files, which meant the shipped yaml
+described a robot nobody ran and the real robot was whatever incantation
+the last harness exported. This project has already lost results to exactly
+that shape of problem - a sweep hardcoding `SIM_CHEATER` in its own env
+block, and a panel recipe whose label described a configuration it was not
+launching.
+
+Two deliberate design choices:
+* **Loaded EAGERLY at startup**, not on first use. The lookup itself is
+  lazy, so without an explicit init the `[ctrl_tuning] loaded N values from
+  <path>` line would not appear until deep inside the control loop - and
+  "did it find my config?" is a question you need answered before the robot
+  moves, not after.
+* **The file carries the reasoning inline**, including the levers measured
+  and REJECTED (`CTRL_BANK` null at 5/8 vs 8/11 baseline after being
+  claimed from three runs; `CTRL_CORNER_CROUCH` harmful at 0/2, min height
+  0.187). A config file that only lists what to set is an invitation to
+  re-try what was already disproved.
+
+**Part 3 is still open and is the hardware-relevant one**: the fall
+detector zeroes the legs and then `_exit()`s the process. That is right for
+a sweep and dangerous on a machine - process exit also stops whatever was
+feeding the motor watchdog. Hardware wants latch-limp-and-hold under
+supervision, keyed off ATTITUDE and kinematics rather than the ESTIMATED
+height it uses now (that threshold already killed a day of valid runs when
+the estimate drifted near it).

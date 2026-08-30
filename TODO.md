@@ -45,6 +45,13 @@ Grouped by what it would actually take to close it.
       `SIM_MPC_ASYNC=1`, or a re-measured contact-reduced qpOASES, before any
       of the Mac's post-solver-fix speeds can reach hardware.
 
+- [x] **Env-var consolidation, 2 of 3** (2026-08-29): the eight dead `SIM_`
+      flags are deleted along with the code behind them, and every `CTRL_*`
+      tuning value now resolves env > `ctrl_tuning.yaml` > code default.
+      STILL OPEN: reworking the fall detector for hardware (latch-limp under
+      supervision, keyed off attitude/kinematics, not `_exit()` on an
+      estimated height). ISSUES OPEN-13.
+
 ## Genuine unsolved mysteries (cause not isolated — do not re-guess without new evidence)
 
 - [ ] **gz-transport discovery silently fails at launch** (`0/N dogs

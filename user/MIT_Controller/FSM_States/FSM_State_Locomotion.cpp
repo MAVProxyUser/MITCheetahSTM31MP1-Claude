@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
 #include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "Utilities/CtrlTuning.h"
 //#include <rt/rt_interface_lcm.h>
 
 /**
@@ -53,7 +54,7 @@ FSM_State_Locomotion<T>::FSM_State_Locomotion(ControlFSMData<T>* _controlFSMData
     // 22 crosses at every trotting speed measured from 2.0 to 3.1, so it is a
     // safe single value - but a controller that varies its own speed widely
     // should compute this rather than inherit it.
-    if (const char* e = getenv("CTRL_MPC_MS")) {
+    if (const char* e = ctrl_tuning::raw("CTRL_MPC_MS")) {
       double v = atof(e);
       if (v >= 10 && v <= 80) mpc_ms = v;
     }

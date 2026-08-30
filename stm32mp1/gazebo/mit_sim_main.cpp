@@ -6,6 +6,7 @@
  * OpenPilot-style GPS waypoint loop around it - see navThread() below.
  */
 #include <string>
+#include "Utilities/CtrlTuning.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -1323,6 +1324,12 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
 }
 
 int main(int argc, char** argv) {
+  // Load the tuning yaml EAGERLY so the run says at boot which file it is
+  // using. The lookup itself is lazy, which means without this the
+  // "[ctrl_tuning] loaded N values" line would not appear until deep inside
+  // the control loop - and "did it find my config?" is a question you need
+  // answered before the robot moves, not after.
+  (void)ctrl_tuning::table();
   // Line-buffer stdout. The sweep harness ends runs with SIGTERM (timeout, or
   // the fall detector), and a block-buffered stdout loses everything still in
   // the buffer when that lands - which reads as "the run produced no log".

@@ -10,6 +10,7 @@
 #include "SafetyChecker.h"
 #include <cstdlib>
 #include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "Utilities/CtrlTuning.h"
 
 /**
  * @return safePDesFoot true if safe desired foot placements
@@ -36,8 +37,7 @@
 template <typename T>
 bool SafetyChecker<T>::checkSafeOrientation() {
   static const int hold_ticks =
-      (getenv("CTRL_ORIENT_HOLD_MS")
-           ? atoi(getenv("CTRL_ORIENT_HOLD_MS")) : 60) / 2;   // 2 ms ticks
+      (ctrl_tuning::integer("CTRL_ORIENT_HOLD_MS", 60)) / 2;   // 2 ms ticks
   static int over_ticks = 0;
   static float peak = 0.f;
 
