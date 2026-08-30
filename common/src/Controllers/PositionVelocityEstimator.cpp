@@ -444,20 +444,19 @@ void LinearKFPositionVelocityEstimator<T>::run() {
   // _P small throughout - so an absolute-position Kalman update computes
   // K = P/(P+R) ~ 0 and GPS gets no authority at all.
   //
-  // $SIM_KF_UNCAP=1 skips the suppression so the covariance can grow to reflect
-  // genuine unobservability, which is what makes GPS aiding work as a real
-  // Kalman update rather than a bolted-on complementary filter. Default keeps
-  // MIT's behaviour so nothing silently changes underneath existing results.
-  {
-    static const bool uncap = getenv("SIM_KF_UNCAP") &&
-                              atoi(getenv("SIM_KF_UNCAP")) != 0;
-    if (!uncap) {
-      if (_P.block(0, 0, 2, 2).determinant() > T(0.000001)) {
-        _P.block(0, 2, 2, 16).setZero();
-        _P.block(2, 0, 16, 2).setZero();
-        _P.block(0, 0, 2, 2) /= T(10);
-      }
-    }
+  // $SIM_KF_UNCAP REMOVED 2026-08-29 (OPEN-13). The flag existed to lift
+  // this suppression on the theory that it was starving GPS aiding of
+  // authority. It was solving a problem that does not exist: Unitree's own
+  // binary contains the byte-for-byte identical structure
+  // (LinearKFPositionVelocityEstimator<float>::run, 0x1c26a0-0x1c2778 -
+  // zero the cross-blocks, threshold check, divide the (0,0) 2x2 by 10.0)
+  // and they ship it on hardware that walks at 2.5-4.7 m/s. It was measured
+  // to change nothing and is deleted rather than left as a knob implying
+  // there is something here to tune.
+  if (_P.block(0, 0, 2, 2).determinant() > T(0.000001)) {
+    _P.block(0, 2, 2, 16).setZero();
+    _P.block(2, 0, 16, 2).setZero();
+    _P.block(0, 0, 2, 2) /= T(10);
   }
 
   // ---- ABSOLUTE POSITION AIDING (baro / GPS) -------------------------------
@@ -495,34 +494,10 @@ void LinearKFPositionVelocityEstimator<T>::run() {
         const T innov = aid->position[ax] - _xhat[ax];
         if (!std::isfinite(innov)) continue;
 
-        // With $SIM_KF_UNCAP=1 the covariance is allowed to grow honestly, so
-        // a proper Kalman update has real gain and is the correct estimator.
-        // Without it, MIT's suppression makes K ~ 0 and only the time-constant
-        // form below does anything.
-        static const bool kfForm = getenv("SIM_KF_UNCAP") &&
-                                   atoi(getenv("SIM_KF_UNCAP")) != 0;
-        if (kfForm) {
-          const T S_ax = _P(ax, ax) + R_ax;
-          if (S_ax > T(1e-12) && std::isfinite(S_ax)) {
-            Eigen::Matrix<T, 18, 1> K = _P.col(ax) / S_ax;
-            const T inn = aid->position[ax] - _xhat[ax];
-            if (std::isfinite(inn)) {
-              _xhat += K * inn;
-              _P -= K * _P.row(ax);
-              if (getenv("SIM_AID_DBG")) {
-                static int d2 = 0;
-                if (ax == 1 && (d2++ % 500) == 0) {
-                  printf("[AID-KF] axis=%d est=%.2f meas=%.2f innov=%.2f "
-                         "P=%.6f K=%.6f\n", ax, (double)_xhat[ax],
-                         (double)aid->position[ax], (double)inn,
-                         (double)_P(ax, ax), (double)K[ax]);
-                  fflush(stdout);
-                }
-              }
-            }
-          }
-          continue;
-        }
+        // (The $SIM_KF_UNCAP form of this update was removed with the flag
+        // itself - see the covariance-cap comment above. It only ever ran
+        // when the cap was lifted, and lifting the cap was solving a
+        // problem that does not exist.)
 
         // A textbook Kalman update here is INERT, and the reason is worth
         // recording: MIT caps the x,y position covariance every tick -
@@ -539,8 +514,15 @@ void LinearKFPositionVelocityEstimator<T>::run() {
         // covariance that has been suppressed. tau is how long it takes to wash
         // out an absolute error; it must be long compared with the gait period
         // so per-step odometry still dominates the short term.
-        static const T tau = getenv("SIM_AID_TAU") ? (T)atof(getenv("SIM_AID_TAU"))
-                                                   : T(2.0);
+        // $SIM_AID_TAU removed 2026-08-29 (OPEN-13). This entire POSITION
+        // aiding branch is now unreachable - the bridge no longer populates
+        // an absolute position measurement (see Stm32mp1HardwareBridge, the
+        // aidOn=false comment) because it was measured net-harmful to
+        // locomotion. Left in place rather than excised so the reasoning
+        // above survives for whoever revisits absolute aiding; a tuning
+        // knob on unreachable code is just a trap, so the constant stands
+        // on its own.
+        static const T tau = T(2.0);
         // was a hardcoded T(0.002) (the nominal dt) regardless of how long
         // this tick actually took - now the same measured/clamped dt the
         // predict step above uses, so a stalled tick washes out an

@@ -201,6 +201,9 @@ Grouped by what it would actually take to close it.
       estimator read stack garbage at control iterations 0-1 — 38 blips over
       21 runs went to 0 (ISSUES CLOSED (was OPEN-6)). Whether that also
       moves the N>=4 case has NOT been re-tested.
+- [x] **Four or more dogs**: CLOSED by decision 2026-08-29 - three is the
+      cap, period (ISSUES CLOSED-55). Not root-caused, and no longer a
+      question being asked.
 - [ ] **The trotting 100 m dash fails 0/6 in a 3-dog fleet but passes
       reliably solo**, with clean loop health (p50 2.48-2.92ms, 0% over
       4ms) and RTF 1.005 in both cases. trotRunning and walking dashes are

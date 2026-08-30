@@ -147,8 +147,18 @@ void Stm32mp1HardwareBridge::runMotors() {
     // sensors the real dog gets over CAN; here they come over UDP.
     // Opt-in ($SIM_ABS_AIDING=1) so existing measurements are unaffected.
     {
-      static const bool aidOn = getenv("SIM_ABS_AIDING") &&
-                                atoi(getenv("SIM_ABS_AIDING")) != 0;
+      // POSITION AIDING REMOVED 2026-08-29 (OPEN-13): measured net-harmful
+      // to locomotion and now permanently off. Baro/GPS position is not a
+      // control-loop input on this robot - the controller needs consistent
+      // RELATIVE motion to balance, and injecting absolute position steps
+      // the tracking error and the MPC fights it. Measured: no aiding
+      // 20.68/21.35/21.12/25.24/21.30 m, GPS aiding
+      // 25.51/21.33/0.25/19.13 - same mean, catastrophic tail. Absolute
+      // position belongs in the NAVIGATION layer, which is where
+      // WaypointNav already reads it (gazebo_get_aux directly). VELOCITY
+      // aiding is a different measurement with a different justification
+      // and stays - see the block below.
+      static const bool aidOn = false;
       // Independent of aidOn on purpose - see the velocity block below.
       // DEFAULT ON as of 2026-08-28 ($SIM_VEL_AIDING=0 disables). The
       // history matters: this feature was built for exactly the failure it
@@ -349,8 +359,9 @@ void Stm32mp1HardwareBridge::run() {
   // "wire only when the variable is set" condition would leave absAiding
   // null on a default launch, silently reproducing the exact
   // disconnected-pointer bug this comment block documents.
-  if ((getenv("SIM_ABS_AIDING") && atoi(getenv("SIM_ABS_AIDING")) != 0) ||
-      (!getenv("SIM_VEL_AIDING") || atoi(getenv("SIM_VEL_AIDING")) != 0))
+  // ($SIM_ABS_AIDING was removed with position aiding itself - OPEN-13.
+  // Only velocity aiding remains, and it defaults ON.)
+  if (!getenv("SIM_VEL_AIDING") || atoi(getenv("SIM_VEL_AIDING")) != 0)
   {  _robotRunner->absAiding = &_absAiding;
      shmtrace::logf(0.0, "[stm32mp1] absAiding wired: %p", (void*)&_absAiding); }
   // CHEATER MODE IS DELETED. There is no environment variable, no yaml key and

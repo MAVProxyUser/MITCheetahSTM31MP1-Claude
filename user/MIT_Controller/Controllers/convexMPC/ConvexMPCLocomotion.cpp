@@ -1251,69 +1251,19 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     }
   }
 
-  // CONTACT DETECTION (opt-in, $SIM_CONTACT_DETECT=1).
-  //
-  // MIT's ContactEstimator is a PASS-THROUGH - its own header says so: "it just
-  // has a pass-through algorithm which passes the phase estimation to the state
-  // estimator. This will need to change once we move contact detection to C++".
-  // So the KF believes a foot is down because the GAIT SCHEDULE says it should
-  // be, never because anything measured it. And the KF acts hard on that belief:
-  // during scheduled swing it inflates that foot's measurement noise by up to
-  // 100x (`high_suspect_number`), i.e. it discards the odometry entirely.
-  //
-  // When schedule and reality disagree, both failure directions are bad: a foot
-  // that is actually loaded gets its good odometry thrown away, and a foot that
-  // is actually airborne gets garbage fused. Measured here: pronking's body
-  // height falls monotonically (0.290 -> 0.140) so the robot NEVER leaves the
-  // ground, while its schedule calls 60% of the cycle flight.
-  //
-  // Detect it instead, from kinematics + IMU:
-  //   * a foot's height below the body is known from FK (`datas[i].p`) rotated
-  //     into the world frame - the LOWEST foot is the contact candidate, which
-  //     is a RELATIVE test and so does not depend on the body-height estimate it
-  //     would otherwise be circular with;
-  //   * in genuine free flight the accelerometer reads ~0 rather than ~1g, so a
-  //     low specific-force magnitude vetoes contact on every foot at once.
-  // Applied to the ESTIMATOR only. The MPC's contact table stays scheduled -
-  // that is a PLAN for the future, and rewriting it was already measured to make
-  // things worse.
-  {
-    static const bool detect = getenv("SIM_CONTACT_DETECT") &&
-                               atoi(getenv("SIM_CONTACT_DETECT")) != 0;
-    if (detect) {
-      const auto& se = data._stateEstimator->getResult();
-      // Foot heights in the world frame, relative to the body.
-      float footZ[4];
-      float lowest = 1e9f;
-      for (int i = 0; i < 4; i++) {
-        Vec3<float> pw = se.rBody.transpose() *
-            (data._quadruped->getHipLocation(i) + data._legController->datas[i].p);
-        footZ[i] = pw[2];
-        if (footZ[i] < lowest) lowest = footZ[i];
-      }
-      // Free-fall veto: specific force well under gravity means nothing is
-      // pushing on the robot, so no foot can be bearing load.
-      float aMag = 0.f;
-      for (int k = 0; k < 3; k++) aMag += se.aBody[k] * se.aBody[k];
-      aMag = std::sqrt(aMag);
-      static const float ff_thresh = getenv("SIM_FREEFALL_G")
-                                   ? atof(getenv("SIM_FREEFALL_G")) : 3.0f;
-      const bool freeFall = (aMag < ff_thresh);
-
-      static const float band = getenv("SIM_CONTACT_BAND")
-                              ? atof(getenv("SIM_CONTACT_BAND")) : 0.02f;
-      Vec4<float> detected;
-      for (int i = 0; i < 4; i++) {
-        const bool down = (!freeFall) && (footZ[i] < lowest + band);
-        // Blend with the schedule rather than replacing it outright: the
-        // schedule carries phase information (how far through stance) that a
-        // binary detector does not, and the KF's trust ramp wants a phase.
-        detected[i] = down ? std::max(se_contactState[i], 0.5f)
-                           : std::min(se_contactState[i], 0.5f);
-      }
-      se_contactState = detected;
-    }
-  }
+  // CONTACT DETECTION: REMOVED 2026-08-29 (OPEN-13), measured a REGRESSION.
+  // It inferred contact from kinematics + IMU (lowest foot by FK, vetoed by
+  // a free-fall check) and wrote the result over the gait schedule's phase.
+  // Measured on the real estimator, walking2 @1.0, three repeats:
+  // 5.64 / 5.67 / 5.71 m against a 20.68-25.24 m baseline - reproducible to
+  // 0.07 m, so a systematic regression rather than variance.
+  // Mechanism, worth keeping: MIT's KF does not use contact as a boolean.
+  // `phase` feeds a `trust` that ramps over a 0.2 window at each end of
+  // stance, and replacing that graded phase with a two-level signal threw
+  // away exactly the ramp the trust computation depends on. If this is ever
+  // revisited it must CORRECT the schedule's phase where the two disagree,
+  // not replace it. Removed with it: $SIM_CONTACT_DETECT,
+  // $SIM_CONTACT_BAND, $SIM_FREEFALL_G.
 
   // se->set_contact_state(se_contactState); todo removed
   data._stateEstimator->setContactPhase(se_contactState);
@@ -1684,65 +1634,18 @@ void ConvexMPCLocomotion::updateMPCIfNeeded(int *mpcTable, ControlFSMData<float>
         }
       }
 
-      // BALLISTIC VERTICAL REFERENCE FOR GAITS WITH A FLIGHT PHASE.
-      //
-      // Above, every horizon step gets z = _body_height and vz = 0 - MIT's
-      // stock reference. For a gait that is airborne by design that is
-      // incoherent with the gait's own contact schedule. MIT's `pronking` is
-      // offsets(0,0,0,0)/durations(4,4,4,4): SIX of ten segments with all four
-      // feet off the ground. To stay up for 60% of the cycle the body has to be
-      // LAUNCHED, and a reference that says "hold 0.30 m, zero vertical
-      // velocity" gives the optimiser no reason to ever build vertical
-      // velocity. So the MPC never launches, the schedule lifts the feet
-      // anyway, and the robot falls - which is exactly what pronking and
-      // galloping do here, immediately on engagement, level and sinking.
-      //
-      // Build the reference the schedule actually implies instead: at the last
-      // stance step before a flight of Tf segments, command the takeoff
-      // velocity that returns the body to _body_height, vz = g*Tf*dt/2; during
-      // flight integrate ballistically; during stance hold nominal.
-      // $SIM_BALLISTIC_Z=0 restores stock MIT.
-      {
-        // DEFAULT OFF - measured to give no benefit, and harmful paired with
-        // the flight cost gate (see SolverMPC). Stock MIT already commands
-        // sensible pronking forces (39-42 N/foot); the reference was not the
-        // thing that was broken.
-        static const bool ballistic = getenv("SIM_BALLISTIC_Z") &&
-                                      atoi(getenv("SIM_BALLISTIC_Z")) != 0;
-        if (ballistic) {
-          auto isFlight = [&](int k) {
-            if (k < 0 || k >= horizonLength) return false;
-            const int* c = mpcTable + k * 4;
-            return c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 0;
-          };
-          bool anyFlight = false;
-          for (int i = 0; i < horizonLength && !anyFlight; ++i) anyFlight = isFlight(i);
-
-          if (anyFlight) {
-            float z_ref  = _body_height;
-            float vz_ref = 0.f;
-            for (int i = 0; i < horizonLength; i++) {
-              if (isFlight(i)) {
-                vz_ref -= 9.81f * dtMPC;          // ballistic
-              } else {
-                // stance: we have authority. If flight starts next step, this
-                // is the launch - command the impulse that gets us back.
-                int Tf = 0;
-                for (int k = i + 1; k < horizonLength && isFlight(k); ++k) ++Tf;
-                if (Tf > 0) {
-                  vz_ref = 0.5f * 9.81f * ((float)Tf * dtMPC);
-                } else {
-                  z_ref = _body_height;
-                  vz_ref = 0.f;
-                }
-              }
-              z_ref += vz_ref * dtMPC;
-              trajAll[12*i + 5]  = z_ref;
-              trajAll[12*i + 11] = vz_ref;
-            }
-          }
-        }
-      }
+      // BALLISTIC VERTICAL REFERENCE: REMOVED 2026-08-29 (OPEN-13),
+      // measured NULL. The reasoning was good - a gait that is airborne by
+      // design (pronking is six of ten segments with all four feet off the
+      // ground) gets a stock reference of z = _body_height and vz = 0,
+      // which gives the optimiser no reason to ever build vertical
+      // velocity - so this built the reference the schedule implies:
+      // takeoff velocity vz = g*Tf*dt/2 at the last stance step, ballistic
+      // through flight, nominal in stance. It changed nothing. Stock MIT
+      // already commands sensible pronking forces (39-42 N/foot); the
+      // reference was not the thing that was broken, and pronking's real
+      // dash failure turned out to be the x_comp_integral windup shared by
+      // every gait. Flag removed with it: $SIM_BALLISTIC_Z.
     }
     Timer solveTimer;
 

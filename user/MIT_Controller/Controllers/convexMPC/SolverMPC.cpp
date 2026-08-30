@@ -352,39 +352,15 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   // MIT's vector. The optimiser cannot reduce that cost during flight, so it
   // distorts the forces on the surrounding CONTACT steps trying to, which is a
   // good description of what pronking and galloping do here (they fail the
-  // moment the gait engages, level, sinking).
-  // You should not put cost on a state you have no authority over. Zero the z
-  // and vz weights on steps where the contact table is all-swing.
-  // $SIM_FLIGHT_COST_GATE=0 restores stock MIT.
-  {
-    // DEFAULT OFF - MEASURED HARMFUL. Removing the z cost on airborne steps
-    // gutted the MPC's incentive to push: solved force fell from 39-42 N per
-    // foot (stock MIT, correctly above the 128 N bodyweight for a pronk) to
-    // 6.1 N per foot. The reasoning was sound - you should not put cost on a
-    // state you cannot control - but the cost is what makes the optimiser
-    // command force at the CONTACT steps, and dropping it on the majority of
-    // the horizon (6 of 10 for pronking) removed most of the objective.
-    static const bool gate = getenv("SIM_FLIGHT_COST_GATE") &&
-                             atoi(getenv("SIM_FLIGHT_COST_GATE")) != 0;
-    if (gate) {
-      int gated = 0;
-      for (s16 i = 0; i < setup->horizon; i++) {
-        const unsigned char* c = update->gait + i * 4;
-        if (c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 0) {
-          S.diagonal()[13 * i + 5]  = 0.f;   // z position
-          S.diagonal()[13 * i + 11] = 0.f;   // z velocity
-          ++gated;
-        }
-      }
-      if (gated && getenv("STM32MP1_MPC_MAT")) {
-        static int ch = 0;
-        if ((ch++ % 200) == 0) {
-          shmtrace::logf(0.0, "[MPC] flight-cost gate: %d/%d horizon steps airborne, "
-                 "z/vz cost removed", gated, setup->horizon);
-        }
-      }
-    }
-  }
+  // FLIGHT-COST GATE: REMOVED 2026-08-29 (OPEN-13), measured HARMFUL.
+  // The idea was not to put cost on a state you have no authority over -
+  // zero the z/vz weights on all-swing horizon steps. Sound reasoning,
+  // wrong conclusion: the cost is what makes the optimiser command force
+  // at the CONTACT steps, so dropping it on the majority of the horizon
+  // (6 of 10 for pronking) removed most of the objective and solved force
+  // collapsed from 39-42 N per foot to 6.1. It shipped default-ON once by
+  // mistake and was reverted; it then sat as a dead opt-in flag for
+  // months. Deleted rather than left as a trap for the next reader.
 
   //trajectory
   for(s16 i = 0; i < setup->horizon; i++)

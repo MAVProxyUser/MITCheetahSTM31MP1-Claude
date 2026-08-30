@@ -138,6 +138,23 @@ passed on its own in-suite retry.
 
 ### Closed from the OPEN list
 
+- **CLOSED-55 · Fleets of 4 or more: THREE IS THE CAP, by decision** —
+  closed 2026-08-29 by operator instruction: *"lets just say 3 is it,
+  period"*. The N≥4 failure is real and was never root-caused (every dog
+  hits `STATE ESTIMATE WENT NON-FINITE` before standing; RTF, loop
+  starvation, sensor wiring, a startup race and settling time were all
+  ruled out), and it is now an accepted product limit rather than an open
+  question. `mission_runner.py`'s `max 3 slots` and the panel's `SLOTS
+  (MAX 3)` are the DESIGN, not a stopgap.
+  Recorded honestly: this closes without the retest that was queued. The
+  N≥4 symptom is the same message the OPEN-6 fix eliminated for a single
+  dog (uninitialised `VectorNavData` read as stack garbage at control
+  iterations 0-1), so it is genuinely plausible that N≥4 now works — and
+  that is no longer a question this project is asking. Anyone who wants it
+  back needs to lift the 3-slot cap in `mission_runner.py` AND the panel
+  before it can even be measured; the cap silently rejected two attempts
+  (`mission_runner.py: error: max 3 slots`) which is how this got noticed.
+
 - **CLOSED-54 · The pose-feed decay is gone: measured over 43 launches on
   one server** (was the last of OPEN-21, closed 2026-08-29) — the close
   condition was a long campaign on a single never-restarted server, because
