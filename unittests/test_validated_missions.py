@@ -412,6 +412,27 @@ SETTLE_S = 0.0  # see the false-positive note below - the actual race this
                 # it is.
 
 
+def _tail(proc, n):
+    """Show STDERR as well as stdout.
+
+    The suite printed only proc.stdout, and mission_runner reports its
+    hardest failures through SystemExit - which writes to STDERR. So a run
+    that died before it ever launched showed a tail consisting of one
+    unrelated line ("cameras forced OFF...") and nothing else, and an 18-of-19
+    failure was completely undiagnosable from the suite's own output. A
+    harness that hides the reason for a failure is barely better than one
+    that reports the wrong verdict.
+    """
+    out = (proc.stdout or "").splitlines()[-n:]
+    err = (proc.stderr or "").splitlines()[-n:]
+    parts = []
+    if out:
+        parts.append("\n".join(out))
+    if err:
+        parts.append("  --- stderr ---\n" + "\n".join(err))
+    return "\n".join(parts) if parts else "  (no output at all)"
+
+
 def run_case(case: Case, repeats: int) -> bool:
     ok = True
     for rep in range(1, repeats + 1):
@@ -473,7 +494,7 @@ def run_case(case: Case, repeats: int) -> bool:
             # healthy run); a SECOND inconclusive in a row on the same case
             # is treated as the failure it almost certainly is.
             print(f"{label} HARNESS TIMEOUT - not a mission verdict; retrying once")
-            print(f"{label} tail of output:\n" + "\n".join(proc.stdout.splitlines()[-15:]))
+            print(f"{label} tail of output:\n" + _tail(proc, 15))
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode == 0:
                 print(f"{label} retry PASS")
@@ -481,12 +502,12 @@ def run_case(case: Case, repeats: int) -> bool:
                 ok = False
                 print(f"{label} retry exit {proc.returncode} - FAILING the case "
                       f"(two inconclusive/failed attempts in a row)")
-                print(f"{label} tail:\n" + "\n".join(proc.stdout.splitlines()[-20:]))
+                print(f"{label} tail:\n" + _tail(proc, 20))
         else:
             ok = False
             print(f"{label} FAIL (exit {proc.returncode})")
             print(f"{label} why this case is expected to pass:\n  {case.why}")
-            print(f"{label} tail of output:\n" + "\n".join(proc.stdout.splitlines()[-25:]))
+            print(f"{label} tail of output:\n" + _tail(proc, 25))
 
         # THE FALSE-POSITIVE THIS FIXES (found running this suite for real,
         # first night it existed): launching a case immediately after the
