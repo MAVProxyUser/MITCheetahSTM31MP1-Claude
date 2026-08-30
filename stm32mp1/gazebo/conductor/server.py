@@ -1810,6 +1810,20 @@ class Fleet:
                 terrain_env = ""
                 if "surface" in tspec:
                     terrain_env = "WP_TERRAIN_MU=%.3f " % tspec["surface"]["mu"]
+                # MEASURED (terrain, gait) SPEED CEILING. v_terrain_max is a
+                # per-LAUNCH scalar and the conductor knows both facts here,
+                # so the cap can be the one the measurement actually
+                # supports: on rough, WALKING is limited (2.5 fails 0/3
+                # while flat and rolling pass 4/5) and trotRunning is not
+                # (it passed to 4.5). A per-terrain-only cap would slow a
+                # gait this ground never troubled. Absent pair = no cap =
+                # previous behaviour exactly.
+                vmax = terrain.gait_vmax(terrain_kind, s["gait_name"])
+                if vmax:
+                    terrain_env += "WP_TERRAIN_VMAX=%.3f " % vmax
+                    self._note("dog%d terrain cap: %s on %s is measured to "
+                                "%.2f m/s - capping cruise there"
+                                % (i, s["gait_name"], terrain_kind, vmax))
                 # DEM SAMPLING AT WAYPOINT TIME (OPEN-7). Grip is the same
                 # everywhere on a surface, so a scalar mu is the right shape
                 # for it. SHAPE is not: a plan crossing a ridge and a plan
@@ -1839,7 +1853,15 @@ class Fleet:
                     except Exception as e:  # noqa: BLE001 - never block a launch
                         self._note("dog%d terrain profile FAILED: %r" % (i, e))
                 cmd = (
-                    "env DYLD_LIBRARY_PATH=. SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
+                    # SIM_FALL_EXIT=1: THIS IS A SWEEP, and a sweep wants the process
+                    # gone so the next cell can start. The controller now
+                    # LATCH-LIMPS by default instead (OPEN-13 part 3) -
+                    # right for a machine, wrong for a harness that would
+                    # then wait out the full timeout on every fall. The
+                    # sweep asks for what it needs; hardware inherits the
+                    # safe default rather than a harness convenience.
+                    "env DYLD_LIBRARY_PATH=. SIM_FALL_EXIT=1 "
+                    "SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
                     "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
                     "WP_MAX_YAWRATE=1.2 WP_SPAWN_BEARING_DEG=%.4f %s%s timeout 900 ./mit_ctrl_sim 127.0.0.1 "
                     "stm32mp1-defaults.yaml mc-mit-ctrl-user-parameters.yaml"

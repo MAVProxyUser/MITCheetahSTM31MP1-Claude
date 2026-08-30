@@ -125,14 +125,28 @@ passed on its own in-suite retry.
      (`[ctrl_tuning] loaded N values from <path>`), and it carries the
      reasoning inline — including the levers measured and REJECTED
      (`CTRL_BANK`, `CTRL_CORNER_CROUCH`) so nobody re-derives them.
-  3. **STILL OPEN: the fall detector is wrong for hardware.** It zeroes the
-     legs and then `_exit()`s the process, which is right for a sweep and
-     dangerous on a machine — process exit also stops whatever was feeding
-     the motor watchdog. Hardware wants latch-limp-and-hold under
-     supervision, keyed off ATTITUDE and kinematics rather than the
-     ESTIMATED height it uses now (that threshold already killed a day of
-     valid runs when the estimate drifted near it). `SIM_FALL_*` stays as
-     harness controls until that rework lands.
+  3. **Fall detector reworked for hardware** (2026-08-30). It used to zero
+     the legs and `_exit()` the process unconditionally — right for a sweep,
+     wrong on a machine, and not subtly: process exit also stops whatever
+     was feeding the motor watchdog, so the fault response became "stop
+     talking to the motors and disappear" at exactly the moment a human
+     needs the machine holding still, reporting, and answering. Nothing left
+     to command a controlled recovery, no telemetry while someone walks
+     over, and no way to tell "the detector tripped" from "the controller
+     crashed".
+     The default is now **LATCH-LIMP-AND-HOLD**: the loop keeps running, all
+     four legs are commanded to zero every tick (the latch is checked BEFORE
+     the estimator and controller, so nothing downstream can re-command
+     them), the watchdog stays fed and the logs keep flowing, and it does
+     not clear itself. `SIM_FALL_EXIT=1` restores the process exit, and the
+     CONDUCTOR now sets it explicitly — a sweep asks for what it needs
+     rather than every machine inheriting a harness's convenience.
+     **What is left of this part**: the z branch still reads the ESTIMATED
+     height, which is why it has misfired twice here (0.15 killed a day of
+     valid runs; 0.10 fired during commanded lie-downs until
+     `setFallZEnable` gated it). On hardware it should key off ATTITUDE and
+     kinematics. That is a smaller, well-scoped change and is the only piece
+     of OPEN-13 still open.
 
 - **OPEN-14 · The QA ladder on the real machine** — `HARDWARE` umbrella.
   Stand → lie → stand → slow walk, legs off the ground first; validates

@@ -71,6 +71,40 @@ TERRAIN_TYPES = {
 }
 
 
+# MEASURED PER-(TERRAIN, GAIT) SPEED CEILINGS.
+#
+# `v_terrain_max` is a per-LAUNCH scalar, and the conductor knows both the
+# terrain and the gait at launch - so the right shape for this table is
+# (terrain, gait), not terrain alone. That distinction is the measurement,
+# not a convenience: on `rough`, WALKING is limited while trotRunning is
+# not. Capping the whole terrain to walking's number would slow a gait the
+# ground never troubled.
+#
+# Everything here is measured through the flown-vs-planned ground-truth
+# gate, low-to-high with every rung run, and each entry records its own N.
+# An unmeasured (terrain, gait) pair is ABSENT, not guessed - the planner
+# then behaves exactly as it did before, which is what keeps every
+# validated flat result valid.
+#
+#   dash:30, 2026-08-30, N as noted
+#     rough   walking  2.0  5/5 PASS   2.25 1/1 PASS   2.5  0/3 PASS
+#     flat    walking  2.0  4/4        2.25 5/5        2.5  4/5
+#     rolling walking  2.0  -          2.25 4/4        2.5  4/5
+#   So 2.5 is where rough separates from BOTH controls, and 2.25 is the
+#   highest rung rough has passed. Encoded at 2.25 rather than the fully
+#   sampled 2.0 because 2.25 passed everywhere it was run - but note the
+#   asymmetry in N (rough@2.25 is 1/1) and re-measure before trusting it as
+#   a hard number rather than a cap.
+GAIT_VMAX = {
+    "rough": {"walking": 2.25},
+}
+
+
+def gait_vmax(kind, gait_name):
+    """Measured speed ceiling for this (terrain, gait), or None."""
+    return (GAIT_VMAX.get(kind) or {}).get(gait_name)
+
+
 def surface_xml(spec):
     """The <surface> block for the GROUND collision of a surface kind."""
     s = spec["surface"]

@@ -146,6 +146,15 @@ void RobotRunner::run() {
   // own comment (PositionVelocityEstimator.cpp) for the full mechanism and
   // why a stalled tick otherwise silently under-integrates.
   _stateEstimator->setActualDt((float)(dt_ms_actual / 1000.0));
+  // A LATCHED FALL OUTRANKS EVERYTHING BELOW. Hold the legs at zero and
+  // keep looping: the point of latch-limp is that the process stays alive
+  // and answering, so the controller must not be allowed to re-command the
+  // legs on the next tick.
+  if (_fallLatched) {
+    for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
+    finalizeStep();
+    return;
+  }
   _stateEstimator->run();
   //cheetahMainVisualization->p = _stateEstimate.position;
   visualizationData->clear();
@@ -421,12 +430,50 @@ void RobotRunner::run() {
         }
         for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
         finalizeStep();
-        // _exit, not exit: this runs on the control thread while the MPC worker
-        // and the UDP threads are still live, and running static destructors
-        // underneath them aborts (SIGABRT) instead of exiting cleanly. Flush
-        // first, since _exit does not.
-        fflush(nullptr);
-        _exit(0);
+
+        // LATCH-LIMP, OR EXIT? THEY ARE DIFFERENT MACHINES (OPEN-13 part 3).
+        //
+        // Exiting is right for a SWEEP: the harness wants the process gone so
+        // the next cell can start, and a simulated robot has nothing to
+        // protect. It is WRONG on hardware, and not subtly - process exit
+        // also stops whatever was feeding the motor watchdog, so the fault
+        // response becomes "stop talking to the motors and disappear" at the
+        // exact moment a human needs the machine to be holding still,
+        // reporting, and answering. There is nothing left to command a
+        // controlled recovery, nothing to keep telemetry flowing while
+        // someone walks over, and no way to distinguish "the detector
+        // tripped" from "the controller crashed".
+        //
+        // So the default is now LATCH-LIMP-AND-HOLD: keep the control loop
+        // running, keep every leg commanded to zero every tick, keep the
+        // watchdog fed and the logs flowing, and stay that way until
+        // something deliberately clears it. $SIM_FALL_EXIT=1 restores the
+        // process exit for harness use - the sweeps that want it ask for it,
+        // rather than every machine inheriting a sweep's convenience.
+        //
+        // NOTE the ATTITUDE test is the one that should key this on hardware.
+        // The z test reads the ESTIMATE, which is why it has misfired twice
+        // in this project's history (0.15 killed a day of valid runs; 0.10
+        // fired during commanded lie-downs until setFallZEnable gated it).
+        // It stays for the sim, where it is cheap and the estimate is good.
+        static const bool fall_exit =
+            getenv("SIM_FALL_EXIT") && atoi(getenv("SIM_FALL_EXIT")) != 0;
+        if (fall_exit) {
+          // _exit, not exit: this runs on the control thread while the MPC
+          // worker and the UDP threads are still live, and running static
+          // destructors underneath them aborts (SIGABRT) instead of exiting
+          // cleanly. Flush first, since _exit does not.
+          fflush(nullptr);
+          _exit(0);
+        }
+        if (!_fallLatched) {
+          _fallLatched = true;
+          shmtrace::logf(_shmElapsed,
+                 "[FALL] LATCHED LIMP - legs held at zero, control loop still "
+                 "running so the watchdog stays fed and telemetry keeps "
+                 "flowing. This does NOT clear itself. ($SIM_FALL_EXIT=1 "
+                 "exits the process instead, for sweeps.)");
+        }
       }
     }
   }

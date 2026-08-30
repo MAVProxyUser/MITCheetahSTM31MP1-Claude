@@ -46,6 +46,11 @@ class RobotRunner : public PeriodicTask {
   GamepadCommand* driverCommand;
   RobotType robotType;
   VectorNavData* vectorNavData;
+  //! Latched by the fall detector (OPEN-13 part 3). Once set, every tick
+  //! commands all four legs to zero and the loop KEEPS RUNNING - the motor
+  //! watchdog stays fed and telemetry keeps flowing, which is what a human
+  //! walking towards a downed machine needs. It does not clear itself.
+  bool _fallLatched = false;
   CheaterState<double>* cheaterState;
   SpiData* spiData;
   SpiCommand* spiCommand;
