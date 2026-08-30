@@ -401,8 +401,38 @@ void RobotRunner::run() {
       // its commanded lie-downs via setFallZEnable(); the ATTITUDE branch
       // stays armed throughout - a lie-down is level by definition, so a
       // genuine tip during one still trips.
+      // KINEMATIC HEIGHT, not the estimate (OPEN-13 part 3). bodyZ above
+      // comes from the KF's integrated position, which is why this branch
+      // has misfired twice in this project's history: 0.15 killed a day of
+      // valid real-estimator runs (the robot walks at ~0.175 ESTIMATED
+      // while Gazebo truth said 0.197), and 0.10 fired during commanded
+      // lie-downs until setFallZEnable gated it. Both were estimator error,
+      // not robot state.
+      //
+      // How high the body sits above its own feet needs no estimator at
+      // all: forward kinematics gives each foot in the hip frame, the
+      // orientation estimate rotates it to world, and the lowest foot is
+      // the ground. A collapsed robot has its belly on the deck with the
+      // feet beside it, so this number goes to ~0.08 the same way the
+      // estimated one does - but it cannot drift, and on hardware the
+      // orientation is the one thing the IMU gives directly.
+      float kinZ = 0.f;
+      {
+        float lowest = 1e9f;
+        for (int leg = 0; leg < 4; leg++) {
+          Vec3<float> pw = _stateEstimate.rBody.transpose() *
+              (_quadruped.getHipLocation(leg) + _legController->datas[leg].p);
+          if (pw[2] < lowest) lowest = pw[2];
+        }
+        if (std::isfinite(lowest) && lowest < 1e8f) kinZ = -lowest;
+      }
+      // Prefer the kinematic height whenever it is sane; fall back to the
+      // estimate only if FK gave nothing (a leg with non-finite data).
+      const bool haveKin = (kinZ > 1e-3f && std::isfinite(kinZ));
+      const float useZ = haveKin ? kinZ : bodyZ;
+      if (useZ > 0.25f) stood = true;
       const bool collapsed = (g_fallZEnable.load() &&
-                              stood && std::isfinite(bodyZ) && bodyZ < fall_z);
+                              stood && std::isfinite(useZ) && useZ < fall_z);
       if (tipped || collapsed)
         fallen_for += controlParameters->controller_dt;
       else
@@ -413,7 +443,7 @@ void RobotRunner::run() {
                "robot is down, stopping (legs go limp via the bridge watchdog)",
                tipped ? "tipped over" : "collapsed",
                _stateEstimate.rpy[0] * 57.2958f, _stateEstimate.rpy[1] * 57.2958f,
-               bodyZ, fallen_for);
+               useZ, fallen_for);
         // Tag the ring buffer with the confirmed-crash marker BEFORE the
         // _exit() below - the write itself survives an unclean exit (the
         // shm segment is not torn down by _exit skipping destructors), but

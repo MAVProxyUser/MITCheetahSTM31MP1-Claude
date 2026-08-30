@@ -8261,3 +8261,75 @@ feeding the motor watchdog. Hardware wants latch-limp-and-hold under
 supervision, keyed off ATTITUDE and kinematics rather than the ESTIMATED
 height it uses now (that threshold already killed a day of valid runs when
 the estimate drifted near it).
+
+## 2026-08-30: three software items moved, and one metric column recovered
+
+### OPEN-7: v_terrain_max is written, and its SHAPE was the finding
+
+N=5 through the ground-truth gate, `dash:30`, every rung run low-to-high:
+
+```
+walking @2.5   rough 0/3 PASS   flat 4/5   rolling 4/5
+walking @2.25  rough 1/1        flat 5/5   rolling 4/4
+walking @2.0   rough 5/5        flat 4/4
+```
+
+`rough` separates from BOTH controls at 2.5. But the same ground took
+trotRunning to 4.5 without complaint, so a per-TERRAIN scalar would have
+been the wrong shape - it would slow a gait this ground never troubled.
+The scalar is per-LAUNCH and the conductor knows both the terrain and the
+gait, so `terrain.py` carries a **(terrain, gait)** table instead, with
+exactly one measured entry (`rough`/`walking` -> 2.25) and the asymmetry in
+N recorded inline. An unmeasured pair is ABSENT, not guessed.
+
+### OPEN-13 part 3: the fall detector latches limp instead of exiting
+
+It zeroed the legs and `_exit()`ed the process unconditionally. Right for a
+sweep; wrong on a machine, and not subtly - process exit ALSO stops
+whatever was feeding the motor watchdog, so the fault response became "stop
+talking to the motors and disappear" at exactly the moment a human needs
+the machine holding still, reporting, and answering.
+
+Default is now LATCH-LIMP-AND-HOLD: the loop keeps running, all four legs
+are commanded to zero every tick, and the latch is checked BEFORE the
+estimator and controller so nothing downstream can re-command them.
+`SIM_FALL_EXIT=1` restores the exit and the CONDUCTOR sets it explicitly -
+a sweep asks for what it needs rather than every machine inheriting a
+harness's convenience.
+
+And the collapse test no longer reads the ESTIMATE. `bodyZ` came from the
+KF's integrated position, which is why this branch misfired twice here
+(0.15 killed a day of valid runs while Gazebo truth said the robot was
+walking; 0.10 fired during commanded lie-downs until `setFallZEnable` gated
+it). Both were estimator error, not robot state. How high the body sits
+above its own FEET needs no estimator: forward kinematics per leg, rotated
+by the orientation estimate, lowest foot is the ground. It cannot drift,
+and on hardware orientation is the one thing the IMU gives directly. The
+estimate remains only as a fallback when FK returns nothing.
+
+### The corner xtrack column was measuring two different bugs
+
+First it scored the 25 m approach as deviation, because corner/dash/outback
+spawn BEHIND wp0 and the drawn plan started at wp0. Fixed with a shared
+`spawns_behind_wp0()` predicate.
+
+Then it still read 6.9-10.3 m, for a second reason: every sweep passes
+`--extra "WP_CLOSE_LEG=0"`, which turns the closing leg off IN THE
+CONTROLLER while the slot's `close_leg` field stayed True - so the plan
+included a return-to-origin leg the dog never flies (`plan=71.2 m` for a
+50 m course). Two sources of truth for one fact, drifting - the same shape
+as the panel recipe whose label described a configuration it was not
+launching. The env is authoritative now: the resolved launch line is parsed
+and the slot made to agree, so `corner:25:45` plans 50.0 m.
+
+### OPEN-17 is down to two flags, and they get a measurement
+
+`SIM_CONTACT_DETECT` and `SIM_ABS_AIDING` left with their code under
+OPEN-13 (both measured harmful). What remains - `SIM_FORCE_GATE` and
+`SIM_KF_VFLOOR` - is UNPROVEN rather than disproven, which deserves an
+experiment rather than a deletion. Both are queued for interleaved A/Bs on
+the courses whose failure they claim to touch, plus a control course they
+should NOT affect: a flag that helps everywhere is not fixing what it says
+it fixes. Note `SIM_KF_VFLOOR`'s one supporting data point predates the
+`x_comp_integral` windup fix, so like every pre-windup number it describes
+a robot being commanded backward and cannot be cited about this build.

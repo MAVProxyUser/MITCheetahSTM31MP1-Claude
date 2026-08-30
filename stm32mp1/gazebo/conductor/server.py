@@ -1416,6 +1416,20 @@ class Fleet:
             close_leg = bool(s.get("close_leg", DEFAULT_CLOSE_LEG))
             if not close_leg:
                 extra = (extra + " WP_CLOSE_LEG=0").strip()
+            # THE ENV IS AUTHORITATIVE, so make the slot agree with it.
+            # A harness that passes --extra "WP_CLOSE_LEG=0" (every sweep in
+            # this repo does) turns the closing leg off IN THE CONTROLLER
+            # while the slot field stays True - so the drawn/measured plan
+            # included a return-to-origin leg the dog never flies. That is
+            # not cosmetic: plan_len feeds both the flown/planned ratio and
+            # the cross-track metric, and it is why corner rows read
+            # plan=71.2 m for a 50 m course with an xtrack of 6.9-10.3 m.
+            # Same defect shape as the panel recipe whose label described a
+            # configuration it was not launching: two sources of truth for
+            # one fact, and they drifted.
+            if re.search(r"\bWP_CLOSE_LEG\s*=\s*0\b", extra):
+                close_leg = False
+                s["close_leg"] = False
             dash = float(s.get("dash") or 0.0)
             if dash > 0:
                 # Appended after whatever the recipe's own mission builds -

@@ -164,12 +164,25 @@ passed on its own in-suite retry.
 - **OPEN-16 · Time Machine I/O storms** — `MITIGATED`. Launch gate refuses
   to start during a backup; a backup that *begins* mid-run can still kill
   a fleet. `sudo tmutil disable` before long sessions remains the real fix.
-- **OPEN-17 · Parked experimental flags** — `PARKED`, all default-off, all
-  documented at their sites: `SIM_FORCE_GATE` (contact validity, unproven
-  A/B), `SIM_KF_VFLOOR` (velocity covariance floor — superseded in practice
-  by aiding), `SIM_CONTACT_DETECT` (measured regression, kept for the
-  correct-the-phase idea), `SIM_ABS_AIDING` position aiding (measured
-  harmful for locomotion; nav already fuses GPS at its own layer).
+- **OPEN-17 · Parked experimental flags** — `PARKED`, down from four to
+  **two**: `SIM_CONTACT_DETECT` and `SIM_ABS_AIDING` were deleted with
+  their code under OPEN-13 (both measured harmful; each removal carries the
+  measurement that killed it). What remains is genuinely unproven rather
+  than disproven, which is a different thing and deserves a measurement
+  rather than a deletion:
+  * `SIM_FORCE_GATE` — derates the KF's contact trust when the hypothetical
+    foot force is not physically consistent with load-bearing. Never got its
+    interleaved A/B: the only comparison run was ONE galloping dash each
+    way, on this project's least reliable gait.
+  * `SIM_KF_VFLOOR` — floors the velocity-block covariance, which collapses
+    from ~0.025 to ~0.0007 within a second of any run (taking the Kalman
+    gain on new leg-odometry evidence from ~0.20 to ~0.007). It measurably
+    delayed a failure once (upright past t=313 s vs falling at t=112 s) —
+    but that was measured BEFORE the `x_comp_integral` windup fix, so like
+    every pre-windup number it describes a robot being commanded backward
+    and cannot be cited about the current build.
+  Both are queued for a proper A/B. The close condition is a measurement,
+  not a decision: measure, then default-on or delete.
 - **OPEN-18 · Spiro dense-weave variant** — recorded won't-do: the 8-rev
   1660 m curve needs ~1100 waypoints against MAXWP=768 and an ~18-minute
   run for a cosmetic improvement.
