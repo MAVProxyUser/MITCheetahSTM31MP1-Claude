@@ -103,7 +103,19 @@ The rules that follow from that:
    how the stages were spawned, and of whether any particular log is being
    written. Watch that, with a generous window (a cell can take 150 s), and
    nothing else.
-7. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
+7. **ASSERT THE MECHANISM IS LIVE BEFORE SWEEPING ITS GAIN.** A null result
+   from an inert feature is not a null result about the feature. Measured
+   here: an 11-run sweep of `WP_RELIEF_K` came back uniformly FAIL and
+   looked like a clean negative - the conductor was generating the DEM
+   profile and passing `WP_TERRAIN_PROFILE` correctly, but the DEPLOYED
+   BINARY predated the loader, so every cell was identical by construction.
+   The build was clean; the deploy had been waiting for an idle gap that
+   never got taken. Every parameter sweep must PROVE the parameter reaches
+   the code first - look for the feature's own log line, and refuse to sweep
+   if it is absent. This is the same family as RULE ZERO's "read the
+   harness's env block before reporting a number": verify what actually ran,
+   not what you intended to run.
+8. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
    `until grep -q DONE <log>` outlives the job when the job is killed,
    replaced, or crashes - one sat for THREE HOURS on a marker that could
    never appear because the script that would have written it had been
