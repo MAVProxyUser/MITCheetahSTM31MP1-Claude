@@ -5452,5 +5452,134 @@
   "verdict": "INCONCLUSIVE",
   "wall_s": 422.3,
   "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit"
+ },
+ {
+  "ts": "2026-08-30 12:14:14",
+  "case": "parallel_recipe",
+  "config": {
+   "slots": [
+    "parallel:30:5:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "INCONCLUSIVE",
+  "wall_s": 223.3,
+  "failure_signature": "STALLED: [0] - nothing left to wait for"
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "expsquare_recipe",
+  "config": {
+   "slots": [
+    "expsquare:5:12"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.2
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "lissajous_1_2",
+  "config": {
+   "slots": [
+    "lissajous:15:1:2"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.0
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.0
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "lissajous_11_9",
+  "config": {
+   "slots": [
+    "lissajous:15:11:9"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.0
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "spiro_recipe",
+  "config": {
+   "slots": [
+    "spiro:9.0:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.0
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.0
+ },
+ {
+  "ts": "2026-08-30 12:14:23",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 0.0
  }
 ]

@@ -38,7 +38,11 @@ PY
 # self-match family as the pgrep gate that deadlocked this queue for 40
 # minutes, and it is worth being pedantic about in a tool whose entire job
 # is answering "is anything actually running?"
-n=$(ps -eo command | grep -E "/tmp/(w2pace|night2|night3|run_all|main2)\.sh" \
+# Match ANY /tmp/*.sh campaign script rather than a hand-maintained list:
+# the list went stale the first time a new stage was queued (relief.sh and
+# park.sh were both running while this reported "0 alive"), and a status
+# tool that under-reports is as bad as one that over-reports.
+n=$(ps -eo command | grep -E "^/bin/bash /tmp/[a-z0-9_]+\.sh" \
       | grep -v grep | wc -l | tr -d " ")
 say "queue scripts alive" "$n"
 
