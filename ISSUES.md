@@ -36,8 +36,23 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `MEASURED, one
-  open question left`. The envelope and the angle cells are done and closed
+- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `CAP SHIPPED AND
+  VERIFIED; the DEM relief gain is the last open piece`.
+  **The measured cap works end to end** (2026-08-30). The server logs
+  `terrain cap: walking on rough is measured to 2.25 m/s - capping cruise
+  there`, and the cell that motivated it flipped: `rough/walking@2.5` was
+  **0/3 PASS uncapped** and is **9/9 PASS with the cap applied**. That is
+  the planner integration doing exactly its job - the request is 2.5, the
+  ground is known to take 2.25, and the plan is built for 2.25.
+  **And that immediately confounded the relief-gain sweep**, which is worth
+  recording rather than quietly re-running: every arm of it, `k=0`
+  included, ran capped, so `WP_RELIEF_K` had nothing left to do and the
+  sweep measured the CAP rather than the gain. Re-queued with
+  `WP_TERRAIN_VMAX=-1` so the relief term is the only thing acting, plus a
+  stage that removes the cap to PROVE it was the cause of the 9/9 rather
+  than assuming it.
+  Original scoping follows.
+  `MEASURED, one open question left`. The envelope and the angle cells are done and closed
   separately (CLOSED-50); what remains is whether `rough` has a real
   speed ceiling.
   On the FIXED terrain (see CLOSED-50 for the generator bug that made the
