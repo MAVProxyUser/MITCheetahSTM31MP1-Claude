@@ -115,7 +115,15 @@ The rules that follow from that:
    if it is absent. This is the same family as RULE ZERO's "read the
    harness's env block before reporting a number": verify what actually ran,
    not what you intended to run.
-8. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
+8. **NEVER EDIT A RUNNING SHELL SCRIPT.** bash reads the file
+   INCREMENTALLY, by byte offset - it does not slurp the whole thing at
+   start. Patching a campaign script in place while it executes shifts
+   every byte after the edit, and the shell resumes mid-token on its next
+   read. Measured here: adding a heartbeat to a live `/tmp/go.sh` killed it
+   with `line 31: | grep -E "VERDICT|METRICS" || echo ...` and the rig went
+   quiet with nothing obviously wrong. Every change to a running campaign
+   gets a NEW FILE.
+9. **NEVER WAIT ON A MARKER WHOSE WRITER YOU MIGHT KILL.** A watcher looping
    `until grep -q DONE <log>` outlives the job when the job is killed,
    replaced, or crashes - one sat for THREE HOURS on a marker that could
    never appear because the script that would have written it had been
