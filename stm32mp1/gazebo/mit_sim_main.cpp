@@ -254,6 +254,12 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
                        ? atof(getenv("WP_TERRAIN_MU")) : -1.0;
     lim.v_terrain_max = getenv("WP_TERRAIN_VMAX")
                        ? atof(getenv("WP_TERRAIN_VMAX")) : -1.0;
+    // DEM relief response (OPEN-7). Gain defaults to 0 = inert: the law's
+    // SHAPE is physical but its constant has exactly one measured anchor,
+    // and a guessed constant in the planner is precisely what this terrain
+    // programme exists to avoid.
+    lim.relief_k   = getenv("WP_RELIEF_K")   ? atof(getenv("WP_RELIEF_K"))   : 0.0;
+    lim.relief_ref = getenv("WP_RELIEF_REF") ? atof(getenv("WP_RELIEF_REF")) : 0.02;
 
     lim.yaw_rate_max = nav.max_yawrate;
     lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;
@@ -316,6 +322,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     }
     hold_stop_n[1] = nav.waypoint(nav.count() - 1).north;
     hold_stop_e[1] = nav.waypoint(nav.count() - 1).east;
+    // Load the DEM profile BEFORE planning - the relief cap is applied
+    // inside computeSpeedProfile, so it has to be there when the profile
+    // is built, not bolted on after.
+    planner.loadTerrainProfile(getenv("WP_TERRAIN_PROFILE"));
     planner.plan(wx, wy, 0.10, false, corridor);
     if (getenv("WP_PLAN_DBG")) {
       const auto& pp = planner.path();

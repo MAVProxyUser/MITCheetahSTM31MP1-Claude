@@ -60,6 +60,7 @@ struct PathPoint {
   double theta = 0;        //!< path heading (tangent)
   double kappa = 0;        //!< curvature, 1/m (signed: + is left)
   double v_max = 0;        //!< speed limit here, from curvature
+  double relief = 0;       //!< stride-scale ground mismatch, m (DEM)
   double v = 0;            //!< planned speed after the accel passes
 };
 
@@ -104,6 +105,22 @@ struct BodyLimits {
    *  limit - the procedural rolling/rough heightmaps, where walking is
    *  measured INTERMITTENT and fails silently. -1 = no ceiling. */
   double v_terrain_max = -1.0;
+  //! DEM RELIEF RESPONSE (OPEN-7). The conductor samples the heightmap along
+  //! THIS mission's planned path and hands over a per-metre profile of the
+  //! stride-scale height mismatch - how much the ground moves under one
+  //! stride, which is what decides whether four feet can be on a common
+  //! plane. That, not average grade, is what separates the two geometry
+  //! kinds measured here: `rolling` has the larger PEAK grade (41.5%) and
+  //! costs walking nothing, while `rough` is gentler on average (5.4%) and
+  //! takes walking's ceiling from 2.5 to ~2.0-2.25. Mean stride mismatch
+  //! tells them apart where grade does not: 16 mm vs 9 mm.
+  //! v_cap = v_cruise / (1 + relief_k * mismatch / relief_ref)
+  //! DEFAULT 0 = INERT. The law's shape is physical but its gain is not yet
+  //! measured - there is exactly one anchor point - and this project's own
+  //! rule is that a guessed constant in the planner is the failure mode the
+  //! whole terrain programme exists to avoid. $WP_RELIEF_K turns it on.
+  double relief_k = 0.0;
+  double relief_ref = 0.02;   //!< metres of stride mismatch per unit of k
   /*!
    * Longitudinal accel/decel used to build the profile - DELIBERATELY BELOW the
    * achievable rate, and this is the single most important number here.
@@ -220,6 +237,56 @@ class BodyPathPlanner {
   //! Pin a_lon_max, disabling the speed-dependent default (WP_ALON).
   void setAlonExplicit(double a) { _lim.a_lon_max = a; _alonExplicit = true; }
   const BodyLimits& limits() const { return _lim; }
+
+  /*!
+   * Load a DEM profile sampled along THIS mission's planned path
+   * (conductor/terrain_profile.py writes it; $WP_TERRAIN_PROFILE names it).
+   * CSV: s_m,z_m,grade,stride_mismatch_m. Called before plan(); the values
+   * are interpolated onto the resampled path by arc length.
+   * Returns false if the file is absent - which is the normal case for flat
+   * ground and for every surface kind, and must never be an error.
+   */
+  bool loadTerrainProfile(const char* path) {
+    _reliefS.clear(); _reliefV.clear();
+    if (!path || !*path) return false;
+    FILE* f = fopen(path, "r");
+    if (!f) return false;
+    char line[256];
+    bool first = true;
+    double sumv = 0.0, maxv = 0.0;
+    while (fgets(line, sizeof(line), f)) {
+      if (first) { first = false; if (line[0] == 's') continue; }
+      double s_m = 0, z = 0, g = 0, mm = 0;
+      if (sscanf(line, "%lf,%lf,%lf,%lf", &s_m, &z, &g, &mm) == 4) {
+        _reliefS.push_back(s_m); _reliefV.push_back(mm);
+        sumv += mm; if (mm > maxv) maxv = mm;
+      }
+    }
+    fclose(f);
+    if (_reliefS.empty()) return false;
+    printf("[plan] DEM profile: %zu samples over %.1f m, stride mismatch "
+           "mean %.3f m max %.3f m%s\n", _reliefS.size(), _reliefS.back(),
+           sumv / _reliefS.size(), maxv,
+           _lim.relief_k > 0.0 ? "" : " (relief_k=0: reported, not applied)");
+    return true;
+  }
+
+ private:
+  double reliefAt(double s_m) const {
+    if (_reliefS.empty()) return 0.0;
+    if (s_m <= _reliefS.front()) return _reliefV.front();
+    if (s_m >= _reliefS.back())  return _reliefV.back();
+    size_t lo = 0, hi = _reliefS.size() - 1;
+    while (hi - lo > 1) {
+      size_t mid = (lo + hi) / 2;
+      if (_reliefS[mid] <= s_m) lo = mid; else hi = mid;
+    }
+    const double t = (s_m - _reliefS[lo]) /
+                     std::max(1e-9, _reliefS[hi] - _reliefS[lo]);
+    return _reliefV[lo] + t * (_reliefV[hi] - _reliefV[lo]);
+  }
+
+ public:
   const std::vector<PathPoint>& path() const { return _path; }
 
   /*!
@@ -579,6 +646,7 @@ class BodyPathPlanner {
   //! Extra per-point speed ceiling imposed from outside (MissionAnalyzer).
   //! Empty = none. Curvature alone cannot express "this turn is sustained".
   std::vector<double> _extraCap;
+  std::vector<double> _reliefS, _reliefV;  //!< DEM profile (OPEN-7)
   size_t _lastIdx = 0;
   bool _alonExplicit = false;
   //! Pivot state: ramped speed command and committed turn direction while a
@@ -810,6 +878,19 @@ class BodyPathPlanner {
       // well under v_min's 0.25 - forcing it back up is exactly the
       // traction-only speed that was measured to shank the corner.
       p.v_max = std::min(_lim.v_cruise, v_max);
+      // DEM RELIEF CAP (OPEN-7). The conductor sampled the heightmap along
+      // this exact path; p.relief is the stride-scale height mismatch here.
+      // Slow down where the ground moves under a stride, because that is
+      // what stops four feet sharing a plane - the thing measured to cost
+      // `rough` a speed rung while `rolling`, with a LARGER peak grade,
+      // costs nothing. Recorded on every point regardless, so a run's
+      // profile is in the record even when the cap is inert.
+      p.relief = reliefAt(p.s);
+      if (_lim.relief_k > 0.0 && p.relief > 0.0) {
+        const double f = 1.0 + _lim.relief_k * p.relief /
+                                std::max(1e-6, _lim.relief_ref);
+        p.v_max = std::min(p.v_max, _lim.v_cruise / f);
+      }
       // A hairpin is taken as a PIVOT, not an arc: force it slow enough that
       // v*omega - and therefore roll - is negligible, and let the steering do
       // the work the fillet cannot.

@@ -44,6 +44,26 @@ def _shift_first_to_origin(pts):
 _NORTH_YAW_RAD = math.pi / 2.0
 
 
+# Missions whose FIRST waypoint is not where the dog stands. Everything else
+# calls shiftFirstToOrigin() (or is periodic and closes on its own start), so
+# the flown path and the planned path share an origin. These three do not:
+# the dog spawns at (0,0) on a north heading and wp0 is out ahead of it.
+#
+# That distinction is not cosmetic. It is why `corner:` rows reported a
+# cross-track of 6.9-10.3 m, IDENTICAL across flat/rough/rolling: the metric
+# measures the worst distance from any flown point to the planned polyline,
+# and the planned polyline began 25 m ahead of the dog, so the entire
+# approach leg was scored as deviation. It made the xtrack column
+# meaningless for every corner probe ever run - a number that looked like a
+# terrain result and was pure geometry.
+SPAWN_BEHIND_WP0 = ("corner", "dash", "outback")
+
+
+def spawns_behind_wp0(spec):
+    """True when the dog starts at the local origin rather than on wp0."""
+    return spec.split(":", 1)[0] in SPAWN_BEHIND_WP0
+
+
 def mission_opening_bearing_rad(spec):
     """Standard compass bearing (radians, 0=north, positive clockwise
     toward east) from wp0 to wp1 - the direction of the mission's first
@@ -73,7 +93,7 @@ def mission_opening_bearing_rad(spec):
     # only the length-based one below (which "corner" doesn't trigger, since
     # it genuinely has 2 waypoints, unlike dash's 1).
     kind = spec.split(":", 1)[0]
-    if kind == "corner":
+    if kind in SPAWN_BEHIND_WP0:
         return 0.0
     try:
         pts = mission_waypoints(spec)

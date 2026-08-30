@@ -127,6 +127,7 @@ os.environ.setdefault("GZ_RELAY", "127.0.0.1")
 # python3 any more.
 sys.path.insert(0, GAZEBO_DIR)
 from trail_daemon import mission_waypoints  # noqa: E402
+from mission_geometry import spawns_behind_wp0 as _spawns_behind_wp0  # noqa: E402
 import campaign as _campaign                # noqa: E402
 
 DISCOVERY_STATS = os.path.join(RUN_DIR, "discovery_stats.json")
@@ -1547,6 +1548,16 @@ class Fleet:
                         dn, de = dn / length, de / length
                         dash = float(s["dash"])
                         pts = pts + [(n0, e0), (n0 + dn * dash, e0 + de * dash)]
+                # ANCHOR THE PLAN WHERE THE DOG ACTUALLY STARTS.
+                # corner/dash/outback spawn BEHIND wp0 (the dog is at the
+                # local origin, wp0 is out ahead), so a plan that begins at
+                # wp0 omits the entire approach leg the robot really flies.
+                # Consequence, measured: every `corner:` row reported an
+                # xtrack of 6.9-10.3 m, identical across flat/rough/rolling,
+                # because the metric scored 25 m of approach as deviation.
+                # It looked like a terrain result and was pure geometry.
+                if _spawns_behind_wp0(spec) and pts and pts[0] != (0.0, 0.0):
+                    pts = [(0.0, 0.0)] + pts
                 if len(pts) == 1:
                     # A standalone dash is ONE waypoint (the whole mission,
                     # not a finish appended to a loop), so it never enters
@@ -1799,6 +1810,34 @@ class Fleet:
                 terrain_env = ""
                 if "surface" in tspec:
                     terrain_env = "WP_TERRAIN_MU=%.3f " % tspec["surface"]["mu"]
+                # DEM SAMPLING AT WAYPOINT TIME (OPEN-7). Grip is the same
+                # everywhere on a surface, so a scalar mu is the right shape
+                # for it. SHAPE is not: a plan crossing a ridge and a plan
+                # along a valley floor are different problems on the same
+                # terrain kind. So for a terrain with real geometry, sample
+                # the heightmap we just generated ALONG THIS DOG'S PLANNED
+                # PATH and hand the planner the profile.
+                prof_path = os.path.join(RUN_DIR, "terrain_profile_%d.csv" % i)
+                amp = float(tspec.get("amplitude", 0.0) or 0.0)
+                png = os.path.join(RUN_DIR, "terrain_%s.png" % terrain_kind)
+                if amp > 0.0 and os.path.exists(png):
+                    try:
+                        wpts = ";".join("%.3f,%.3f" % (n, e) for (n, e) in
+                                         mission_waypoints(
+                                             s["mission"],
+                                             close_leg=s.get("close_leg", True)))
+                        r = subprocess.run(
+                            [sys.executable,
+                             os.path.join(HERE, "terrain_profile.py"),
+                             "--png", png, "--zscale", "%g" % max(amp * 2.0, 0.02),
+                             "--waypoints", wpts, "--out", prof_path],
+                            capture_output=True, text=True, timeout=60)
+                        for ln in (r.stdout or "").strip().splitlines():
+                            self._note("dog%d %s" % (i, ln))
+                        if os.path.exists(prof_path):
+                            terrain_env += "WP_TERRAIN_PROFILE=%s " % prof_path
+                    except Exception as e:  # noqa: BLE001 - never block a launch
+                        self._note("dog%d terrain profile FAILED: %r" % (i, e))
                 cmd = (
                     "env DYLD_LIBRARY_PATH=. SIM_RUN_ID=%d SIM_INSTANCE=%d SIM_GAIT=%d SIM_VX=%s "
                     "SIM_VX_DELAY_S=%d SIM_VX_RAMP_S=8 WP_MISSION=%s WP_PLANNER=1 "
