@@ -667,6 +667,15 @@ def main():
     r = api("POST", "/api/launch", body)
     if not r.get("ok"):
         raise SystemExit("launch refused: %s" % r.get("message"))
+    # Keep any live campaign record fresh: a launch is the thing that proves
+    # the queue is moving, and several campaign stages run longer than the
+    # panel's five-minute staleness window.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import campaign as _campaign
+        _campaign.touch()
+    except Exception:  # noqa: BLE001 - telemetry must never block a run
+        pass
 
     st = api("GET", "/api/state")
     run_id = st.get("run_id")

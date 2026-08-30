@@ -38,6 +38,30 @@ def set_stage(name, stage="", done=0, total=0, note=""):
         pass
 
 
+def touch(note=None):
+    """Keep the record FRESH without changing what it says.
+
+    The panel greys a campaign record older than five minutes and labels it
+    "last campaign (idle)", which is right - a harness that died should not
+    leave a live-looking counter. But a publisher that only writes once per
+    STAGE goes stale during any stage longer than five minutes, and several
+    are. So the thing that actually proves activity - a run being launched -
+    refreshes the timestamp. Staleness then means what it should: no runs
+    have started recently.
+    """
+    rec = read()
+    if not rec:
+        return
+    rec["updated"] = time.time()
+    if note:
+        rec["note"] = note
+    try:
+        with open(PATH, "w") as f:
+            json.dump(rec, f)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def read():
     try:
         with open(PATH) as f:

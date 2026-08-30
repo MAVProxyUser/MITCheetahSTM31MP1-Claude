@@ -1,0 +1,61 @@
+#!/bin/bash
+# "How can I be sure the queue is running?" - answer it without asking me.
+#
+# Four independent checks, each of which can fail on its own, so a green
+# line means something. The failure modes this session actually hit are all
+# covered: a wedged conductor (alive, holding :8420, answering nothing), a
+# queue script deadlocked in a sleep, a finished chain with nothing behind
+# it, and a campaign grinding out cells with no verdicts.
+cd "$(dirname "$0")/../../.."
+say(){ printf "%-26s %s\n" "$1" "$2"; }
+
+# 1. does the conductor ANSWER (not just exist)?
+code=$(curl -s -o /tmp/.qs -w "%{http_code}" --max-time 6 \
+        http://127.0.0.1:8420/api/state 2>/dev/null)
+if [ "$code" = "200" ]; then say "conductor" "answering (HTTP 200)"
+else say "conductor" "NOT ANSWERING (http=$code) <-- wedged or down"; fi
+
+# 2. what does it say it is doing?
+python3 - <<'PY' 2>/dev/null || echo "state              unreadable"
+import json, time
+s = json.load(open("/tmp/.qs"))
+c = s.get("campaign") or {}
+el = s.get("elapsed_s")
+print("%-26s %s  run %s%s" % ("phase", s.get("phase"), s.get("run_id"),
+      ("  (%ds into this run)" % int(el)) if el else ""))
+if c.get("name"):
+    age = time.time() - (c.get("updated") or 0)
+    print("%-26s %s | %s%s" % ("campaign", c["name"], (c.get("stage") or "")[:44],
+          "   <-- STALE (>5 min)" if age > 300 else ""))
+else:
+    print("%-26s none published" % "campaign")
+PY
+
+# 3. is a queue script actually alive?
+n=$(ps -eo command | grep -cE "/tmp/(w2pace|night2|run_all|main2)\.sh")
+say "queue scripts alive" "$n"
+
+# 4. is the RUN NUMBER advancing? the only check that cannot be faked by a
+#    process merely existing. A cell takes 40-150 s, so give it 90.
+a=$(python3 -c "import json;print(json.load(open('/tmp/.qs')).get('run_id'))" 2>/dev/null)
+echo -n "run number advancing        watching 90s ... "
+sleep 90
+curl -s -o /tmp/.qs2 --max-time 6 http://127.0.0.1:8420/api/state 2>/dev/null
+b=$(python3 -c "import json;print(json.load(open('/tmp/.qs2')).get('run_id'))" 2>/dev/null)
+if [ "$a" != "$b" ]; then echo "YES ($a -> $b)"
+else
+  ph=$(python3 -c "import json;print(json.load(open('/tmp/.qs2')).get('phase'))" 2>/dev/null)
+  if [ "$ph" = "running" ] || [ "$ph" = "launching" ]; then
+    echo "still on run $a, phase=$ph (a long cell - normal)"
+  else
+    echo "NO - run $a, phase=$ph <-- nothing is being launched"
+  fi
+fi
+
+# 5. the newest result lines, whichever campaign is live
+echo; echo "last results:"
+for f in /tmp/night2.log /tmp/w2pace.log /tmp/run_all.log; do
+  [ -f "$f" ] && [ -n "$(find "$f" -mmin -10 2>/dev/null)" ] && \
+    { echo "  ($f, modified in the last 10 min)"; \
+      grep -E "^--- |VERDICT|METRICS|^####" "$f" | tail -6 | sed 's/^/  /'; break; }
+done
