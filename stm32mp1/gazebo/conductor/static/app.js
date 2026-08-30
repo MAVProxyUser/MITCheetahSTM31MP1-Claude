@@ -661,27 +661,42 @@ function renderFleet() {
   const t = secs != null ? ` - ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s`
                           : "";
   const runTxt = state.run_id != null ? ` - run ${state.run_id}` : "";
+  // THE QUEUE INDICATOR, separate from the RUN indicator.
+  // A campaign spends real time not launching - teardown, the next world
+  // build, the gap between stages - and during those the header used to
+  // look exactly like a rig with nothing queued. That ambiguity is the one
+  // the operator kept having to ask about ("are you doing something right
+  // now? I see no pulsing"). Campaign scripts now heartbeat every 20 s, so
+  // a FRESH record means a queue is alive whether or not a run is in
+  // flight, and a MISSING or stale one means genuinely nothing is queued -
+  // which is now said loudly instead of looking like idle-between-cells.
   const c = state.campaign;
+  const cAge = (c && c.updated) ? (Date.now() / 1000 - c.updated) : 1e9;
+  const queueLive = !!(c && c.name && cAge < 120);
   let campTxt = "";
-  if (c && c.name) {
-    const age = c.updated ? (Date.now() / 1000 - c.updated) : 1e9;
-    // A record older than 5 minutes is stale (the harness died or finished
-    // without clearing) - say so rather than showing a frozen counter as if
-    // it were live.
-    const stale = age > 300;
+  if (queueLive) {
     const prog = c.total ? ` ${c.done}/${c.total}` : "";
     const el = c.started ? Math.round(Date.now() / 1000 - c.started) : null;
     const elTxt = el != null ? ` - ${Math.floor(el / 60)}m` : "";
-    campTxt = `<div class="campaign ${stale ? "stale" : ""}">`
-      + `${stale ? "last campaign (idle)" : "campaign"}: <b>${c.name}</b>`
+    campTxt = `<div class="campaign"><span class="pulse"></span>`
+      + `queue: <b>${c.name}</b>`
       + (c.stage ? ` &middot; ${c.stage}` : "") + prog + elTxt
       + (c.note ? ` &middot; ${c.note}` : "") + `</div>`;
+  } else if (c && c.name) {
+    const mins = Math.round(cAge / 60);
+    campTxt = `<div class="campaign idle-warn">QUEUE STOPPED &middot; `
+      + `last campaign <b>${c.name}</b>, no heartbeat for ${mins} min `
+      + `&middot; nothing is queued</div>`;
+  } else {
+    campTxt = `<div class="campaign idle-warn">NO CAMPAIGN QUEUED &middot; `
+      + `the rig is idle</div>`;
   }
   capEl.innerHTML =
     `STM32MP1 -> Go1 SITL fleet control - <span class="phase-tag ${state.phase}">`
     + `${running ? '<span class="pulse"></span>' : ""}${state.phase}</span>`
     + runTxt + (running ? t : "") + campTxt;
-  document.title = (running ? "* " : "") + "Conductor - " + state.phase;
+  document.title = (running ? "* " : (queueLive ? "~ " : "!! IDLE - "))
+    + "Conductor - " + state.phase;
 
   renderLoadWidget();
 }

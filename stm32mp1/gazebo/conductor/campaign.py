@@ -70,6 +70,29 @@ def read():
         return None
 
 
+def heartbeat_forever(interval=20.0):
+    """Keep the record fresh while a campaign is between runs.
+
+    A campaign spends real time NOT launching: teardown, the next world
+    build, the gap between stages. During those the panel had nothing to
+    distinguish "working, between cells" from "nothing queued at all", and
+    both rendered the same - which is exactly the situation the operator
+    kept having to ask about. A heartbeat makes the difference observable:
+    if this record is fresh, a campaign is alive whether or not a run
+    happens to be in flight right now.
+
+    Run as `python3 campaign.py heartbeat &` from a campaign script; it
+    exits on its own when the record is cleared, so it cannot outlive the
+    campaign it belongs to.
+    """
+    while True:
+        rec = read()
+        if not rec:
+            return          # campaign cleared - stop, do not resurrect it
+        touch()
+        time.sleep(interval)
+
+
 def clear():
     try:
         os.remove(PATH)
@@ -81,6 +104,8 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "clear":
         clear()
+    elif len(sys.argv) > 1 and sys.argv[1] == "heartbeat":
+        heartbeat_forever()
     else:
         # campaign.py "<name>" "<stage>" <done> <total> ["note"]
         a = sys.argv[1:]

@@ -196,3 +196,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 @media (prefers-reduced-motion: reduce) { .pulse { animation: none; opacity: .85; } }
 .campaign { margin-top: .25rem; font-size: .82rem; opacity: .9; }
 .campaign.stale { opacity: .45; font-style: italic; }
+/* A stopped queue must not look like a busy one. */
+.campaign.idle-warn {
+  color: #ff9f6b; font-weight: 600; opacity: 1; font-style: normal;
+  border-left: 3px solid #ff7b72; padding-left: .5em;
+}
