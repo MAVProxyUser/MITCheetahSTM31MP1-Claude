@@ -52,6 +52,16 @@ Grouped by what it would actually take to close it.
       supervision, keyed off attitude/kinematics, not `_exit()` on an
       estimated height). ISSUES OPEN-13.
 
+- [x] **Time Machine I/O storms** — CLOSED 2026-08-30 as mitigated and
+      accepted (ISSUES CLOSED was OPEN-16). The launch gate refuses to start
+      during a backup; a backup that BEGINS mid-run is an OS scheduling fact
+      the gate cannot cover, and `sudo tmutil disable` before a long session
+      is the operator-side fix. Nothing left to build.
+- [x] **Spiro dense-weave variant** — CLOSED 2026-08-30 as won't-do (ISSUES
+      CLOSED was OPEN-18): 1660 m curve, ~1107 waypoints against MAXWP=768,
+      ~18-minute run, to cosmetically improve a mission that already ships
+      and passes. The arithmetic is recorded so it is not re-derived.
+
 ## Genuine unsolved mysteries (cause not isolated — do not re-guess without new evidence)
 
 - [ ] **gz-transport discovery silently fails at launch** (`0/N dogs

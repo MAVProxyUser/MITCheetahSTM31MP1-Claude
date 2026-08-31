@@ -120,9 +120,6 @@ passed on its own in-suite retry.
 
 ### Mitigated / parked
 
-- **OPEN-16 · Time Machine I/O storms** — `MITIGATED`. Launch gate refuses
-  to start during a backup; a backup that *begins* mid-run can still kill
-  a fleet. `sudo tmutil disable` before long sessions remains the real fix.
 - **OPEN-17 · Parked experimental flags** — `PARKED`, down from four to
   **two**: `SIM_CONTACT_DETECT` and `SIM_ABS_AIDING` were deleted with
   their code under OPEN-13 (both measured harmful; each removal carries the
@@ -142,9 +139,6 @@ passed on its own in-suite retry.
     and cannot be cited about the current build.
   Both are queued for a proper A/B. The close condition is a measurement,
   not a decision: measure, then default-on or delete.
-- **OPEN-18 · Spiro dense-weave variant** — recorded won't-do: the 8-rev
-  1660 m curve needs ~1100 waypoints against MAXWP=768 and an ~18-minute
-  run for a cosmetic improvement.
 - **OPEN-19 · Chase-cam lag halving** — nice-to-have. ~200-250 ms end to
   end (≈0.8 m rubber-band at sprint); halve the 100 ms follow tick and
   raise the 10 Hz camera rate if it ever matters, then re-measure GPU.
@@ -154,6 +148,38 @@ passed on its own in-suite retry.
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED (was OPEN-16) · Time Machine I/O storms** — closed 2026-08-30 as
+  MITIGATED-AND-ACCEPTED. **Symptom**: hourly backups start around :38 on
+  this Mac and wedge the control loops for 16-18 ms against a 2 ms budget —
+  a ~9x force impulse that drops every sprinting dog in the same instant,
+  with clean logs either side. Two same-wall-second multi-dog kills sit
+  inside backup windows (14:38:09 exactly at a :38 start; 16:44:09 six
+  minutes into the 16:38 backup). **Mitigation, shipped**: the conductor
+  REFUSES to launch while `tmutil status` reports `Running=1` (ddeedc7),
+  with the operator commands in the refusal message. **The residual is
+  accepted, not solved**: the gate cannot protect a mission from a backup
+  that BEGINS mid-run, and it never could — that is an OS-level scheduling
+  fact, not a defect in this code. `sudo tmutil disable` before a long
+  session is the real fix and is an operator action. Nothing further to
+  build; reopen only if a stall is ever traced to a backup window with the
+  gate active AND the backup having started before the launch.
+
+- **CLOSED (was OPEN-18) · Spiro dense-weave variant** — closed 2026-08-30
+  as WON'T-DO, with the arithmetic that settles it. The reference image's
+  denser weave needs `k = (R-r)/r` just above 8 (e.g. 57/8), which does
+  produce the look while keeping exact 8-fold symmetry — but it closes only
+  after 8 full revolutions instead of one, and arc length scales with
+  revolution count. Scaled to the same 9 m outer radius that curve is
+  **1660 m long**: even at a 1.5 m waypoint spacing (already too coarse to
+  resolve the woven centre) it is **~1107 waypoints against the shared
+  `MAXWP=768`**, and roughly an **18-minute** run against a catalog whose
+  current longest is 562 s. Raising `MAXWP` is a shared-constant change
+  with unknown reach into every other mission, and an 18-minute run is a
+  scope jump rather than a tuning tweak — all to improve on a result that
+  already ships, is verified (`spiro:9.0:8` PASS 119.2 s ×3), and is
+  honestly caveated as a single-layer rendition rather than an exact match.
+  Recorded so nobody re-derives the parameter search from scratch.
 
 - **CLOSED (was OPEN-13) · Pre-hardware env-var consolidation** — closed
   2026-08-30, all three parts done.
