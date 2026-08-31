@@ -1061,10 +1061,22 @@ class Fleet:
         # look exactly like the leak this is watching for.
         viewers = Handler._mjpeg_clients
         drift = (threads - base - viewers) if base is not None else 0
+        # ONLY MEANINGFUL WHEN SETTLED. A running fleet legitimately holds
+        # ~11 extra threads (one _watch_child per child, the pose-feed
+        # reader, the cam-feed reader and its mute pusher, the log poller,
+        # the chase follower), so comparing mid-run against an IDLE
+        # baseline alarms on every healthy run - which this did, within
+        # three minutes of shipping, reporting leaking=True on runs
+        # 1884-1886 while nothing was wrong. A canary that cries wolf on
+        # normal operation is worse than no canary, because it teaches the
+        # operator to ignore it. The invariant that actually holds is:
+        # once the fleet is torn down, threads return to baseline.
+        settled = self.phase not in ("launching", "running")
         return dict(threads=threads, baseline=base, drift=drift,
                     children=len(live), tracked=len(self.procs),
-                    mjpeg_viewers=Handler._mjpeg_clients,
-                    leaking=bool(base is not None and drift > THREAD_DRIFT_ALARM))
+                    mjpeg_viewers=Handler._mjpeg_clients, settled=settled,
+                    leaking=bool(base is not None and settled
+                                  and drift > THREAD_DRIFT_ALARM))
 
     def audit_threads(self, where):
         """Called at every launch and teardown. A clean run returns to the
@@ -1074,7 +1086,10 @@ class Fleet:
         h = self.health()
         if h["baseline"] is None:
             return h
-        if h["leaking"]:
+        # At "launch" the previous run should already have settled, and at
+        # "teardown" this one just did - both are settled moments, which is
+        # exactly why these are the two call sites.
+        if h["leaking"] or (where == "teardown" and h["drift"] > THREAD_DRIFT_ALARM):
             self._note("THREAD LEAK: %d threads, %d above the %d-thread "
                         "baseline at %s (%d tracked children, %d alive). "
                         "Every long-lived resource is supposed to be a child "
