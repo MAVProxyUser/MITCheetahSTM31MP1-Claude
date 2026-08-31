@@ -8333,3 +8333,38 @@ should NOT affect: a flag that helps everywhere is not fixing what it says
 it fixes. Note `SIM_KF_VFLOOR`'s one supporting data point predates the
 `x_comp_integral` windup fix, so like every pre-windup number it describes
 a robot being commanded backward and cannot be cited about this build.
+
+## RETRACTION (2026-08-30): "the terrain cap works, 0/3 -> 9/9"
+
+Reported a few hours after the cap shipped, from a 12-run block in which
+`rough/walking@2.5` passed every time with the cap enabled, against 0/3
+when the cell had last been measured uncapped. It read as a clean
+before/after and it is not one.
+
+The experiment written specifically to confirm it - remove the cap, expect
+failure; keep it, expect success - returned **1/3 with the cap and 0/3
+without**. Pooling the whole session for that exact cell gives **0 PASS /
+6 FAIL** across two earlier campaigns, then 12/12, then 1/3.
+
+A cell that reads 12/12 in one block and 1/3 in the next is not telling you
+about a cap. It is a marginal cell with a lurking variable, and the 9/9 was
+the same over-read from a small block that this file has now recorded
+against itself at N=1, N=2, N=3 and (here) N=12. The lesson is not "use
+more reps" - 12 was not few. It is that **blocks run at different times are
+not comparable on this rig**, which is exactly why the interleaved A/B
+exists and why every claim of the form "it was X before and Y now" needs
+the two arms interleaved rather than sequenced.
+
+What survives: the PLUMBING is verified firing. The DEM is sampled along
+each dog's own planned path (`301 samples over 30.0 m, stride mismatch mean
+0.016 m max 0.069 m`, matching an independent hand measurement of `rough`
+exactly), the (terrain, gait) cap is looked up and logged, and the planner
+consumes both. What is NOT established is that the ceiling it encodes is
+real. `rough/walking@2.5` at N=20 capped and N=20 uncapped in ONE
+uninterrupted block is running; if the cell is genuinely bimodal, the 2.25
+comes back out of `terrain.py` rather than standing as a measured number.
+
+The relief-gain sweep is separately unresolved: its first run was inert
+(binary predated the loader), its second was confounded (every arm ran
+capped), and its third needs the cap explicitly disabled to see the gain at
+all.

@@ -36,39 +36,32 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `CAP SHIPPED AND
-  VERIFIED; the DEM relief gain is the last open piece`.
-  **The measured cap works end to end** (2026-08-30). The server logs
-  `terrain cap: walking on rough is measured to 2.25 m/s - capping cruise
-  there`, and the cell that motivated it flipped: `rough/walking@2.5` was
-  **0/3 PASS uncapped** and is **9/9 PASS with the cap applied**. That is
-  the planner integration doing exactly its job - the request is 2.5, the
-  ground is known to take 2.25, and the plan is built for 2.25.
-  **And that immediately confounded the relief-gain sweep**, which is worth
-  recording rather than quietly re-running: every arm of it, `k=0`
-  included, ran capped, so `WP_RELIEF_K` had nothing left to do and the
-  sweep measured the CAP rather than the gain. Re-queued with
-  `WP_TERRAIN_VMAX=-1` so the relief term is the only thing acting, plus a
-  stage that removes the cap to PROVE it was the cause of the 9/9 rather
-  than assuming it.
-  Original scoping follows.
-  `MEASURED, one open question left`. The envelope and the angle cells are done and closed
-  separately (CLOSED-50); what remains is whether `rough` has a real
-  speed ceiling.
-  On the FIXED terrain (see CLOSED-50 for the generator bug that made the
-  first attempt meaningless), two cells failed on `rough` that pass on
-  `rolling` — **walking @2.5** and **trotting @3.5** — and both are N=1.
-  A third, trotting @2.5, ALSO failed once and then passed 3/3 on repeat at
-  ratio 1.00, which is exactly why neither of the remaining two may be
-  called a ceiling yet. Repeats are running.
-  **If they reproduce**, `BodyLimits::v_terrain_max` / `$WP_TERRAIN_VMAX`
-  (shipped, inert, unset on every kind) gets `rough`'s number and this
-  closes. **If they do not**, the honest result is that no geometry ceiling
-  exists inside the tested envelope and the field stays unset — which is
-  also a close, just a different one. Encoding a ceiling from a single
-  sample is the mistake this whole program exists to avoid.
-  Still open beyond that: DEM/heightmap SAMPLING at waypoint-generation
-  time, so the plan knows the ground PROFILE rather than a scalar cap.
+- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `PLUMBING DONE,
+  THE NUMBER IS NOT`. Everything mechanical is built, shipped and verified
+  firing on real runs; what is NOT established is whether the ceiling it
+  encodes is real.
+  **Working and confirmed**: the DEM is sampled along each dog's own
+  planned path at launch (`conductor/terrain_profile.py` →
+  `WP_TERRAIN_PROFILE` → `BodyPathPlanner::loadTerrainProfile`), reporting
+  `[plan] DEM profile: 301 samples over 30.0 m, stride mismatch mean
+  0.016 m max 0.069 m` — matching an independent hand measurement of
+  `rough` exactly. The (terrain, gait) cap fires and is logged
+  (`terrain cap: walking on rough is measured to 2.25 m/s`). `relief_k`
+  defaults 0 and is inert until measured.
+  **RETRACTED, and this is the open part**: I reported "the cap works —
+  `rough/walking@2.5` went 0/3 uncapped to 9/9 capped". The follow-up
+  designed to prove that gave **1/3 capped and 0/3 uncapped**, and the
+  pooled session total for that cell is **0 PASS / 6 FAIL** across two
+  earlier campaigns. A cell that reads 12/12 in one block and 1/3 in the
+  next is not measuring a cap; it is a marginal cell with a lurking
+  variable, and the 9/9 was the same over-read from a small block that this
+  file keeps recording. Nothing about the cap's EFFECT is established.
+  **What closes this**: `rough/walking@2.5` at N=20 capped and N=20
+  uncapped in one uninterrupted block, plus flat as a control and the rung
+  below the cap — running now. If the cell is genuinely bimodal, the cap
+  number is unsupported and comes back out of `terrain.py`.
+  Also still open: whether `relief_k` does anything once the speed cap is
+  out of its way (its own sweep was confounded by exactly that cap).
 
 - **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
   TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at
@@ -114,55 +107,6 @@ passed on its own in-suite retry.
 - **OPEN-12 · RS485 bench validation** — `HARDWARE`. Field scalings, FOC
   mode value, CRC word count, per-joint gear/sign/offset — all unverified
   on a live motor; waiting on the fast RS485 adapter.
-- **OPEN-13 · Pre-hardware env-var consolidation** — `TWO OF THREE DONE`.
-  1. **Dead flags deleted** (2026-08-29). All eight the `SIM_` audit called
-     dead now have zero live reads, and the FEATURES went with them rather
-     than being left as unreachable code with a knob on it:
-     `SIM_FLIGHT_COST_GATE` (harmful: force 39-42 N/foot → 6.1),
-     `SIM_CONTACT_DETECT`/`_BAND`/`SIM_FREEFALL_G` (regression:
-     5.64/5.67/5.71 m vs a 20.68-25.24 m baseline),
-     `SIM_BALLISTIC_Z` (null), `SIM_KF_UNCAP` (solved a problem that does
-     not exist — Unitree ship the byte-identical cap),
-     `SIM_ABS_AIDING`/`SIM_AID_TAU` (position aiding, net-harmful: same
-     mean, catastrophic tail). Each removal carries the measurement that
-     killed it. VELOCITY aiding is untouched and still defaults ON.
-  2. **Tuning folded into yaml** (2026-08-29) —
-     `host-run/ctrl_tuning.yaml`, mirrored into `stm32mp1/deploy_pkg/`.
-     Every `CTRL_*` tuning value now resolves
-     **environment > `ctrl_tuning.yaml` > code default** via
-     `common/include/Utilities/CtrlTuning.h`. The env override is kept
-     deliberately: every sweep harness in this repo drives configuration
-     that way, and removing it would break the tooling that produced every
-     measurement on record. What changed is that the DEFAULT is written
-     down in one readable file instead of being spread across eight source
-     files as literals next to `getenv`. The file is loaded EAGERLY at
-     startup so a run says which config it found before the robot moves
-     (`[ctrl_tuning] loaded N values from <path>`), and it carries the
-     reasoning inline — including the levers measured and REJECTED
-     (`CTRL_BANK`, `CTRL_CORNER_CROUCH`) so nobody re-derives them.
-  3. **Fall detector reworked for hardware** (2026-08-30). It used to zero
-     the legs and `_exit()` the process unconditionally — right for a sweep,
-     wrong on a machine, and not subtly: process exit also stops whatever
-     was feeding the motor watchdog, so the fault response became "stop
-     talking to the motors and disappear" at exactly the moment a human
-     needs the machine holding still, reporting, and answering. Nothing left
-     to command a controlled recovery, no telemetry while someone walks
-     over, and no way to tell "the detector tripped" from "the controller
-     crashed".
-     The default is now **LATCH-LIMP-AND-HOLD**: the loop keeps running, all
-     four legs are commanded to zero every tick (the latch is checked BEFORE
-     the estimator and controller, so nothing downstream can re-command
-     them), the watchdog stays fed and the logs keep flowing, and it does
-     not clear itself. `SIM_FALL_EXIT=1` restores the process exit, and the
-     CONDUCTOR now sets it explicitly — a sweep asks for what it needs
-     rather than every machine inheriting a harness's convenience.
-     **What is left of this part**: the z branch still reads the ESTIMATED
-     height, which is why it has misfired twice here (0.15 killed a day of
-     valid runs; 0.10 fired during commanded lie-downs until
-     `setFallZEnable` gated it). On hardware it should key off ATTITUDE and
-     kinematics. That is a smaller, well-scoped change and is the only piece
-     of OPEN-13 still open.
-
 - **OPEN-14 · The QA ladder on the real machine** — `HARDWARE` umbrella.
   Stand → lie → stand → slow walk, legs off the ground first; validates
   joint signs, gearing, RS485 framing, torque scaling, IMU orientation
@@ -210,6 +154,43 @@ passed on its own in-suite retry.
 ## CLOSED (symptom → cause → fix → evidence)
 
 ### Closed from the OPEN list
+
+- **CLOSED (was OPEN-13) · Pre-hardware env-var consolidation** — closed
+  2026-08-30, all three parts done.
+  1. **Dead flags deleted with their code.** All eight the `SIM_` audit
+     called dead: `SIM_FLIGHT_COST_GATE` (harmful — force 39–42 N/foot →
+     6.1), `SIM_CONTACT_DETECT`/`_BAND`/`SIM_FREEFALL_G` (regression —
+     5.64/5.67/5.71 m against a 20.68–25.24 m baseline),
+     `SIM_BALLISTIC_Z` (null), `SIM_KF_UNCAP` (Unitree ship the identical
+     covariance cap), `SIM_ABS_AIDING`/`SIM_AID_TAU` (position aiding, net
+     harmful). Each removal carries the measurement that killed it.
+     VELOCITY aiding is untouched and still defaults ON.
+  2. **Tuning folded into yaml.** `host-run/ctrl_tuning.yaml` (mirrored to
+     `stm32mp1/deploy_pkg/`), resolution **env > yaml > code default** via
+     `common/include/Utilities/CtrlTuning.h`, 25 converted call sites, and
+     loaded EAGERLY so a run says which config it found before the robot
+     moves (`[ctrl_tuning] loaded N values from <path>`). The env override
+     is kept on purpose — every sweep harness drives configuration that way
+     — what changed is that the DEFAULT is written down instead of being a
+     literal beside a `getenv` in one of eight files. The file also records
+     the levers measured and REJECTED (`CTRL_BANK`, `CTRL_CORNER_CROUCH`)
+     so they are not re-derived.
+  3. **The fall detector reworked for hardware.** It used to zero the legs
+     and `_exit()` the process, which also stops whatever feeds the motor
+     watchdog — "stop talking to the motors and disappear" at exactly the
+     moment a human needs the machine holding still and answering. Default
+     is now LATCH-LIMP-AND-HOLD: loop keeps running, all four legs
+     commanded to zero every tick, the latch checked BEFORE the estimator
+     and controller so nothing downstream can re-command them, and it does
+     not clear itself. `SIM_FALL_EXIT=1` restores the exit and the
+     CONDUCTOR sets it explicitly — a sweep asks for what it needs rather
+     than every machine inheriting a harness's convenience. And the
+     collapse test no longer reads the ESTIMATE: body height above its own
+     FEET comes from per-leg FK rotated by the orientation estimate, which
+     cannot drift. That branch had misfired twice here — 0.15 killed a day
+     of valid runs while Gazebo truth said the robot was walking, and 0.10
+     fired during commanded lie-downs — both times estimator error rather
+     than robot state.
 
 - **CLOSED-55 · Fleets of 4 or more: THREE IS THE CAP, by decision** —
   closed 2026-08-29 by operator instruction: *"lets just say 3 is it,
