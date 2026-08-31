@@ -33,6 +33,10 @@ import terrain  # noqa: E402
 
 MARGIN = 30.0  # m between adjacent slots' bounding boxes
 
+# Camera sensor render rate, Hz. Default 10 = the value every result in
+# CLAUDE.md was measured against. See make_chase_cam_model().
+CAM_UPDATE_RATE = float(os.environ.get("CAM_UPDATE_RATE", "10"))
+
 DEFAULT_CAM_CFG = dict(front=True, nadir=True, chase=True,
                         distance=3.0, height=1.2, degree=90.0)
 
@@ -91,7 +95,15 @@ def make_chase_cam_model(index, distance, height, degree, north, east, spawn_hei
     link = ET.SubElement(m, "link", {"name": "link"})
     sensor = ET.SubElement(link, "sensor", {"name": "chase_cam", "type": "camera"})
     ET.SubElement(sensor, "always_on").text = "1"
-    ET.SubElement(sensor, "update_rate").text = "10"
+    # OPEN-19 Tier 2. With the MJPEG transport in place a viewer now gets
+    # every frame the sensor renders (measured 10.1 fps against the old
+    # path's 2.5 fps ceiling), so THIS is what caps smoothness - together
+    # with server.py's CHASE_FOLLOW_DT, which is how often the camera model
+    # is actually teleported. Both are 10 Hz and both cost GPU inside the
+    # render loop, so the default stays exactly where every campaign in
+    # CLAUDE.md was measured and raising it is an explicit, measured
+    # decision (CAM_UPDATE_RATE=30 for an A/B), never a silent one.
+    ET.SubElement(sensor, "update_rate").text = str(CAM_UPDATE_RATE)
     ET.SubElement(sensor, "topic").text = "go1_%d/chase_cam" % index
     cam = ET.SubElement(sensor, "camera")
     ET.SubElement(cam, "horizontal_fov").text = "1.15"

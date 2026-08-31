@@ -117,10 +117,6 @@ function dogeSprite(hue) {
 
 // Big red X for a camera tile when its dog has fallen - an SVG overlay is
 // simplest here since these tiles are plain DOM, not canvas.
-const FALL_X_SVG = `<div class="cam-fell"><svg viewBox="0 0 100 100">
-  <line x1="10" y1="10" x2="90" y2="90" stroke="#ff3b30" stroke-width="10" stroke-linecap="round"/>
-  <line x1="90" y1="10" x2="10" y2="90" stroke="#ff3b30" stroke-width="10" stroke-linecap="round"/>
-</svg></div>`;
 
 function drawFallX(ctx, cx, cy, r) {
   ctx.strokeStyle = "#ff3b30"; ctx.lineWidth = 3.5; ctx.lineCap = "round";
@@ -587,48 +583,100 @@ function renderFleet() {
 
   const cards = document.getElementById("fleetCards");
   const rows = state.status || [];
-  if (!rows.length) {
-    cards.innerHTML = `<div class="fleet-card"><div class="fleet-meta">No fleet launched yet. Configure slots on the right, set the speed cap, and Launch.</div></div>`;
-  } else {
-    cards.innerHTML = rows.map(r => {
-      const s = (state.slots || []).find(x => x.index === r.index) || {};
-      const cls = r.phase === "complete" ? "complete" : (r.phase === "fell" || r.phase === "invalid") ? "fell" : "";
-      const dot = r.phase === "complete" ? "up" : (r.phase === "fell" || r.phase === "invalid") ? "down" : "mid";
-      const cam = (state.cameras || {})[r.index] || {};
-      const tile = (name, label) => {
-        const url = cam[name];
-        return `<div class="cam-tile${url ? " live" : ""}">
-          ${url ? `<img src="${url}">` : ""}
-          <span class="cam-label">${label}</span>
-          ${r.phase === "fell" ? FALL_X_SVG : ""}
+
+  // STRUCTURE vs VOLATILE (OPEN-19).
+  //
+  // This used to be one unconditional `cards.innerHTML = rows.map(...)`
+  // every poll tick. That destroyed and rebuilt every <img> 2.5 times a
+  // second, so each frame was a brand-new element decoding a fresh base64
+  // data: URL with no continuity from the last one - which is exactly what
+  // "like you are taking screen shots and stitching them together" looks
+  // like, and it made an MJPEG <img> impossible: the stream would have been
+  // torn down and reconnected on every tick.
+  //
+  // So the DOM is now rebuilt only when its SHAPE changes (which dogs, which
+  // cameras, which mission, which run), and everything that changes per tick
+  // is written into the existing nodes. The camera <img> is created once per
+  // run and then simply left alone to receive frames.
+  const camsOn = r => {
+    const s = (state.slots || []).find(x => x.index === r.index) || {};
+    const d = (state.draft_slots || [])[r.index] || {};
+    const on = k => s[k] !== false && d[k] !== false;
+    return { front: on("cam_front"), nadir: on("cam_nadir"), chase: on("cam_chase") };
+  };
+  const sig = JSON.stringify(rows.map(r => {
+    const s = (state.slots || []).find(x => x.index === r.index) || {};
+    const c = camsOn(r);
+    return [r.index, s.mission || "", s.gait_name || s.gait || "",
+            s.speed ?? "", c.front, c.nadir, c.chase];
+  })) + "|" + (state.run_id || 0);
+
+  if (sig !== _fleetSig) {
+    _fleetSig = sig;
+    if (!rows.length) {
+      cards.innerHTML = `<div class="fleet-card"><div class="fleet-meta">No fleet launched yet. Configure slots on the right, set the speed cap, and Launch.</div></div>`;
+    } else {
+      cards.innerHTML = rows.map(r => {
+        const s = (state.slots || []).find(x => x.index === r.index) || {};
+        const c = camsOn(r);
+        // The run id in the query string is a cache-buster, not a
+        // parameter: it forces a NEW connection when a new run starts
+        // rather than letting the browser hold the previous run's stream.
+        const tile = (name, label) => `<div class="cam-tile" data-cam="${name}">
+            <img src="/api/cam/${r.index}/${name}.mjpg?r=${state.run_id || 0}" alt="">
+            <span class="cam-label">${label}</span>
+            <div class="cam-fell" style="display:none"><svg viewBox="0 0 100 100">
+              <line x1="10" y1="10" x2="90" y2="90" stroke="#ff3b30" stroke-width="10" stroke-linecap="round"/>
+              <line x1="90" y1="10" x2="10" y2="90" stroke="#ff3b30" stroke-width="10" stroke-linecap="round"/>
+            </svg></div>
+          </div>`;
+        return `<div class="fleet-card" data-idx="${r.index}">
+          <div class="fleet-head"><span class="dot"></span>
+            <span class="fleet-idx">#${r.index}</span>
+            <span class="fleet-name">${(MISSION_OPTIONS.find(o => o.value === s.mission) || {}).label || s.mission || ""}</span>
+            <small style="opacity:.6">${s.mission || ""}</small>
+            <span class="fleet-phase"></span>
+          </div>
+          <div class="fleet-meta"></div>
+          <div class="cam-row">${c.front ? tile("front_cam", "FWD") : ""}${
+            c.nadir ? tile("nadir_cam", "DOWN") : ""}${
+            c.chase ? tile("chase_cam", "CHASE") : ""}</div>
         </div>`;
-      };
-      return `<div class="fleet-card ${cls}">
-        <div class="fleet-head"><span class="dot ${dot}"></span>
-          <span class="fleet-idx">#${r.index}</span>
-          <span class="fleet-name">${(MISSION_OPTIONS.find(o => o.value === s.mission) || {}).label || s.mission || ""}</span>
-          <small style="opacity:.6">${s.mission || ""}</small>
-          <span class="fleet-phase ${r.phase}">${r.phase}</span>
-        </div>
-        <div class="fleet-meta">gait=${s.gait_name || s.gait || "-"} cmd=${s.speed ?? "-"} m/s
-          ${r.waypoints ? "&middot; wp " + r.waypoints : ""}
-          ${r.text ? "&middot; " + r.text : ""}
-          ${r.t ? "&middot; t=" + r.t : ""}
-        </div>
-        ${(() => {
-          // Tile visibility follows the DRAFT checkbox live (the server
-          // gates the stream on the same flag), so unchecking a camera
-          // mid-run hides its tile immediately instead of freezing it on
-          // the last frame. The locked flag still gates what was spawned.
-          const d = (state.draft_slots || [])[r.index] || {};
-          const on = k => s[k] !== false && d[k] !== false;
-          return `<div class="cam-row">${on("cam_front") ? tile("front_cam", "FWD") : ""}${
-            on("cam_nadir") ? tile("nadir_cam", "DOWN") : ""}${
-            on("cam_chase") ? tile("chase_cam", "CHASE") : ""}</div>`;
-        })()}
-      </div>`;
-    }).join("");
+      }).join("");
+    }
   }
+
+  // ---- volatile pass: text and classes only, never the <img> ----------
+  rows.forEach(r => {
+    const card = cards.querySelector(`.fleet-card[data-idx="${r.index}"]`);
+    if (!card) return;
+    const s = (state.slots || []).find(x => x.index === r.index) || {};
+    const fell = r.phase === "fell" || r.phase === "invalid";
+    const cls = r.phase === "complete" ? "complete" : fell ? "fell" : "";
+    card.className = "fleet-card " + cls;
+    const dot = card.querySelector(".dot");
+    if (dot) dot.className = "dot " + (r.phase === "complete" ? "up" : fell ? "down" : "mid");
+    const ph = card.querySelector(".fleet-phase");
+    if (ph) { ph.className = "fleet-phase " + r.phase; ph.textContent = r.phase; }
+    const meta = card.querySelector(".fleet-meta");
+    if (meta) {
+      meta.textContent = `gait=${s.gait_name || s.gait || "-"} cmd=${s.speed ?? "-"} m/s`
+        + (r.waypoints ? " · wp " + r.waypoints : "")
+        + (r.text ? " · " + r.text : "")
+        + (r.t ? " · t=" + r.t : "");
+    }
+    // A tile is "live" once the server has actually seen a frame for it -
+    // /api/state now carries a MANIFEST ({index: {cam: seq}}) rather than
+    // pixels, so this costs nothing and still distinguishes a connected
+    // feed from a spawned-but-silent one.
+    const man = (state.cameras || {})[r.index] || {};
+    card.querySelectorAll(".cam-tile").forEach(t => {
+      const nm = t.dataset.cam;
+      t.classList.toggle("live", man[nm] != null);
+      const x = t.querySelector(".cam-fell");
+      if (x) x.style.display = fell ? "flex" : "none";
+    });
+  });
 
   const rid = state.run_id ? ("RUN " + state.run_id) : "";
   const hdr = document.querySelector(".topbar .subtitle, .topbar h2, .topbar span");
@@ -715,6 +763,7 @@ function renderLoadWidget() {
   setBar("gpuFill", "gpuVal", load.gpu_pct);
 }
 
+let _fleetSig = "";   // last rendered fleet-card SHAPE (see renderFleet)
 let _synced = false;
 async function poll() {
   try {

@@ -88,6 +88,29 @@ The rules that follow from that:
    not `grep -c`: the grep's own command line contains the pattern, so
    `grep -c` reports one more than is running. Measured in this repo's own
    status tool: 6 reported against 3 real.
+5b. **A SUPERVISOR CAN ONLY REAP WHAT IT SPAWNED.** Asked how to stop
+   leaving processes running and corrupting data, the honest answer is that
+   the supervisor was never the problem: `self.procs` + `_watch_child` +
+   `_reap_and_confirm` own every child faithfully. The camera leak that
+   degraded `/api/state` from 0.0005 s to 4.7 s over 12 hours - and cost
+   campaign c3 eighteen of its sixty launches - was an IN-PROCESS
+   `gz.transport13.Node()`, "released" by setting a list to `[]`. Dropping
+   a Python reference is not a teardown; the C++ threads never unwound.
+   So the rule is not "remember to clean up", it is: **every long-lived
+   resource is a CHILD PROCESS the supervisor owns, and teardown VERIFIES
+   rather than hopes.** If something cannot be a subprocess, it needs a
+   machine-checked invariant (see `Fleet.audit_threads()`), because a leak
+   that only a human can notice will run for weeks.
+
+5c. **A REFUSED LAUNCH IS NOT A FAILED RUN.** A Time Machine backup began
+   mid-campaign, the launch gate correctly refused, `mission_runner.py`
+   exited 1 - the same code as a real failure - and the harness recorded 15
+   refusals as ordinary reps in 51 seconds, turning an N=20 stage into N=5
+   with nothing in the log admitting it. Any harness that consumes a rep
+   must first establish that a mission actually LAUNCHED. Use
+   `--wait-for-gate` and check for `LAUNCH_REFUSED_EXIT` (5); on a refusal,
+   retry the same rep and write no telemetry row.
+
 6. **LIVENESS MEANS "WORK IS HAPPENING", AND ONLY ONE SIGNAL SAYS THAT.**
    Two plausible liveness checks were tried here and BOTH were wrong, in
    opposite directions:

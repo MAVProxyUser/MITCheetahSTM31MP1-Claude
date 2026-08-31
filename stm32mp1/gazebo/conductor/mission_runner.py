@@ -302,6 +302,14 @@ def render_report(run_id, slots, state, all_lines):
 # course's own tuning made it legitimately slower - never because the sim
 # was actually broken. See the module docstring's lissajous:15:11:9 story.
 HARNESS_TIMEOUT_EXIT = 2
+# "The conductor REFUSED to launch" is not the same event as "the mission
+# ran and failed", and a harness that cannot tell them apart silently eats
+# its own sample size. Measured 2026-08-31: a Time Machine backup started
+# mid-campaign, the OPEN-16 gate correctly refused 15 consecutive launches,
+# and c5 recorded all 15 as ordinary "(no verdict)" reps in 51 seconds -
+# a campaign quietly reduced from N=20 to N=5 with nothing in the log
+# saying so. This code is what lets a harness WAIT instead of consume.
+LAUNCH_REFUSED_EXIT = 5
 
 _NAV_RE = re.compile(r"\[nav\] wp\d+/\d+ N=([-\d.]+) E=([-\d.]+)")
 
@@ -546,6 +554,15 @@ def main():
                      help="terrain/surface kind for this launch (flat, rolling, "
                           "rough, concrete, asphalt, grass, dirt, gravel, sand, "
                           "mud, rock, ice); omitted = the server draft's kind")
+    ap.add_argument("--wait-for-gate", type=float, default=0.0,
+                     metavar="SECONDS",
+                     help="if the conductor REFUSES the launch (Time Machine "
+                          "backup, fleet still tearing down), retry every 15s "
+                          "for up to SECONDS instead of giving up. A campaign "
+                          "should always set this: without it a refused "
+                          "launch is indistinguishable from a failed mission "
+                          "and silently costs a rep (exit %d marks a refusal)."
+                          % LAUNCH_REFUSED_EXIT)
     ap.add_argument("--no-chase", action="store_true",
                      help="run camera-dark (chase is ON by default per "
                           "operator, 2026-08-28: 'if there is no cost to "
@@ -666,7 +683,26 @@ def main():
         body["terrain"] = args.terrain
     r = api("POST", "/api/launch", body)
     if not r.get("ok"):
-        raise SystemExit("launch refused: %s" % r.get("message"))
+        # A refusal is usually a TRANSIENT gate (Time Machine backup in
+        # progress, a fleet still tearing down), not a broken request. With
+        # --wait-for-gate the runner sits out the gate and launches when it
+        # clears, so a long campaign keeps its N instead of burning reps
+        # against a closed door at three seconds apiece.
+        waited = 0.0
+        while args.wait_for_gate > 0 and waited < args.wait_for_gate:
+            print("[runner] launch refused (%s) - waiting for the gate, "
+                  "%.0fs of %.0fs elapsed"
+                  % (r.get("message"), waited, args.wait_for_gate), flush=True)
+            time.sleep(15.0)
+            waited += 15.0
+            r = api("POST", "/api/launch", body)
+            if r.get("ok"):
+                print("[runner] gate cleared after %.0fs - launching" % waited,
+                      flush=True)
+                break
+        if not r.get("ok"):
+            print("launch refused: %s" % r.get("message"), file=sys.stderr)
+            sys.exit(LAUNCH_REFUSED_EXIT)
     # Keep any live campaign record fresh: a launch is the thing that proves
     # the queue is moving, and several campaign stages run longer than the
     # panel's five-minute staleness window.

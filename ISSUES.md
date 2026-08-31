@@ -48,18 +48,28 @@ passed on its own in-suite retry.
   `rough` exactly. The (terrain, gait) cap fires and is logged
   (`terrain cap: walking on rough is measured to 2.25 m/s`). `relief_k`
   defaults 0 and is inert until measured.
-  **RETRACTED, and this is the open part**: I reported "the cap works —
-  `rough/walking@2.5` went 0/3 uncapped to 9/9 capped". The follow-up
-  designed to prove that gave **1/3 capped and 0/3 uncapped**, and the
-  pooled session total for that cell is **0 PASS / 6 FAIL** across two
-  earlier campaigns. A cell that reads 12/12 in one block and 1/3 in the
-  next is not measuring a cap; it is a marginal cell with a lurking
-  variable, and the 9/9 was the same over-read from a small block that this
-  file keeps recording. Nothing about the cap's EFFECT is established.
-  **What closes this**: `rough/walking@2.5` at N=20 capped and N=20
-  uncapped in one uninterrupted block, plus flat as a control and the rung
-  below the cap — running now. If the cell is genuinely bimodal, the cap
-  number is unsupported and comes back out of `terrain.py`.
+  **The retraction is now RESOLVED — the cap has a real effect, and the
+  number is still wrong.** The earlier claim ("0/3 uncapped → 9/9 capped")
+  was retracted as an over-read of small blocks; campaigns c3 and c4 ran
+  the properly-powered version. Pooled, `rough/walking`, `dash:30`:
+
+  | arm | result | |
+  |---|---|---|
+  | rough @2.5 UNCAPPED | 1 PASS / 21 FAIL | **5%** |
+  | rough @2.25 (the cap rung) | 23 PASS / 19 FAIL | **55%** |
+  | flat @2.5 (control) | 5 PASS / 0 FAIL | **100%** |
+
+  So the cap does real work (5% → 55%) and the effect is terrain-specific,
+  not a general speed limit — flat at the same rung is untouched. The c3
+  A-vs-D discrepancy that looked like a lurking variable was small-N noise
+  and is gone: c3's capped arm gave 11/18 (61%) and c4's 2.25-uncapped arm
+  gave 10/18 (56%), which agree. Correcting one number reported earlier in
+  this session: the uncapped arm is 1/22 (5%), not 0%.
+  **What is still open is the VALUE.** A cap whose own rung fails 45% of
+  the time is set too high — 2.25 is not a ceiling, it is a less-bad rung.
+  Campaign c6 runs the search (`rough@2.0` N=20, `rough@1.75` N=20,
+  `rough@2.25` N=10 to top up the pooled count). `terrain.py`'s 2.25 stays
+  provisional until those land, and moves to whichever rung actually holds.
   Also still open: whether `relief_k` does anything once the speed cap is
   out of its way (its own sweep was confounded by exactly that cap).
 
@@ -139,13 +149,134 @@ passed on its own in-suite retry.
     and cannot be cited about the current build.
   Both are queued for a proper A/B. The close condition is a measurement,
   not a decision: measure, then default-on or delete.
-- **OPEN-19 · Chase-cam lag halving** — nice-to-have. ~200-250 ms end to
-  end (≈0.8 m rubber-band at sprint); halve the 100 ms follow tick and
-  raise the 10 Hz camera rate if it ever matters, then re-measure GPU.
+- **OPEN-23 · Chase-cam smoothness above 10 Hz** — new, and a measured
+  trade rather than a defect. With the transport fixed (see CLOSED, was
+  OPEN-19) a viewer now receives every frame the sensor renders, so the
+  only remaining ceilings are the sensor's own `update_rate` and how often
+  the camera model is teleported — both 10 Hz, both costing GPU inside the
+  render loop. Both are now env knobs with the measured defaults unchanged
+  (`CAM_UPDATE_RATE`, `CHASE_FOLLOW_DT`). What is left is the A/B: raise
+  them to 30 Hz, measure GPU and mission outcomes against the 10 Hz
+  baseline, and only then change a default. Deliberately NOT done blind —
+  this rig has already had machine load silently explain a sim failure.
 
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED (was OPEN-19) · Chase cam was screenshots in a JSON blob — and the leak behind it was corrupting campaign data
+
+**Symptom.** Operator, 2026-08-31: "the cam has always been choppy, like
+you are taking screen shots and stitching them together." Correct, and
+more literally than intended.
+
+**Cause — four stacked, only one of which anybody had named.**
+1. *Cadence.* `app.js` polled `/api/state` on `setTimeout(poll, 400)`
+   AFTER each response resolved, so the display ceiling was 2.5 fps
+   against a 10 Hz sensor.
+2. *Coupling.* Each frame was PIL-encoded to JPEG, base64'd (+33%), and
+   shipped inside the shared whole-state JSON under the fleet's big
+   `self.lock` — so video inherited that endpoint's latency and contention.
+3. *DOM churn.* `renderFleet()` did an unconditional
+   `cards.innerHTML = rows.map(...)` every tick, destroying and recreating
+   every `<img>`. Each frame was a NEW element decoding a fresh `data:`
+   URL with no continuity from the last — the stitched-screenshots effect
+   exactly, and it made a streaming `<img>` impossible.
+4. *A thread leak.* `_subscribe_cameras` created one
+   `gz.transport13.Node()` per camera per launch and "released" them with
+   `self._gz_cam_nodes = []`. Dropping a Python reference is a hope, not a
+   teardown: the C++ discovery threads never unwound and nothing ever
+   called unsubscribe.
+
+**What the leak actually cost.** Measured on a 12-hour-old conductor:
+54 threads and `/api/state` answering in **4.66–4.90 s**, against 4 threads
+and **0.0005–0.0019 s** on a fresh one — ~2500x, growing at ~+1.2 threads
+per launch (c4 telemetry: launch 1 = 4 threads/0.003 s, launch 29 = 38
+threads/2.52 s). So the panel degraded over a session, which is why it read
+as "always" choppy. It was not only cosmetic: **campaign c3 lost 18 of 60
+launches to "(no verdict)"**, clustered at the end of each block, because
+the harness's own polling of a GIL-saturated `/api/state` timed out. A leak
+in the video path was silently shrinking mission sample sizes.
+
+**Fix.**
+- `cam_feed.py` (NEW) — every camera subscription for a run in ONE per-run
+  subprocess, same shape as `pose_feed.py`'s OPEN-21 fix. A subscription
+  cannot outlive a process that exits. It also takes the JPEG encode out of
+  the server (3 dogs x 3 cams x 10 Hz was 90 PIL encodes/second holding the
+  GIL against every HTTP request). Binary framing on stdout (JSON header
+  line + exactly n bytes); mute state pushed back on stdin so unchecking a
+  camera still skips the ENCODE, not just the display.
+- `CamHub` + `/api/cam/<i>/<cam>.mjpg` — `multipart/x-mixed-replace`, on
+  its own small lock, never the fleet lock. Slow viewers miss frames rather
+  than backing up the producer. `.jpg` gives a single frame for assertions.
+- `/api/state` now carries a MANIFEST (`{index: {cam: seq}}`), not pixels.
+- `app.js` rebuilds fleet cards only when their SHAPE changes and writes
+  volatile text into existing nodes, so the `<img>` survives the whole run.
+
+**Evidence (live run, 2026-08-31).**
+
+| | before | after |
+|---|---|---|
+| chase-cam display | ≤2.5 fps by design, ~0.2 fps measured | **10.1 fps** (the sensor's own rate) |
+| `/api/state` | 23 KB, 4.7 s TTFB | 11 KB, **0.0006 s** |
+| per-frame transport | base64 inside whole-state JSON | raw JPEG, own connection, 55 KB/s |
+| server threads | 54 after 12 h | baseline 2, drift 5 with 6 live children |
+
+Framing verified independently of the simulator (stubbed gz transport, 3
+cameras x 20 ticks at 10 Hz): 60/60 frames, zero drops, every payload
+decodes as a 480x270 JPEG.
+
+**Bitrate was never the bottleneck** — 41–55 KB/s for one camera. The
+operator's proposed lever (resolution/quality/codec) optimises the one
+dimension that was not binding; the binding terms were transport and
+cadence. H.264 stays deferred (see OPEN-23) and the post-run mp4 capture
+it would build on already exists as `record_video.py`.
+
+### CLOSED · Leak canary — a supervisor can only reap what it spawned
+
+**Symptom.** Operator, 2026-08-31, on the above: "how can you get better at
+not leaving your own processes running and corrupting data? seems like the
+job of whatever is launching processes. I thought we had python doing that."
+
+**Cause.** We do, and it worked perfectly. `self.procs` + `_watch_child` +
+`_reap_and_confirm` own every child faithfully — and could never have
+caught this, because **the leak was not a child**. It was an in-process
+`gz.transport13.Node()` holding C++ threads: a resource the supervisor
+never spawned and therefore could not reap. The generalisable rule is not
+"remember to clean up", it is:
+
+> every long-lived resource must be a CHILD PROCESS the supervisor owns,
+> and teardown must VERIFY rather than hope.
+
+**Fix.** OPEN-21 applied that to the pose feed and OPEN-19 now applies it
+to the cameras — which is why both are subprocesses rather than tidier
+in-process objects. Plus the part that does not depend on anyone's
+discipline: `Fleet.health()` / `audit_threads()` compare live thread count
+against the baseline captured at boot and shout in the panel and in every
+campaign log when it drifts (`THREAD_DRIFT_ALARM`, default 8). Long-lived
+MJPEG viewer threads are subtracted so an open panel is not mistaken for a
+leak. The leak this was written for ran at +1.2 threads/launch and was
+found only because a human noticed choppy video.
+
+### CLOSED · A refused launch was silently eating campaign sample size
+
+**Symptom.** 2026-08-31 12:06, mid-campaign: c5 recorded 15 consecutive
+"(no verdict)" reps in 51 seconds and would have finished an "N=20" stage
+having launched five missions.
+
+**Cause.** A Time Machine backup began; the OPEN-16 launch gate correctly
+refused every launch; `mission_runner.py` exited 1 — the same code as a
+genuine failure. The harness could not tell "never launched" from "ran and
+produced nothing", so each refusal consumed a rep. Nothing in the log said
+the N had changed.
+
+**Fix.** `mission_runner.py` gains `LAUNCH_REFUSED_EXIT = 5` and
+`--wait-for-gate SECONDS`: on a refusal it waits out the gate (retrying
+every 15 s) and launches when it clears. Campaign harnesses check for exit
+5 and **retry the same rep without consuming it or writing a telemetry
+row**. Verified live against the running backup: c6 held on rep 3 writing
+no rows, instead of burning the stage.
+
 
 ### Closed from the OPEN list
 

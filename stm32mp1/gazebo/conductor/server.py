@@ -155,6 +155,26 @@ from PIL import Image as _PILImage          # noqa: E402
 
 CAMERAS = ("front_cam", "nadir_cam", "chase_cam")
 CAM_FLAG_KEYS = {"front_cam": "cam_front", "nadir_cam": "cam_nadir", "chase_cam": "cam_chase"}
+# Video knobs, env-overridable, defaults EXACTLY the values the base64 path
+# used - so switching to the MJPEG transport changes the transport and
+# nothing else, and any later quality/rate change is a separate, measured
+# decision rather than a side effect of this one. CAM_MAX_FPS is a ceiling
+# on top of the sensor's own <update_rate> (10 Hz, fleet_world.py), not a
+# floor: raising it alone does nothing.
+# Threads above the boot baseline before the leak canary shouts. The
+# measured camera leak ran at ~+1.2 threads per launch, so 8 catches it
+# inside a handful of launches while still clearing an ordinary run's own
+# short-lived workers.
+THREAD_DRIFT_ALARM = int(os.environ.get("THREAD_DRIFT_ALARM", "8"))
+CAM_JPEG_QUALITY = int(os.environ.get("CAM_JPEG_QUALITY", "60"))
+CAM_MAX_FPS = float(os.environ.get("CAM_MAX_FPS", "30"))
+CAM_MAX_WIDTH = int(os.environ.get("CAM_MAX_WIDTH", "0"))   # 0 = never scale
+# Chase-camera FOLLOW tick. The camera model is teleported by set_pose from
+# Python, so THIS is the rate at which the viewpoint itself moves - a
+# separate ceiling from the display rate, and the one that makes a smooth
+# 30 fps stream still look stepped. 0.1 s is what OPEN-19 measured
+# (~200-250 ms end to end, about 0.8 m of rubber-band at sprint).
+CHASE_FOLLOW_DT = float(os.environ.get("CHASE_FOLLOW_DT", "0.1"))
 # Cameras default OFF. Nine live feeds were repeatedly implicated in
 # host-load fleet failures (GPU 44-49% with them, 0% without), and a server
 # restart used to silently reset drafts back to all-on - which re-armed
@@ -805,8 +825,10 @@ class Fleet:
                 self.fleet_cap_reason = _parts[1].strip() if len(_parts) > 1 else ""
         except (OSError, ValueError):
             pass
-        self.cameras = {}             # index -> {"front_cam": "data:...", "nadir_cam": "data:..."}
-        self._gz_cam_nodes = []       # one Node per camera subscription, kept alive
+        self.cameras = {}             # legacy field, now unused: /api/state
+                                      # serves CAMHUB.manifest() instead
+        self._cam_proc = None         # per-run cam_feed.py child (OPEN-19)
+        self._cam_restarts = 0
         # RUN NUMBER. Monotonic, persisted across server restarts, so the
         # operator can say "run 47's atom did X" and both of us mean the same
         # run. Shown in the panel, stamped into every orchestration log line,
@@ -1003,6 +1025,68 @@ class Fleet:
         self.log = self.log[-200:]
         print(msg, flush=True)
 
+    # ---- LEAK CANARY -----------------------------------------------------
+    # Operator, 2026-08-31, on the camera-Node leak: "how can you get better
+    # at not leaving your own processes running and corrupting data? seems
+    # like the job of whatever is launching processes. I thought we had
+    # python doing that."
+    #
+    # Correct, and the gap is precise. `self.procs` + `_watch_child` +
+    # `_reap_and_confirm` DO own every child faithfully - and could never
+    # have caught this, because the leak was not a child. It was an
+    # in-process `gz.transport13.Node()` holding C++ threads: a resource the
+    # supervisor never spawned and therefore could not reap, "released" by
+    # setting a list to []. So the rule that actually generalises is not
+    # "remember to clean up", it is:
+    #
+    #   every long-lived resource must be a CHILD PROCESS the supervisor
+    #   owns, and teardown must VERIFY rather than hope.
+    #
+    # OPEN-21 applied that to the pose feed and OPEN-19 now applies it to
+    # the cameras, which is why both are subprocesses. This canary is the
+    # part that does not depend on my discipline: the server measures its
+    # own thread count against the baseline it booted with and says so, out
+    # loud, in the panel and in every campaign log. The leak it was written
+    # for ran for weeks at +1.2 threads/launch and was only ever found by
+    # hand.
+    def health(self):
+        try:
+            threads = threading.active_count()
+        except Exception:  # noqa: BLE001
+            threads = -1
+        base = getattr(self, "_thread_baseline", None)
+        live = [p for p in self.procs if p.poll() is None]
+        # Each MJPEG viewer is a long-lived handler thread BY DESIGN, so it
+        # is subtracted out - otherwise opening the panel in two tabs would
+        # look exactly like the leak this is watching for.
+        viewers = Handler._mjpeg_clients
+        drift = (threads - base - viewers) if base is not None else 0
+        return dict(threads=threads, baseline=base, drift=drift,
+                    children=len(live), tracked=len(self.procs),
+                    mjpeg_viewers=Handler._mjpeg_clients,
+                    leaking=bool(base is not None and drift > THREAD_DRIFT_ALARM))
+
+    def audit_threads(self, where):
+        """Called at every launch and teardown. A clean run returns to the
+        baseline; anything else is a leak and gets named while it is small,
+        which is the whole point - 54 threads and a 4.7 s /api/state was
+        found by a human noticing choppy video, six weeks late."""
+        h = self.health()
+        if h["baseline"] is None:
+            return h
+        if h["leaking"]:
+            self._note("THREAD LEAK: %d threads, %d above the %d-thread "
+                        "baseline at %s (%d tracked children, %d alive). "
+                        "Every long-lived resource is supposed to be a child "
+                        "process this server can reap - something is holding "
+                        "in-process threads instead. Campaign data taken "
+                        "after this point is suspect (a GIL-bound server "
+                        "makes /api/state time out and launches report no "
+                        "verdict)."
+                        % (h["threads"], h["drift"], h["baseline"], where,
+                            h["tracked"], h["children"]))
+        return h
+
     def snapshot(self):
         with self.lock:
             return {
@@ -1047,8 +1131,15 @@ class Fleet:
                 # the stale slot data."
                 "ui_rev": self._ui_rev(),
                 "terrain_types": terrain.TERRAIN_TYPES,
-                "cameras": self.cameras,
+                # PIXELS NO LONGER TRAVEL HERE (OPEN-19). This is a
+                # manifest - {index: {camname: seq}} - so the panel still
+                # knows which tiles are live and can see a frozen feed
+                # (seq not advancing) without dragging a base64 JPEG
+                # through the whole-state poll. The bytes go out of
+                # /api/cam/<i>/<name>.mjpg on their own connection.
+                "cameras": CAMHUB.manifest(),
                 "host_load": self.host_load,
+                "health": self.health(),   # leak canary, see audit_threads()
             }
 
     # ---- draft editing: one method per interactive element ---------------
@@ -1489,6 +1580,7 @@ class Fleet:
             # key - forever, on a cams-off run. Found 2026-08-28 when a
             # wait-for-cameras poll tripped on the prior run's frames.
             self.cameras = {}
+            CAMHUB.clear()
             self._chase_stop = threading.Event()
 
         threading.Thread(target=self._run, args=(locked, terrain_kind),
@@ -1740,10 +1832,11 @@ class Fleet:
                     self.phase = "error"
                 return
 
+            self.audit_threads("launch")
             self._name_to_index = {"go1_%d" % s["index"]: s["index"] for s in locked}
             self._gz_env = env   # kept for the poller's pose-feed self-heal
             self._subscribe_pose(env)
-            self._subscribe_cameras(locked)
+            self._start_cam_feed(locked, env)
             threading.Thread(target=self._follow_chase_cams, args=(locked,),
                               daemon=True).start()
 
@@ -2232,62 +2325,130 @@ class Fleet:
                     node.request(service, req, _GzPose, _GzBoolean, 100)
                 except Exception:  # noqa: BLE001 - one missed tick is invisible; never worth killing the loop over
                     pass
-            time.sleep(0.1)
+            time.sleep(CHASE_FOLLOW_DT)
 
-    def _subscribe_cameras(self, locked):
-        """Front / nadir / chase feed per dog, Chuck-UI style (.ahrs-cam
-        tiles) - only the ones each slot's checkboxes actually enabled.
-        A camera the world never spawned (see fleet_world.apply_camera_config)
-        has no topic to subscribe to, so this must match that exactly or the
-        subscribe call just silently gets nothing; both read the same
-        cam_front/cam_nadir/cam_chase slot fields. One gz.transport13
-        subscription per enabled camera topic, each decoding the latest
-        frame to a JPEG data URL. Deliberate choices:
-          - keep only the LATEST frame, never a queue - this is a live tile,
-            not a recording, and a queue would only let the browser fall
-            behind and then catch up on stale frames;
-          - encode on receipt at the sensor's own 10 Hz rather than on
-            request, so a slow poller never blocks the transport callback.
+    def _start_cam_feed(self, locked, env):
+        """Every enabled camera for THIS run, in ONE per-run subprocess
+        (cam_feed.py) - OPEN-19 root fix, same shape as _start_pose_feed's
+        OPEN-21 fix and for the same reason.
+
+        What this replaces: one in-process `gz.transport13.Node()` per
+        camera per launch, "released" at teardown by `self._gz_cam_nodes =
+        []`. Dropping a Python reference is not a teardown - the C++
+        discovery/reception threads never unwound and nothing ever called
+        unsubscribe. Measured 2026-08-31: +1.2 threads per launch, a
+        12-hour-old conductor at 54 threads answering /api/state in 4.7 s
+        against 0.0005 s fresh, ~20% of the main thread's samples in
+        take_gil - and campaign c3 losing 18 of 60 launches to "(no
+        verdict)" because the harness's own polling timed out against it.
+        The video leak was corrupting mission data.
+
+        The subprocess also takes the JPEG encode with it: 3 dogs x 3
+        cameras x 10 Hz was 90 PIL encodes/second holding the server's GIL
+        against every HTTP request.
+
+        Which cameras exist is still decided at LAUNCH by
+        fleet_world.apply_camera_config - a camera unchecked at launch was
+        never spawned and has no topic - so this must keep reading the same
+        cam_front/cam_nadir/cam_chase slot fields it always did. Mid-run
+        muting is still live, now pushed to the child on its stdin so it
+        keeps skipping the ENCODE and not merely the display.
         """
+        cams = []
         for s in locked:
             i = s["index"]
             for cam in CAMERAS:
-                if not s.get(CAM_FLAG_KEYS[cam], True):
-                    continue
-                node = _gz_transport.Node()
-                self._gz_cam_nodes.append(node)
+                if s.get(CAM_FLAG_KEYS[cam], True):
+                    cams.append("%d:%s" % (i, cam))
+        if not cams:
+            self._note("no cameras enabled - cam feed not started")
+            return
+        archive_log(os.path.join(RUN_DIR, "cam_feed.log"), self.run_id - 1)
+        ferr = open(os.path.join(RUN_DIR, "cam_feed.log"), "a")
+        cp = subprocess.Popen(
+            [PYBIN, "-u", os.path.join(HERE, "cam_feed.py"),
+             "--cams", ",".join(cams),
+             "--quality", str(CAM_JPEG_QUALITY),
+             "--rate", str(CAM_MAX_FPS)]
+            + (["--max-width", str(CAM_MAX_WIDTH)] if CAM_MAX_WIDTH else []),
+            cwd=HERE, env=env, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=ferr, start_new_session=True)
+        self.procs.append(cp)
+        self._watch_child(cp)
+        self._cam_proc = cp
 
-                def on_image(msg, idx=i, camname=cam):
-                    # DYNAMIC per-frame gate: the checkbox edits the DRAFT
-                    # slot, and this reads it live, so unchecking a camera
-                    # mid-run stops (and un-publishes) its stream instantly
-                    # and re-checking resumes it. Launch-time flags still
-                    # decide whether the sensor exists in the world at all -
-                    # a camera disabled at launch has no topic and can never
-                    # be re-enabled mid-run, only mid-run muted/unmuted.
-                    with self.lock:
-                        d = self.draft_slots[idx] if idx < len(self.draft_slots) else {}
-                        if not d.get(CAM_FLAG_KEYS[camname], True):
-                            self.cameras.get(idx, {}).pop(camname, None)
-                            return
+        def reader():
+            """Header line + exactly n bytes, repeatedly. Framing errors are
+            unrecoverable (the stream is a byte offset, not a record set), so
+            a bad header ends the reader rather than trying to resync onto
+            what would be JPEG payload."""
+            out = cp.stdout
+            try:
+                while True:
+                    line = out.readline()
+                    if not line:
+                        break
                     try:
-                        img = _PILImage.frombytes(
-                            "RGB", (msg.width, msg.height), msg.data)
-                        buf = io.BytesIO()
-                        img.save(buf, format="JPEG", quality=60)
-                        url = "data:image/jpeg;base64," + base64.b64encode(
-                            buf.getvalue()).decode("ascii")
-                    except Exception as e:  # noqa: BLE001 - one bad frame must
-                        print("[camera] %s dog%d error: %r" % (camname, idx, e),
-                              flush=True)
-                        return                                # not kill the feed
-                    with self.lock:
-                        self.cameras.setdefault(idx, {})[camname] = url
+                        hdr = json.loads(line)
+                        n = int(hdr["n"])
+                    except (ValueError, KeyError, TypeError):
+                        self._note("cam feed framing error - stream abandoned")
+                        break
+                    payload = out.read(n)
+                    if payload is None or len(payload) != n:
+                        break
+                    CAMHUB.put("%d:%s" % (hdr["i"], hdr["c"]), payload,
+                                hdr.get("w"), hdr.get("h"), hdr.get("t"))
+            except Exception as e:  # noqa: BLE001 - reader must never kill a run
+                self._note("cam feed reader stopped: %r" % e)
+                return
+            rc = cp.poll()
+            with self.lock:
+                still_running = self.phase == "running"
+            if still_running and rc not in (0, None):
+                n = getattr(self, "_cam_restarts", 0) + 1
+                self._cam_restarts = n
+                if n <= 3:
+                    self._note("cam feed exited rc=%s (subscribed but deaf) - "
+                                "restarting: attempt %d of 3" % (rc, n))
+                    try:
+                        self._start_cam_feed(locked, env)
+                    except Exception as e:  # noqa: BLE001
+                        self._note("cam feed restart FAILED: %r" % e)
+                else:
+                    self._note("cam feed has exited %d times this run - "
+                                "leaving it down; the mission is unaffected, "
+                                "only the video tiles" % n)
 
-                topic = "/go1_%d/%s" % (i, cam)
-                ok = node.subscribe(_GzImage, topic, on_image)
-                if not ok:
-                    self._note("camera subscribe FAILED: %s" % topic)
+        threading.Thread(target=reader, daemon=True).start()
+        threading.Thread(target=self._push_cam_mutes, daemon=True).start()
+        self._note("cam feed up (per-run subprocess, pid %d - OPEN-19: "
+                    "%d camera(s), encode and transport state both die with "
+                    "this run)" % (cp.pid, len(cams)))
+
+    def _push_cam_mutes(self):
+        """Mirror the draft checkboxes into the cam feed child so an
+        unchecked camera stops being ENCODED, not just stops being drawn.
+        Only writes on CHANGE - this is a 2 Hz loop, not a per-frame path."""
+        cp = self._cam_proc
+        last = None
+        while cp is not None and cp.poll() is None:
+            with self.lock:
+                if self.phase != "running":
+                    return
+                mutes = sorted(
+                    "%d:%s" % (idx, cam)
+                    for idx, d in enumerate(self.draft_slots)
+                    for cam in CAMERAS
+                    if not d.get(CAM_FLAG_KEYS[cam], True))
+            if mutes != last:
+                last = mutes
+                try:
+                    cp.stdin.write((json.dumps({"mute": mutes}) + "\n").encode())
+                    cp.stdin.flush()
+                except (BrokenPipeError, ValueError, OSError):
+                    return
+            time.sleep(0.5)
 
     # ---- live status, parsed from the controller logs --------------------
     def _start_poller(self, locked):
@@ -2649,8 +2810,9 @@ class Fleet:
                         self._name_to_index = {}
                         self._last_pose = {}
                         self._gz_node = None
-                        self._gz_cam_nodes = []
+                        self._cam_proc = None
                         self._teardown_done.clear()
+                    self.audit_threads("teardown")
                     self._note("fleet run complete")
                     # KILL THE SIM ON DONE. Leaving gz alive "for the next
                     # launch" left it idling at ~a full core simulating an
@@ -2726,7 +2888,13 @@ class Fleet:
             self._gz_node = None       # drops the pose subscription
             self._pose_proc = None     # per-run feed dies with the run
             self._pose_restarts = 0
-            self._gz_cam_nodes = []    # drops every camera subscription
+            # OPEN-19: the camera subscriptions are a CHILD PROCESS now, so
+            # _reap_and_confirm above has already killed them for real -
+            # this used to be `self._gz_cam_nodes = []`, which dropped a
+            # Python reference and left the C++ transport threads running.
+            self._cam_proc = None
+            self._cam_restarts = 0
+            CAMHUB.clear()
             self.cameras = {}
             if self._chase_stop is not None:
                 self._chase_stop.set()   # tells _follow_chase_cams to exit its loop
@@ -2736,6 +2904,72 @@ class Fleet:
 
 
 FLEET = Fleet()
+
+
+class CamHub:
+    """Latest JPEG per camera, plus a sequence number, for the MJPEG
+    endpoint - deliberately on its OWN small lock and NEVER the fleet's big
+    `self.lock`.
+
+    OPEN-19. The old path base64'd every frame into `/api/state`, so video
+    inherited that endpoint's whole-state JSON, its 400 ms client poll, and
+    its lock contention: a display ceiling of 2.5 fps that measured ~0.2 fps
+    on a server whose /api/state had degraded to 4.7 s. Frames now leave by
+    their own door. Slow clients MISS frames rather than backing anything
+    up - this is a live view, not a recording, the same reasoning that made
+    the old code keep only the latest frame instead of a queue.
+    """
+
+    def __init__(self):
+        self._cv = threading.Condition()
+        self._frames = {}          # "i:cam" -> (seq, jpeg_bytes, w, h, t)
+        self._seq = 0
+
+    def put(self, key, payload, w, h, t):
+        with self._cv:
+            self._seq += 1
+            self._frames[key] = (self._seq, payload, w, h, t)
+            self._cv.notify_all()
+
+    def get_after(self, key, last_seq, timeout=5.0):
+        """Block until `key` has a frame newer than last_seq, or timeout.
+        Returns (seq, payload) or (last_seq, None)."""
+        deadline = time.time() + timeout
+        with self._cv:
+            while True:
+                f = self._frames.get(key)
+                if f and f[0] > last_seq:
+                    return f[0], f[1]
+                remain = deadline - time.time()
+                if remain <= 0:
+                    return last_seq, None
+                self._cv.wait(remain)
+
+    def manifest(self):
+        """{index: {camname: seq}} - what /api/state ships instead of
+        pixels, so the panel still knows which tiles are live and can tell
+        a stalled feed (seq frozen) from a healthy one."""
+        out = {}
+        with self._cv:
+            for key, (seq, _p, _w, _h, _t) in self._frames.items():
+                i, _, cam = key.partition(":")
+                try:
+                    out.setdefault(int(i), {})[cam] = seq
+                except ValueError:
+                    continue
+        return out
+
+    def stats(self):
+        with self._cv:
+            return dict(cameras=len(self._frames), frames=self._seq)
+
+    def clear(self):
+        with self._cv:
+            self._frames = {}
+            self._cv.notify_all()
+
+
+CAMHUB = CamHub()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -2797,7 +3031,90 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         m = re.match(r"^/api/logs/(\d+)(?:\?(.*))?$", self.path)
         if m:
             return self._logs(int(m.group(1)), m.group(2) or "")
+        # The trailing (?:\?.*)? is NOT optional decoration: app.js appends
+        # ?r=<run_id> as a cache-buster so a new run gets a NEW connection
+        # instead of the browser holding the previous run's stream. Without
+        # it every camera tile 404s - caught in the panel's own network log
+        # minutes after this shipped, which is exactly why /api/logs already
+        # carries the same suffix.
+        m = re.match(r"^/api/cam/(\d+)/([a-z_]+)\.mjpg(?:\?.*)?$", self.path)
+        if m:
+            return self._mjpeg(int(m.group(1)), m.group(2))
+        m = re.match(r"^/api/cam/(\d+)/([a-z_]+)\.jpg(?:\?.*)?$", self.path)
+        if m:
+            return self._still(int(m.group(1)), m.group(2))
         return super().do_GET()
+
+    # ---- video: its own door, off the state poll (OPEN-19) --------------
+    MJPEG_MAX_CLIENTS = 12
+    _mjpeg_clients = 0
+    _mjpeg_lock = threading.Lock()
+
+    def _mjpeg(self, i, cam):
+        """multipart/x-mixed-replace - the browser's own decoder, driven by
+        an ordinary <img src>. No JS, no polling, no base64 (which cost a
+        flat 4/3 on every frame), and the <img> element is never destroyed,
+        so frames replace each other in a live decode pipeline instead of
+        each one being a fresh element parsed from a data: URL.
+
+        A slow client MISSES frames; it never backs the producer up. That is
+        correct for a live view and is the same reasoning the old code used
+        to keep only the latest frame rather than a queue.
+        """
+        key = "%d:%s" % (i, cam)
+        with Handler._mjpeg_lock:
+            if Handler._mjpeg_clients >= Handler.MJPEG_MAX_CLIENTS:
+                return self._json({"ok": False, "error": "too many viewers"}, 503)
+            Handler._mjpeg_clients += 1
+        boundary = "cheetahframe"
+        try:
+            self.send_response(200)
+            self.send_header("Age", "0")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Content-Type",
+                             "multipart/x-mixed-replace; boundary=%s" % boundary)
+            self.end_headers()
+            seq = 0
+            idle = 0
+            while True:
+                seq, payload = CAMHUB.get_after(key, seq, timeout=5.0)
+                if payload is None:
+                    # No frame in 5 s. Keep the connection open for a while
+                    # (a muted or not-yet-launched camera is legitimately
+                    # silent and the tile should resume by itself), but do
+                    # not hold a thread forever on a camera that will never
+                    # publish again.
+                    idle += 1
+                    if idle > 24:      # ~2 minutes
+                        return
+                    continue
+                idle = 0
+                self.wfile.write(
+                    ("--%s\r\nContent-Type: image/jpeg\r\n"
+                     "Content-Length: %d\r\n\r\n" % (boundary, len(payload))
+                     ).encode("ascii"))
+                self.wfile.write(payload)
+                self.wfile.write(b"\r\n")
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return            # viewer navigated away; entirely normal
+        finally:
+            with Handler._mjpeg_lock:
+                Handler._mjpeg_clients -= 1
+
+    def _still(self, i, cam):
+        """One frame, for a test harness or a curl - the MJPEG stream is for
+        eyes, this is for assertions."""
+        key = "%d:%s" % (i, cam)
+        seq, payload = CAMHUB.get_after(key, 0, timeout=2.0)
+        if payload is None:
+            return self._json({"ok": False, "error": "no frame for %s" % key}, 404)
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _logs(self, i, query):
         """Raw log for dog `i` - the FULL text mit_ctrl_sim/the bridge wrote,
@@ -2923,6 +3240,11 @@ def main():
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGHUP, _shutdown)
     socketserver.ThreadingTCPServer.allow_reuse_address = True
+    # Leak-canary baseline: every thread this server legitimately runs while
+    # idle. Captured here, after __init__ has started its background
+    # samplers and before a single launch, so any later drift is real.
+    FLEET._thread_baseline = threading.active_count()
+    print("[health] thread baseline = %d" % FLEET._thread_baseline, flush=True)
     with socketserver.ThreadingTCPServer(("127.0.0.1", PORT), Handler) as httpd:
         print("Conductor on http://127.0.0.1:%d" % PORT, flush=True)
         httpd.serve_forever()
