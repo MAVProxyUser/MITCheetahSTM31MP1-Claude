@@ -2270,7 +2270,17 @@ class Fleet:
         own thread, never sharing one with the pose/camera subscribers
         whose callbacks must never stall.
         """
-        node = _gz_transport.Node()
+        # NO gz Node here any more. This used to create one per run and
+        # never release it - the exact leak class OPEN-19 fixed for the
+        # camera subscriptions, hiding 70 lines below _subscribe_pose's
+        # claim that "the server's own long-lived process no longer touches
+        # gz-transport at all", which was therefore false. Measured after
+        # the camera fix: settled thread drift still climbing +0.56/run
+        # across runs 1887-1905, caught by the leak canary. Every line of
+        # geometry below stays here (the server owns the poses and the
+        # draft slots); only the blocking service call moves into the
+        # per-run child, which dies with the run and takes its transport
+        # state with it.
         stop_event = self._chase_stop
         indices = [s["index"] for s in locked if s["cam_chase"]]
         if not indices:
@@ -2278,6 +2288,7 @@ class Fleet:
         service = "/world/%s/set_pose" % WORLD
         parked = set()   # dogs whose chase cam is currently live-muted (model parked below the world)
         while not stop_event.is_set():
+            batch = []
             for i in indices:
                 with self.lock:
                     pos = self.positions.get(i)
@@ -2296,16 +2307,10 @@ class Fleet:
                 if not d.get("cam_chase", True):
                     if i not in parked:
                         parked.add(i)
-                        req = _GzPose()
-                        req.name = "go1_%d_chasecam" % i
-                        req.position.x = pos["x"]
-                        req.position.y = pos["y"]
-                        req.position.z = -25.0
-                        req.orientation.w = 1.0
-                        try:
-                            node.request(service, req, _GzPose, _GzBoolean, 100)
-                        except Exception:  # noqa: BLE001 - same never-kill-the-loop rule as below
-                            pass
+                        self._cam_send({"setpose": [{
+                            "name": "go1_%d_chasecam" % i,
+                            "p": [pos["x"], pos["y"], -25.0],
+                            "q": [1.0, 0.0, 0.0, 0.0]}]})
                     continue
                 parked.discard(i)
                 distance = float(d.get("chase_distance", 3.0))
@@ -2325,21 +2330,13 @@ class Fleet:
                 pitch = math.atan2(height, max(0.05, distance))
                 cy, sy = math.cos(look_yaw * 0.5), math.sin(look_yaw * 0.5)
                 cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
-                req = _GzPose()
-                req.name = "go1_%d_chasecam" % i
-                req.position.x = wx
-                req.position.y = wy
-                req.position.z = wz
                 # roll=0, pitch, yaw -> quaternion (standard ZYX Euler
                 # composition, matches SDF's own <pose> convention)
-                req.orientation.w = cp * cy
-                req.orientation.x = -sp * sy
-                req.orientation.y = sp * cy
-                req.orientation.z = cp * sy
-                try:
-                    node.request(service, req, _GzPose, _GzBoolean, 100)
-                except Exception:  # noqa: BLE001 - one missed tick is invisible; never worth killing the loop over
-                    pass
+                batch.append({"name": "go1_%d_chasecam" % i,
+                               "p": [wx, wy, wz],
+                               "q": [cp * cy, -sp * sy, sp * cy, cp * sy]})
+            if batch:
+                self._cam_send({"setpose": batch})
             time.sleep(CHASE_FOLLOW_DT)
 
     def _start_cam_feed(self, locked, env):
@@ -2384,13 +2381,18 @@ class Fleet:
             [PYBIN, "-u", os.path.join(HERE, "cam_feed.py"),
              "--cams", ",".join(cams),
              "--quality", str(CAM_JPEG_QUALITY),
-             "--rate", str(CAM_MAX_FPS)]
+             "--rate", str(CAM_MAX_FPS),
+             # The child owns EVERY gz-transport interaction for this run,
+             # subscriptions and service calls alike - see _follow_chase_cams.
+             "--set-pose-service", "/world/%s/set_pose" % WORLD,
+             "--follow-dt", str(CHASE_FOLLOW_DT)]
             + (["--max-width", str(CAM_MAX_WIDTH)] if CAM_MAX_WIDTH else []),
             cwd=HERE, env=env, stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=ferr, start_new_session=True)
         self.procs.append(cp)
         self._watch_child(cp)
         self._cam_proc = cp
+        self._cam_stdin_lock = threading.Lock()
 
         def reader():
             """Header line + exactly n bytes, repeatedly. Framing errors are
@@ -2441,6 +2443,21 @@ class Fleet:
                     "%d camera(s), encode and transport state both die with "
                     "this run)" % (cp.pid, len(cams)))
 
+    def _cam_send(self, obj):
+        """One writer for the cam feed's stdin - the mute pusher and the
+        chase follower both use it, and interleaved partial writes would
+        desync the child's line-oriented reader."""
+        cp = self._cam_proc
+        if cp is None or cp.poll() is not None or cp.stdin is None:
+            return False
+        try:
+            with getattr(self, "_cam_stdin_lock", threading.Lock()):
+                cp.stdin.write((json.dumps(obj) + "\n").encode())
+                cp.stdin.flush()
+            return True
+        except (BrokenPipeError, ValueError, OSError):
+            return False
+
     def _push_cam_mutes(self):
         """Mirror the draft checkboxes into the cam feed child so an
         unchecked camera stops being ENCODED, not just stops being drawn.
@@ -2458,10 +2475,7 @@ class Fleet:
                     if not d.get(CAM_FLAG_KEYS[cam], True))
             if mutes != last:
                 last = mutes
-                try:
-                    cp.stdin.write((json.dumps({"mute": mutes}) + "\n").encode())
-                    cp.stdin.flush()
-                except (BrokenPipeError, ValueError, OSError):
+                if not self._cam_send({"mute": mutes}):
                     return
             time.sleep(0.5)
 

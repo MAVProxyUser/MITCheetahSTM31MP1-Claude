@@ -44,6 +44,8 @@ import time
 
 import gz.transport13 as transport
 from gz.msgs10.image_pb2 import Image as GzImage
+from gz.msgs10.pose_pb2 import Pose as GzPose
+from gz.msgs10.boolean_pb2 import Boolean as GzBoolean
 from PIL import Image as PILImage
 
 
@@ -61,6 +63,13 @@ def main():
     ap.add_argument("--warmup", type=float, default=12.0,
                     help="seconds to wait for the FIRST frame on ANY camera "
                          "before declaring the subscriptions deaf")
+    ap.add_argument("--set-pose-service", default="",
+                    help="gz service for chase-camera following, e.g. "
+                         "/world/go1_world/set_pose. When given, this process "
+                         "also owns the follow requests - see the module "
+                         "docstring on why the server must not.")
+    ap.add_argument("--follow-dt", type=float, default=0.1,
+                    help="seconds between chase-camera set_pose requests")
     ap.add_argument("--deaf-after", type=float, default=0.0,
                     help="seconds with no frame on any camera mid-run before "
                          "exiting so the parent restarts us (0 = never exit; "
@@ -83,6 +92,8 @@ def main():
     state = dict(count=0, last=0.0)
     muted = set()
     last_emit = {}
+    want = {}                      # chase-cam name -> latest desired pose
+    pose_lock = threading.Lock()
 
     def on_image(msg, idx, camname):
         key = "%d:%s" % (idx, camname)
@@ -147,7 +158,48 @@ def main():
             if "mute" in msg:
                 muted.clear()
                 muted.update(msg["mute"] or [])
+            if "setpose" in msg:
+                # LATEST WINS, never a queue - same rule as the frames. The
+                # reader must not issue the request itself: node.request()
+                # is blocking (no async variant in this gz.transport13
+                # build), so a stalled service call would stop us reading
+                # stdin and back the server's own follow loop up behind it.
+                with pose_lock:
+                    for item in (msg["setpose"] or []):
+                        want[item["name"]] = item
     threading.Thread(target=stdin_reader, daemon=True).start()
+
+    if args.set_pose_service:
+        def follower():
+            """Chase-camera following, in THIS process rather than the
+            server's. The server keeps every line of the geometry (it owns
+            the poses and the draft slots); all that moves here is the
+            blocking gz call, because a `gz.transport13.Node()` held in the
+            long-lived server is precisely the leak OPEN-19 was about. The
+            server's Node for this was created once per run and never
+            released - measured at +0.56 threads/run AFTER the camera
+            subscriptions had already been moved out, which is how it was
+            found: the leak canary kept firing on a server that was
+            supposed to be clean."""
+            while True:
+                with pose_lock:
+                    batch = list(want.values())
+                for item in batch:
+                    req = GzPose()
+                    req.name = item["name"]
+                    req.position.x, req.position.y, req.position.z = item["p"]
+                    (req.orientation.w, req.orientation.x,
+                     req.orientation.y, req.orientation.z) = item["q"]
+                    try:
+                        node.request(args.set_pose_service, req, GzPose,
+                                     GzBoolean, 100)
+                    except Exception:  # noqa: BLE001 - one missed tick is invisible
+                        pass
+                time.sleep(args.follow_dt)
+        threading.Thread(target=follower, daemon=True).start()
+        sys.stderr.write("[cam_feed] chase follower on %s every %.3fs\n"
+                         % (args.set_pose_service, args.follow_dt))
+        sys.stderr.flush()
 
     deadline = time.time() + args.warmup
     while state["count"] == 0 and time.time() < deadline:
