@@ -250,11 +250,19 @@ passed on its own in-suite retry.
   | `cc97788` | after OPEN-6, before OPEN-13 | 3/4 → being raised to N=8 |
   | HEAD `537659a` | everything, repaired build | **2/4** (+1 FELL, 2 PASS from a run set one rogue harness contaminated) |
 
-  N=4 cannot separate `cc97788` from either neighbour — a true 95% cell
-  reads 3/4 about a fifth of the time — so it gets four more runs before
-  the bisect moves. ≥7/8 sends it into OPEN-13 / DEM-xtrack / latch-limp
-  (`48771f9`, `fabd240`, `e626865`, `0e7559e`, `48d26dc`); ≤5/8 sends it
-  into OPEN-6 (`c90e0ca` vs `cc97788` itself).
+  **`cc97788` at N=8: 5/8 (62%)** — matches HEAD (57%), not `00e34bb`
+  (100%). The regression is inside OPEN-6's three commits. `d9cde6e` is a
+  printf-only change, so the point being run at it (N=6) is a test of
+  `c90e0ca`; the outcome is binary — bad → `c90e0ca`, good → `cc97788`.
+  Read ahead of the result: the heading-datum hypothesis for `cc97788` is
+  dead on inspection (the capture zeroes roll and pitch and always did; it
+  only moved *when* the yaw datum is taken, ~0° either way on a north-
+  facing dash). `c90e0ca`'s changes all look inert on flat — the friction
+  derate needs `mu_terrain > 0` and defaults to −1, its `RobotRunner`
+  lines are a diagnostic print, the IMU zero-init is benign — so whichever
+  the point names, the candidate is a one-line change: the IMU struct
+  zero-init (`c90e0ca`) or the `&& valid` gate on the datum (`cc97788`),
+  each testable by a single-line revert at HEAD, rebuilt and run N=6.
   *(Earlier that night the same point read 0/4 and was recorded as
   INVALID, not bad — its binary died at startup for the reason in the
   CLOSED entry above (my Release configure, inherited by the worktree
