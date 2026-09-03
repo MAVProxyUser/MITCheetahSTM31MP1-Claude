@@ -834,6 +834,34 @@ controller log via `$SIM_RUN_ID`. Quote it when reporting behaviour - "run
 
 ## Harness rules learned the hard way (2026-08-25)
 
+**A campaign must not signal completion by exiting, and no waiter may
+block without a deadline.** (2026-09-03, cost: 6 h 06 m of idle rig.)
+Campaign c20 finished all 16 runs and wrote every CSV row at 11:08:49.
+Its `trap ... EXIT` then restarted the conductor and the shell parked in
+`__wait4` on that server -- `sample` on the live pid proved it -- so it
+never exited, so it never closed the pipe its waiter (`campaign | grep
+DONE`) was reading. **A pipe closes when the last writer exits**; a
+wedged writer holds it open forever, and a wedged campaign is
+indistinguishable from a slow one. Use `gazebo/tools/campaign_lib.sh`:
+`campaign_done <name>` writes the marker FILE the instant the data is
+complete and before any teardown; `wait_for_campaign <name> <deadline>`
+polls that file and RETURNS 1 on the deadline. Keep
+`gazebo/tools/rig_watchdog.sh` running -- it asks every 5 min whether
+`run_id` advanced, and after 30 idle minutes logs the alert *plus the
+campaign shells still alive*. Nothing was watching the rig that day; the
+only watcher was watching a pipe.
+
+**When a repro "confirms" something, check that the thing you were
+testing actually ran.** Chasing the wedge above I got a false PASS from a
+candidate fix built on `setsid`, which does not exist on this Mac: the
+command failed, there was no child left to wait for, and the script
+exited instantly -- which looks exactly like success. It only showed up
+because the bake-off also asserted *the child survived*. Two more repros
+"reproduced" the hang and were contaminated by leftover children of
+earlier repro attempts. A repro harness must kill its own leftovers
+between candidates and assert both halves of the property.
+
+
 **A harness that can emit a false PASS is worse than no harness.** A
 verification script reported the dash as PASS with numbers byte-identical
 to the previous run: the launch had crashed, no new log was written, and

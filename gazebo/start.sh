@@ -54,8 +54,21 @@ else
 fi
 
 # 4. start detached, then wait for it to actually answer
+#
+# The redirections and the `disown` are NOT decoration. `( cmd & )` alone
+# looks detached and usually behaves, but on 2026-09-03 campaign c20 proved
+# it is not enough: the campaign's EXIT trap called this same launch, and
+# bash sat in __wait4 on the freshly started server for SIX HOURS. The
+# script could not die because its teardown had spawned something that
+# outlives it, and because it never died it held the write end of the pipe
+# its waiter was reading - so the chain never advanced and the rig sat idle
+# with a finished measurement stranded in /tmp.
+#   </dev/null  - the child never shares a terminal or a pipe for input
+#   >"$LOG" 2>&1 - and never holds the parent's stdout/stderr pipe open
+#   disown      - removes it from the job table so bash CANNOT wait on it
+# unittests/test_launcher_detaches.sh is the regression test for this.
 [ -f "$LOG" ] && mv -f "$LOG" "${LOG%.log}.prev.log"
-( cd "$HERE/conductor" && nohup "$PYBIN" -u server.py > "$LOG" 2>&1 & )
+( cd "$HERE/conductor" && nohup "$PYBIN" -u server.py </dev/null > "$LOG" 2>&1 & disown ) 
 for i in $(seq 1 30); do
   curl -s -o /dev/null -m 3 "$BASE/api/state" 2>/dev/null && break
   sleep 1

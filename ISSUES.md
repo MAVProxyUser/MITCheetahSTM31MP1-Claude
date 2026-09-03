@@ -213,10 +213,34 @@ passed on its own in-suite retry.
   frames emitted at 30 Hz where it previously dropped half. **The
   receive-rate log added for exactly this purpose is what separated
   sensor from transport** — without it the loss was invisible.
-  Re-measure queued (c20, same interleaved protocol) to get the real
-  30 Hz number; if it lands near 30 fps for ~12% GPU, that is a genuine
-  choice to offer rather than a shrug, and the default moves or does not
-  on a real trade.
+  **c20 ran and this is the real number** (2026-09-03, same interleaved
+  protocol, server env swapped every run, N=8 each, `dash:30` walking @2.0
+  flat, raw rows in `gazebo/conductor/data/c20_open23_camrate_ab.csv`):
+
+  | arm | `cam_feed` receives | viewer gets | GPU | CPU | PASS |
+  |---|---|---|---|---|---|
+  | 10 Hz / 0.1 s (shipped) | 10.0 fps | **10.1** (9.9-10.2) | 6.1% | 36% | 7/8 |
+  | 30 Hz / 0.033 s | 30.4 fps | **27.9** (27.0-28.6) | 12.2% | 37% | 8/8 |
+
+  **2.77x the frames for 2.0x the GPU**, and the viewer now gets 92% of
+  what the sensor renders instead of 50%. Every previous number on this
+  issue -- the 15.5 that got it parked, and the 15.1 in c19 -- was
+  measuring the rate-gate bug above, not the camera. The trade the parked
+  disposition described ("double the GPU for +50% fps") never existed.
+  CPU is unchanged and the pass rate does not separate (7/8 vs 8/8, one
+  fall in the 10 Hz arm).
+
+  **Disposition: still not moving the default, and now for a stated
+  reason rather than a shrug.** 12% of the GPU is cheap for one dog; this
+  conductor runs fleets of three, the cost is in the render loop, and
+  host load has already silently explained a sim failure on this rig
+  once. What changes is that `CAM_UPDATE_RATE=30 CHASE_FOLLOW_DT=0.033`
+  is now a *documented, measured* choice that delivers genuinely smooth
+  chase footage -- the operator's original complaint was "choppy, like
+  you are taking screen shots and stitching them together", and 28 fps is
+  the answer to it. **Open sub-question, worth one short campaign**:
+  whether 12% per dog is additive across a 3-dog fleet. If it is not, the
+  default should move.
   
   **Reopen test**, so the next report is a diagnosis and not a hunt: read
   `/tmp/cheetah_conductor/cam_feed.log`. If `rx fps` says 10 while the
@@ -227,6 +251,67 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED · A finished campaign wedged in its own teardown and the rig sat idle for six hours
+
+**Symptom.** At 17:15 the operator asked what had been solved overnight.
+The last commit was 10:55. Campaign c20 had been "running" since then.
+
+**What was actually true.** c20 finished **all 16 runs** at 11:08:49 and
+wrote every row of its CSV -- the measurement was complete and correct
+(it is the OPEN-23 table above). Four seconds later, at 11:08:53, its
+`trap ... EXIT` fired `restart_with 10 0.1`, which restarts the
+conductor. The shell never returned from that trap. `sample` on the live
+pid showed the leaf frame:
+
+    __wait4  (in libsystem_kernel.dylib) + 8
+
+It was waiting on the conductor it had just spawned -- a process designed
+to run forever. `lsof` confirmed fd 1 was `/dev/null`, which is the
+trap's own `>/dev/null`, so the wedge is located exactly.
+
+**Why it cost six hours and not four seconds.** The waiter was
+`bash /tmp/c19.sh 8 | grep -E "...|C19_DONE"`. **A pipe closes when the
+last writer exits**, and the wedged shell was still a writer. So `grep`
+never saw EOF, the chain gated on `grep`, and `chain_c20.sh` never
+printed `C20_DONE` or queued anything after it. Nothing else was
+watching. Total idle: **6 h 06 m**, with a finished measurement stranded
+in `/tmp`.
+
+**What I could not establish, recorded as unknown.** I could not
+reproduce the `__wait4` wedge synthetically. Two of my repro attempts
+appeared to hang and I nearly wrote up a mechanism from them -- they were
+contaminated by leftover children of *earlier* repro attempts, and a
+third "fix confirmed" run was a false pass (`setsid` does not exist on
+this Mac, so the command failed and there was simply no child to wait
+for; I only caught it by also asserting the child was still alive). The
+`sample` output on the real pid is the one piece of hard evidence about
+the mechanism. Why bash waited there and not on the 16 identical
+`restart_with` calls that preceded it is **not known**.
+
+**Fix -- remove the dependence rather than claim the mechanism.**
+`gazebo/tools/campaign_lib.sh`:
+
+* `campaign_done <name>` writes `/tmp/cheetah_campaigns/<name>.done` the
+  instant the data is complete and **before any teardown runs**;
+* `wait_for_campaign <name> <deadline>` polls that **file**, never a
+  pipe, and **returns 1 on a deadline** instead of waiting forever;
+* `gazebo/tools/rig_watchdog.sh` answers the question nobody was asking:
+  every 5 min, has `run_id` advanced or is a mission in flight? After 30
+  idle minutes it writes to `/tmp/cheetah_rig_idle.log` *with the list of
+  campaign shells still alive*, so the cause is captured at the moment it
+  happens rather than reconstructed six hours later.
+
+`unittests/test_launcher_detaches.sh` asserts the deadline actually
+fires, that the marker is a file, and that nothing but `start.sh`
+launches the conductor.
+
+**The transferable rule.** A campaign's completion signal must not depend
+on the campaign process exiting, and no waiter may block without a
+deadline. The measurement was never in danger here -- only the signal was
+-- and that is the failure mode to design against, because a wedged
+signal looks exactly like a long campaign.
+
 
 ### CLOSED (was OPEN-25) · The "corner collapse" was three measurement conditions compared as one
 
