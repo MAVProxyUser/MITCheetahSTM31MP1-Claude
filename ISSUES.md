@@ -328,6 +328,13 @@ passed on its own in-suite retry.
   they match, OPEN-24 closes as a non-issue with this whole trail kept;
   if `00e34bb` really is ~100% under interleaving, the regression is real
   and its cause is still unknown.
+  **c16 (walking flat@2.5, interleaved, N=6 each): HEAD 6/6, NOINIT
+  3/6 — three collapses.** The uninitialised-struct binary is actively
+  *worse* on the gait that passes 90%+ across ~400 runs this week. So
+  OPEN-6's zero-init is not merely non-causal for trotting, it is
+  **correct and protective**, and every "noinit" line of inquiry is
+  closed for good. It also shows the interleaved protocol can see a real
+  difference when there is one.
   Note for c12b/c13: every trotting rep they collect before this is
   settled is on the regressed binary and will be discarded.
   *(Earlier that night the same point read 0/4 and was recorded as
