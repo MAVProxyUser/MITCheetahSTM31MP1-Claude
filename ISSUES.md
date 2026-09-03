@@ -63,6 +63,39 @@ passed on its own in-suite retry.
 
 ### Mitigated / parked
 
+- **OPEN-25 · Corner cells at 2.5 collapsed this morning, both gaits** —
+  `SOFTWARE, LIVE, UNEXPLAINED`. The flagship row re-measure (08:03,
+  `corner:25:*` at 2.5, all ten angles ×2, clean server): **walking
+  3/20 (15%)**, **trotting 7/20 (35%)**. Yesterday 01:00 (c9, same
+  course, same Aug 30 binary) walking 2.5@120/135 went PASS/PASS and
+  before that walking was 12/18, trotting 10/10 (Aug 28). Walking at 2.5
+  on *dashes* is fine today (c16: 6/6 after the 02:59 rebuild). Corners
+  specifically.
+  **Exonerated by inspection**: the course and plan (identical `3
+  segments over 49.4 m`, default anchoring — the conductor's env carries
+  no override); the world (flat plane, no heightmap); `host-run/` (only
+  the binary changed); control-loop timing (maxPeriod ~3 ms both days);
+  the OPEN-17 deletion (every removed line sat inside the two flag
+  conditionals, and trotting was already 1/4 *before* that deploy).
+  **Prime suspect: the 02:59 rebuild** (assert-read rewrite + the
+  documented empty build type). The evidence that the collapse predates
+  it is weak (c11's 38% baseline at N=13; one N=1 corner at 02:30); the
+  evidence it follows it is c9-vs-today. Running now: the Aug 30
+  controller *source* (`48d26dc`) built with the documented configure,
+  interleaved against HEAD on `walking corner:25:120 @2.5`, N=6 each.
+  **Operator action that would settle it outright**: the actual Aug 30
+  binary and its `CMakeCache.txt` are in the Time Machine local snapshots
+  `2026-09-01-124058` and `2026-09-02-125500` — mounting needs sudo
+  (`mount_apfs -s com.apple.TimeMachine.2026-09-02-125500.local / /tmp/tmsnap`,
+  then `host-run/mit_ctrl_sim` and `host-build/CMakeCache.txt` under the
+  repo path). With that binary saved as `/tmp/bin_aug30`,
+  `gazebo/tools/ab_interleaved.sh` answers the question in fifteen
+  minutes.
+  **Consequences while open**: today's flagship rows, c19, and the fast
+  suite passes are measurements of whatever this is, not of the robot;
+  nothing from after 02:59 today should be cited as a capability number
+  until this closes.
+
 - **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
   knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the
