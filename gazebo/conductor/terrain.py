@@ -86,17 +86,34 @@ TERRAIN_TYPES = {
 # then behaves exactly as it did before, which is what keeps every
 # validated flat result valid.
 #
-#   dash:30, 2026-08-30, N as noted
+#   SUPERSEDED (2026-08-30, N=1..5 per cell). Kept because it is why this
+#   table said 2.25 for a day, and because the N asymmetry it warned about
+#   ("rough@2.25 is 1/1 ... re-measure before trusting it") was exactly the
+#   thing that turned out to be wrong:
 #     rough   walking  2.0  5/5 PASS   2.25 1/1 PASS   2.5  0/3 PASS
 #     flat    walking  2.0  4/4        2.25 5/5        2.5  4/5
 #     rolling walking  2.0  -          2.25 4/4        2.5  4/5
-#   So 2.5 is where rough separates from BOTH controls, and 2.25 is the
-#   highest rung rough has passed. Encoded at 2.25 rather than the fully
-#   sampled 2.0 because 2.25 passed everywhere it was run - but note the
-#   asymmetry in N (rough@2.25 is 1/1) and re-measure before trusting it as
-#   a hard number rather than a cap.
+#
+#   CURRENT (campaign c6, 2026-08-31, dash:30, one uninterrupted block on a
+#   conductor with no thread leak, 0/80 no-verdicts):
+#     rough   walking  1.75  20/20 100%
+#     rough   walking  2.0   18/20  90%
+#     rough   walking  2.25   7/10  70%
+#     rough   walking  2.5 (capped to 2.25)  15/20  75%
+#     flat    walking  2.5   9/10  90%   <- the control
+#
+#   Monotonic, and 2.0 lands exactly on the flat control (90% vs 90%): at
+#   2.0 the terrain costs nothing measurable, at 2.25 it costs ~20 points.
+#   So the ceiling is 2.0, and 2.25 was a less-bad rung rather than a cap.
+#
+#   Two earlier readings of this same cell were retracted for over-reading
+#   small blocks; what makes this one different is N=20 per rung in one
+#   block, plus the discovery that the conductor had a thread leak which
+#   both dropped 30% of c3's launches outright AND depressed the pass rate
+#   of the runs that did complete. Numbers taken before 2026-08-31 on a
+#   long-lived server should be treated as pessimistic and re-measured.
 GAIT_VMAX = {
-    "rough": {"walking": 2.25},
+    "rough": {"walking": 2.0},
 }
 
 

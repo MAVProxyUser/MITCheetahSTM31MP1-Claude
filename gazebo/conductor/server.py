@@ -841,7 +841,8 @@ class Fleet:
         except Exception:  # noqa: BLE001 - first boot, or a wiped /tmp
             self.run_id = 0
         self.host_load = read_host_load()
-        threading.Thread(target=self._host_load_loop, daemon=True).start()
+        threading.Thread(target=self._host_load_loop, name="host_load",
+                          daemon=True).start()
 
     def _host_load_loop(self):
         while True:
@@ -1061,6 +1062,16 @@ class Fleet:
         # look exactly like the leak this is watching for.
         viewers = Handler._mjpeg_clients
         drift = (threads - base - viewers) if base is not None else 0
+        # WHAT is accumulating, not just how much. Two rounds of "the leak
+        # is fixed" were called on the drift number alone and both were
+        # wrong (+1.2 -> +0.56 -> +1.00 threads/run); a canary that says a
+        # leak exists without naming it just moves the guessing around. Every
+        # thread this server starts is named, so this histogram points
+        # straight at the one that is not exiting.
+        names = {}
+        for t in threading.enumerate():
+            key = t.name.split("-")[0] if t.name.startswith("Thread-") else t.name
+            names[key] = names.get(key, 0) + 1
         # ONLY MEANINGFUL WHEN SETTLED. A running fleet legitimately holds
         # ~11 extra threads (one _watch_child per child, the pose-feed
         # reader, the cam-feed reader and its mute pusher, the log poller,
@@ -1075,6 +1086,7 @@ class Fleet:
         return dict(threads=threads, baseline=base, drift=drift,
                     children=len(live), tracked=len(self.procs),
                     mjpeg_viewers=Handler._mjpeg_clients, settled=settled,
+                    by_name=names,
                     leaking=bool(base is not None and settled
                                   and drift > THREAD_DRIFT_ALARM))
 
@@ -1599,6 +1611,7 @@ class Fleet:
             self._chase_stop = threading.Event()
 
         threading.Thread(target=self._run, args=(locked, terrain_kind),
+                          name="run",
                          daemon=True).start()
         return True, "launching %d dog(s) on %s terrain" % (len(locked), terrain_kind)
 
@@ -1853,6 +1866,7 @@ class Fleet:
             self._subscribe_pose(env)
             self._start_cam_feed(locked, env)
             threading.Thread(target=self._follow_chase_cams, args=(locked,),
+                              name="chase_follow",
                               daemon=True).start()
 
             for s in locked:
@@ -2194,7 +2208,7 @@ class Fleet:
                                 "be gated NOFEED by the bridge-GPS arbiter, "
                                 "which is the correct outcome" % n)
 
-        threading.Thread(target=reader, daemon=True).start()
+        threading.Thread(target=reader, name="pose_reader", daemon=True).start()
         self._note("pose feed up (per-run subprocess, pid %d - OPEN-21: "
                     "transport state dies with this run)" % fp.pid)
 
@@ -2437,8 +2451,9 @@ class Fleet:
                                 "leaving it down; the mission is unaffected, "
                                 "only the video tiles" % n)
 
-        threading.Thread(target=reader, daemon=True).start()
-        threading.Thread(target=self._push_cam_mutes, daemon=True).start()
+        threading.Thread(target=reader, name="cam_reader", daemon=True).start()
+        threading.Thread(target=self._push_cam_mutes, name="cam_mutes",
+                          daemon=True).start()
         self._note("cam feed up (per-run subprocess, pid %d - OPEN-19: "
                     "%d camera(s), encode and transport state both die with "
                     "this run)" % (cp.pid, len(cams)))
@@ -2859,7 +2874,7 @@ class Fleet:
                     self._note("sim torn down (gz + bridges + controllers)")
                     return
                 time.sleep(1)
-        threading.Thread(target=poll, daemon=True).start()
+        threading.Thread(target=poll, name="log_poller", daemon=True).start()
 
     # ---- teardown ----------------------------------------------------------
     def _reap_and_confirm(self, procs):
