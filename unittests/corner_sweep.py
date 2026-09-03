@@ -123,6 +123,13 @@ def run_cell(gait, speed, angle, leg):
     # One line of forensic context for a non-pass, grepped from the stream.
     detail = ""
     for line in out.splitlines():
+        # The runner's timeout path prints ADVICE containing the words
+        # "RESULT: PASS" ("check whether the mission had already reached
+        # MISSION COMPLETE / RESULT: PASS"). Quoting that as the cell's
+        # detail made a genuine TIMEOUT read like a hidden PASS (trotting
+        # 3.0@45, 2026-09-03). Skip advisory lines outright.
+        if "CONFIRM" in line or "check whether" in line or "This does NOT mean" in line:
+            continue
         if any(k in line for k in ("FELL", "fell", "orientation", "RESULT",
                                     "refused")):
             detail = line.strip()[-120:]
