@@ -233,6 +233,15 @@ passed on its own in-suite retry.
   other, and each point runs N=4 `trotting@2.5` flat dashes (at ~95% vs
   ~40%, 4/4 separates the two). Known-good point: `00e34bb` (repo HEAD at
   the Aug 28 passes).
+  **Bisect status (2026-09-03 02:50)**: the first point, `00e34bb`, is
+  **INVALID, not bad** — its binary died at startup for the reason in the
+  CLOSED entry above (my Release configure, inherited by the worktree
+  build), so it never ran a mission; the harness now flags a controller
+  that dies at startup instead of counting 0/N. The conductor-side A/B
+  (`anchor_ab.sh`, `WP_SPAWN_ANCHOR=0` vs 1) was likewise started against
+  the broken deploy and is void; both re-run once the repaired binary is
+  proven. Every trotting collapse cited above stands: all of it ran on the
+  Aug 30 binary before 02:50.
   **Consequences while open**: c12b (rough/trotting) and c13
   (rolling/trotting) are paused/deferred — their numbers would describe
   the regression, not the terrain. Walking campaigns (c14, OPEN-17) are
@@ -307,6 +316,41 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED · A Release configure compiled the parameter reads out of the controller
+
+**Symptom.** 2026-09-03 02:50: `deploy_host.sh` restored "HEAD's binary"
+after a bisect point and the next campaign wrote `NONE` for every rep. The
+controller printed two lines and died: `terminating due to uncaught
+exception of type std::runtime_error: can't read type 3 from yaml file`.
+The same binary passed the deploy script's load-check.
+
+**Cause.** Upstream MIT code: every yaml read in
+`ControlParameters::initializeFromYamlFile` and
+`defineAndInitializeFromYamlFile` was written as
+`assert(paramHandler.getValue(key, v))` — the read *is* the assert's
+argument. This project sets `-O3` itself for every configuration, so the
+documented `cmake ..` (no build type) is already optimised with asserts
+on; the only thing `-DCMAKE_BUILD_TYPE=Release` adds is `-DNDEBUG`, which
+deletes the asserts and with them every read. Ten sites. I introduced the
+Release configure on 2026-09-02 while verifying the `gazebo/` move, built
+but did not deploy; the bisect harness's restore step was the first deploy
+of that build. Every measurement before 02:50 today ran the Aug 30 12:14
+binary, which was built the documented way and is unaffected.
+
+**Fix.** The ten reads are unconditional and throw a named error on
+failure (`parameter "X" missing or unreadable in yaml`), correct in any
+build type. `host-build` is reconfigured to the documented empty build
+type so the rebuilt binary matches the week's data. `deploy_host.sh` now
+refuses a binary that does not reach `PeriodicTask` or that dies with an
+uncaught exception — "printed something" is what let this through.
+
+**Evidence.** Standalone: the broken binary prints `[ctrl_tuning]`, `UDP
+up`, and the exception; the fixed one prints 74 lines and continues into
+`PeriodicTask` and the balance controller. Then one walking flat dash
+through the conductor: **PASS**, flown 30.1 / plan 30.0, xtrack 0.18, 13
+nav lines (run 2280, 03:01).
+
 
 ### CLOSED (was OPEN-8) · The per-gait cornering envelope, measured to the resolution anything reads it at
 

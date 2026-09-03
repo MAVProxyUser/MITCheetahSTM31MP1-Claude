@@ -367,25 +367,45 @@ void ControlParameters::defineAndInitializeFromYamlFile(const std::string &path)
     switch (cp->_kind) {
       case ControlParameterValueKind::DOUBLE: {
         double d;
-        assert(paramHandler.getValue(key, d));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getValue(key, d)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         cp->initializeDouble(d);
       } break;
 
       case ControlParameterValueKind::FLOAT: {
         float f;
-        assert(paramHandler.getValue(key, f));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getValue(key, f)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         cp->initializeFloat(f);
       } break;
 
       case ControlParameterValueKind::S64: {
         s64 f;
-        assert(paramHandler.getValue(key, f));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getValue(key, f)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         cp->initializeInteger(f);
       } break;
 
       case ControlParameterValueKind::VEC3_DOUBLE: {
         std::vector<double> vv;
-        assert(paramHandler.getVector(key, vv));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getVector(key, vv)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         assert(vv.size() == 3);
         Vec3<double> v(vv[0], vv[1], vv[2]);
         cp->initializeVec3d(v);
@@ -393,7 +413,12 @@ void ControlParameters::defineAndInitializeFromYamlFile(const std::string &path)
 
       case ControlParameterValueKind::VEC3_FLOAT: {
         std::vector<float> vv;
-        assert(paramHandler.getVector(key, vv));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getVector(key, vv)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         assert(vv.size() == 3);
         Vec3<float> v(vv[0], vv[1], vv[2]);
         cp->initializeVec3f(v);
@@ -446,25 +471,45 @@ void ControlParameters::initializeFromYamlFile(const std::string& path) {
     switch (cp._kind) {
       case ControlParameterValueKind::DOUBLE: {
         double d;
-        assert(paramHandler.getValue(key, d));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getValue(key, d)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         cp.initializeDouble(d);
       } break;
 
       case ControlParameterValueKind::FLOAT: {
         float f;
-        assert(paramHandler.getValue(key, f));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getValue(key, f)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         cp.initializeFloat(f);
       } break;
 
       case ControlParameterValueKind::S64: {
         s64 f;
-        assert(paramHandler.getValue(key, f));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getValue(key, f)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         cp.initializeInteger(f);
       } break;
 
       case ControlParameterValueKind::VEC3_DOUBLE: {
         std::vector<double> vv;
-        assert(paramHandler.getVector(key, vv));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getVector(key, vv)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         assert(vv.size() == 3);
         Vec3<double> v(vv[0], vv[1], vv[2]);
         cp.initializeVec3d(v);
@@ -472,7 +517,12 @@ void ControlParameters::initializeFromYamlFile(const std::string& path) {
 
       case ControlParameterValueKind::VEC3_FLOAT: {
         std::vector<float> vv;
-        assert(paramHandler.getVector(key, vv));
+        // The read is NOT inside assert(): NDEBUG (any Release configure) compiles
+        // an assert away, and with it the read - every parameter then loads as
+        // garbage. Found 2026-09-03 when a Release rebuild crashed at startup.
+        if (!paramHandler.getVector(key, vv)) {
+          throw std::runtime_error("parameter \"" + key + "\" missing or unreadable in yaml");
+        }
         assert(vv.size() == 3);
         Vec3<float> v(vv[0], vv[1], vv[2]);
         cp.initializeVec3f(v);

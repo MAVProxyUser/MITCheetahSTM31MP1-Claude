@@ -111,6 +111,15 @@ The rules that follow from that:
    `--wait-for-gate` and check for `LAUNCH_REFUSED_EXIT` (5); on a refusal,
    retry the same rep and write no telemetry row.
 
+5d. **A BUILD CONFIGURE IS PART OF THE MEASUREMENT.** The documented host
+   build is `cmake ..` with NO build type; the project adds `-O3` itself.
+   `-DCMAKE_BUILD_TYPE=Release` adds only `-DNDEBUG`, and upstream MIT put
+   every yaml parameter read INSIDE `assert()` - so a Release binary loads
+   no parameters and dies at startup, and `deploy_host.sh`'s old check
+   ("printed something") waved it through. Before deploying, `grep
+   CMAKE_BUILD_TYPE host-build/CMakeCache.txt` must match the record, and
+   a deploy must prove the controller reaches `PeriodicTask`.
+
 6. **LIVENESS MEANS "WORK IS HAPPENING", AND ONLY ONE SIGNAL SAYS THAT.**
    Two plausible liveness checks were tried here and BOTH were wrong, in
    opposite directions:

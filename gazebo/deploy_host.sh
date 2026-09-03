@@ -41,4 +41,15 @@ if [ ! -s /tmp/_deploy_check.log ]; then   # 3. prove it loads
   echo "  Do not run sweeps against it; every result would be a false 0/5."
   exit 1
 fi
+# 4. prove it actually STARTS: past parameter load, into the periodic task.
+# "printed something" passed a binary on 2026-09-03 that died two lines in
+# with an uncaught exception - a Release build with the yaml reads compiled
+# out - and the next campaign wrote NONE for every rep.
+if grep -q "terminating due to uncaught exception" /tmp/_deploy_check.log || \
+   ! grep -q "PeriodicTask\|Start " /tmp/_deploy_check.log; then
+  echo "DEPLOY FAILED: binary starts but dies before the control loop:"
+  grep -iE "exception|error|abort" /tmp/_deploy_check.log | head -3 | sed 's/^/    /'
+  echo "  Rolling back is up to you; nothing was rolled back automatically."
+  exit 1
+fi
 echo "deploy ok: $(date -r "$DST" '+%H:%M:%S'), loads and prints $(wc -l < /tmp/_deploy_check.log) lines"
