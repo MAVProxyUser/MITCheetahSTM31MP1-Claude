@@ -69,12 +69,28 @@ passed on its own in-suite retry.
   was measured through that, which is why its 2.25 rung read 55% where c6's
   clean-server equivalent reads 70-75%. It is kept in git history, not here,
   to stop it being quoted as current.
-  **Still open**:
-  - `relief_k` — defaults 0, inert, never measured. Its own sweep was
-    confounded by the speed cap; re-run it with `WP_TERRAIN_VMAX=-1`.
-  - `rolling` has never been sampled beyond N=4 and has no cap of its own.
-    Campaign c7 (running) validates the capped path at 2.0 with a flat
-    control in the same block, then measures `rolling` at 2.5 and 2.0.
+  **The cap is now VALIDATED end to end, and `rolling` is answered
+  (campaign c7, 70 reps, 1/70 no-verdict).** Same block, same session:
+
+  | arm | pass | rate |
+  |---|---|---|
+  | flat @2.5 (control) | 10/10 | **100%** |
+  | rolling @2.5 uncapped | 19/20 | **95%** |
+  | rough @2.5 **capped → 2.0** | 17/19 | **89%** |
+  | rolling @2.0 uncapped | 18/20 | 90% |
+
+  Two conclusions. First, the capped path works: a request for 2.5 on
+  `rough` is clamped to 2.0 and delivers 89%, matching c6's *uncapped*
+  `rough@2.0` (90%) — so the cap machinery costs nothing beyond the speed
+  it enforces. Second, **`rolling` does not need a cap at all**: 95% at 2.5
+  uncapped, within noise of the flat control and slightly *better* than
+  `rolling@2.0`. Adding a rolling entry to `GAIT_VMAX` would cost
+  throughput for nothing. The terrain hazard is specific to `rough`'s
+  short-wavelength geometry, not to non-flat ground generally.
+
+  **Still open**: `relief_k` — defaults 0, inert, never measured. Its own
+  sweep was confounded by the speed cap; re-run with `WP_TERRAIN_VMAX=-1`.
+  That is now the ONLY unmeasured piece of this issue.
 
 - **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
   TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at
