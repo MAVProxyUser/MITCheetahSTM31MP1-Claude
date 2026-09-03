@@ -112,8 +112,24 @@ passed on its own in-suite retry.
   is bumps everywhere. Durations were deterministic to 0.2-0.3 s per arm;
   every bit of variance is in pass/fail.
   **Walking side of OPEN-7 is closed.** Remaining: the cap table has only
-  a walking entry — campaign c12 (queued) runs rough/trotting 2.5/2.75/3.0
-  with a flat control, N=10, to give trotting its own rung.
+  a walking entry.
+  **Trotting on rough (c12, 2026-09-03, stopped after 9 reps): the ceiling
+  is BELOW 2.5, and the falls are real.** Rungs 2.5/2.75/3.0 gave 1/2,
+  0/2, 0/2; the flat@3.0 control gave 1/3 (trotting at 3.0 on a straight
+  is not a validated cell — the dash recipe is trotRunning). Every rough
+  fall reads `[FALL] collapsed: roll≈0 pitch≈0 z=0.04–0.08 m` at t≈7–14 s,
+  which looked like the week-old kinematic collapse test misfiring on a
+  trot — so it was checked against ground truth rather than believed:
+  the bridge's baro altitude drops 0.47 → 0.34 → 0.24 m over the last two
+  seconds, IMU a_z spikes to 23, torques saturate at −29, and the nav
+  trace shows the dog ramping 0.55 → 2.87 m/s by t=7 s. It folds at ~2.9
+  m/s on 0.15 m bumps. Not the detector, and not gait engagement — the
+  acceleration ramp reaching the terrain's ceiling.
+  The pre-2026-08-31 bracket ("rough trotting 2.5 PASS ×3") is another
+  leaky-server number that does not hold. Campaign **c12b** (running)
+  moves the rungs to where they can resolve it — rough 1.5 / 2.0 / 2.25
+  with a flat@2.5 control, interleaved, N=10 — and c13 (queued) does the
+  same on `rolling`.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
