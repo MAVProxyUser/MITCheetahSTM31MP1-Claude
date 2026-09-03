@@ -220,19 +220,64 @@ passed on its own in-suite retry.
   those declarations. Whether the robot could recover in that second is
   **untested**; what is measured is only that the declaration is early.
 
-  **Caveats, stated plainly.** n=5 collapses, one cell, one gait, one
-  speed. 4 of the 5 classify LEVEL by end attitude, matching the
-  archive's dominant mode, but it is not established that an over-speed
-  fold at 3.5 m/s is the same phenomenon as the archive's population.
-  Confirmation at larger N and on a second cell is the next step.
+  **c23 CONFIRMED it on a second cell, and shrank the effect.**
+  (2026-09-03, 20 runs, arms alternated EVERY run: flat/walking@3.5
+  against rough/walking@2.5. Rows in
+  `gazebo/conductor/data/c23_open26_truth_vs_estimator.csv`; pooled
+  analysis is `gazebo/tools/open26_pool.py`.) Pooled with c22 --
+  **11 collapses, 17 controls, two terrains**:
 
-  **The decisive next test, and it needs no rebuild.** The trace carries
-  the estimator's `z` and `vz` but no ground truth, so we cannot say
-  WHICH of the two is wrong. `gazebo/conductor/pose_feed.py` already
-  emits gz's true `[x, y, z, yaw]`. Run it standalone alongside a
-  fall-prone cell and compare the descent: if true z falls at ~0.31 m/s
-  the velocity block is the broken one; if it falls at ~0.12 m/s the
-  position block is. Either answer names the defect.
+  | | n | estimator | gz truth | ratio | lead |
+  |---|---|---|---|---|---|
+  | CONTROL, deliberate lie-down | 17 | 0.056 | 0.052 | 1.07 | **+0.03 s** (sd 0.18) |
+  | collapse, all | 11 | 0.188 | 0.119 | 1.58 | **+0.79 s** (sd 0.40) |
+  | -- LEVEL collapses | 8 | 0.196 | 0.112 | **1.74** | **+0.86 s** |
+  | -- TIP / MIXED | 3 | 0.169 | 0.137 | 1.23 | +0.62 s |
+
+  Mann-Whitney on the lead, control vs collapse: **p = 3.1e-5**; every one
+  of the 11 collapses leads by more than 16 of the 17 controls do.
+
+  **The effect is strongest in exactly the mode this issue is about.**
+  LEVEL collapses -- 66% of the 425-fall archive -- give ratio 1.74;
+  tip-overs give 1.23. That is the direction the foot-kinematics
+  hypothesis predicts (a tip is not legs buckling under planted feet),
+  and at n=3 tips it is suggestive, not established.
+
+  **Honest revision of the size.** c22 alone read ratio 1.79 / lead
+  0.98 s; c23 alone reads 1.46 / 0.63 s. Pooled: 1.58 / 0.79 s. The first
+  look was the high end, as small first samples on this rig usually are --
+  the DIRECTION replicated on a second terrain, the magnitude came down.
+  Quote the pooled numbers, not c22's.
+
+  **One caveat the control itself surfaces.** On rough, the PASS controls
+  read ratio 1.14 rather than flat's 1.02 -- a systematic ~12% artefact of
+  measuring against a plateau when the ground is not flat. It is far
+  smaller than the 1.74 it would have to explain, but it is there, and any
+  future rough-terrain number from this method should carry it.
+
+  **Caveats, stated plainly.** 11 collapses over two terrains, but ONE
+  GAIT (walking) and two speeds, both deliberately over their measured
+  caps. 8 of 11 classify LEVEL by end attitude, matching the archive's
+  dominant mode -- but it is still not established that an over-speed
+  fold is the same phenomenon as the archive's 279 level collapses,
+  most of which happened at speeds inside their envelope. Trotting is
+  unmeasured here. The estimator-vs-truth method itself carries the
+  rough-terrain artefact noted above.
+
+  **Next, in order.**
+  1. **Is the fall detector early enough to matter?** It fires on the
+     estimator's `z`, which leads the body by 0.86 s in a level collapse.
+     Re-run a marginal cell with the detector reading GROUND TRUTH
+     instead and compare pass rates. If they differ, some fraction of
+     every ceiling in this record is a detector artefact rather than a
+     robot limit. This is the highest-value open question here.
+  2. **Does it hold for trotting?** Every number above is walking.
+  3. **Confirm the mechanism.** The foot-kinematics story predicts the
+     error grows with leg-angle change during the fold; that is testable
+     against the traces already archived, with no rig time.
+  Two things that would have been the next test and are now answered:
+  which block is wrong (both, in opposite directions -- c22/c23) and
+  whether the contact schedule differs (it cannot -- c21).
 
   Note the constraint that makes this hard: `SIM_KF_VFLOOR`, the flag
   designed for exactly this, was measured **harmful** at N=30 (CLOSED, was
