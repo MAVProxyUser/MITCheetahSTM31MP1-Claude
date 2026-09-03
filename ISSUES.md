@@ -240,9 +240,21 @@ passed on its own in-suite retry.
   with the *current* spawn anchoring, yamls and bridge. That settles two
   things at once: the regression is **in the binary**, and the
   conductor-side hypothesis (`SPAWN_BEHIND_WP0`) is **dead** — the old
-  binary is fine under the new plan. Next points, same protocol: HEAD
-  (repaired) as the bad reference, then `cc97788` (after OPEN-6, before
-  OPEN-13) to split the window.
+  binary is fine under the new plan.
+  **Points so far** (`trotting@2.5` flat dash, same protocol, falls are
+  all mid-ramp at nav line 5–6):
+
+  | point | where in the window | result |
+  |---|---|---|
+  | `00e34bb` | before everything (Aug 28 14:42) | **4/4** |
+  | `cc97788` | after OPEN-6, before OPEN-13 | 3/4 → being raised to N=8 |
+  | HEAD `537659a` | everything, repaired build | **2/4** (+1 FELL, 2 PASS from a run set one rogue harness contaminated) |
+
+  N=4 cannot separate `cc97788` from either neighbour — a true 95% cell
+  reads 3/4 about a fifth of the time — so it gets four more runs before
+  the bisect moves. ≥7/8 sends it into OPEN-13 / DEM-xtrack / latch-limp
+  (`48771f9`, `fabd240`, `e626865`, `0e7559e`, `48d26dc`); ≤5/8 sends it
+  into OPEN-6 (`c90e0ca` vs `cc97788` itself).
   *(Earlier that night the same point read 0/4 and was recorded as
   INVALID, not bad — its binary died at startup for the reason in the
   CLOSED entry above (my Release configure, inherited by the worktree
