@@ -327,6 +327,156 @@ bisect harness (`/tmp/bisect_trot.sh`, `DEPLOY_SRC`, INVALID detection,
 trotting's ceiling is cited; and SKILL.md rule 5e. The lesson is not
 about trotting.
 
+The issue's own log follows as it was written through the night — every
+point, every hypothesis and the order they died in — because the shape of
+the mistake is the record:
+
+- *(was)* **OPEN-24 · Trotting regression: `trotting@2.5` went from 10/10 to
+  marginal between Aug 28 and the Aug 30 binary** — `SOFTWARE, BISECTING`.
+  Found 2026-09-03 while giving trotting its terrain row (c12/c12b): every
+  rough rung collapsed, then the flat *controls* did too. Today, on the
+  deployed Aug 30 12:14 binary, `trotting@2.5` on flat is **dash 1/2,
+  corner 0/1, corner-with-clamp-off 0/1**, and `flat@3.0` is 1/3. On
+  2026-08-28 15:45–15:54 the same `corner:25:*` cell passed **10/10
+  angles** — a ~0.1% event at today's rate. Falls are real, not the
+  detector: bridge baro altitude 0.31 → 0.07 m, IMU a_z spikes, torques
+  saturate, after the dog has ramped to cruise (2.5–2.9 m/s).
+  **Not gait-wide**: `trotRunning@3.0` passes; walking is 90%+ across ~400
+  runs this week. **Dead hypotheses, so nobody re-runs them**: the
+  kinematic collapse test (ground truth agrees the body is on the deck);
+  `CTRL_XDRAG_CLAMP` (defaulted to 1.0 before the yaml too, and clamp-off
+  also collapses); the tuning-yaml commit `fabd240` (every
+  `getenv→ctrl_tuning` conversion kept its literal default; the yaml sets
+  only the clamp, at the code default); the OPEN-13 flag removal
+  `48771f9` (the estimator's default P-reset was kept unconditionally).
+  **Window**: seven controller-tree commits, `c90e0ca`/`cc97788` (OPEN-6:
+  IMU zero-init + `valid` gate + datum capture), `48771f9`, `fabd240`,
+  `e626865` (DEM sampling + xtrack), `0e7559e` (latch-limp), `48d26dc`.
+  Nothing in it is trotting-specific by inspection, which is why this is
+  being **bisected by binary** rather than reasoned: a persistent worktree
+  builds each point, `deploy_host.sh` now takes `DEPLOY_SRC` so a
+  worktree's binary ships through the same re-sign and load-check as any
+  other, and each point runs N=4 `trotting@2.5` flat dashes (at ~95% vs
+  ~40%, 4/4 separates the two). Known-good point: `00e34bb` (repo HEAD at
+  the Aug 28 passes).
+  **Bisect status (2026-09-03 03:06): `00e34bb` is 4/4 PASS — under
+  today's conductor.** Rebuilt with the documented configure and deployed
+  through the hardened `deploy_host.sh`, the Aug 28 binary passes
+  `trotting@2.5` flat dash four times out of four (14 nav lines each)
+  with the *current* spawn anchoring, yamls and bridge. That settles two
+  things at once: the regression is **in the binary**, and the
+  conductor-side hypothesis (`SPAWN_BEHIND_WP0`) is **dead** — the old
+  binary is fine under the new plan.
+  **Points so far** (`trotting@2.5` flat dash, same protocol, falls are
+  all mid-ramp at nav line 5–6):
+
+  | point | where in the window | result |
+  |---|---|---|
+  | `00e34bb` | before everything (Aug 28 14:42) | **4/4** |
+  | `cc97788` | after OPEN-6, before OPEN-13 | 3/4 → being raised to N=8 |
+  | HEAD `537659a` | everything, repaired build | **2/4** (+1 FELL, 2 PASS from a run set one rogue harness contaminated) |
+
+  **`cc97788` at N=8: 5/8 (62%)** — matches HEAD (57%), not `00e34bb`
+  (100%). The regression is inside OPEN-6's three commits. `d9cde6e` is a
+  printf-only change, so the point being run at it (N=6) is a test of
+  `c90e0ca`; the outcome is binary — bad → `c90e0ca`, good → `cc97788`.
+  Read ahead of the result: the heading-datum hypothesis for `cc97788` is
+  dead on inspection (the capture zeroes roll and pitch and always did; it
+  only moved *when* the yaw datum is taken, ~0° either way on a north-
+  facing dash). `c90e0ca`'s changes all look inert on flat — the friction
+  derate needs `mu_terrain > 0` and defaults to −1, its `RobotRunner`
+  lines are a diagnostic print, the IMU zero-init is benign — so whichever
+  the point names, the candidate is a one-line change: the IMU struct
+  zero-init (`c90e0ca`) or the `&& valid` gate on the datum (`cc97788`),
+  each testable by a single-line revert at HEAD, rebuilt and run N=6.
+  **`d9cde6e` (≡ `c90e0ca`) at N=6: 3/6, two collapses mid-ramp plus one
+  completed-but-failed dash.** The regression is in **`c90e0ca`**, and
+  its only behavioural binary change is the IMU struct zero-init. The
+  mechanism that fits: before it, the uninitialised quaternion produced a
+  NaN on tick 0, the NaN guard called `initializeStateEstimator()`, and
+  the estimators were **recreated fresh one tick after the first real IMU
+  packet** — by accident. Both OPEN-6 fixes removed that detour (the
+  zero-init removes the NaN; the `valid` gate keeps the datum sane without
+  it), and trotting at speed apparently needed the re-init. Two variants
+  at HEAD decide it, each N=6 in a paused-c12b gap: `noinit` (put the
+  detour back — running) and `reinit` (a deliberate one-shot
+  `initializeStateEstimator()` on the first tick `valid` is true, no NaN —
+  the principled fix if `noinit` confirms).
+  **`noinit` at HEAD: 6/6.** And the mechanism story is **wrong**: the
+  archived controller logs of all six runs show zero NON-FINITE events and
+  zero re-inits — the uninitialised struct passes *without* any NaN
+  detour. A zero quaternion also yields an identity rotation matrix (every
+  product term vanishes), so orientation is the same either way before
+  the first packet, and the `[nav]` traces of a noinit pass and a HEAD
+  collapse are identical to two decimals through t = 9.4 s. There is no
+  mechanism in hand. The claim now rests on 6/6 vs 4/7 measured in
+  *separate blocks* — the non-interleaved comparison this project has
+  already been burned by — so before any fix is written it gets an
+  **interleaved A/B (c15)**: HEAD and HEAD+noinit binaries saved as files
+  and swapped per run through `deploy_host.sh DEPLOY_SRC`, N=8 each,
+  alternating. The `reinit` variant (running) is now expected to fail;
+  if it passes, that is its own finding — and it is 2/2 as of this note.
+  Also established: `Stm32mp1HardwareBridge` is a **stack object in
+  `main()`**, so the pre-OPEN-6 IMU fields were uninitialised stack
+  memory — garbage, but the same garbage every launch of the same binary,
+  which is why `noinit` reproduces. Whatever the first ticks see in that
+  garbage, a perfectly clean zero/identity start does worse; two
+  different disturbances of the estimator's first ticks (garbage, and a
+  deliberate rebuild after the first packet) both look better than none.
+  After c15, one run per binary with `SIM_KF_HEALTH=1` (P diagonal and
+  approximate gain every second) is saved for a side-by-side.
+  **`reinit` at N=6: 4/6** — indistinguishable from HEAD (4/8). A
+  deliberate estimator rebuild after the first packet does **nothing**;
+  the "accidental re-init" mechanism is dead twice over (no re-init in the
+  noinit logs, and a real one doesn't help). Whatever `noinit` does, it
+  does through the garbage *values* themselves. One principled reading of
+  "garbage beats zero": a zero accelerometer before the first packet is
+  *free fall* to the KF (`a_world = R·a + g`, g = −9.81), whereas the
+  physically correct resting reading is +9.81 — variant `accelg`
+  (`accelerometer = (0,0,9.81)` at init) is prepared and queued behind c16
+  as the next single-line candidate, interleaved against HEAD, N=8. It is
+  a guess with a mechanism, not a claim.
+  **c15, interleaved, HEAD vs noinit, N=8 each: HEAD 4/8, NOINIT 5/7.**
+  They are the same. `noinit`'s 6/6 was a **block artefact**, the
+  zero-init is not causal, and the `accelg` candidate is cancelled
+  unrun. The `SIM_KF_HEALTH` side-by-side agrees: both binaries' P
+  collapses to ~2e-4 within one second and the gains track to three
+  digits. That forces the honest question about the bisect's *other*
+  end: `00e34bb`'s 4/4 was also a single block (P ≈ 13% at a true ~57%),
+  the Aug 28 "10/10" were `corner:25` probes that brake for the turn and
+  never *sustain* 2.5, and every point after `00e34bb` pools to
+  **31/54 ≈ 57%** regardless of commit. The record's own validated
+  trotting *straight* cell is 2.0. It is now more likely than not that
+  **there is no regression** — trotting@2.5 on a sustained straight has
+  been marginal on every binary, and this issue chased one lucky block.
+  **c18 decides it**: `00e34bb` interleaved against HEAD, N=8 each, same
+  protocol as c15 — chained behind c16 (the walking A/B, running). If
+  they match, OPEN-24 closes as a non-issue with this whole trail kept;
+  if `00e34bb` really is ~100% under interleaving, the regression is real
+  and its cause is still unknown.
+  **c16 (walking flat@2.5, interleaved, N=6 each): HEAD 6/6, NOINIT
+  3/6 — three collapses.** The uninitialised-struct binary is actively
+  *worse* on the gait that passes 90%+ across ~400 runs this week. So
+  OPEN-6's zero-init is not merely non-causal for trotting, it is
+  **correct and protective**, and every "noinit" line of inquiry is
+  closed for good. It also shows the interleaved protocol can see a real
+  difference when there is one.
+  Note for c12b/c13: every trotting rep they collect before this is
+  settled is on the regressed binary and will be discarded.
+  *(Earlier that night the same point read 0/4 and was recorded as
+  INVALID, not bad — its binary died at startup for the reason in the
+  CLOSED entry above (my Release configure, inherited by the worktree
+  build), so it never ran a mission; the harness now flags a controller
+  that dies at startup instead of counting 0/N. The conductor-side A/B
+  (`anchor_ab.sh`, `WP_SPAWN_ANCHOR=0` vs 1) was likewise started against
+  the broken deploy and is void; both re-run once the repaired binary is
+  proven. Every trotting collapse cited above stands: all of it ran on the
+  Aug 30 binary before 02:50.
+  **Consequences while open**: c12b (rough/trotting) and c13
+  (rolling/trotting) are paused/deferred — their numbers would describe
+  the regression, not the terrain. Walking campaigns (c14, OPEN-17) are
+  unaffected.
+
 
 ### CLOSED · A Release configure compiled the parameter reads out of the controller
 
