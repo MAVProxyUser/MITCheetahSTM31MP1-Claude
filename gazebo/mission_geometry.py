@@ -60,7 +60,17 @@ SPAWN_BEHIND_WP0 = ("corner", "dash", "outback")
 
 
 def spawns_behind_wp0(spec):
-    """True when the dog starts at the local origin rather than on wp0."""
+    """True when the dog starts at the local origin rather than on wp0.
+
+    WP_SPAWN_ANCHOR=0 in the CONDUCTOR's environment turns this off for
+    A/B work (OPEN-24): it restores the pre-2026-08-30 behaviour where the
+    plan began at wp0 and the approach from the spawn was nav's own ad-hoc
+    ramp, not the planner's. Never set it for a measurement you intend to
+    keep - the anchored plan is what makes corner xtrack a terrain number
+    instead of a geometry artefact."""
+    import os
+    if os.environ.get("WP_SPAWN_ANCHOR", "1") == "0":
+        return False
     return spec.split(":", 1)[0] in SPAWN_BEHIND_WP0
 
 
