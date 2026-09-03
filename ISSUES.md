@@ -263,6 +263,21 @@ passed on its own in-suite retry.
   the point names, the candidate is a one-line change: the IMU struct
   zero-init (`c90e0ca`) or the `&& valid` gate on the datum (`cc97788`),
   each testable by a single-line revert at HEAD, rebuilt and run N=6.
+  **`d9cde6e` (≡ `c90e0ca`) at N=6: 3/6, two collapses mid-ramp plus one
+  completed-but-failed dash.** The regression is in **`c90e0ca`**, and
+  its only behavioural binary change is the IMU struct zero-init. The
+  mechanism that fits: before it, the uninitialised quaternion produced a
+  NaN on tick 0, the NaN guard called `initializeStateEstimator()`, and
+  the estimators were **recreated fresh one tick after the first real IMU
+  packet** — by accident. Both OPEN-6 fixes removed that detour (the
+  zero-init removes the NaN; the `valid` gate keeps the datum sane without
+  it), and trotting at speed apparently needed the re-init. Two variants
+  at HEAD decide it, each N=6 in a paused-c12b gap: `noinit` (put the
+  detour back — running) and `reinit` (a deliberate one-shot
+  `initializeStateEstimator()` on the first tick `valid` is true, no NaN —
+  the principled fix if `noinit` confirms).
+  Note for c12b/c13: every trotting rep they collect before the fix lands
+  is on the regressed binary and will be discarded.
   *(Earlier that night the same point read 0/4 and was recorded as
   INVALID, not bad — its binary died at startup for the reason in the
   CLOSED entry above (my Release configure, inherited by the worktree
