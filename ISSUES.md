@@ -299,6 +299,17 @@ passed on its own in-suite retry.
   deliberate rebuild after the first packet) both look better than none.
   After c15, one run per binary with `SIM_KF_HEALTH=1` (P diagonal and
   approximate gain every second) is saved for a side-by-side.
+  **`reinit` at N=6: 4/6** — indistinguishable from HEAD (4/8). A
+  deliberate estimator rebuild after the first packet does **nothing**;
+  the "accidental re-init" mechanism is dead twice over (no re-init in the
+  noinit logs, and a real one doesn't help). Whatever `noinit` does, it
+  does through the garbage *values* themselves. One principled reading of
+  "garbage beats zero": a zero accelerometer before the first packet is
+  *free fall* to the KF (`a_world = R·a + g`, g = −9.81), whereas the
+  physically correct resting reading is +9.81 — variant `accelg`
+  (`accelerometer = (0,0,9.81)` at init) is prepared and queued behind c16
+  as the next single-line candidate, interleaved against HEAD, N=8. It is
+  a guess with a mechanism, not a claim.
   Note for c12b/c13: every trotting rep they collect before this is
   settled is on the regressed binary and will be discarded.
   *(Earlier that night the same point read 0/4 and was recorded as
