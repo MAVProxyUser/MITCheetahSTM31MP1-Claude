@@ -130,6 +130,13 @@ passed on its own in-suite retry.
   moves the rungs to where they can resolve it — rough 1.5 / 2.0 / 2.25
   with a flat@2.5 control, interleaved, N=10 — and c13 (queued) does the
   same on `rolling`.
+  **Control corrected (04:20)**: c12b's `flat@2.5` control is itself a
+  ~55% cell on HEAD (c15, interleaved), so it cannot anchor anything. The
+  record's validated trotting *straight* cell is **2.0** (5/5). c12b is
+  replaced by **c12c** — `flat@2.0` control, rough 1.5 / 1.75 / 2.0,
+  interleaved N=10 — and c13 becomes `flat@2.0` control with rolling
+  1.5 / 2.0 / 2.5. Both are HEAD-binary measurements and stand regardless
+  of OPEN-24's disposition.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
