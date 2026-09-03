@@ -24,7 +24,10 @@
 - [x] **OPEN-8 closed** — 210 cells + c9's 60-run redo: 22 confirmed, 5
       marginal, 3 artefacts (all walking). Nothing in the planner reads a
       per-gait angle table, so the envelope is data, and it is measured.
-- [ ] **OPEN-23** — first A/B confounded by its own probe. `tier2b` re-runs
+- [x] **OPEN-23 parked** — c10: 4/4 runs at the full 10 Hz, cam_feed rx
+      10.0, one gz proc; tier2b's 44% did not reproduce. 30 Hz = ~15 fps for
+      double the GPU; default stays. Reopen test recorded in ISSUES.md.
+- [ ] ~~OPEN-23~~ — first A/B confounded by its own probe. `tier2b` re-runs
       it with a probe that closes and a machine-checked drain. Clean N=1
       numbers so far: 10 Hz → 10.1 fps @ 6% GPU, 30 Hz → 15.5 fps @ 12% GPU.
 - [ ] **`relief_k`** — still 0, still unmeasured; its sweep was confounded by

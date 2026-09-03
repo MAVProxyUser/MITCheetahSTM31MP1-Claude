@@ -161,8 +161,8 @@ passed on its own in-suite retry.
     and cannot be cited about the current build.
   Both are queued for a proper A/B. The close condition is a measurement,
   not a decision: measure, then default-on or delete.
-- **OPEN-23 · Chase-cam smoothness above 10 Hz** — new, and a measured
-  trade rather than a defect. With the transport fixed (see CLOSED, was
+- **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
+  knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the
   only remaining ceilings are the sensor's own `update_rate` and how often
   the camera model is teleported — both 10 Hz, both costing GPU inside the
@@ -194,10 +194,37 @@ passed on its own in-suite retry.
   33-hour orphaned `gz sim` once). Also noted, not concluded: pass rate with
   cameras ON was 10/15 and 8/15 on `rough@2.0`, against 90% camera-dark in
   c6 — N=15, and confounded by whatever the fps thing is.
-  **Next: campaign c10** (chained last, per priority) — 4 runs after a
-  restart, recording per run: `gz` process count and ages, GPU %, the
-  viewer's delivered fps, and `cam_feed`'s OWN receive rate (new 5 s log
-  line) so sensor-side rate and delivered rate can be told apart. Deliberately NOT changing a default blind — this
+  **c10 ran (2026-09-03): tier2b's collapse does NOT reproduce.** Four
+  runs after a fresh restart on the shipped default, recording per run the
+  gz process count and ages, GPU %, the viewer's delivered fps, and
+  `cam_feed`'s OWN receive rate (new 5 s stderr line):
+
+  | run | gz procs | GPU | viewer fps | cam_feed rx fps |
+  |---|---|---|---|---|
+  | 1 | 1 | 10% | 10.0 | 10.0 |
+  | 2 | 1 | 10% | 10.2 | 10.0 |
+  | 3 | 1 | 9% | 10.2 | 10.0 |
+  | 4 | 1 | 10% | 10.1 | 10.0 |
+
+  Every run delivers the sensor's full rate; both remaining hypotheses for
+  the 44% (an extra renderer sharing the GPU; something about run number
+  after a restart) are dead by this data. The only procedural difference
+  from tier2b is that c10 probes ~6 s after the first frame while tier2b
+  probed immediately after a `drain()` poll loop — so tier2b's pattern is
+  most plausibly an artefact of its own sequencing, but that is a guess
+  and is recorded as one. **What is established**: in normal operation
+  the panel receives every frame the sensor renders (c10 here, and the
+  10.1 fps acceptance test in CLOSED/OPEN-19).
+  **Disposition: PARKED, default unchanged.** The clean 30 Hz numbers
+  (first rep after restart, N=3: 15.5 / 14.9 / 15.7 fps at 11–13% GPU vs
+  10.1 at 5–6%) say the sensor at 30 Hz delivers ~15 fps for double the
+  GPU — worth it only if someone wants smoother chase footage more than
+  they want GPU headroom, and this rig has already had host load silently
+  explain a sim failure. Not a defect; a knob with a measured price.
+  **Reopen test**, so the next report is a diagnosis and not a hunt: read
+  `/tmp/cheetah_conductor/cam_feed.log`. If `rx fps` says 10 while the
+  panel shows less, the loss is server→browser; if `rx fps` is below 10,
+  gz is rendering slower and the answer is in host load, not the panel. Deliberately NOT changing a default blind — this
   rig has already had machine load silently explain a sim failure.
 
 ---
