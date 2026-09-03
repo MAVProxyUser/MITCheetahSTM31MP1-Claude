@@ -42,8 +42,18 @@ PY
 # the list went stale the first time a new stage was queued (relief.sh and
 # park.sh were both running while this reported "0 alive"), and a status
 # tool that under-reports is as bad as one that over-reports.
-n=$(ps -eo command | grep -E "^/bin/bash /tmp/[a-z0-9_]+\.sh" \
-      | grep -v grep | wc -l | tr -d " ")
+# ...and match "bash" with OR without the /bin/ prefix: `nohup bash x.sh`
+# lands in argv as plain "bash", and this reported 0 alive against five
+# chained campaign shells (2026-09-03) because it anchored on "^/bin/bash".
+# A status tool that says 0 while the rig is 4 hours deep in queued work is
+# worse than no tool - it is the thing the operator checks to know whether
+# to trust that work is happening.
+# Unique NAMES, not shells: a campaign's `v=$(...)` subshell shows up as a
+# second "bash /tmp/c8.sh" and would count the same script twice.
+n=$(ps -eo command | grep -E "^(/bin/)?bash /tmp/[a-z0-9_]+\.sh" \
+      | grep -v grep | sed 's|^.*/tmp/||' | sort -u | wc -l | tr -d " ")
+[ "$n" -gt 0 ] && ps -eo command | grep -E "^(/bin/)?bash /tmp/[a-z0-9_]+\.sh" \
+      | grep -v grep | sed 's|^.*/tmp/|  |' | sort -u | tr '\n' ' ' | sed 's/^/  (/;s/ $/)\n/' 
 say "queue scripts alive" "$n"
 
 # 4. is the RUN NUMBER advancing? the only check that cannot be faked by a
@@ -63,10 +73,16 @@ else
   fi
 fi
 
-# 5. the newest result lines, whichever campaign is live
+# 5. the newest result lines, whichever campaign is live.
+# Glob, never a hand-maintained list: the list this used to carry
+# (night2/w2pace/run_all) was stale the first time a new campaign was
+# named, which is the same failure the queue count above just had.
 echo; echo "last results:"
-for f in /tmp/night2.log /tmp/w2pace.log /tmp/run_all.log; do
-  [ -f "$f" ] && [ -n "$(find "$f" -mmin -10 2>/dev/null)" ] && \
-    { echo "  ($f, modified in the last 10 min)"; \
-      grep -E "^--- |VERDICT|METRICS|^####" "$f" | tail -6 | sed 's/^/  /'; break; }
+found=0
+for f in $(ls -t /tmp/c[0-9]*.log /tmp/*sweep*.log /tmp/tier*.log 2>/dev/null | head -3); do
+  if [ -n "$(find "$f" -mmin -10 2>/dev/null)" ]; then
+    found=1; echo "  ($f, modified in the last 10 min)"
+    grep -E "VERDICT|METRICS|rep[0-9]+ |^--- " "$f" | tail -4 | sed 's/^/    /'
+  fi
 done
+[ "$found" = "0" ] && echo "  no campaign log modified in the last 10 min"

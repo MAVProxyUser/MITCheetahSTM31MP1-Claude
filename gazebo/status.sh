@@ -27,6 +27,10 @@ else
   echo "  NOT ANSWERING"
 fi
 echo
+echo "== campaign scripts (queued work) =="
+Q=$(ps -eo command | grep -E "^(/bin/)?bash /tmp/[a-z0-9_]+\.sh" | grep -v grep | sed 's|^.*/tmp/||' | sort -u | tr '\n' ' ')
+echo "  ${Q:-NONE - the rig has nothing queued}"
+echo
 echo "== processes =="
 for p in 'gz[ ]sim' 'mit_ctrl[_]sim' 'cheetah[_]gazebo[_]bridge' '[s]erver.py' '[c]am_feed.py' '[p]ose_feed.py'; do
   printf '  %-28s %s\n' "$(echo "$p" | tr -d '[]')" "$(pgrep -f "$p" 2>/dev/null | wc -l | tr -d ' ')"
