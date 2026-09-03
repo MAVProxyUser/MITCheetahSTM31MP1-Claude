@@ -194,7 +194,7 @@ def main():
         w = csv.writer(f)
         if new_file:
             w.writerow(["gait", "speed", "angle", "verdict", "wall_s",
-                        "detail", "when"])
+                        "detail", "when", "terrain"])
         for gait, speed, angle in cells:
             if True:   # keeps the original loop body's indentation intact
                 if (gait, speed, angle) in seen:
@@ -244,8 +244,10 @@ def main():
                           % (gait, speed, angle, detail or "launch gate"),
                           flush=True)
                     time.sleep(60)
+                # terrain is part of the cell's identity: sixty rows were once
+                # written as flat @2.5 that had run on rough (CLOSED/OPEN-25).
                 w.writerow([gait, speed, angle, verdict, "%.1f" % wall,
-                            detail, time.strftime("%Y-%m-%d %H:%M:%S")])
+                            detail, time.strftime("%Y-%m-%d %H:%M:%S"), "flat"])
                 f.flush()
                 print("[cell] %s@%g angle=%d -> %s (%.0fs)"
                       % (gait, speed, angle, verdict, wall), flush=True)
