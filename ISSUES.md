@@ -63,6 +63,40 @@ passed on its own in-suite retry.
 
 ### Mitigated / parked
 
+- **OPEN-26 · This port fails by FOLDING, not tipping — 2:1, and it has
+  never been characterised** — `SOFTWARE, CHARACTERISATION`. Classifying
+  every `[FALL]` in the archives by attitude: **68% are "level collapse"**
+  (|roll| < 10°, |pitch| < 15°, body height 0.035–0.09 m — belly on the
+  deck, body level), 24% are tip-overs, 8% mixed. Not new and not a
+  regression: 67% on 08-30 (n=98), 56% on 08-31 (n=36), 56% on 09-02
+  (n=16), 68% today (n=249).
+  **Why it matters for the record**: CLAUDE.md's standing fall analysis
+  ("THE ATOM'S FAILURE IS PITCH, AND THE a_lon DEFAULT IS BACKWARDS",
+  pitch 30.5–36.9° with roll in the teens) studied the **minority mode**.
+  Today's three `atom` failures are level collapses (roll/pitch ≤ 4°,
+  z = 0.037–0.053) — a different mode from the one that entry explains, so
+  its `a_lon` reasoning does not transfer to them.
+  **Dead hypothesis, recorded so it is not re-run**: torque saturation or
+  the legs going slack. A naive window said falls command a third of the
+  torque of passes (median 22 vs 65 Nm) — that was a **phase confound**:
+  the last seconds of a PASS include the hard braking arrival at the final
+  waypoint. Phase-matched by 5-second bucket from launch, falls and passes
+  are indistinguishable (LEVEL/PASS ratio 0.91–1.31 across every bucket,
+  n = 845 vs 1500 samples at 15–20 s). `|imu_az|` (19 vs 21) and baro
+  descent in the matched window do not separate them either. The legs are
+  doing what they do in a passing run right up to the failure.
+  **Also possibly not a defect at all**: level collapses occur in cells
+  beyond a gait's validated envelope. A quadruped folding when pushed past
+  its speed limit is plausible physics, not necessarily a bug — but which
+  it is has never been established, and every capability ceiling this
+  project measures is really "where the fold starts".
+  **Next instrument**: 1 Hz bridge summaries cannot resolve this. The
+  ShmTrace ring buffer holds per-tick state and `shm_reaper.py` already
+  dumps a snapshot on a confirmed crash; the question is what the contact
+  schedule, per-leg force and commanded body height do in the 200 ms
+  before z crosses 0.10 — one archived snapshot per class would answer it
+  without new rig time.
+
 - **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
   knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the
