@@ -30,8 +30,9 @@
 - [ ] ~~OPEN-23~~ — first A/B confounded by its own probe. `tier2b` re-runs
       it with a probe that closes and a machine-checked drain. Clean N=1
       numbers so far: 10 Hz → 10.1 fps @ 6% GPU, 30 Hz → 15.5 fps @ 12% GPU.
-- [ ] **`relief_k`** — still 0, still unmeasured; its sweep was confounded by
-      the speed cap. Re-run with `WP_TERRAIN_VMAX=-1`.
+- [ ] **OPEN-17** — c11 (N≈14): FORCE_GATE +26 pts (p=0.26, suggestive);
+      VFLOOR row void — I passed `=1` to a flag that takes (m/s)². c14
+      (queued, N=30, sane floors 0.005/0.02) decides both.
 - [ ] **`rolling` terrain** — never sampled beyond N=4, no cap of its own.
       c7 stages C/D measure it.
 

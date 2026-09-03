@@ -161,6 +161,34 @@ passed on its own in-suite retry.
     and cannot be cited about the current build.
   Both are queued for a proper A/B. The close condition is a measurement,
   not a decision: measure, then default-on or delete.
+  **First real A/B (campaign c11, 2026-09-03):** `rough/walking @2.25`
+  uncapped — a marginal cell, so a flag that helps has headroom to show it —
+  three arms interleaved, N=13–14 each after no-verdicts:
+
+  | arm | pass | rate | vs baseline | Fisher p |
+  |---|---|---|---|---|
+  | baseline | 5/13 | 38% | — | — |
+  | `SIM_FORCE_GATE=1` | 9/14 | 64% | **+26 pts** | 0.26 |
+  | `SIM_KF_VFLOOR=1` | 2/14 | 14% | −24 pts | 0.21 |
+
+  `SIM_FORCE_GATE`: the only flag in this project's history to show a
+  positive direction at N>1, and the first one whose A/B was actually
+  interleaved. Not established — p=0.26 at this N — but it earns the N that
+  can decide it (~30/arm).
+  **`SIM_KF_VFLOOR`'s row is VOID, and the error is mine.** The flag takes
+  a *value* in (m/s)², not a boolean (`atof(getenv(...))`; 0 = stock). c11
+  passed `=1`: a floor 500–1000× above the collapse value the code
+  documents (0.0007–0.002) and 5–50× above a fresh start (0.02–0.2). That
+  measured a filter forced to distrust its own velocity almost completely,
+  not the mechanism the flag exists to test. The −24 points say nothing
+  about covariance flooring at a sane value.
+  **Campaign c14 (queued)** runs the version that can decide both: same
+  cell, four arms × N=30 interleaved — baseline, `SIM_FORCE_GATE=1`,
+  `SIM_KF_VFLOOR=0.005` (a few times the collapse), `SIM_KF_VFLOOR=0.02`
+  (the documented fresh-start value) — and records the runner's exit code
+  per rep, because c11 produced 4 no-verdicts (9%, all at thread drift 2)
+  with no way to say why.
+
 - **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
   knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the
