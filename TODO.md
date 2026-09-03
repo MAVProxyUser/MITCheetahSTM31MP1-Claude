@@ -36,8 +36,8 @@
 - [x] **`rolling` terrain** — c7: 95% at 2.5 uncapped; needs no cap.
 - [x] **OPEN-24 (trotting 'regression')** — closed as a non-issue after an
       interleaved bisect: ~55% on every binary; the 10/10 were corners.
-- [ ] **trotting terrain rows** — c12c (rough) and c13 (rolling), flat@2.0
-      control, running.
+- [x] **trotting terrain rows** — c12c/c13: neither terrain binds before
+      trotting's own ceiling; no cap. **OPEN-7 closed.**
 
 Everything here is a real, previously-identified gap pulled from `CLAUDE.md`'s
 running history — not a wishlist. Each item was explicitly flagged as open,

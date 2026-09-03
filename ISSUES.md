@@ -36,131 +36,6 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `CAP SETTLED AT
-  2.0; relief_k STILL UNMEASURED`.
-  **Working and confirmed**: the DEM is sampled along each dog's own
-  planned path at launch (`conductor/terrain_profile.py` →
-  `WP_TERRAIN_PROFILE` → `BodyPathPlanner::loadTerrainProfile`), reporting
-  `[plan] DEM profile: 301 samples over 30.0 m, stride mismatch mean
-  0.016 m max 0.069 m` — matching an independent hand measurement of
-  `rough` exactly. The (terrain, gait) cap fires and is logged
-  (`terrain cap: walking on rough is measured to 2.00 m/s`).
-  **The value is now measured (campaign c6, 2026-08-31).** N=20 per rung,
-  `dash:30`, one uninterrupted block, on a conductor with no thread leak —
-  **0/80 no-verdicts**:
-
-  | arm | pass | rate |
-  |---|---|---|
-  | rough @1.75 uncapped | 20/20 | **100%** |
-  | rough @2.0 uncapped | 18/20 | **90%** |
-  | flat @2.5 (control) | 9/10 | **90%** |
-  | rough @2.5 capped (→2.25) | 15/20 | 75% |
-  | rough @2.25 uncapped | 7/10 | 70% |
-
-  Monotonic, and **2.0 lands exactly on the flat control**: at 2.0 the
-  terrain costs nothing measurable, at 2.25 it costs ~20 points. So 2.25
-  was a less-bad rung, not a ceiling. `terrain.py` now encodes **2.0**.
-  **Every pre-2026-08-31 number in this file taken on a long-lived server
-  is pessimistic and should be re-measured before being cited.** The
-  conductor leaked ~1 thread per run (see CLOSED, the four-attempt leak
-  hunt); that both dropped ~30% of c3's launches outright as "(no verdict)"
-  AND depressed the pass rate of the runs that did complete. The pooled
-  c3+c4 table this entry used to carry (`@2.5` 5%, `@2.25` 55%, flat 100%)
-  was measured through that, which is why its 2.25 rung read 55% where c6's
-  clean-server equivalent reads 70-75%. It is kept in git history, not here,
-  to stop it being quoted as current.
-  **The cap is now VALIDATED end to end, and `rolling` is answered
-  (campaign c7, 70 reps, 1/70 no-verdict).** Same block, same session:
-
-  | arm | pass | rate |
-  |---|---|---|
-  | flat @2.5 (control) | 10/10 | **100%** |
-  | rolling @2.5 uncapped | 19/20 | **95%** |
-  | rough @2.5 **capped → 2.0** | 17/19 | **89%** |
-  | rolling @2.0 uncapped | 18/20 | 90% |
-
-  Two conclusions. First, the capped path works: a request for 2.5 on
-  `rough` is clamped to 2.0 and delivers 89%, matching c6's *uncapped*
-  `rough@2.0` (90%) — so the cap machinery costs nothing beyond the speed
-  it enforces. Second, **`rolling` does not need a cap at all**: 95% at 2.5
-  uncapped, within noise of the flat control and slightly *better* than
-  `rolling@2.0`. Adding a rolling entry to `GAIT_VMAX` would cost
-  throughput for nothing. The terrain hazard is specific to `rough`'s
-  short-wavelength geometry, not to non-flat ground generally.
-
-  **`relief_k` is now measured, and stays 0 (campaign c8, 2026-09-03).**
-  Interleaved, N=10 per arm, `rough/walking`, 2.5 requested, every relief
-  arm UNCAPPED so the global cap could not confound it; duration from the
-  controller's own `[nav] t=` lines, mean speed over PASS rows only (a fall
-  ends a run early and would otherwise read as fast):
-
-  | arm | pass | mean m/s |
-  |---|---|---|
-  | global cap 2.0 (control) | 7/10 | **1.61** |
-  | uncapped, k=0 | 0/10 | — |
-  | uncapped, k=0.25 | 9/10 | 1.48 |
-  | uncapped, k=0.5 | 9/10 | 1.24 |
-  | uncapped, k=1.0 | 10/10 | 0.95 |
-
-  Reading: the cap's 7/10 is the low tail of a pooled clean-server **42/49
-  (86%)** for that rung (c6 18/20, c7 17/19, c8 7/10), so k=0.25 is
-  *parity* on pass rate, not a win — at 8% lower throughput. k=1.0's 100%
-  is bought at 0.95 m/s, a crawl. Relief can only slow, and on uniformly
-  rough ground "slow everywhere by the local mismatch" is just a worse
-  global cap. It would earn its keep on MIXED terrain (fast on the smooth
-  stretch, slow on the bumps), which this harness does not have — `rough`
-  is bumps everywhere. Durations were deterministic to 0.2-0.3 s per arm;
-  every bit of variance is in pass/fail.
-  **Walking side of OPEN-7 is closed.** Remaining: the cap table has only
-  a walking entry.
-  **Trotting on rough (c12, 2026-09-03, stopped after 9 reps): the ceiling
-  is BELOW 2.5, and the falls are real.** Rungs 2.5/2.75/3.0 gave 1/2,
-  0/2, 0/2; the flat@3.0 control gave 1/3 (trotting at 3.0 on a straight
-  is not a validated cell — the dash recipe is trotRunning). Every rough
-  fall reads `[FALL] collapsed: roll≈0 pitch≈0 z=0.04–0.08 m` at t≈7–14 s,
-  which looked like the week-old kinematic collapse test misfiring on a
-  trot — so it was checked against ground truth rather than believed:
-  the bridge's baro altitude drops 0.47 → 0.34 → 0.24 m over the last two
-  seconds, IMU a_z spikes to 23, torques saturate at −29, and the nav
-  trace shows the dog ramping 0.55 → 2.87 m/s by t=7 s. It folds at ~2.9
-  m/s on 0.15 m bumps. Not the detector, and not gait engagement — the
-  acceleration ramp reaching the terrain's ceiling.
-  The pre-2026-08-31 bracket ("rough trotting 2.5 PASS ×3") is another
-  leaky-server number that does not hold. Campaign **c12b** (running)
-  moves the rungs to where they can resolve it — rough 1.5 / 2.0 / 2.25
-  with a flat@2.5 control, interleaved, N=10 — and c13 (queued) does the
-  same on `rolling`.
-  **Control corrected (04:20)**: c12b's `flat@2.5` control is itself a
-  ~55% cell on HEAD (c15, interleaved), so it cannot anchor anything. The
-  record's validated trotting *straight* cell is **2.0** (5/5). c12b is
-  replaced by **c12c** — `flat@2.0` control, rough 1.5 / 1.75 / 2.0,
-  interleaved N=10 — and c13 becomes `flat@2.0` control with rolling
-  1.5 / 2.0 / 2.5. Both are HEAD-binary measurements and stand regardless
-  of OPEN-24's disposition.
-  **OPEN-24 closed as a non-issue (04:30)**: HEAD interleaved against the
-  pre-window binary is 5/8 vs 4/8 — trotting@2.5 on a sustained straight
-  is ~55% on every binary, and the Aug 28 10/10 were corner probes. So
-  trotting's straight ceiling sits between 2.0 (5/5 in the record) and
-  2.5 (~55%); c12c and c13 measure its terrain rows with the 2.0 control.
-  **c12c (rough/trotting, flat@2.0 control, interleaved N=10, 05:06):**
-
-  | arm | pass | |
-  |---|---|---|
-  | flat @2.0 (control) | 9/10 | 90% |
-  | rough @2.0 | 9/10 | 90% |
-  | rough @1.5 | 8/10 | 80% |
-  | rough @1.75 | 7/9 | 78% |
-
-  Every rung sits at the control and every miss is an early fall exactly
-  like the control's own miss — **rough does not bite trotting through
-  2.0**. Trotting's own straight ceiling (2.0 validated, 2.5 ≈ 55% on
-  flat and rough alike) binds before the terrain does, so a
-  `rough: trotting` entry in `GAIT_VMAX` would encode nothing but the
-  gait's cruise. **No entry.** The rough terrain effect is
-  walking-specific at the speeds walking can reach (2.5 → 5% on rough vs
-  90% flat); trotting simply cannot reach the speeds where rough would
-  matter. c13 (rolling) is the last row.
-
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
   re-validated there, or JCQP made to converge on moving gaits, or the
@@ -304,6 +179,178 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED (was OPEN-7) · Terrain-aware planning — every (terrain, gait) row measured; one cap, walking on rough, at 2.0
+
+**Question.** Does non-flat ground need the planner to slow down, per
+gait, and by how much?
+
+**Mechanism (shipped, verified firing).** The conductor samples the
+heightmap along each dog's own planned path at launch
+(`terrain_profile.py` → `WP_TERRAIN_PROFILE` →
+`BodyPathPlanner::loadTerrainProfile`, `301 samples over 30.0 m`); a
+per-(terrain, gait) cap in `terrain.py`'s `GAIT_VMAX` clamps cruise
+(`terrain cap: walking on rough is measured to 2.00 m/s`); `relief_k`
+modulates speed locally by stride-scale height mismatch.
+
+**Every row, `dash:30`, interleaved N=10 per rung on the leak-free,
+correctly built binary, flat control in the same block:**
+
+| gait | terrain | 1.5 | 1.75 | 2.0 | 2.25 | 2.5 | flat control | verdict |
+|---|---|---|---|---|---|---|---|---|
+| walking | rough | — | 100% | 90% | 70% | 5% (uncapped) | 90–100% @2.5 | **cap 2.0** — validated end to end (capped 2.5 → 89%, c7) |
+| walking | rolling | — | — | 90% | — | 95% | 100% @2.5 | no cap |
+| trotting | rough | 80% | 78% | 90% | — | (~55% on flat too) | 90% @2.0 | no cap — terrain never binds before the gait's own ceiling |
+| trotting | rolling | 100% | — | 90% | — | 30% | 100% @2.0 | no cap — same; 2.5 is above trotting's straight ceiling |
+
+`relief_k` (c8): parity with the 2.0 cap at every k, at lower throughput
+— relief can only slow, and on uniform bumps that is a worse global cap;
+stays 0. Its case is mixed terrain, which this harness does not have.
+
+**What the rows say together.** The terrain hazard is `rough`'s
+short-wavelength geometry, and it bites **walking specifically**, because
+walking is the only gait that reaches the speeds where it matters (2.5)
+without falling on flat first. Trotting's own straight-line ceiling —
+2.0 validated, ~55% at 2.5 on any ground — binds before either terrain
+does, so a trotting cap would encode nothing but the gait's cruise.
+`rolling` (0.35 m, long wavelength) costs nothing measurable to either
+gait through its validated cruise.
+
+**Retractions along the way, kept so the shape is visible.** "0/3 → 9/9"
+(small blocks); "55% at the cap rung" (measured through the thread
+leak); "rough trotting 2.5 PASS ×3" (leaky server); and OPEN-24, four
+hours chasing a trotting regression that was one lucky block and a
+corner-for-straight misread. Every number in the table above is
+post-leak, post-configure-fix, and interleaved.
+
+The issue's own log follows as it was written:
+
+- *(was)* **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `CAP SETTLED AT
+  2.0; relief_k STILL UNMEASURED`.
+  **Working and confirmed**: the DEM is sampled along each dog's own
+  planned path at launch (`conductor/terrain_profile.py` →
+  `WP_TERRAIN_PROFILE` → `BodyPathPlanner::loadTerrainProfile`), reporting
+  `[plan] DEM profile: 301 samples over 30.0 m, stride mismatch mean
+  0.016 m max 0.069 m` — matching an independent hand measurement of
+  `rough` exactly. The (terrain, gait) cap fires and is logged
+  (`terrain cap: walking on rough is measured to 2.00 m/s`).
+  **The value is now measured (campaign c6, 2026-08-31).** N=20 per rung,
+  `dash:30`, one uninterrupted block, on a conductor with no thread leak —
+  **0/80 no-verdicts**:
+
+  | arm | pass | rate |
+  |---|---|---|
+  | rough @1.75 uncapped | 20/20 | **100%** |
+  | rough @2.0 uncapped | 18/20 | **90%** |
+  | flat @2.5 (control) | 9/10 | **90%** |
+  | rough @2.5 capped (→2.25) | 15/20 | 75% |
+  | rough @2.25 uncapped | 7/10 | 70% |
+
+  Monotonic, and **2.0 lands exactly on the flat control**: at 2.0 the
+  terrain costs nothing measurable, at 2.25 it costs ~20 points. So 2.25
+  was a less-bad rung, not a ceiling. `terrain.py` now encodes **2.0**.
+  **Every pre-2026-08-31 number in this file taken on a long-lived server
+  is pessimistic and should be re-measured before being cited.** The
+  conductor leaked ~1 thread per run (see CLOSED, the four-attempt leak
+  hunt); that both dropped ~30% of c3's launches outright as "(no verdict)"
+  AND depressed the pass rate of the runs that did complete. The pooled
+  c3+c4 table this entry used to carry (`@2.5` 5%, `@2.25` 55%, flat 100%)
+  was measured through that, which is why its 2.25 rung read 55% where c6's
+  clean-server equivalent reads 70-75%. It is kept in git history, not here,
+  to stop it being quoted as current.
+  **The cap is now VALIDATED end to end, and `rolling` is answered
+  (campaign c7, 70 reps, 1/70 no-verdict).** Same block, same session:
+
+  | arm | pass | rate |
+  |---|---|---|
+  | flat @2.5 (control) | 10/10 | **100%** |
+  | rolling @2.5 uncapped | 19/20 | **95%** |
+  | rough @2.5 **capped → 2.0** | 17/19 | **89%** |
+  | rolling @2.0 uncapped | 18/20 | 90% |
+
+  Two conclusions. First, the capped path works: a request for 2.5 on
+  `rough` is clamped to 2.0 and delivers 89%, matching c6's *uncapped*
+  `rough@2.0` (90%) — so the cap machinery costs nothing beyond the speed
+  it enforces. Second, **`rolling` does not need a cap at all**: 95% at 2.5
+  uncapped, within noise of the flat control and slightly *better* than
+  `rolling@2.0`. Adding a rolling entry to `GAIT_VMAX` would cost
+  throughput for nothing. The terrain hazard is specific to `rough`'s
+  short-wavelength geometry, not to non-flat ground generally.
+
+  **`relief_k` is now measured, and stays 0 (campaign c8, 2026-09-03).**
+  Interleaved, N=10 per arm, `rough/walking`, 2.5 requested, every relief
+  arm UNCAPPED so the global cap could not confound it; duration from the
+  controller's own `[nav] t=` lines, mean speed over PASS rows only (a fall
+  ends a run early and would otherwise read as fast):
+
+  | arm | pass | mean m/s |
+  |---|---|---|
+  | global cap 2.0 (control) | 7/10 | **1.61** |
+  | uncapped, k=0 | 0/10 | — |
+  | uncapped, k=0.25 | 9/10 | 1.48 |
+  | uncapped, k=0.5 | 9/10 | 1.24 |
+  | uncapped, k=1.0 | 10/10 | 0.95 |
+
+  Reading: the cap's 7/10 is the low tail of a pooled clean-server **42/49
+  (86%)** for that rung (c6 18/20, c7 17/19, c8 7/10), so k=0.25 is
+  *parity* on pass rate, not a win — at 8% lower throughput. k=1.0's 100%
+  is bought at 0.95 m/s, a crawl. Relief can only slow, and on uniformly
+  rough ground "slow everywhere by the local mismatch" is just a worse
+  global cap. It would earn its keep on MIXED terrain (fast on the smooth
+  stretch, slow on the bumps), which this harness does not have — `rough`
+  is bumps everywhere. Durations were deterministic to 0.2-0.3 s per arm;
+  every bit of variance is in pass/fail.
+  **Walking side of OPEN-7 is closed.** Remaining: the cap table has only
+  a walking entry.
+  **Trotting on rough (c12, 2026-09-03, stopped after 9 reps): the ceiling
+  is BELOW 2.5, and the falls are real.** Rungs 2.5/2.75/3.0 gave 1/2,
+  0/2, 0/2; the flat@3.0 control gave 1/3 (trotting at 3.0 on a straight
+  is not a validated cell — the dash recipe is trotRunning). Every rough
+  fall reads `[FALL] collapsed: roll≈0 pitch≈0 z=0.04–0.08 m` at t≈7–14 s,
+  which looked like the week-old kinematic collapse test misfiring on a
+  trot — so it was checked against ground truth rather than believed:
+  the bridge's baro altitude drops 0.47 → 0.34 → 0.24 m over the last two
+  seconds, IMU a_z spikes to 23, torques saturate at −29, and the nav
+  trace shows the dog ramping 0.55 → 2.87 m/s by t=7 s. It folds at ~2.9
+  m/s on 0.15 m bumps. Not the detector, and not gait engagement — the
+  acceleration ramp reaching the terrain's ceiling.
+  The pre-2026-08-31 bracket ("rough trotting 2.5 PASS ×3") is another
+  leaky-server number that does not hold. Campaign **c12b** (running)
+  moves the rungs to where they can resolve it — rough 1.5 / 2.0 / 2.25
+  with a flat@2.5 control, interleaved, N=10 — and c13 (queued) does the
+  same on `rolling`.
+  **Control corrected (04:20)**: c12b's `flat@2.5` control is itself a
+  ~55% cell on HEAD (c15, interleaved), so it cannot anchor anything. The
+  record's validated trotting *straight* cell is **2.0** (5/5). c12b is
+  replaced by **c12c** — `flat@2.0` control, rough 1.5 / 1.75 / 2.0,
+  interleaved N=10 — and c13 becomes `flat@2.0` control with rolling
+  1.5 / 2.0 / 2.5. Both are HEAD-binary measurements and stand regardless
+  of OPEN-24's disposition.
+  **OPEN-24 closed as a non-issue (04:30)**: HEAD interleaved against the
+  pre-window binary is 5/8 vs 4/8 — trotting@2.5 on a sustained straight
+  is ~55% on every binary, and the Aug 28 10/10 were corner probes. So
+  trotting's straight ceiling sits between 2.0 (5/5 in the record) and
+  2.5 (~55%); c12c and c13 measure its terrain rows with the 2.0 control.
+  **c12c (rough/trotting, flat@2.0 control, interleaved N=10, 05:06):**
+
+  | arm | pass | |
+  |---|---|---|
+  | flat @2.0 (control) | 9/10 | 90% |
+  | rough @2.0 | 9/10 | 90% |
+  | rough @1.5 | 8/10 | 80% |
+  | rough @1.75 | 7/9 | 78% |
+
+  Every rung sits at the control and every miss is an early fall exactly
+  like the control's own miss — **rough does not bite trotting through
+  2.0**. Trotting's own straight ceiling (2.0 validated, 2.5 ≈ 55% on
+  flat and rough alike) binds before the terrain does, so a
+  `rough: trotting` entry in `GAIT_VMAX` would encode nothing but the
+  gait's cruise. **No entry.** The rough terrain effect is
+  walking-specific at the speeds walking can reach (2.5 → 5% on rough vs
+  90% flat); trotting simply cannot reach the speeds where rough would
+  matter. c13 (rolling) is the last row.
+
+
 
 ### CLOSED (was OPEN-24) · There was no trotting regression — one lucky block and a corner-for-straight misread
 

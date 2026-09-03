@@ -410,7 +410,8 @@ rough  trotting    2.5 PASS x3   3.0  PASS,FELL   3.25 FELL,FELL   3.5 FELL x3
 > ceiling (2.0 validated, 2.5 ≈ 55% on flat) binds first, and the old
 > "2.5 PASS ×3 / 3.0 marginal" was a leaky-server reading. See ISSUES.md
 > OPEN-7 and CLOSED (was OPEN-24) for why 2.5 is not a trotting cell on
-> a straight. Treat every pre-2026-08-31 rung in this file
+> a straight. Rolling/trotting (c13): 1.5 → 100%, 2.0 → 90%, 2.5 → 30%
+> against flat@2.0 at 100% — no cap either; OPEN-7 is closed. Treat every pre-2026-08-31 rung in this file
 > as pessimistic until re-measured.
 
 So on `rough`, walking is marginal by 2.25 and gone by 2.5, and trotting is
