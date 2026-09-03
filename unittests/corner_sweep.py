@@ -151,6 +151,11 @@ def main():
                      help="repeats per cell in --redo-nonpass mode")
     ap.add_argument("--list", action="store_true",
                      help="print the cells that would run, then exit")
+    ap.add_argument("--force", action="store_true",
+                     help="re-run the requested --gait/--angles cells even if "
+                          "already measured, --reps times each, APPENDING rows "
+                          "(a clean-server re-measure of a row; the tally "
+                          "aggregates per cell)")
     args = ap.parse_args()
 
     if args.redo_nonpass:
@@ -164,7 +169,11 @@ def main():
                   else DEFAULT_ANGLES)
         cells = [(g.split(":")[0], float(g.split(":")[1]), a)
                  for g in gaits for a in angles]
-        seen = done_cells()
+        if args.force:
+            cells = [c for c in cells for _ in range(args.reps)]
+            seen = set()
+        else:
+            seen = done_cells()
     if args.list:
         todo = [c for c in cells if c not in seen]
         for c in todo:
