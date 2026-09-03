@@ -2870,6 +2870,25 @@ class Fleet:
                         self._last_pose = {}
                         self._gz_node = None
                         self._cam_proc = None
+                        # STOP THE CHASE FOLLOWER. This line was missing, and
+                        # it was the whole residual leak: _chase_stop.set()
+                        # existed ONLY in stop() (the explicit /api/stop
+                        # path), so a mission that simply COMPLETED left
+                        # _follow_chase_cams looping forever on an Event
+                        # nobody would ever set. One thread per run, which is
+                        # every run in a campaign.
+                        #
+                        # It took named threads to see it. The drift number
+                        # alone said "+1.2, then +0.56, then +1.00 per run"
+                        # and each of those readings was attributed to the
+                        # wrong thing (gz camera Nodes, then the follow
+                        # loop's own gz Node, then failed-launch orphans -
+                        # all three were real, none was this). The by_name
+                        # histogram named it in a single teardown:
+                        #   {MainThread:1, host_load:1, chase_follow:1, ...}
+                        # with pose_reader and cam_reader correctly gone.
+                        if self._chase_stop is not None:
+                            self._chase_stop.set()
                         self._teardown_done.clear()
                     self.audit_threads("teardown")
                     self._note("fleet run complete")
