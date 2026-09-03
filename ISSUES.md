@@ -213,12 +213,32 @@ passed on its own in-suite retry.
   planted-foot assumption pins the velocity measurement at zero. One
   assumption, both symptoms.
 
-  **Operational consequence worth its own test.** The fall detector fires
-  on the estimator's `z`. If that signal leads the body by ~1 s, the rig
-  has been declaring falls a second before the robot reaches the deck --
-  and every "capability ceiling" this project has measured is a count of
-  those declarations. Whether the robot could recover in that second is
-  **untested**; what is measured is only that the declaration is early.
+  **CORRECTION (same evening, before this went anywhere).** I first wrote
+  here that "the fall detector fires on the estimator's `z`", and told the
+  operator the rig had been declaring falls a second early. **That is
+  wrong, and it was wrong when I wrote it.** `RobotRunner.cpp:429` prefers
+  `kinZ` -- a height built from leg forward-kinematics and the IMU
+  orientation (`-min over legs of (rBody^T (hip + p))[2]`) -- and falls
+  back to the estimator's `position[2]` only when FK returns nothing. The
+  code even carries the comment "it cannot drift". The trace's `z` field,
+  which is what c22/c23 measured, is `rs.position[2]`: the estimator, not
+  the detector's input. I read a field name in the trace and assumed the
+  detector consumed it.
+
+  **What survives the correction:** the measurement itself. The
+  estimator's `position[2]` does lead ground truth by 0.86 s in a level
+  collapse (p = 3.1e-5 against controls) and its `vz` does read ~0 through
+  the same window. Those are properties of the state estimate, and the
+  state estimate is what the CONTROLLER balances on, whatever the fall
+  detector reads.
+
+  **What the correction opens, and it is a sharper question.** `kinZ` is
+  leg kinematics plus orientation -- exactly the quantity the
+  foot-buckling hypothesis says goes wrong first. It is not in the trace,
+  so nothing here can say whether it leads, lags, or tracks. Adding it is
+  a `Record` layout change (98 bytes, and the Python reaper's struct
+  format must change in the same commit -- the `static_assert` says so)
+  plus a rebuild with the DOCUMENTED configure, not Release.
 
   **c23 CONFIRMED it on a second cell, and shrank the effect.**
   (2026-09-03, 20 runs, arms alternated EVERY run: flat/walking@3.5
@@ -265,12 +285,14 @@ passed on its own in-suite retry.
   rough-terrain artefact noted above.
 
   **Next, in order.**
-  1. **Is the fall detector early enough to matter?** It fires on the
-     estimator's `z`, which leads the body by 0.86 s in a level collapse.
-     Re-run a marginal cell with the detector reading GROUND TRUTH
-     instead and compare pass rates. If they differ, some fraction of
-     every ceiling in this record is a detector artefact rather than a
-     robot limit. This is the highest-value open question here.
+  1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
+     The estimator's does, by 0.86 s; the detector uses a different
+     quantity that nothing has ever measured. If `kinZ` also leads, then
+     some fraction of every ceiling in this record is a detector artefact
+     rather than a robot limit, and that is the highest-value question
+     here. If it tracks truth, the detector is sound and the finding stays
+     confined to the estimator -- which still matters, because the
+     controller balances on the estimator.
   2. **Does it hold for trotting?** Every number above is walking.
   3. **Confirm the mechanism.** The foot-kinematics story predicts the
      error grows with leg-angle change during the fold; that is testable
