@@ -310,6 +310,24 @@ passed on its own in-suite retry.
   (`accelerometer = (0,0,9.81)` at init) is prepared and queued behind c16
   as the next single-line candidate, interleaved against HEAD, N=8. It is
   a guess with a mechanism, not a claim.
+  **c15, interleaved, HEAD vs noinit, N=8 each: HEAD 4/8, NOINIT 5/7.**
+  They are the same. `noinit`'s 6/6 was a **block artefact**, the
+  zero-init is not causal, and the `accelg` candidate is cancelled
+  unrun. The `SIM_KF_HEALTH` side-by-side agrees: both binaries' P
+  collapses to ~2e-4 within one second and the gains track to three
+  digits. That forces the honest question about the bisect's *other*
+  end: `00e34bb`'s 4/4 was also a single block (P ≈ 13% at a true ~57%),
+  the Aug 28 "10/10" were `corner:25` probes that brake for the turn and
+  never *sustain* 2.5, and every point after `00e34bb` pools to
+  **31/54 ≈ 57%** regardless of commit. The record's own validated
+  trotting *straight* cell is 2.0. It is now more likely than not that
+  **there is no regression** — trotting@2.5 on a sustained straight has
+  been marginal on every binary, and this issue chased one lucky block.
+  **c18 decides it**: `00e34bb` interleaved against HEAD, N=8 each, same
+  protocol as c15 — chained behind c16 (the walking A/B, running). If
+  they match, OPEN-24 closes as a non-issue with this whole trail kept;
+  if `00e34bb` really is ~100% under interleaving, the regression is real
+  and its cause is still unknown.
   Note for c12b/c13: every trotting rep they collect before this is
   settled is on the regressed binary and will be discarded.
   *(Earlier that night the same point read 0/4 and was recorded as
