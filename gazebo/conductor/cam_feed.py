@@ -228,9 +228,13 @@ def main():
         if now - last_rate_t >= 5.0:
             span = now - last_rate_t
             parts = []
-            for key in sorted(last_emit):
-                n = state.get("n_" + key, 0) - rate_seen.get(key, 0)
-                rate_seen[key] = state.get("n_" + key, 0)
+            # Iterate the RAW receive counters, not last_emit: a camera that
+            # is muted (or rate-limited) never reaches last_emit, and its
+            # sensor-side rate is exactly what this line exists to show.
+            for skey in sorted(k for k in state if k.startswith("n_")):
+                key = skey[2:]
+                n = state[skey] - rate_seen.get(key, 0)
+                rate_seen[key] = state[skey]
                 parts.append("%s=%.1f" % (key, n / span))
             if parts:
                 sys.stderr.write("[cam_feed] rx fps over %.0fs: %s\n"
