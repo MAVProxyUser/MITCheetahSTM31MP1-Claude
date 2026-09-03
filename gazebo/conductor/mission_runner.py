@@ -550,10 +550,12 @@ def main():
                           "the two are tracked separately.")
     ap.add_argument("--poll", type=float, default=2.0,
                      help="state-poll interval in seconds (default 2)")
-    ap.add_argument("--terrain", default=None,
-                     help="terrain/surface kind for this launch (flat, rolling, "
-                          "rough, concrete, asphalt, grass, dirt, gravel, sand, "
-                          "mud, rock, ice); omitted = the server draft's kind")
+    ap.add_argument("--terrain", default="flat",
+                    help="terrain kind for this run (default: flat). A harness "
+                         "must NAME its ground - the old default inherited the "
+                         "panel's draft terrain, so campaign c9's corner redo "
+                         "silently ran on rough, capped to 2.0, and was recorded "
+                         "as flat @2.5 (ISSUES.md OPEN-25).")
     ap.add_argument("--wait-for-gate", type=float, default=0.0,
                      metavar="SECONDS",
                      help="if the conductor REFUSES the launch (Time Machine "
@@ -681,6 +683,8 @@ def main():
     body = {"slots": slots_body}
     if args.terrain:
         body["terrain"] = args.terrain
+    print("[runner] terrain for this run: %s%s" % (args.terrain,
+          "" if "--terrain" in sys.argv else "  (default - not inherited from the panel)"), flush=True)
     r = api("POST", "/api/launch", body)
     if not r.get("ok"):
         # A refusal is usually a TRANSIENT gate (Time Machine backup in

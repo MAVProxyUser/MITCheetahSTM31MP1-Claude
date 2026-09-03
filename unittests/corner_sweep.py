@@ -93,6 +93,11 @@ def run_cell(gait, speed, angle, leg):
     spec = "corner:%g:%g" % (leg, angle)
     cmd = [sys.executable, RUNNER, "--slot", spec, "--gait", gait,
            "--speed", str(speed), "--dash", "0",
+           # Belt and braces: the envelope is a FLAT measurement and says so.
+           # Without this, the 2026-09-03 redo ran on whatever the panel's
+           # draft held (rough), capped walking to 2.0, and was recorded as
+           # flat @2.5.
+           "--terrain", "flat",
            # Sit out a closed launch gate (Time Machine, fleet tearing down)
            # instead of recording the refusal as a robot verdict - a refused
            # launch consumed 15 reps in 51 s on another harness before
