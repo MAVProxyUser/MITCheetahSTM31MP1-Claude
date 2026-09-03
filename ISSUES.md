@@ -205,6 +205,39 @@ passed on its own in-suite retry.
   per rep, because c11 produced 4 no-verdicts (9%, all at thread drift 2)
   with no way to say why.
 
+- **OPEN-24 · Trotting regression: `trotting@2.5` went from 10/10 to
+  marginal between Aug 28 and the Aug 30 binary** — `SOFTWARE, BISECTING`.
+  Found 2026-09-03 while giving trotting its terrain row (c12/c12b): every
+  rough rung collapsed, then the flat *controls* did too. Today, on the
+  deployed Aug 30 12:14 binary, `trotting@2.5` on flat is **dash 1/2,
+  corner 0/1, corner-with-clamp-off 0/1**, and `flat@3.0` is 1/3. On
+  2026-08-28 15:45–15:54 the same `corner:25:*` cell passed **10/10
+  angles** — a ~0.1% event at today's rate. Falls are real, not the
+  detector: bridge baro altitude 0.31 → 0.07 m, IMU a_z spikes, torques
+  saturate, after the dog has ramped to cruise (2.5–2.9 m/s).
+  **Not gait-wide**: `trotRunning@3.0` passes; walking is 90%+ across ~400
+  runs this week. **Dead hypotheses, so nobody re-runs them**: the
+  kinematic collapse test (ground truth agrees the body is on the deck);
+  `CTRL_XDRAG_CLAMP` (defaulted to 1.0 before the yaml too, and clamp-off
+  also collapses); the tuning-yaml commit `fabd240` (every
+  `getenv→ctrl_tuning` conversion kept its literal default; the yaml sets
+  only the clamp, at the code default); the OPEN-13 flag removal
+  `48771f9` (the estimator's default P-reset was kept unconditionally).
+  **Window**: seven controller-tree commits, `c90e0ca`/`cc97788` (OPEN-6:
+  IMU zero-init + `valid` gate + datum capture), `48771f9`, `fabd240`,
+  `e626865` (DEM sampling + xtrack), `0e7559e` (latch-limp), `48d26dc`.
+  Nothing in it is trotting-specific by inspection, which is why this is
+  being **bisected by binary** rather than reasoned: a persistent worktree
+  builds each point, `deploy_host.sh` now takes `DEPLOY_SRC` so a
+  worktree's binary ships through the same re-sign and load-check as any
+  other, and each point runs N=4 `trotting@2.5` flat dashes (at ~95% vs
+  ~40%, 4/4 separates the two). Known-good point: `00e34bb` (repo HEAD at
+  the Aug 28 passes).
+  **Consequences while open**: c12b (rough/trotting) and c13
+  (rolling/trotting) are paused/deferred — their numbers would describe
+  the regression, not the terrain. Walking campaigns (c14, OPEN-17) are
+  unaffected.
+
 - **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
   knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the

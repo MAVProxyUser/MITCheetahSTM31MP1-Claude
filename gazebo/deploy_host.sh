@@ -22,7 +22,12 @@
 # Never cp into host-run/ by hand. Call this.
 set -e
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-SRC=host-build/user/MIT_Controller/mit_ctrl_sim
+# DEPLOY_SRC lets a bisect deploy a binary built in a worktree (its own
+# host-build/ is not this repo's) while keeping every step below - the fresh
+# inode, the re-sign, and the proof that it loads. The alternative, a bare
+# `cp` into host-run/, is the thing CLAUDE.md forbids because it once shipped
+# a binary that was killed at exec and produced a false 0/5 sweep.
+SRC=${DEPLOY_SRC:-host-build/user/MIT_Controller/mit_ctrl_sim}
 DST=host-run/mit_ctrl_sim
 [ -f "$SRC" ] || { echo "deploy: $SRC not built"; exit 1; }
 rm -f "$DST"                       # 1. new inode
