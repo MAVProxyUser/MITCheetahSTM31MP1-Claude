@@ -63,53 +63,6 @@ passed on its own in-suite retry.
 
 ### Mitigated / parked
 
-- **OPEN-17 · Parked experimental flags** — `PARKED`, down from four to
-  **two**: `SIM_CONTACT_DETECT` and `SIM_ABS_AIDING` were deleted with
-  their code under OPEN-13 (both measured harmful; each removal carries the
-  measurement that killed it). What remains is genuinely unproven rather
-  than disproven, which is a different thing and deserves a measurement
-  rather than a deletion:
-  * `SIM_FORCE_GATE` — derates the KF's contact trust when the hypothetical
-    foot force is not physically consistent with load-bearing. Never got its
-    interleaved A/B: the only comparison run was ONE galloping dash each
-    way, on this project's least reliable gait.
-  * `SIM_KF_VFLOOR` — floors the velocity-block covariance, which collapses
-    from ~0.025 to ~0.0007 within a second of any run (taking the Kalman
-    gain on new leg-odometry evidence from ~0.20 to ~0.007). It measurably
-    delayed a failure once (upright past t=313 s vs falling at t=112 s) —
-    but that was measured BEFORE the `x_comp_integral` windup fix, so like
-    every pre-windup number it describes a robot being commanded backward
-    and cannot be cited about the current build.
-  Both are queued for a proper A/B. The close condition is a measurement,
-  not a decision: measure, then default-on or delete.
-  **First real A/B (campaign c11, 2026-09-03):** `rough/walking @2.25`
-  uncapped — a marginal cell, so a flag that helps has headroom to show it —
-  three arms interleaved, N=13–14 each after no-verdicts:
-
-  | arm | pass | rate | vs baseline | Fisher p |
-  |---|---|---|---|---|
-  | baseline | 5/13 | 38% | — | — |
-  | `SIM_FORCE_GATE=1` | 9/14 | 64% | **+26 pts** | 0.26 |
-  | `SIM_KF_VFLOOR=1` | 2/14 | 14% | −24 pts | 0.21 |
-
-  `SIM_FORCE_GATE`: the only flag in this project's history to show a
-  positive direction at N>1, and the first one whose A/B was actually
-  interleaved. Not established — p=0.26 at this N — but it earns the N that
-  can decide it (~30/arm).
-  **`SIM_KF_VFLOOR`'s row is VOID, and the error is mine.** The flag takes
-  a *value* in (m/s)², not a boolean (`atof(getenv(...))`; 0 = stock). c11
-  passed `=1`: a floor 500–1000× above the collapse value the code
-  documents (0.0007–0.002) and 5–50× above a fresh start (0.02–0.2). That
-  measured a filter forced to distrust its own velocity almost completely,
-  not the mechanism the flag exists to test. The −24 points say nothing
-  about covariance flooring at a sane value.
-  **Campaign c14 (queued)** runs the version that can decide both: same
-  cell, four arms × N=30 interleaved — baseline, `SIM_FORCE_GATE=1`,
-  `SIM_KF_VFLOOR=0.005` (a few times the collapse), `SIM_KF_VFLOOR=0.02`
-  (the documented fresh-start value) — and records the runner's exit code
-  per rep, because c11 produced 4 no-verdicts (9%, all at thread drift 2)
-  with no way to say why.
-
 - **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
   knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the
@@ -179,6 +132,109 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED · The `gazebo/` move missed two kinds of path: eleven `..`-counters and one pathlib
+
+The 2026-09-02 move rewrote all 97 literal `stm32mp1/gazebo` references
+and passed the build. It could not see paths built from pieces: eleven
+scripts and `server.py`'s `REPO_ROOT` counted `..` one level too deep
+(every launch failed with `FileNotFoundError` until fixed, `1b1e4a5`),
+and `test_validated_missions.py` assembled the runner path with pathlib
+(`REPO_ROOT / "stm32mp1" / "gazebo"`) — every pass of the fast suite
+failed on entry with "can't open file" until `eb674a1`. Lesson: after a
+move, grep for the *pieces* (`"stm32mp1"`, `"../.."`) and run the entry
+points, not just the build.
+
+
+### CLOSED (was OPEN-17) · The two parked estimator flags, measured at N=30 and removed
+
+**Question.** Two opt-in estimator levers had never had an interleaved
+A/B: `SIM_FORCE_GATE` (derate KF contact trust when foot force is not
+physically consistent with load-bearing, IMM-KF style) and
+`SIM_KF_VFLOOR` (floor the velocity-block covariance so the filter keeps
+some authority after P collapses to ~1e-3 within a second of any run).
+
+**Measurement.** Campaign c14, `rough/walking @2.25` uncapped — a
+marginal cell with headroom in both directions — four arms interleaved
+every rep, N=30 per arm, on the leak-free, correctly built binary:
+
+| arm | pass | vs baseline | Fisher p |
+|---|---|---|---|
+| baseline | 18/29 (62%) | — | — |
+| `SIM_FORCE_GATE=1` | 13/30 (43%) | −19 pts | 0.20 |
+| `SIM_KF_VFLOOR=0.005` | 9/29 (31%) | −31 pts | **0.034** |
+| `SIM_KF_VFLOOR=0.02` | 9/28 (32%) | −30 pts | **0.034** |
+
+Time-ordered, the pooled pass rate is flat across the two hours (40–55%
+per 20-rep window), so this is not a rig degrading late; 4 no-verdicts,
+all harness timeouts; thread drift 1–2 throughout.
+
+**Reading.** The gate's +26 points at N≈14 the day before (c11) was a
+block-sized swing — at N=30 it is −19 and not significant either way,
+which is "no benefit" for a lever that costs code. The floor is
+**significantly harmful at two independent sane values** (the c11 arm
+that passed `=1` to a (m/s)² knob is void and not counted). The P
+collapse it addressed is real and documented in the `KFHEALTH`
+diagnostic; stock MIT's tuning survives the test anyway. The earlier
+"delayed a failure once" was N=1.
+
+**Fix.** Both blocks removed from `PositionVelocityEstimator.cpp`, each
+replaced by a comment carrying the table above — the OPEN-13 rule: a
+lever leaves with the number that killed it, where the code was. Rebuilt
+with the documented configure, deployed through the startup proof, one
+walking flat dash through the conductor as evidence. No `SIM_` estimator
+flags remain.
+
+The issue's own log follows as it was written:
+
+- *(was)* **OPEN-17 · Parked experimental flags** — `PARKED`, down from four to
+  **two**: `SIM_CONTACT_DETECT` and `SIM_ABS_AIDING` were deleted with
+  their code under OPEN-13 (both measured harmful; each removal carries the
+  measurement that killed it). What remains is genuinely unproven rather
+  than disproven, which is a different thing and deserves a measurement
+  rather than a deletion:
+  * `SIM_FORCE_GATE` — derates the KF's contact trust when the hypothetical
+    foot force is not physically consistent with load-bearing. Never got its
+    interleaved A/B: the only comparison run was ONE galloping dash each
+    way, on this project's least reliable gait.
+  * `SIM_KF_VFLOOR` — floors the velocity-block covariance, which collapses
+    from ~0.025 to ~0.0007 within a second of any run (taking the Kalman
+    gain on new leg-odometry evidence from ~0.20 to ~0.007). It measurably
+    delayed a failure once (upright past t=313 s vs falling at t=112 s) —
+    but that was measured BEFORE the `x_comp_integral` windup fix, so like
+    every pre-windup number it describes a robot being commanded backward
+    and cannot be cited about the current build.
+  Both are queued for a proper A/B. The close condition is a measurement,
+  not a decision: measure, then default-on or delete.
+  **First real A/B (campaign c11, 2026-09-03):** `rough/walking @2.25`
+  uncapped — a marginal cell, so a flag that helps has headroom to show it —
+  three arms interleaved, N=13–14 each after no-verdicts:
+
+  | arm | pass | rate | vs baseline | Fisher p |
+  |---|---|---|---|---|
+  | baseline | 5/13 | 38% | — | — |
+  | `SIM_FORCE_GATE=1` | 9/14 | 64% | **+26 pts** | 0.26 |
+  | `SIM_KF_VFLOOR=1` | 2/14 | 14% | −24 pts | 0.21 |
+
+  `SIM_FORCE_GATE`: the only flag in this project's history to show a
+  positive direction at N>1, and the first one whose A/B was actually
+  interleaved. Not established — p=0.26 at this N — but it earns the N that
+  can decide it (~30/arm).
+  **`SIM_KF_VFLOOR`'s row is VOID, and the error is mine.** The flag takes
+  a *value* in (m/s)², not a boolean (`atof(getenv(...))`; 0 = stock). c11
+  passed `=1`: a floor 500–1000× above the collapse value the code
+  documents (0.0007–0.002) and 5–50× above a fresh start (0.02–0.2). That
+  measured a filter forced to distrust its own velocity almost completely,
+  not the mechanism the flag exists to test. The −24 points say nothing
+  about covariance flooring at a sane value.
+  **Campaign c14 (queued)** runs the version that can decide both: same
+  cell, four arms × N=30 interleaved — baseline, `SIM_FORCE_GATE=1`,
+  `SIM_KF_VFLOOR=0.005` (a few times the collapse), `SIM_KF_VFLOOR=0.02`
+  (the documented fresh-start value) — and records the runner's exit code
+  per rep, because c11 produced 4 no-verdicts (9%, all at thread drift 2)
+  with no way to say why.
+
+
 
 ### CLOSED (was OPEN-7) · Terrain-aware planning — every (terrain, gait) row measured; one cap, walking on rough, at 2.0
 

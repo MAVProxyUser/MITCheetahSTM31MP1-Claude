@@ -174,78 +174,13 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     //T high_suspect_number(1000);
     T high_suspect_number(100);
 
-    // FORCE-VALIDITY GATE ($SIM_FORCE_GATE=1), opt-in. Per the IMM-KF paper
-    // (Menner & Berntorp, "Simultaneous State Estimation and Contact
-    // Detection for Legged Robots", arXiv:2404.03444) - their Eq. 11 computes
-    // a "hypothetical" foot force from joint torque via the Jacobian
-    // (f = J^-T tau) and uses its physical validity (positive normal force,
-    // inside the friction cone) to bias which contact mode is believed,
-    // INSTEAD of trusting a fixed schedule. This port's sim applies commanded
-    // torque directly (no actuator dynamics), so LegController's tauEstimate
-    // is a faithful proxy for applied torque, not just a command - the same
-    // ingredient the paper needs, already computed for every leg.
-    //
-    // This does NOT replace the existing phase-based trust ramp the way the
-    // earlier $SIM_CONTACT_DETECT attempt did (that one overwrote the smooth
-    // ramp with a two-level signal and regressed walking2 from 21m to 5.6m -
-    // see CLAUDE.md). It only additionally derates trust when the SCHEDULE
-    // says "confidently mid-stance" but the commanded force is NOT physically
-    // consistent with real load-bearing contact (non-positive normal force,
-    // or grossly outside a friction cone).
-    //
-    // DEBOUNCED, not single-tick - per Bledt/Wensing/Ingersoll/Kim ("Contact
-    // Model Fusion for Event-Based Locomotion", ICRA 2018), even a REAL
-    // momentum-based disturbance observer measuring actual applied torque is
-    // "a large amount of noise from the force estimate" during high-dynamic
-    // transients (their Fig 3: 4-8 N RMS error during swing on real hardware),
-    // and their own event-based FSM adds an explicit delay specifically "to
-    // prevent fleeting contact from catastrophically affecting the robot's
-    // gait" from a single bad reading. First cut of this gate reacted to one
-    // instantaneous reading and immediately cut trust 80% - tested against
-    // galloping's dash, it fell during gait ENGAGEMENT (before nav even took
-    // the stick), while the identical run with the gate off did not. One
-    // sample each is not proof, but the timing matches exactly the failure
-    // mode this paper's own data predicts, so the gate is fixed to require
-    // the invalidity to PERSIST for $SIM_FORCE_GATE_DEBOUNCE_MS (default 30 ms,
-    // roughly this port's own control-loop equivalent of the paper's 4-5ms
-    // hardware detection delay, scaled up for this being commanded torque at
-    // the port's own state-estimator rate rather than a filtered observer)
-    // before touching trust at all, rather than a single-tick threshold.
-    {
-      static const bool forceGate =
-          getenv("SIM_FORCE_GATE") && atoi(getenv("SIM_FORCE_GATE")) != 0;
-      static const T debounceS =
-          T((getenv("SIM_FORCE_GATE_DEBOUNCE_MS")
-                 ? atof(getenv("SIM_FORCE_GATE_DEBOUNCE_MS"))
-                 : 30.0) /
-            1000.0);
-      static T invalidFor[4] = {0, 0, 0, 0};
-      if (forceGate && trust > T(0.5)) {
-        const Mat3<T>& J = this->_stateEstimatorData.legControllerData[i].J;
-        const Vec3<T>& tau =
-            this->_stateEstimatorData.legControllerData[i].tauEstimate;
-        // f (body frame) solves J^T f = tau, the inverse of the assembly
-        // LegController::updateCommand uses to turn a commanded foot force
-        // into joint torque (legTorque += J^T * footForce).
-        Vec3<T> f_body = J.transpose().fullPivHouseholderQr().solve(tau);
-        Vec3<T> f_world = Rbod * f_body;
-        T fz = f_world(2);
-        T fxy = std::sqrt(f_world(0) * f_world(0) + f_world(1) * f_world(1));
-        const T fzMin = T(2.0);   // N - well below any real stance load
-        const T muGate = T(2.0); // matches this port's own sim foot friction
-        bool physicallyValid = (fz > fzMin) && (fxy < muGate * fz);
-        if (physicallyValid) {
-          invalidFor[i] = T(0);
-        } else {
-          invalidFor[i] += this->_dtUsed;
-          if (invalidFor[i] > debounceS) {
-            trust *= T(0.2);
-          }
-        }
-      } else {
-        invalidFor[i] = T(0);
-      }
-    }
+    // SIM_FORCE_GATE (a force-validity derate of KF contact trust, IMM-KF
+    // style) was REMOVED 2026-09-03 with its measurement, per the OPEN-13
+    // rule that a lever leaves with the number that killed it. Interleaved
+    // on rough/walking @2.25 uncapped, N=30 per arm (campaign c14): baseline
+    // 18/29 (62%), gate on 13/30 (43%), -19 points, Fisher p=0.20 - no
+    // benefit, direction harmful. The +26 it showed at N=14 the day before
+    // was a block-sized swing. See ISSUES.md CLOSED (was OPEN-17).
 
     // printf("Trust %d: %.3f\n", i, trust);
     Q.block(qindex, qindex, 3, 3) =
@@ -382,53 +317,14 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     }
   }
 
-  // VELOCITY COVARIANCE FLOOR ($SIM_KF_VFLOOR=<value>, units (m/s)^2), opt-in.
-  //
-  // $SIM_KF_HEALTH above showed WHY the estimate stays positive for an
-  // entire long straight-line run while ESTERR ground truth shows real
-  // velocity going negative and never gets corrected: P's velocity block
-  // (indices 3-5) collapses from its fresh-start ~0.02-0.2 to ~0.0007-0.002
-  // within roughly ONE SECOND of a run starting (measured directly, not
-  // inferred), and stays there - not a gradual 35-90s numerical drift as
-  // first guessed. This is the filter's own genuine algebraic steady state,
-  // not corruption: up to 4 legs supply near-simultaneous, low-noise
-  // (foot_sensor_noise_velocity=0.1) velocity pseudo-measurements at 500 Hz
-  // against a small per-tick process noise (imu_process_noise_velocity=0.02,
-  // Q_vel/tick ~= dt*9.8/20*0.02 ~= 2e-5), and the scalar-KF steady-state
-  // relation P^2 ~= Q*(P+R) predicts P_ss ~= sqrt(Q*R_eff) ~= 0.001 for this
-  // Q/R pair - matching the measured collapse almost exactly. So this is
-  // MIT's own stock tuning doing exactly what it is mathematically supposed
-  // to do; the mismatch is that a P this small was only ever exercised on
-  // MIT's short real-hardware tests, not on a run long enough (tens of
-  // seconds to minutes) for a small UNMODELED bias (foot slip, an imperfect
-  // swing/stance transition, whatever) to compound past what a near-zero
-  // Kalman gain can ever claw back. Once collapsed, EVERY subsequent
-  // measurement's gain is tiny (measured approxGainVx falling from ~0.20 to
-  // ~0.007-0.017) and the filter has no built-in mechanism to ever revisit
-  // its own belief - this is classic Kalman-filter overconfidence, the same
-  // failure class the IMM-KF paper (Menner & Berntorp, arXiv:2404.03444) and
-  // the event-based re-triggering in Bledt/Wensing/Ingersoll/Kim (ICRA 2018)
-  // both exist to avoid, just via a full multiple-model/event architecture
-  // rather than this filter's single fixed model.
-  //
-  // The standard, minimal fix for this specific failure mode is covariance
-  // inflation: floor the velocity diagonal after every update so the filter
-  // always retains SOME minimum ongoing authority to correct toward new leg-
-  // odometry evidence, no matter how long it has already been running - at
-  // the cost of a slightly noisier tick-to-tick estimate. Opt-in and off by
-  // default (0 = MIT's stock behaviour, bit-for-bit unchanged) specifically
-  // so this can be A/B tested against the exact confirmed failure case
-  // (trotRunning's dash, real ESTERR ground truth) before ever being
-  // considered for promotion - see CLAUDE.md for the measured result.
-  {
-    static const T vFloor =
-        getenv("SIM_KF_VFLOOR") ? (T)atof(getenv("SIM_KF_VFLOOR")) : T(0);
-    if (vFloor > T(0)) {
-      for (int ax = 3; ax < 6; ++ax) {
-        if (_P(ax, ax) < vFloor) _P(ax, ax) = vFloor;
-      }
-    }
-  }
+  // SIM_KF_VFLOOR (a floor on the velocity-block covariance so the filter
+  // keeps some authority after P collapses to ~1e-3) was REMOVED 2026-09-03
+  // with its measurement. Interleaved on rough/walking @2.25 uncapped, N=30
+  // per arm (campaign c14): baseline 62%, floor 0.005 -> 9/29 (31%), floor
+  // 0.02 -> 9/28 (32%), both Fisher p=0.034 - significantly harmful at two
+  // independent sane values. The P collapse it addressed is real (see the
+  // KFHEALTH diagnostic above) and stock MIT's stance on it survives that
+  // test; the earlier "delayed a failure once" was N=1. ISSUES.md OPEN-17.
 
   // MIT SUPPRESSES THE x,y POSITION COVARIANCE EVERY TICK.
   //

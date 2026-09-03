@@ -269,3 +269,10 @@ walking,2.5,120,PASS,64.6,[runner] run 2198 phase=done  dogs=1  PASS=1 FAIL=0 FE
 walking,2.5,120,PASS,64.6,[runner] run 2199 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-09-03 01:27:10
 walking,2.5,135,PASS,66.6,[runner] run 2200 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-09-03 01:28:19
 walking,2.5,135,PASS,64.6,[runner] run 2201 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-09-03 01:29:27
+trotting,2.5,30,FELL,42.5,[runner] run 2569 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 07:27:43
+trotting,2.5,30,PASS,56.5,[runner] run 2570 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-09-03 07:28:43
+trotting,2.5,45,FELL,44.5,[runner] run 2571 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 07:29:30
+trotting,2.5,45,FELL,34.5,[runner] run 2572 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 07:30:08
+trotting,2.5,60,FELL,10.4,[runner] run 2573 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 07:30:21
+trotting,2.5,60,FELL,36.5,[runner] run 2574 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 07:31:00
+trotting,2.5,75,FELL,40.5,[runner] run 2575 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 07:31:44
