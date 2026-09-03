@@ -33,8 +33,11 @@
 - [ ] **OPEN-17** — c11 (N≈14): FORCE_GATE +26 pts (p=0.26, suggestive);
       VFLOOR row void — I passed `=1` to a flag that takes (m/s)². c14
       (queued, N=30, sane floors 0.005/0.02) decides both.
-- [ ] **`rolling` terrain** — never sampled beyond N=4, no cap of its own.
-      c7 stages C/D measure it.
+- [x] **`rolling` terrain** — c7: 95% at 2.5 uncapped; needs no cap.
+- [x] **OPEN-24 (trotting 'regression')** — closed as a non-issue after an
+      interleaved bisect: ~55% on every binary; the 10/10 were corners.
+- [ ] **trotting terrain rows** — c12c (rough) and c13 (rolling), flat@2.0
+      control, running.
 
 Everything here is a real, previously-identified gap pulled from `CLAUDE.md`'s
 running history — not a wishlist. Each item was explicitly flagged as open,

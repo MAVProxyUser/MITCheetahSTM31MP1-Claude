@@ -120,6 +120,15 @@ The rules that follow from that:
    CMAKE_BUILD_TYPE host-build/CMakeCache.txt` must match the record, and
    a deploy must prove the controller reaches `PeriodicTask`.
 
+5e. **A COMPARISON IS TWO ARMS SHARING EVERY MINUTE.** This rig's pass
+   rate on a marginal cell moves ±20 points between blocks minutes apart,
+   and marginal cells are where every interesting question lives. Two
+   blocks are not a comparison: a bisect chased a 4/4 and a 6/6 that were
+   each one lucky block at a true ~55%, for four hours (OPEN-24, closed as
+   a non-issue). Alternate the arms per run - swap binaries between runs
+   with `deploy_host.sh DEPLOY_SRC=` if that is what it takes - and never
+   write a fix on a single-block reading. A bisect point is a block too.
+
 6. **LIVENESS MEANS "WORK IS HAPPENING", AND ONLY ONE SIGNAL SAYS THAT.**
    Two plausible liveness checks were tried here and BOTH were wrong, in
    opposite directions:
