@@ -233,8 +233,18 @@ passed on its own in-suite retry.
   other, and each point runs N=4 `trotting@2.5` flat dashes (at ~95% vs
   ~40%, 4/4 separates the two). Known-good point: `00e34bb` (repo HEAD at
   the Aug 28 passes).
-  **Bisect status (2026-09-03 02:50)**: the first point, `00e34bb`, is
-  **INVALID, not bad** — its binary died at startup for the reason in the
+  **Bisect status (2026-09-03 03:06): `00e34bb` is 4/4 PASS — under
+  today's conductor.** Rebuilt with the documented configure and deployed
+  through the hardened `deploy_host.sh`, the Aug 28 binary passes
+  `trotting@2.5` flat dash four times out of four (14 nav lines each)
+  with the *current* spawn anchoring, yamls and bridge. That settles two
+  things at once: the regression is **in the binary**, and the
+  conductor-side hypothesis (`SPAWN_BEHIND_WP0`) is **dead** — the old
+  binary is fine under the new plan. Next points, same protocol: HEAD
+  (repaired) as the bad reference, then `cc97788` (after OPEN-6, before
+  OPEN-13) to split the window.
+  *(Earlier that night the same point read 0/4 and was recorded as
+  INVALID, not bad — its binary died at startup for the reason in the
   CLOSED entry above (my Release configure, inherited by the worktree
   build), so it never ran a mission; the harness now flags a controller
   that dies at startup instead of counting 0/N. The conductor-side A/B
