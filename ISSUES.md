@@ -276,9 +276,14 @@ below: its c9 redo was a rough-terrain measurement, so the "22 confirmed
 envelope in `corner_envelope.csv` describes the pre-anchoring course for
 rows dated before 2026-08-30 and the anchored course after. OPEN-24 gets
 a third reason its Aug 28 "10/10" never compared: different course.
-A confirming A/B (HEAD vs the Aug 30 controller source, flat corner,
-interleaved) is queued behind the suite to close the "rebuild" suspicion
-with a number rather than an argument.
+**The "rebuild" suspicion is dead with a number** (10:54): HEAD vs
+the Aug 30 controller source (`48d26dc`), built with the documented
+configure, interleaved every run on the same flat `corner:25:120`
+walking @2.5 cell, N=6 each — **HEAD 1/6, Aug 30 0/6, Fisher p = 1.0**.
+Both binaries fail that cell; the 02:59 rebuild had nothing to do with
+it, and the cell is simply beyond the robot on the anchored course, as
+this entry already concluded from the conductor log. Nothing further is
+owed here — the operator's Time Machine snapshots are no longer needed.
 
 The issue's own log:
 
