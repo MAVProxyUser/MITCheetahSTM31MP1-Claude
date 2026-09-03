@@ -112,6 +112,16 @@ TERRAIN_TYPES = {
 #   both dropped 30% of c3's launches outright AND depressed the pass rate
 #   of the runs that did complete. Numbers taken before 2026-08-31 on a
 #   long-lived server should be treated as pessimistic and re-measured.
+#   TROTTING HAS NO ENTRY, ON PURPOSE (c12c / c13, 2026-09-03, interleaved
+#   N=10 per rung, flat@2.0 control in the same block):
+#     rough   trotting  1.5  80%   1.75 78%   2.0  90%   (control 90%)
+#     rolling trotting  1.5 100%   2.0  90%   2.5  30%   (control 100%)
+#   Neither terrain bites before trotting's own straight-line ceiling does
+#   (2.0 validated; 2.5 is ~55% on FLAT - see ISSUES.md CLOSED/OPEN-24 for
+#   why 2.5 is not a trotting cell on a straight). A cap here would encode
+#   nothing but the gait's cruise. The terrain hazard is walking-specific
+#   because walking is the only gait that reaches 2.5 without falling on
+#   flat first. `rolling` costs neither gait anything measurable.
 GAIT_VMAX = {
     "rough": {"walking": 2.0},
 }
