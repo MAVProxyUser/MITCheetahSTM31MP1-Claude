@@ -52,7 +52,11 @@ def done_cells():
             for row in csv.DictReader(f):
                 # TIMEOUT (harness gave up) and REFUSED (launch gate - e.g.
                 # a Time Machine backup) are not verdicts - retry those.
-                if row["verdict"] not in ("TIMEOUT", "REFUSED"):
+                # Only FLAT rows count as "measured" for this flat sweep: the
+                # terrain column exists because sixty rough rows once passed
+                # as flat cells (CLOSED/OPEN-25).
+                if row["verdict"] not in ("TIMEOUT", "REFUSED") and \
+                        row.get("terrain", "flat") == "flat":
                     cells.add((row["gait"], float(row["speed"]),
                                int(float(row["angle"]))))
     return cells
@@ -70,6 +74,8 @@ def nonpass_cells():
             for row in csv.DictReader(f):
                 if row["verdict"] in ("TIMEOUT", "REFUSED", "ABORTED"):
                     continue
+                if row.get("terrain", "flat") != "flat":
+                    continue                                   # not this sweep's ground
                 k = (row["gait"], float(row["speed"]), int(float(row["angle"])))
                 rows.setdefault(k, []).append(row["verdict"])
     return sorted(k for k, v in rows.items()
