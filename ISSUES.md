@@ -157,6 +157,31 @@ passed on its own in-suite retry.
   GPU — worth it only if someone wants smoother chase footage more than
   they want GPU headroom, and this rig has already had host load silently
   explain a sim failure. Not a defect; a knob with a measured price.
+  
+  **c19 (interleaved, server env swapped every run, N=8 each) answered it
+  — and found a bug in this project's own rate limiter:**
+
+  | arm | `cam_feed` receives | viewer gets | GPU | CPU |
+  |---|---|---|---|---|
+  | 10 Hz / 0.1 s | 10.0 fps | 10.1 | 6% | 30% |
+  | 30 Hz / 0.033 s | **30.4 fps** | **15.1** | 12% | 33% |
+
+  The sensor at 30 Hz renders 30 fps and the per-run subprocess *receives*
+  30.4 of them — then delivers 15.1. Half the frames died in
+  `cam_feed`'s own rate gate: `--rate` defaults to the same 30, so
+  `min_dt` sat exactly on the arrival interval and ordinary jitter put
+  about half the frames a hair under it. The earlier reading, "30 Hz only
+  buys ~15 fps for double the GPU", was measuring that bug, not the
+  camera. Fixed by giving the gate a 10% tolerance
+  (`min_dt = 0.9 / rate`); proven with the stubbed-gz harness, 60/60
+  frames emitted at 30 Hz where it previously dropped half. **The
+  receive-rate log added for exactly this purpose is what separated
+  sensor from transport** — without it the loss was invisible.
+  Re-measure queued (c20, same interleaved protocol) to get the real
+  30 Hz number; if it lands near 30 fps for ~12% GPU, that is a genuine
+  choice to offer rather than a shrug, and the default moves or does not
+  on a real trade.
+  
   **Reopen test**, so the next report is a diagnosis and not a hunt: read
   `/tmp/cheetah_conductor/cam_feed.log`. If `rx fps` says 10 while the
   panel shows less, the loss is server→browser; if `rx fps` is below 10,

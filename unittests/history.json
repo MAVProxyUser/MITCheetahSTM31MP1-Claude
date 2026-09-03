@@ -6087,5 +6087,866 @@
   "shm_trace_paths": [
    "/tmp/cheetah_conductor/archive/shm_trace/20260903_081722_run2618_dog0_FALL.json"
   ]
+ },
+ {
+  "ts": "2026-09-03 08:18:12",
+  "case": "oval_real_switch",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_GAIT_CORNER=9"
+   ]
+  },
+  "verdict": "FAIL",
+  "wall_s": 48.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_081811_run2619_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 08:18:56",
+  "case": "sector_recipe",
+  "config": {
+   "slots": [
+    "sector:15:3"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 44.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_081854_run2620_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 08:23:15",
+  "case": "parallel_recipe",
+  "config": {
+   "slots": [
+    "parallel:30:5:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 259.1
+ },
+ {
+  "ts": "2026-09-03 08:26:00",
+  "case": "expsquare_recipe",
+  "config": {
+   "slots": [
+    "expsquare:5:12"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 164.8
+ },
+ {
+  "ts": "2026-09-03 08:28:07",
+  "case": "lissajous_1_2",
+  "config": {
+   "slots": [
+    "lissajous:15:1:2"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 126.7
+ },
+ {
+  "ts": "2026-09-03 08:34:41",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 393.7
+ },
+ {
+  "ts": "2026-09-03 08:45:09",
+  "case": "lissajous_11_9",
+  "config": {
+   "slots": [
+    "lissajous:15:11:9"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 628.7
+ },
+ {
+  "ts": "2026-09-03 08:47:46",
+  "case": "spiro_recipe",
+  "config": {
+   "slots": [
+    "spiro:9.0:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 156.8
+ },
+ {
+  "ts": "2026-09-03 08:49:13",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 86.6
+ },
+ {
+  "ts": "2026-09-03 08:50:53",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 100.6
+ },
+ {
+  "ts": "2026-09-03 08:53:20",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [
+    100
+   ],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 146.7
+ },
+ {
+  "ts": "2026-09-03 08:54:05",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "FAIL",
+  "wall_s": 44.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_085404_run2630_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 08:55:21",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-03 08:56:38",
+  "case": "dash_trotRunning",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-03 08:59:52",
+  "case": "dash_long_duration",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    0.6
+   ],
+   "dashes": [],
+   "extras": [
+    "CTRL_XDRAG_CLAMP=1.0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 194.8
+ },
+ {
+  "ts": "2026-09-03 09:01:03",
+  "case": "octagon_recipe",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 70.6
+ },
+ {
+  "ts": "2026-09-03 09:02:14",
+  "case": "circle_smooth_36gon",
+  "config": {
+   "slots": [
+    "circle:9:36"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 70.6
+ },
+ {
+  "ts": "2026-09-03 09:03:46",
+  "case": "corner_probe_90deg",
+  "config": {
+   "slots": [
+    "corner:25:90"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 92.6
+ },
+ {
+  "ts": "2026-09-03 09:04:49",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 62.6
+ },
+ {
+  "ts": "2026-09-03 09:06:05",
+  "case": "oval_real_switch",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_GAIT_CORNER=9"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-03 09:08:36",
+  "case": "sector_recipe",
+  "config": {
+   "slots": [
+    "sector:15:3"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 150.7,
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_090835_run2639_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 09:12:55",
+  "case": "parallel_recipe",
+  "config": {
+   "slots": [
+    "parallel:30:5:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 258.9
+ },
+ {
+  "ts": "2026-09-03 09:15:40",
+  "case": "expsquare_recipe",
+  "config": {
+   "slots": [
+    "expsquare:5:12"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 164.7
+ },
+ {
+  "ts": "2026-09-03 09:17:46",
+  "case": "lissajous_1_2",
+  "config": {
+   "slots": [
+    "lissajous:15:1:2"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 126.7
+ },
+ {
+  "ts": "2026-09-03 09:24:22",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 395.5
+ },
+ {
+  "ts": "2026-09-03 09:34:50",
+  "case": "lissajous_11_9",
+  "config": {
+   "slots": [
+    "lissajous:15:11:9"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 628.4
+ },
+ {
+  "ts": "2026-09-03 09:35:23",
+  "case": "spiro_recipe",
+  "config": {
+   "slots": [
+    "spiro:9.0:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 32.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_093522_run2645_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 09:35:57",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 34.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_093556_run2646_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 09:37:38",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 100.6
+ },
+ {
+  "ts": "2026-09-03 09:40:05",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [
+    100
+   ],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 146.6
+ },
+ {
+  "ts": "2026-09-03 09:40:43",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "FAIL",
+  "wall_s": 38.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_094041_run2649_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 09:42:00",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 76.5
+ },
+ {
+  "ts": "2026-09-03 09:43:16",
+  "case": "dash_trotRunning",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 76.5
+ },
+ {
+  "ts": "2026-09-03 09:46:31",
+  "case": "dash_long_duration",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    0.6
+   ],
+   "dashes": [],
+   "extras": [
+    "CTRL_XDRAG_CLAMP=1.0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 194.7
+ },
+ {
+  "ts": "2026-09-03 09:47:41",
+  "case": "octagon_recipe",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 70.5
+ },
+ {
+  "ts": "2026-09-03 09:48:52",
+  "case": "circle_smooth_36gon",
+  "config": {
+   "slots": [
+    "circle:9:36"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 70.5
+ },
+ {
+  "ts": "2026-09-03 09:50:25",
+  "case": "corner_probe_90deg",
+  "config": {
+   "slots": [
+    "corner:25:90"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 92.6
+ },
+ {
+  "ts": "2026-09-03 09:51:07",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 42.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_095106_run2656_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 09:52:24",
+  "case": "oval_real_switch",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_GAIT_CORNER=9"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-03 09:55:20",
+  "case": "sector_recipe",
+  "config": {
+   "slots": [
+    "sector:15:3"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 176.7
+ },
+ {
+  "ts": "2026-09-03 09:59:39",
+  "case": "parallel_recipe",
+  "config": {
+   "slots": [
+    "parallel:30:5:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 258.9
+ },
+ {
+  "ts": "2026-09-03 10:02:24",
+  "case": "expsquare_recipe",
+  "config": {
+   "slots": [
+    "expsquare:5:12"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 164.7
+ },
+ {
+  "ts": "2026-09-03 10:04:31",
+  "case": "lissajous_1_2",
+  "config": {
+   "slots": [
+    "lissajous:15:1:2"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 126.7
+ },
+ {
+  "ts": "2026-09-03 10:11:06",
+  "case": "lissajous_5_7",
+  "config": {
+   "slots": [
+    "lissajous:15:5:7"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 395.6
+ },
+ {
+  "ts": "2026-09-03 10:21:35",
+  "case": "lissajous_11_9",
+  "config": {
+   "slots": [
+    "lissajous:15:11:9"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 628.9
+ },
+ {
+  "ts": "2026-09-03 10:22:08",
+  "case": "spiro_recipe",
+  "config": {
+   "slots": [
+    "spiro:9.0:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 32.5,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/tmp/cheetah_conductor/archive/shm_trace/20260903_102207_run2664_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-03 10:23:36",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 88.6
+ },
+ {
+  "ts": "2026-09-03 10:25:17",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 100.6
  }
 ]

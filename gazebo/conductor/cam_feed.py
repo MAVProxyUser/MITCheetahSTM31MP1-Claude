@@ -86,7 +86,15 @@ def main():
         sys.stderr.write("[cam_feed] no cameras requested\n")
         raise SystemExit(2)
 
-    min_dt = 1.0 / max(args.rate, 0.1)
+    # 0.9 TOLERANCE, and it is not cosmetic. With --rate equal to the
+    # sensor's own rate the gate sits exactly on the arrival interval, so
+    # ordinary jitter puts about half the frames a hair under it and drops
+    # them: measured 2026-09-03 (campaign c19), a 30 Hz sensor delivered
+    # 30.4 fps into this process and 15.1 fps to the viewer - a clean 2:1
+    # loss that read as "30 Hz only buys you 15 fps" until the receive-rate
+    # log separated sensor from transport. The limiter exists to stop a
+    # runaway publisher, not to police a rate we asked for.
+    min_dt = 0.9 / max(args.rate, 0.1)
     out = sys.stdout.buffer
     wlock = threading.Lock()          # serialises whole frames onto stdout
     state = dict(count=0, last=0.0)
