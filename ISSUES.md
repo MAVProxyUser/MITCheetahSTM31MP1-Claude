@@ -117,6 +117,60 @@ passed on its own in-suite retry.
   within a second, gains to ~0.007) showing up as a **measured**
   inconsistency during the failure rather than as a covariance printout —
   the filter cannot see the body sinking.
+  **c21 (2026-09-03): the contact-schedule lead is DEAD, and the field
+  that named it is not what its name says.** ISSUES had named the contact
+  *schedule* as the next instrument. The fall archive only ever dumps on
+  FALL, so there was no PASS baseline to compare against; c21 ran the
+  validated flat/walking@2.0 cell 10x (9 PASS) dumping the ring after
+  every run. Phase-matched by 5 s bucket from launch, against 87 archived
+  LEVEL collapses:
+
+  | t from launch | PASS | LEVEL collapse |
+  |---|---|---|
+  | 10-15 s | 0.37 | 0.38 |
+  | 15-20 s | 1.65 | 1.64 |
+  | 20-25 s | 1.01 | 1.01 |
+  | 25-30 s | 1.01 | 1.01 |
+  | 30-35 s | 0.97 | 1.01 |
+
+  Identical at every phase. The gait schedule is not what differs.
+
+  **And it CANNOT differ, which is the actually interesting part.**
+  `ContactEstimator::run()` (common/include/Controllers/ContactEstimator.h)
+  is one statement: it copies `contactPhase` into `contactEstimate`. There
+  is no contact estimation in this controller at all. The "contact
+  estimate" the Kalman filter trusts is the gait scheduler's **expected**
+  contact phase - open-loop, by construction identical in a fall and a
+  pass. `PositionVelocityEstimator.cpp:165` even calls it `phase` when it
+  reads it, and uses it to set each foot's measurement `trust`.
+
+  **My own misreading, recorded so the number is not quoted.** I first
+  reported "only ~1.0 of 4 feet in stance, in falls AND in normal
+  walking" as a surprise. It is not a finding about the robot: the four
+  values sum to 1.008 +/- 0.30 per tick and ramp smoothly (0.67 -> 0.76
+  while a neighbour goes 0.07 -> 0.16). It is a normalised schedule
+  phase, so thresholding it at 0.5 and counting "feet in stance" measures
+  nothing. The identical-at-every-bucket result above stands; the "1 foot
+  down" framing does not.
+
+  **Where that leaves the hypothesis.** Every piece of evidence now fits
+  one story: the controller keeps pushing on legs it *believes* are
+  planted, because nothing in the loop can tell it otherwise. Torque is
+  indistinguishable from a pass (phase-matched). The schedule is
+  indistinguishable from a pass (open-loop). The KF trusts each foot as a
+  fixed world point on the schedule's say-so, so a sinking body
+  contradicts its own measurements and it resolves that by believing the
+  feet - which is exactly the observed 2.5x disagreement between its
+  position and velocity blocks. **Hypothesis, not yet established.**
+
+  **The decisive next test, and it needs no rebuild.** The trace carries
+  the estimator's `z` and `vz` but no ground truth, so we cannot say
+  WHICH of the two is wrong. `gazebo/conductor/pose_feed.py` already
+  emits gz's true `[x, y, z, yaw]`. Run it standalone alongside a
+  fall-prone cell and compare the descent: if true z falls at ~0.31 m/s
+  the velocity block is the broken one; if it falls at ~0.12 m/s the
+  position block is. Either answer names the defect.
+
   Note the constraint that makes this hard: `SIM_KF_VFLOOR`, the flag
   designed for exactly this, was measured **harmful** at N=30 (CLOSED, was
   OPEN-17) at two independent sane floors. So the diagnosis is now
