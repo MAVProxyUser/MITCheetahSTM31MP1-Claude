@@ -7,7 +7,7 @@
 #
 #   refine_maxspeed.sh <coarse-results-file> [seconds]
 set -u
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COARSE="${1:?usage: refine_maxspeed.sh <coarse-results> [secs]}"
 SECS="${2:-48}"
 # SIM_CHEATER deliberately absent - never set it, not even to 0. See dash_sweep.sh.

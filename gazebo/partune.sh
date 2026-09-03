@@ -23,7 +23,7 @@
 # usage: partune.sh <reps> <label:env...> <label:env...> ...
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/sweep_lock.sh" || exit 1
-cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 G=gazebo
 REPS="$1"; shift
 CONFIGS=("$@")

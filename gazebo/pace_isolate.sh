@@ -12,7 +12,7 @@
 # Same gait, same speed, same binary in all three cells; only the detector and
 # the world change.
 set -u
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 G=gazebo
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
 export PATH="/opt/homebrew/bin:$PATH"

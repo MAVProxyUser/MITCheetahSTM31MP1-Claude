@@ -7,7 +7,7 @@
 # 3.54 m, with the worst control-loop time jumping 1.0 -> 4.5 ms as the tell.
 # Never build while a measurement is in flight.
 set -u
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 G=gazebo
 
 echo "=== PHASE2 STAGE: max-speed refinement (bash-3.2 safe) ==="

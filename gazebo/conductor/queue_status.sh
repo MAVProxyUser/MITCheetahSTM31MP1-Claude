@@ -6,7 +6,7 @@
 # covered: a wedged conductor (alive, holding :8420, answering nothing), a
 # queue script deadlocked in a sleep, a finished chain with nothing behind
 # it, and a campaign grinding out cells with no verdicts.
-cd "$(dirname "$0")/../../.."
+cd "$(dirname "$0")/../.."
 say(){ printf "%-26s %s\n" "$1" "$2"; }
 
 # 1. does the conductor ANSWER (not just exist)?

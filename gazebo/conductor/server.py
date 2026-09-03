@@ -55,8 +55,23 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAZEBO_DIR = os.path.abspath(os.path.join(HERE, ".."))
-REPO_ROOT = os.path.abspath(os.path.join(GAZEBO_DIR, "..", ".."))
+# NOT "..", ".." any more: this tree moved from stm32mp1/gazebo/ to
+# gazebo/ on 2026-08-31, so the repo root is ONE level up from GAZEBO_DIR,
+# not two. Nothing caught this at move time - a `..`-counting path contains
+# no literal "stm32mp1/gazebo" for a search to find, and `make` linked
+# cleanly because none of it is compile-time. It surfaced as
+# `launch error: FileNotFoundError` on every mission. Hence the assertion
+# below: this constant is now self-checking rather than trusted.
+REPO_ROOT = os.path.abspath(os.path.join(GAZEBO_DIR, ".."))
 HOST_RUN = os.path.join(REPO_ROOT, "host-run")
+# Fail LOUDLY at import if the layout ever moves again, instead of quietly
+# resolving to a directory that does not exist and failing per-mission.
+for _marker in ("robot", "common", "user"):
+    if not os.path.isdir(os.path.join(REPO_ROOT, _marker)):
+        raise SystemExit(
+            "server.py: REPO_ROOT resolved to %r, which has no %r/ - the "
+            "conductor's idea of the repo layout is wrong. Fix REPO_ROOT "
+            "above (it counts '..' from this file)." % (REPO_ROOT, _marker))
 RUN_DIR = "/tmp/cheetah_conductor"
 PARTITION = "cheetah_fleet"
 WORLD = "go1_world"

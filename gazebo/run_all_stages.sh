@@ -8,7 +8,7 @@
 # wait on itself forever, and `pgrep`-based status checks report stages as
 # "already running" when nothing is. One sequential script has no such problem.
 set -u
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 G=gazebo
 
 echo "=== STAGE: star missions ==="

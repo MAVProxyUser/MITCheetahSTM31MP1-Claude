@@ -21,7 +21,7 @@
 #
 # Never cp into host-run/ by hand. Call this.
 set -e
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 SRC=host-build/user/MIT_Controller/mit_ctrl_sim
 DST=host-run/mit_ctrl_sim
 [ -f "$SRC" ] || { echo "deploy: $SRC not built"; exit 1; }

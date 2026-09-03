@@ -10,7 +10,7 @@
 # one - a fast ramp masquerades as a speed ceiling, and the question here is
 # what the GAIT can do.
 set -u
-cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source gazebo/sweep_lock.sh || exit 1
 G=gazebo
 RUNDIR=host-run
