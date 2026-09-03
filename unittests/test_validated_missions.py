@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-RUNNER = REPO_ROOT / "stm32mp1" / "gazebo" / "conductor" / "mission_runner.py"
+RUNNER = REPO_ROOT / "gazebo" / "conductor" / "mission_runner.py"   # moved from stm32mp1/gazebo on 2026-08-31
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_history  # noqa: E402 - ring-buffer archive of every run, see run_history.py
