@@ -129,6 +129,15 @@ The rules that follow from that:
    with `deploy_host.sh DEPLOY_SRC=` if that is what it takes - and never
    write a fix on a single-block reading. A bisect point is a block too.
 
+5f. **A HARNESS NAMES EVERY INPUT. IT NEVER INHERITS PANEL STATE.** The
+   corner sweep did not pass `--terrain`, so `mission_runner` inherited the
+   panel's DRAFT terrain: sixty "flat @2.5" runs were rough @2.0, a whole
+   issue was opened on the collapse that followed, and the rebuild was
+   blamed for an hour. Terrain, speed, gait, course version and binary
+   must all be explicit in the launch and printed in the transcript; the
+   record must carry the course version (pre/post anchoring) with every
+   number. `mission_runner` now defaults to flat and says so.
+
 6. **LIVENESS MEANS "WORK IS HAPPENING", AND ONLY ONE SIGNAL SAYS THAT.**
    Two plausible liveness checks were tried here and BOTH were wrong, in
    opposite directions:

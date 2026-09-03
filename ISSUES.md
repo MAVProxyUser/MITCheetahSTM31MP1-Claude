@@ -63,39 +63,6 @@ passed on its own in-suite retry.
 
 ### Mitigated / parked
 
-- **OPEN-25 · Corner cells at 2.5 collapsed this morning, both gaits** —
-  `SOFTWARE, LIVE, UNEXPLAINED`. The flagship row re-measure (08:03,
-  `corner:25:*` at 2.5, all ten angles ×2, clean server): **walking
-  3/20 (15%)**, **trotting 7/20 (35%)**. Yesterday 01:00 (c9, same
-  course, same Aug 30 binary) walking 2.5@120/135 went PASS/PASS and
-  before that walking was 12/18, trotting 10/10 (Aug 28). Walking at 2.5
-  on *dashes* is fine today (c16: 6/6 after the 02:59 rebuild). Corners
-  specifically.
-  **Exonerated by inspection**: the course and plan (identical `3
-  segments over 49.4 m`, default anchoring — the conductor's env carries
-  no override); the world (flat plane, no heightmap); `host-run/` (only
-  the binary changed); control-loop timing (maxPeriod ~3 ms both days);
-  the OPEN-17 deletion (every removed line sat inside the two flag
-  conditionals, and trotting was already 1/4 *before* that deploy).
-  **Prime suspect: the 02:59 rebuild** (assert-read rewrite + the
-  documented empty build type). The evidence that the collapse predates
-  it is weak (c11's 38% baseline at N=13; one N=1 corner at 02:30); the
-  evidence it follows it is c9-vs-today. Running now: the Aug 30
-  controller *source* (`48d26dc`) built with the documented configure,
-  interleaved against HEAD on `walking corner:25:120 @2.5`, N=6 each.
-  **Operator action that would settle it outright**: the actual Aug 30
-  binary and its `CMakeCache.txt` are in the Time Machine local snapshots
-  `2026-09-01-124058` and `2026-09-02-125500` — mounting needs sudo
-  (`mount_apfs -s com.apple.TimeMachine.2026-09-02-125500.local / /tmp/tmsnap`,
-  then `host-run/mit_ctrl_sim` and `host-build/CMakeCache.txt` under the
-  repo path). With that binary saved as `/tmp/bin_aug30`,
-  `gazebo/tools/ab_interleaved.sh` answers the question in fifteen
-  minutes.
-  **Consequences while open**: today's flagship rows, c19, and the fast
-  suite passes are measurements of whatever this is, not of the robot;
-  nothing from after 02:59 today should be cited as a capability number
-  until this closes.
-
 - **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
   knob with a price, not a defect. With the transport fixed (see CLOSED, was
   OPEN-19) a viewer now receives every frame the sensor renders, so the
@@ -165,6 +132,95 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED (was OPEN-25) · The "corner collapse" was three measurement conditions compared as one
+
+**Symptom.** 08:03: `corner:25:*` at 2.5, all angles ×2, read walking
+3/20 and trotting 7/20 against "12/18 and 10/10 before" and yesterday's
+c9 passes. Environment, world, timing, binary and the OPEN-17 deletion
+were all exonerated by inspection within the hour; the 02:59 rebuild was
+left as prime suspect.
+
+**Cause — the record, not the robot.** The conductor log names the
+terrain of every launch, and the controller logs carry `[plan] DEM
+profile` only when a heightmap was sampled:
+- **c9 (yesterday's OPEN-8 redo) ran every cell on `rough`**, with
+  walking capped to 2.0 by the terrain table (`terrain caps cruise 2.50
+  -> 2.00` in its logs). `corner_sweep.py` never named a terrain and
+  `mission_runner` without `--terrain` inherited the panel's DRAFT —
+  which was `rough` after campaign c8. Sixty runs recorded as flat @2.5
+  were rough @2.0.
+- **Today's flagship sweep started on `rough` for the same reason** (the
+  draft was rough after c14) and flipped to flat mid-sweep when an
+  explicit-`--terrain flat` proof dash reset the draft.
+- **The Aug 28/29 rows were flat — on the pre-anchoring course**: since
+  the 2026-08-30 plan anchoring, the 25 m approach is inside the plan at
+  full planner cruise; before, nav ramped it. A different, easier course.
+
+**What is actually true, from the conductor log (40 launches):**
+
+| gait | terrain | `corner:25 @2.5`, anchored course |
+|---|---|---|
+| walking | flat | **3/20** (17 collapses) |
+| trotting | flat | **6/15** (8 collapses) |
+| trotting | rough | 1/5 |
+
+2.5 into a corner on the anchored course is beyond both gaits — and
+nothing ships wrong: the `corner` recipe validates walking there at 1.5,
+and 2.5 is a probe speed. Walking at 2.5 on a flat *dash* remains
+90–100%.
+
+**Fix.** `mission_runner --terrain` defaults to **flat** and prints the
+terrain every run (and whether it was defaulted); `corner_sweep.py`
+passes `--terrain flat` explicitly (`6b9f8ef`). A harness must name its
+ground; the panel's draft is for humans. SKILL.md rule 5f.
+
+**Consequences for the record.** OPEN-8's CLOSED entry is corrected
+below: its c9 redo was a rough-terrain measurement, so the "22 confirmed
+/ 5 marginal / 3 walking artefacts" say nothing about flat; the flat
+envelope in `corner_envelope.csv` describes the pre-anchoring course for
+rows dated before 2026-08-30 and the anchored course after. OPEN-24 gets
+a third reason its Aug 28 "10/10" never compared: different course.
+A confirming A/B (HEAD vs the Aug 30 controller source, flat corner,
+interleaved) is queued behind the suite to close the "rebuild" suspicion
+with a number rather than an argument.
+
+The issue's own log:
+
+- *(was)* **OPEN-25 · Corner cells at 2.5 collapsed this morning, both gaits** —
+  `SOFTWARE, LIVE, UNEXPLAINED`. The flagship row re-measure (08:03,
+  `corner:25:*` at 2.5, all ten angles ×2, clean server): **walking
+  3/20 (15%)**, **trotting 7/20 (35%)**. Yesterday 01:00 (c9, same
+  course, same Aug 30 binary) walking 2.5@120/135 went PASS/PASS and
+  before that walking was 12/18, trotting 10/10 (Aug 28). Walking at 2.5
+  on *dashes* is fine today (c16: 6/6 after the 02:59 rebuild). Corners
+  specifically.
+  **Exonerated by inspection**: the course and plan (identical `3
+  segments over 49.4 m`, default anchoring — the conductor's env carries
+  no override); the world (flat plane, no heightmap); `host-run/` (only
+  the binary changed); control-loop timing (maxPeriod ~3 ms both days);
+  the OPEN-17 deletion (every removed line sat inside the two flag
+  conditionals, and trotting was already 1/4 *before* that deploy).
+  **Prime suspect: the 02:59 rebuild** (assert-read rewrite + the
+  documented empty build type). The evidence that the collapse predates
+  it is weak (c11's 38% baseline at N=13; one N=1 corner at 02:30); the
+  evidence it follows it is c9-vs-today. Running now: the Aug 30
+  controller *source* (`48d26dc`) built with the documented configure,
+  interleaved against HEAD on `walking corner:25:120 @2.5`, N=6 each.
+  **Operator action that would settle it outright**: the actual Aug 30
+  binary and its `CMakeCache.txt` are in the Time Machine local snapshots
+  `2026-09-01-124058` and `2026-09-02-125500` — mounting needs sudo
+  (`mount_apfs -s com.apple.TimeMachine.2026-09-02-125500.local / /tmp/tmsnap`,
+  then `host-run/mit_ctrl_sim` and `host-build/CMakeCache.txt` under the
+  repo path). With that binary saved as `/tmp/bin_aug30`,
+  `gazebo/tools/ab_interleaved.sh` answers the question in fifteen
+  minutes.
+  **Consequences while open**: today's flagship rows, c19, and the fast
+  suite passes are measurements of whatever this is, not of the robot;
+  nothing from after 02:59 today should be cited as a capability number
+  until this closes.
+
+
 
 ### CLOSED · The `gazebo/` move missed two kinds of path: eleven `..`-counters and one pathlib
 
@@ -466,7 +522,7 @@ at 10/10. A regression in the Aug 28→30 window was the obvious call.
   **c18 HEAD 5/8 vs `00e34bb` 4/8, p = 1.0** — the "good" end of the
   bisect is no better than HEAD.
 
-**Conclusion.** `trotting@2.5` on a sustained 30 m straight is **~55% on
+**Conclusion.** *(Footnote, 09-03 08:40: the Aug 28 corner 10/10 was also on the pre-anchoring course — a third reason it never compared; see CLOSED/OPEN-25.)* `trotting@2.5` on a sustained 30 m straight is **~55% on
 every binary from Aug 28 to HEAD**. The Aug 28 "10/10" were `corner:25`
 probes, which brake for the turn and never sustain 2.5; the record's own
 validated trotting *straight* cell is 2.0. `00e34bb`'s 4/4 was one block
@@ -668,6 +724,17 @@ nav lines (run 2280, 03:01).
 
 
 ### CLOSED (was OPEN-8) · The per-gait cornering envelope, measured to the resolution anything reads it at
+
+> **Correction (2026-09-03 08:40, see CLOSED/OPEN-25).** The c9 "second
+> tranche" below ran every cell on **rough** terrain (with walking capped
+> to 2.0), not flat: `corner_sweep.py` inherited the panel's draft
+> terrain. Its 22/5/3 tally is a rough-terrain result and its three
+> "walking artefacts" are void as flat evidence. The envelope's rows dated
+> before 2026-08-30 are the pre-anchoring course; the flagship re-measure
+> of 2026-09-03 gives the anchored course at 2.5: walking 3/20, trotting
+> 6/15 on flat. The brackets for bounding, galloping, pronking and
+> trotRunning were measured before both changes and describe the old
+> course; re-measure before citing one at its ceiling.
 
 **Question.** Per gait, at what speed does a solo `corner:25:<angle>` probe
 stop passing, and does the answer depend on the angle?

@@ -34,6 +34,8 @@
       (p=0.20), VFLOOR −30 pts at both sane floors (p=0.034). Both removed
       with their measurements.
 - [x] **`rolling` terrain** — c7: 95% at 2.5 uncapped; needs no cap.
+- [x] **OPEN-25 (corner 'collapse')** — a harness artefact: c9 ran on rough;
+      the Aug 28 rows were the old course. Runner defaults to flat now.
 - [x] **OPEN-24 (trotting 'regression')** — closed as a non-issue after an
       interleaved bisect: ~55% on every binary; the 10/10 were corners.
 - [x] **trotting terrain rows** — c12c/c13: neither terrain binds before
