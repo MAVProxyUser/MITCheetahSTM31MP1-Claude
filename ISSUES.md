@@ -276,8 +276,22 @@ passed on its own in-suite retry.
   detour back — running) and `reinit` (a deliberate one-shot
   `initializeStateEstimator()` on the first tick `valid` is true, no NaN —
   the principled fix if `noinit` confirms).
-  Note for c12b/c13: every trotting rep they collect before the fix lands
-  is on the regressed binary and will be discarded.
+  **`noinit` at HEAD: 6/6.** And the mechanism story is **wrong**: the
+  archived controller logs of all six runs show zero NON-FINITE events and
+  zero re-inits — the uninitialised struct passes *without* any NaN
+  detour. A zero quaternion also yields an identity rotation matrix (every
+  product term vanishes), so orientation is the same either way before
+  the first packet, and the `[nav]` traces of a noinit pass and a HEAD
+  collapse are identical to two decimals through t = 9.4 s. There is no
+  mechanism in hand. The claim now rests on 6/6 vs 4/7 measured in
+  *separate blocks* — the non-interleaved comparison this project has
+  already been burned by — so before any fix is written it gets an
+  **interleaved A/B (c15)**: HEAD and HEAD+noinit binaries saved as files
+  and swapped per run through `deploy_host.sh DEPLOY_SRC`, N=8 each,
+  alternating. The `reinit` variant (running) is now expected to fail;
+  if it passes, that is its own finding.
+  Note for c12b/c13: every trotting rep they collect before this is
+  settled is on the regressed binary and will be discarded.
   *(Earlier that night the same point read 0/4 and was recorded as
   INVALID, not bad — its binary died at startup for the reason in the
   CLOSED entry above (my Release configure, inherited by the worktree
