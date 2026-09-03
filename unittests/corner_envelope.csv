@@ -209,3 +209,4 @@ trotRunning,4.25,135,PASS,101.3,[runner] run 1274 phase=done  dogs=1  PASS=1 FAI
 walking,2.25,45,PASS,104.1,[runner] run 1275 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 18:07:04
 walking,2.25,90,PASS,104.3,[runner] run 1276 phase=done  dogs=1  PASS=1 FAIL=0 FELL=0 INVALID=0,2026-08-29 18:08:55
 walking,2.25,135,FAIL,32.9,,2026-08-29 18:09:35
+bounding,1.5,30,FELL,40.6,[runner] run 2142 phase=done  dogs=1  PASS=0 FAIL=0 FELL=1 INVALID=0,2026-09-03 00:36:36

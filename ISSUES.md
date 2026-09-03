@@ -88,9 +88,32 @@ passed on its own in-suite retry.
   throughput for nothing. The terrain hazard is specific to `rough`'s
   short-wavelength geometry, not to non-flat ground generally.
 
-  **Still open**: `relief_k` — defaults 0, inert, never measured. Its own
-  sweep was confounded by the speed cap; re-run with `WP_TERRAIN_VMAX=-1`.
-  That is now the ONLY unmeasured piece of this issue.
+  **`relief_k` is now measured, and stays 0 (campaign c8, 2026-09-03).**
+  Interleaved, N=10 per arm, `rough/walking`, 2.5 requested, every relief
+  arm UNCAPPED so the global cap could not confound it; duration from the
+  controller's own `[nav] t=` lines, mean speed over PASS rows only (a fall
+  ends a run early and would otherwise read as fast):
+
+  | arm | pass | mean m/s |
+  |---|---|---|
+  | global cap 2.0 (control) | 7/10 | **1.61** |
+  | uncapped, k=0 | 0/10 | — |
+  | uncapped, k=0.25 | 9/10 | 1.48 |
+  | uncapped, k=0.5 | 9/10 | 1.24 |
+  | uncapped, k=1.0 | 10/10 | 0.95 |
+
+  Reading: the cap's 7/10 is the low tail of a pooled clean-server **42/49
+  (86%)** for that rung (c6 18/20, c7 17/19, c8 7/10), so k=0.25 is
+  *parity* on pass rate, not a win — at 8% lower throughput. k=1.0's 100%
+  is bought at 0.95 m/s, a crawl. Relief can only slow, and on uniformly
+  rough ground "slow everywhere by the local mismatch" is just a worse
+  global cap. It would earn its keep on MIXED terrain (fast on the smooth
+  stretch, slow on the bumps), which this harness does not have — `rough`
+  is bumps everywhere. Durations were deterministic to 0.2-0.3 s per arm;
+  every bit of variance is in pass/fail.
+  **Walking side of OPEN-7 is closed.** Remaining: the cap table has only
+  a walking entry — campaign c12 (queued) runs rough/trotting 2.5/2.75/3.0
+  with a flat control, N=10, to give trotting its own rung.
 
 - **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
   TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at

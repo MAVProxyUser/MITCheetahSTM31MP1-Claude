@@ -119,6 +119,13 @@ struct BodyLimits {
   //! measured - there is exactly one anchor point - and this project's own
   //! rule is that a guessed constant in the planner is the failure mode the
   //! whole terrain programme exists to avoid. $WP_RELIEF_K turns it on.
+  //!
+  //! MEASURED 2026-09-03 (campaign c8, rough/walking, N=10/arm, interleaved,
+  //! uncapped): k=0.25 -> 9/10 at 1.48 m/s, k=0.5 -> 9/10 at 1.24, k=1.0 ->
+  //! 10/10 at 0.95; the global 2.0 cap -> 7/10 at 1.61 (pooled clean-server
+  //! 42/49 for that rung). Parity on pass rate at lower throughput: relief
+  //! can only slow, and on uniformly rough ground it is just a worse global
+  //! cap. It stays 0. Its case is MIXED terrain, which has not been built.
   double relief_k = 0.0;
   double relief_ref = 0.02;   //!< metres of stride mismatch per unit of k
   /*!
