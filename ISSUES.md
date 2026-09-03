@@ -289,7 +289,16 @@ passed on its own in-suite retry.
   **interleaved A/B (c15)**: HEAD and HEAD+noinit binaries saved as files
   and swapped per run through `deploy_host.sh DEPLOY_SRC`, N=8 each,
   alternating. The `reinit` variant (running) is now expected to fail;
-  if it passes, that is its own finding.
+  if it passes, that is its own finding — and it is 2/2 as of this note.
+  Also established: `Stm32mp1HardwareBridge` is a **stack object in
+  `main()`**, so the pre-OPEN-6 IMU fields were uninitialised stack
+  memory — garbage, but the same garbage every launch of the same binary,
+  which is why `noinit` reproduces. Whatever the first ticks see in that
+  garbage, a perfectly clean zero/identity start does worse; two
+  different disturbances of the estimator's first ticks (garbage, and a
+  deliberate rebuild after the first packet) both look better than none.
+  After c15, one run per binary with `SIM_KF_HEALTH=1` (P diagonal and
+  approximate gain every second) is saved for a side-by-side.
   Note for c12b/c13: every trotting rep they collect before this is
   settled is on the regressed binary and will be discarded.
   *(Earlier that night the same point read 0/4 and was recorded as
