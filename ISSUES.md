@@ -36,42 +36,45 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `PLUMBING DONE,
-  THE NUMBER IS NOT`. Everything mechanical is built, shipped and verified
-  firing on real runs; what is NOT established is whether the ceiling it
-  encodes is real.
+- **OPEN-7 · Terrain-aware planning: the GEOMETRY axis** — `CAP SETTLED AT
+  2.0; relief_k STILL UNMEASURED`.
   **Working and confirmed**: the DEM is sampled along each dog's own
   planned path at launch (`conductor/terrain_profile.py` →
   `WP_TERRAIN_PROFILE` → `BodyPathPlanner::loadTerrainProfile`), reporting
   `[plan] DEM profile: 301 samples over 30.0 m, stride mismatch mean
   0.016 m max 0.069 m` — matching an independent hand measurement of
   `rough` exactly. The (terrain, gait) cap fires and is logged
-  (`terrain cap: walking on rough is measured to 2.25 m/s`). `relief_k`
-  defaults 0 and is inert until measured.
-  **The retraction is now RESOLVED — the cap has a real effect, and the
-  number is still wrong.** The earlier claim ("0/3 uncapped → 9/9 capped")
-  was retracted as an over-read of small blocks; campaigns c3 and c4 ran
-  the properly-powered version. Pooled, `rough/walking`, `dash:30`:
+  (`terrain cap: walking on rough is measured to 2.00 m/s`).
+  **The value is now measured (campaign c6, 2026-08-31).** N=20 per rung,
+  `dash:30`, one uninterrupted block, on a conductor with no thread leak —
+  **0/80 no-verdicts**:
 
-  | arm | result | |
+  | arm | pass | rate |
   |---|---|---|
-  | rough @2.5 UNCAPPED | 1 PASS / 21 FAIL | **5%** |
-  | rough @2.25 (the cap rung) | 23 PASS / 19 FAIL | **55%** |
-  | flat @2.5 (control) | 5 PASS / 0 FAIL | **100%** |
+  | rough @1.75 uncapped | 20/20 | **100%** |
+  | rough @2.0 uncapped | 18/20 | **90%** |
+  | flat @2.5 (control) | 9/10 | **90%** |
+  | rough @2.5 capped (→2.25) | 15/20 | 75% |
+  | rough @2.25 uncapped | 7/10 | 70% |
 
-  So the cap does real work (5% → 55%) and the effect is terrain-specific,
-  not a general speed limit — flat at the same rung is untouched. The c3
-  A-vs-D discrepancy that looked like a lurking variable was small-N noise
-  and is gone: c3's capped arm gave 11/18 (61%) and c4's 2.25-uncapped arm
-  gave 10/18 (56%), which agree. Correcting one number reported earlier in
-  this session: the uncapped arm is 1/22 (5%), not 0%.
-  **What is still open is the VALUE.** A cap whose own rung fails 45% of
-  the time is set too high — 2.25 is not a ceiling, it is a less-bad rung.
-  Campaign c6 runs the search (`rough@2.0` N=20, `rough@1.75` N=20,
-  `rough@2.25` N=10 to top up the pooled count). `terrain.py`'s 2.25 stays
-  provisional until those land, and moves to whichever rung actually holds.
-  Also still open: whether `relief_k` does anything once the speed cap is
-  out of its way (its own sweep was confounded by exactly that cap).
+  Monotonic, and **2.0 lands exactly on the flat control**: at 2.0 the
+  terrain costs nothing measurable, at 2.25 it costs ~20 points. So 2.25
+  was a less-bad rung, not a ceiling. `terrain.py` now encodes **2.0**.
+  **Every pre-2026-08-31 number in this file taken on a long-lived server
+  is pessimistic and should be re-measured before being cited.** The
+  conductor leaked ~1 thread per run (see CLOSED, the four-attempt leak
+  hunt); that both dropped ~30% of c3's launches outright as "(no verdict)"
+  AND depressed the pass rate of the runs that did complete. The pooled
+  c3+c4 table this entry used to carry (`@2.5` 5%, `@2.25` 55%, flat 100%)
+  was measured through that, which is why its 2.25 rung read 55% where c6's
+  clean-server equivalent reads 70-75%. It is kept in git history, not here,
+  to stop it being quoted as current.
+  **Still open**:
+  - `relief_k` — defaults 0, inert, never measured. Its own sweep was
+    confounded by the speed cap; re-run it with `WP_TERRAIN_VMAX=-1`.
+  - `rolling` has never been sampled beyond N=4 and has no cap of its own.
+    Campaign c7 (running) validates the capped path at 2.0 with a flat
+    control in the same block, then measures `rolling` at 2.5 and 2.0.
 
 - **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
   TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at
@@ -155,14 +158,78 @@ passed on its own in-suite retry.
   only remaining ceilings are the sensor's own `update_rate` and how often
   the camera model is teleported — both 10 Hz, both costing GPU inside the
   render loop. Both are now env knobs with the measured defaults unchanged
-  (`CAM_UPDATE_RATE`, `CHASE_FOLLOW_DT`). What is left is the A/B: raise
-  them to 30 Hz, measure GPU and mission outcomes against the 10 Hz
-  baseline, and only then change a default. Deliberately NOT done blind —
-  this rig has already had machine load silently explain a sim failure.
+  (`CAM_UPDATE_RATE`, `CHASE_FOLLOW_DT`).
+  **First A/B ran and is CONFOUNDED — do not quote it.** Campaign `tier2`
+  (20 runs, alternating blocks) measured viewer fps with a probe that opens
+  its own MJPEG connection per rep. That probe leaves a server-side handler
+  alive for up to two minutes (`_mjpeg`'s idle timeout), so every rep after
+  the first in a block measured a server with 2-3 stale viewers attached.
+  It shows: 10.1 fps on the first rep of a block, then ~3.1 for the rest;
+  15.5 then ~4.5 for the 30 Hz arm. The pattern is the probe, not the
+  camera.
+  The only clean comparison is the first rep after each server restart:
+
+  | arm | viewer fps | GPU |
+  |---|---|---|
+  | 10 Hz / 0.1 s (shipped) | 10.1 | 6% |
+  | 30 Hz / 0.033 s | 15.5 | 12% |
+
+  So 30 Hz roughly **doubles GPU for +50% fps** — and does NOT give 30 fps,
+  which is itself worth understanding before paying for it. N=1 per arm;
+  no recommendation until re-measured with a probe that closes cleanly and
+  a settle between reps. Deliberately NOT changing a default blind — this
+  rig has already had machine load silently explain a sim failure.
 
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED · The conductor thread leak: four attempts, and what finally found it
+
+**Symptom.** A 12-hour-old conductor sat at 54 threads answering
+`/api/state` in 4.66-4.90 s, against 4 threads and 0.0005-0.0019 s fresh.
+It presented as "the chase cam has always been choppy" and as campaign c3
+losing 18 of 60 launches to "(no verdict)" — the harness's own polling
+timing out against a GIL-saturated server. A leak in the video path was
+shrinking mission sample sizes.
+
+**Four causes, three of them real and none of them the last one.** Each was
+found, fixed, and declared the fix — on the strength of the DRIFT NUMBER
+alone. The number kept moving and I kept attributing it to whatever I had
+most recently touched:
+
+| attempt | cause found | genuinely a bug? | drift after |
+|---|---|---|---|
+| 1 | `_subscribe_cameras` made one in-process `gz.transport13.Node()` per camera per launch, "released" with `self._gz_cam_nodes = []` | yes | +0.56/run |
+| 2 | `_follow_chase_cams` made its OWN gz Node per run for `set_pose`, 70 lines below a docstring claiming the server "no longer touches gz-transport at all" | yes | +1.00/run |
+| 3 | the `gazebo/` move broke `REPO_ROOT`, every launch failed, and failed launches left `pose_feed`/`cam_feed` children unreaped with their reader threads blocked | yes | — |
+| 4 | **`_chase_stop.set()` existed ONLY in `stop()`.** A mission that simply COMPLETED left `_follow_chase_cams` looping forever on an Event nobody would ever set | **this was it** | +0.00/run |
+
+**What actually found it.** Naming every thread the server starts
+(`host_load`, `run`, `chase_follow`, `pose_reader`, `cam_reader`,
+`cam_mutes`, `log_poller`) and reporting a `by_name` histogram in
+`health()`. One clean teardown then said it outright:
+
+    {MainThread:1, host_load:1, chase_follow:1, Thread:1}   children=0
+
+with `pose_reader` and `cam_reader` correctly absent. One name left
+standing, no inference required.
+
+**Evidence the fix holds** — six back-to-back missions, settled histogram
+after each:
+
+    run 1..6   PASS   drift=1   children=0   {MainThread:1, host_load:1, Thread:1}
+
+Identical every run, against +1.2 threads/launch at the start of the day.
+Campaign c7 continues to report `drift=1` per rep under sustained load.
+
+**The lesson, and it is the transferable part**: a canary that reports a
+leak's SIZE lets you keep guessing at its cause — three times, here. One
+that reports its NAME does not. And "fixed" was said three times on
+reasoning plus a single measurement; what made the fourth claim different
+was repeating the same measurement six times and watching it not move.
+That check should have existed before the first claim.
+
 
 ### CLOSED (was OPEN-19) · Chase cam was screenshots in a JSON blob — and the leak behind it was corrupting campaign data
 

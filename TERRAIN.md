@@ -396,6 +396,17 @@ rough  walking     2.0 PASS      2.25 FELL,PASS   2.5 FELL,FELL
 rough  trotting    2.5 PASS x3   3.0  PASS,FELL   3.25 FELL,FELL   3.5 FELL x3
 ```
 
+> **SUPERSEDED for walking (campaign c6, 2026-08-31).** The bracket above is
+> N=1..3 per cell and was measured on a conductor that leaked ~1 thread per
+> run, which depressed pass rates and dropped ~30% of a campaign's launches
+> outright. At N=20 per rung on a clean server, `rough/walking` reads:
+> **1.75 → 20/20 (100%), 2.0 → 18/20 (90%), 2.25 → 7/10 (70%)**, against a
+> flat control of 9/10 (90%). Monotonic, and 2.0 lands exactly on the
+> control — so the walking ceiling on `rough` is **2.0**, not "marginal by
+> 2.25", and `terrain.py` encodes 2.0. The trotting row below is still
+> N=1..3 and still unanchored. Treat every pre-2026-08-31 rung in this file
+> as pessimistic until re-measured.
+
 So on `rough`, walking is marginal by 2.25 and gone by 2.5, and trotting is
 marginal by 3.0 and gone by 3.25. The walking number is the one that is
 already anchored: flat walks 2.5 cleanly, so **rough costs walking roughly

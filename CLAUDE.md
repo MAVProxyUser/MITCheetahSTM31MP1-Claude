@@ -8274,6 +8274,13 @@ walking @2.25  rough 1/1        flat 5/5   rolling 4/4
 walking @2.0   rough 5/5        flat 4/4
 ```
 
+**Superseded 2026-08-31 by campaign c6 (N=20/rung, clean server, 0/80
+no-verdicts): rough/walking is 1.75 100%, 2.0 90%, 2.25 70%, against a flat
+control of 90%. The cap moved 2.25 → 2.0 in `terrain.py`. The table above
+was taken on a conductor leaking ~1 thread/run, which both dropped launches
+as "(no verdict)" and depressed the pass rate of those that completed — its
+`rough@2.25 1/1` is exactly the thin cell that warning was about.**
+
 `rough` separates from BOTH controls at 2.5. But the same ground took
 trotRunning to 4.5 without complaint, so a per-TERRAIN scalar would have
 been the wrong shape - it would slow a gait this ground never troubled.

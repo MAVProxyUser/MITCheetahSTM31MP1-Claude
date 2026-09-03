@@ -1,5 +1,32 @@
 # TODO.md — open backlog for the STM32MP1 Cheetah port
 
+## 2026-08-31 — chase cam, the conductor thread leak, and the gazebo/ move
+
+- [x] **OPEN-19 chase cam** — was base64 JPEGs inside the whole-state JSON
+      poll, with the `<img>` destroyed and rebuilt every 400 ms. Now MJPEG on
+      its own endpoint from a per-run subprocess. **2.5 fps by design (0.2
+      measured) → 10.1 fps**; `/api/state` 23 KB/4.7 s → 11 KB/0.0006 s.
+- [x] **The conductor thread leak** — four attempts; the first three found
+      real bugs that were not it. Finally: `_chase_stop.set()` existed only
+      in `stop()`, so a mission that COMPLETED left the chase follower
+      looping forever. Found by naming every thread and reporting a
+      histogram. Verified flat over 6 back-to-back runs.
+- [x] **A refused launch is not a failed run** — the Time Machine gate
+      refused 15 launches and the harness ate 15 reps in 51 s. Added
+      `--wait-for-gate` / `LAUNCH_REFUSED_EXIT=5`.
+- [x] **OPEN-7 cap value** — c6, N=20/rung, 0/80 no-verdicts: `terrain.py`
+      rough/walking **2.25 → 2.0** (2.0 matches the flat control exactly).
+- [x] **Moved `stm32mp1/gazebo/` → `gazebo/`** with `start.sh`/`stop.sh`/
+      `status.sh`. Broke 11 `..`-counting paths doing it; `REPO_ROOT` is now
+      self-checking.
+- [ ] **OPEN-23** — first A/B confounded by its own probe. `tier2b` re-runs
+      it with a probe that closes and a machine-checked drain. Clean N=1
+      numbers so far: 10 Hz → 10.1 fps @ 6% GPU, 30 Hz → 15.5 fps @ 12% GPU.
+- [ ] **`relief_k`** — still 0, still unmeasured; its sweep was confounded by
+      the speed cap. Re-run with `WP_TERRAIN_VMAX=-1`.
+- [ ] **`rolling` terrain** — never sampled beyond N=4, no cap of its own.
+      c7 stages C/D measure it.
+
 Everything here is a real, previously-identified gap pulled from `CLAUDE.md`'s
 running history — not a wishlist. Each item was explicitly flagged as open,
 unresolved, or "not pursued further" at the point it was written; none of them
