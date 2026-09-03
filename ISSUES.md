@@ -142,6 +142,24 @@ passed on its own in-suite retry.
   is ~55% on every binary, and the Aug 28 10/10 were corner probes. So
   trotting's straight ceiling sits between 2.0 (5/5 in the record) and
   2.5 (~55%); c12c and c13 measure its terrain rows with the 2.0 control.
+  **c12c (rough/trotting, flat@2.0 control, interleaved N=10, 05:06):**
+
+  | arm | pass | |
+  |---|---|---|
+  | flat @2.0 (control) | 9/10 | 90% |
+  | rough @2.0 | 9/10 | 90% |
+  | rough @1.5 | 8/10 | 80% |
+  | rough @1.75 | 7/9 | 78% |
+
+  Every rung sits at the control and every miss is an early fall exactly
+  like the control's own miss — **rough does not bite trotting through
+  2.0**. Trotting's own straight ceiling (2.0 validated, 2.5 ≈ 55% on
+  flat and rough alike) binds before the terrain does, so a
+  `rough: trotting` entry in `GAIT_VMAX` would encode nothing but the
+  gait's cruise. **No entry.** The rough terrain effect is
+  walking-specific at the speeds walking can reach (2.5 → 5% on rough vs
+  90% flat); trotting simply cannot reach the speeds where rough would
+  matter. c13 (rolling) is the last row.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
