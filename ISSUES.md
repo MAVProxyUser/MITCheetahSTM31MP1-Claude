@@ -90,7 +90,43 @@ passed on its own in-suite retry.
   its speed limit is plausible physics, not necessarily a bug — but which
   it is has never been established, and every capability ceiling this
   project measures is really "where the fold starts".
-  **Next instrument**: 1 Hz bridge summaries cannot resolve this. The
+  **CHARACTERISED (2026-09-03, from 413 archived
+  `shm_trace/*_FALL.json` snapshots — 20,000 per-tick records each, no new
+  rig time).** Healthy body height is 0.28 m; the detector fires below
+  0.10 m. Measuring the descent from the last tick above 0.20 m down to
+  0.10 m (n=47 LEVEL, 14 TIP):
+
+  | | duration | drop | mean rate | reported `vz` min |
+  |---|---|---|---|---|
+  | LEVEL COLLAPSE | 0.33 s | 0.102 m | 0.31 m/s | **−0.12 m/s** |
+  | TIP-OVER | 0.44 s | 0.101 m | 0.23 m/s | −0.14 m/s |
+
+  Two findings.
+  **(1) It is a SINK, not a drop.** Free fall over that 0.10 m would take
+  ~0.14 s and reach ~−1.4 m/s; the real descent is 2–3× slower. The legs
+  are bearing load the whole way down — consistent with the phase-matched
+  torque result above. Nothing lets go; the robot settles.
+  **(2) The estimator's own position and velocity disagree by ~2.5×.**
+  The trace logs `z = _stateEstimate.position[2]` (world) and
+  `vz = _stateEstimate.vBody[2]` (body frame) — and in a LEVEL collapse
+  the body is level by definition, so those frames nearly coincide and
+  should agree. The position block descends at 0.31 m/s while the velocity
+  block never reports worse than −0.12 m/s. Both are the same KF state
+  vector. That is the documented velocity-covariance collapse
+  (`PositionVelocityEstimator.cpp`: P's velocity block falls to ~1e-3
+  within a second, gains to ~0.007) showing up as a **measured**
+  inconsistency during the failure rather than as a covariance printout —
+  the filter cannot see the body sinking.
+  Note the constraint that makes this hard: `SIM_KF_VFLOOR`, the flag
+  designed for exactly this, was measured **harmful** at N=30 (CLOSED, was
+  OPEN-17) at two independent sane floors. So the diagnosis is now
+  concrete and the obvious remedy is already disproven; whatever fixes
+  this is not a covariance floor.
+  Not pursued: the contact fields are `contactEstimate` (a probability,
+  not a schedule), so "how many feet were down" cannot be read from them
+  with a threshold — that question needs the schedule itself.
+
+  **Superseded** — 1 Hz bridge summaries cannot resolve this. The
   ShmTrace ring buffer holds per-tick state and `shm_reaper.py` already
   dumps a snapshot on a confirmed crash; the question is what the contact
   schedule, per-leg force and commanded body height do in the 200 ms
