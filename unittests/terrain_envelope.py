@@ -42,9 +42,9 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(ROOT, 'stm32mp1/gazebo/conductor'))
+sys.path.insert(0, os.path.join(ROOT, 'gazebo/conductor'))
 import campaign as _campaign   # noqa: E402  (panel progress)
-RUNNER = os.path.join(ROOT, "stm32mp1/gazebo/conductor/mission_runner.py")
+RUNNER = os.path.join(ROOT, "gazebo/conductor/mission_runner.py")
 SPEED_CSV = os.path.join(HERE, "terrain_envelope_speed.csv")
 ANGLE_CSV = os.path.join(HERE, "terrain_envelope_angle.csv")
 
@@ -99,7 +99,7 @@ def run_cell(terrain, mission, gait, speed, extra):
 
 
 def recycle(reason):
-    sys.path.insert(0, os.path.join(ROOT, "stm32mp1/gazebo/conductor"))
+    sys.path.insert(0, os.path.join(ROOT, "gazebo/conductor"))
     import conductor_ctl
     conductor_ctl.restart_server(reason)
 

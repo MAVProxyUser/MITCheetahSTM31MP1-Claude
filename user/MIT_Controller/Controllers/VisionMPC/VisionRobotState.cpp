@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <math.h>
-#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 using std::cout;
 using std::endl;

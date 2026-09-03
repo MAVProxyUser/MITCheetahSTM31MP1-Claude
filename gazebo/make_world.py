@@ -11,7 +11,7 @@ into a gz-harmonic (Gazebo Sim 8) world the Cheetah bridge can drive:
     physics/scene/user-commands/imu/contact systems.
 
 Input : /tmp/go1_raw.sdf   (gz sdf -p go1.urdf)
-Output: stm32mp1/gazebo/worlds/go1.sdf
+Output: gazebo/worlds/go1.sdf
 Meshes resolve via GZ_SIM_RESOURCE_PATH=.../unitree_ros/robots (model://go1_description/...)
 """
 import os, sys, re

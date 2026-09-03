@@ -11,7 +11,7 @@
 #include <sys/time.h>
 #include <Utilities/Timer.h>
 #include <JCQP/QpProblem.h>
-#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 #include "Utilities/CtrlTuning.h"
 
 // Precision for the JCQP solve. Float on the A7 (no double-precision SIMD);

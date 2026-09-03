@@ -9,7 +9,7 @@
 # Discipline did not work. So: source this at the top of every sweep script.
 # It takes an exclusive lock and refuses to start if another sweep holds it.
 #
-#   source stm32mp1/gazebo/sweep_lock.sh   # exits 1 if a sweep is running
+#   source gazebo/sweep_lock.sh   # exits 1 if a sweep is running
 #
 LOCKDIR="${TMPDIR:-/tmp}/cheetah_sweep.lock"
 if ! mkdir "$LOCKDIR" 2>/dev/null; then

@@ -38,4 +38,4 @@ done
 
 if [ ! -s "$CFG" ]; then echo "[refine] nothing bracketed - no second pass needed"; exit 0; fi
 echo "[refine] second pass:"; cat "$CFG"
-bash "$ROOT/stm32mp1/gazebo/host_sweep.sh" "$CFG" "$SECS"
+bash "$ROOT/gazebo/host_sweep.sh" "$CFG" "$SECS"

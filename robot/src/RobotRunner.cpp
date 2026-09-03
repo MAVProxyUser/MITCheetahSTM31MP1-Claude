@@ -39,12 +39,12 @@ extern std::atomic<bool> g_hostStall;
 // mystery (clean control-loop timing rules out a scheduling stall, so
 // whatever is happening lives in the control DATA at a resolution the
 // existing 1-in-50-tick printf logging cannot see). Lives under
-// stm32mp1/gazebo/ rather than robot/include/ because it is a SITL
+// gazebo/ rather than robot/include/ because it is a SITL
 // debugging tool, not part of the hardware-facing interface - lazily
 // opens shared memory only on first log() call, so a board build that
 // never calls it never pays for the mmap. See ShmTrace.h's own header
 // for the full design (lock-free ring buffer, separate reaper process).
-#include "../../stm32mp1/gazebo/ShmTrace.h"
+#include "../../gazebo/ShmTrace.h"
 
 RobotRunner::RobotRunner(RobotController* robot_ctrl, 
     PeriodicTaskManager* manager, 

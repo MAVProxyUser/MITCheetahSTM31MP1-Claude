@@ -6,7 +6,7 @@
 
 #include <atomic>
 #include "FSM_State_StandUp.h"
-#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the FSM State that passes in state specific info to

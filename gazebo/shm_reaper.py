@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SHM ring-buffer reaper for the per-tick control-loop trace.
 
-Companion to stm32mp1/gazebo/ShmTrace.h (the writer side - read that
+Companion to gazebo/ShmTrace.h (the writer side - read that
 file's own header comment for the full design rationale: root-causing a
 fleet-only fast-fall that clean control-loop timing already rules out as
 a scheduling stall, which means the cause lives in the CONTROL DATA at a

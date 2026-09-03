@@ -10,7 +10,7 @@
 #include <Utilities/Timer.h>
 #include <algorithm>
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
-#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 #include "Utilities/CtrlTuning.h"
 //#include <rt/rt_interface_lcm.h>
 

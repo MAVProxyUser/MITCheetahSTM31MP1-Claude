@@ -24,7 +24,7 @@
 set -u
 source "$(dirname "${BASH_SOURCE[0]}")/sweep_lock.sh" || exit 1
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
-G=stm32mp1/gazebo
+G=gazebo
 REPS="$1"; shift
 CONFIGS=("$@")
 O=${PARTUNE_OUT:-/tmp/PT}; mkdir -p $O

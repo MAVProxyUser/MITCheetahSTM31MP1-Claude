@@ -20,7 +20,7 @@ import argparse, csv, os, re, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-RUNNER = os.path.join(ROOT, "stm32mp1/gazebo/conductor/mission_runner.py")
+RUNNER = os.path.join(ROOT, "gazebo/conductor/mission_runner.py")
 CSV_PATH = os.path.join(HERE, "boot_blips.csv")
 CTRL_LOG = "/tmp/cheetah_conductor/ctrl_0.log"
 

@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
-#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 #define K_NUM_LEGS 4
 

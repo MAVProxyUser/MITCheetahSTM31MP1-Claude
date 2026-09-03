@@ -315,7 +315,7 @@ at 0.00 m travelled.
 | `common/include/Dynamics/Quadruped.h` | **removed** `_kneeMotorTauMax` (restored upstream MIT) | §2.1 |
 | `common/src/Dynamics/Quadruped.cpp` | knee actuator uses `_motorTauMax` like the others | §2.1 |
 | `.../convexMPC/RobotState.cpp` | inertia `(0.102,0.379,0.352)` → **`(0.13662,0.425578,0.460359)`** | `0xfb9f0` |
-| `stm32mp1/gazebo/worlds/*.sdf` (×4) | abad limit ±1.047 → **±0.863938** | `0x2fdbe0`, URDF |
+| `gazebo/worlds/*.sdf` (×4) | abad limit ±1.047 → **±0.863938** | `0x2fdbe0`, URDF |
 
 ---
 

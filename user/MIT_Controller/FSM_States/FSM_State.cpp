@@ -4,7 +4,7 @@
  */
 
 #include "FSM_State.h"
-#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the FSM State class.

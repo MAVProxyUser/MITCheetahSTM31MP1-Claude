@@ -72,7 +72,7 @@ def wait_idle():
 def run_arm(n, rep):
     """Launch n identical dogs, wait, return per-dog loop stats."""
     wait_idle()
-    cmd = [sys.executable, f"{HERE}/stm32mp1/gazebo/conductor/mission_runner.py"]
+    cmd = [sys.executable, f"{HERE}/gazebo/conductor/mission_runner.py"]
     for _ in range(n):
         cmd += ["--slot", MISSION, "--gait", GAIT, "--speed", str(SPEED), "--dash", "0"]
     t0 = time.time()

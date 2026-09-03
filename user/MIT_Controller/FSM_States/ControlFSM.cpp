@@ -8,7 +8,7 @@
 #include "ControlFSM.h"
 #include <rt/rt_rc_interface.h>
 #include <atomic>
-#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 /**
  * Constructor for the Control FSM. Passes in all of the necessary

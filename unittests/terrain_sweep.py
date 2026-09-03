@@ -29,7 +29,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-RUNNER = os.path.join(ROOT, "stm32mp1/gazebo/conductor/mission_runner.py")
+RUNNER = os.path.join(ROOT, "gazebo/conductor/mission_runner.py")
 CSV_PATH = os.path.join(HERE, "terrain_friction.csv")
 
 TERRAINS = ["flat", "concrete", "asphalt", "grass", "dirt", "gravel",
@@ -107,7 +107,7 @@ def main():
                     print("[cell] %s on %s ..." % (mission, t), flush=True)
                     r = run_cell(t, mission, gait, speed)
                     if r["verdict"] == "NOFEED":
-                        sys.path.insert(0, os.path.join(ROOT, "stm32mp1/gazebo/conductor"))
+                        sys.path.insert(0, os.path.join(ROOT, "gazebo/conductor"))
                         import conductor_ctl
                         conductor_ctl.restart_server("NOFEED (OPEN-21)")
                         continue

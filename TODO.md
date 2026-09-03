@@ -114,7 +114,7 @@ Grouped by what it would actually take to close it.
       case-(a) zombie - verified safe, not yet verified successful.
       **A SHM-based per-tick trace + crash oracle now exists** to gather
       the fine-grained data needed to actually isolate case (b)'s cause
-      (`stm32mp1/gazebo/ShmTrace.h` writer, `shm_reaper.py` reader/
+      (`gazebo/ShmTrace.h` writer, `shm_reaper.py` reader/
       archiver): a lock-free single-writer ring buffer (65536 records,
       500 Hz, one named segment per dog instance) logs `t`, full rpy/
       omega/vBody/z, control period, per-leg contact, op_mode and a

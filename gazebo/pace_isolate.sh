@@ -13,7 +13,7 @@
 # the world change.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-G=stm32mp1/gazebo
+G=gazebo
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
 export PATH="/opt/homebrew/bin:$PATH"
 OUT=/tmp/pace_iso; mkdir -p $OUT

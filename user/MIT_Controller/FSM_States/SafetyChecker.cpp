@@ -9,7 +9,7 @@
 
 #include "SafetyChecker.h"
 #include <cstdlib>
-#include "../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 #include "Utilities/CtrlTuning.h"
 
 /**

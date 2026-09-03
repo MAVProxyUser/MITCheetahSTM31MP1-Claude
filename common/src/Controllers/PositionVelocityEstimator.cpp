@@ -11,7 +11,7 @@
 #include <cstdlib>
 
 #include "Controllers/PositionVelocityEstimator.h"
-#include "../../../stm32mp1/gazebo/ShmTrace.h"   // [KFHEALTH] diagnostic only
+#include "../../../gazebo/ShmTrace.h"   // [KFHEALTH] diagnostic only
 
 /*!
  * Initialize the state estimator

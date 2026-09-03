@@ -9,7 +9,7 @@
 # "already running" when nothing is. One sequential script has no such problem.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-G=stm32mp1/gazebo
+G=gazebo
 
 echo "=== STAGE: star missions ==="
 bash $G/host_sweep.sh /tmp/star_runs.cfg 200 2>&1 | tee /tmp/starruns.out

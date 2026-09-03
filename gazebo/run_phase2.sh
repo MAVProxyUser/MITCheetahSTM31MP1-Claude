@@ -8,7 +8,7 @@
 # Never build while a measurement is in flight.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-G=stm32mp1/gazebo
+G=gazebo
 
 echo "=== PHASE2 STAGE: max-speed refinement (bash-3.2 safe) ==="
 bash $G/refine_maxspeed.sh /tmp/gaitmax2.out 48 2>&1 | tee /tmp/refine.out

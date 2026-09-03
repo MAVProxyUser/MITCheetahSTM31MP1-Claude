@@ -455,7 +455,7 @@ no rows, instead of burning the stage.
   The rate CLIMBS with launches inside one process, which is what
   accumulation looks like from outside. **Fix**: a subscription cannot
   outlive a process that has exited, so it now lives in one that does —
-  `stm32mp1/gazebo/conductor/pose_feed.py`, started per RUN, killed with
+  `gazebo/conductor/pose_feed.py`, started per RUN, killed with
   the run, taking its discovery state with it; the server's long-lived
   process no longer touches gz-transport at all. It streams JSON lines at
   ≤20 Hz and the server applies them through the SAME `_apply_pose()` the

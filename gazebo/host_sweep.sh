@@ -10,7 +10,7 @@
 # configfile: one run per line, "<label>  KEY=VAL KEY=VAL ..."; # comments ok.
 set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-G="$ROOT/stm32mp1/gazebo"
+G="$ROOT/gazebo"
 RUNDIR="$ROOT/host-run"
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
 export PATH="/opt/homebrew/bin:$PATH"

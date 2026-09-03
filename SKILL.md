@@ -188,7 +188,7 @@ anything that has to be repeatable.
 Star geometry: `star:<r>:5` gives legs of `1.9021*r` and a course of `9.5106*r`.
 r=10.514 -> 5 legs of 20.0 m -> 100 m.
 
-**NEVER `cp` into host-run/ by hand - use `stm32mp1/gazebo/deploy_host.sh`.**
+**NEVER `cp` into host-run/ by hand - use `gazebo/deploy_host.sh`.**
 Overwriting a Mach-O in place invalidates its signature and macOS SIGKILLs it at
 exec with ZERO output, which reads as the robot failing instantly on every run.
 
@@ -446,7 +446,7 @@ Rules that follow:
   `ps -ax -o pid,etime,command | grep <script>` before concluding anything, and
   certainly before starting a replacement.
 - **The two-sweeps rule is now ENFORCED, because discipline failed twice.**
-  `source stm32mp1/gazebo/sweep_lock.sh` at the top of every sweep script; it
+  `source gazebo/sweep_lock.sh` at the top of every sweep script; it
   takes an exclusive lock and refuses to start if another sweep holds it. The
   second collision destroyed an atom ladder (three runs reported 0/143
   waypoints - the sim was killed under them) AND the fall-signature collection
@@ -622,11 +622,11 @@ sweep turned a known-good 21.23 m run into 3.54 m (worst control-loop time
 ## Measurement harnesses (Mac)
 
 ```bash
-stm32mp1/gazebo/host_sweep.sh <configfile> [secs]   # many env configs, one fresh stack each
-stm32mp1/gazebo/dash_sweep.sh                       # 100 m dash: fastest speed per gait
-stm32mp1/gazebo/refine_maxspeed.sh <results> [secs]  # bisect/push bracketed speed ceilings
-stm32mp1/gazebo/summarize_runs.py <results...>       # consolidate into the result tables
-stm32mp1/gazebo/dash_trace.py <max_s> [target_m]     # 10 Hz pose trace, times the line crossing
+gazebo/host_sweep.sh <configfile> [secs]   # many env configs, one fresh stack each
+gazebo/dash_sweep.sh                       # 100 m dash: fastest speed per gait
+gazebo/refine_maxspeed.sh <results> [secs]  # bisect/push bracketed speed ceilings
+gazebo/summarize_runs.py <results...>       # consolidate into the result tables
+gazebo/dash_trace.py <max_s> [target_m]     # 10 Hz pose trace, times the line crossing
 ```
 
 Config line format: `<label>  KEY=VAL KEY=VAL ...`; the label must carry the
@@ -669,7 +669,7 @@ ssh $BOARD 'cd /usr/local/cheetah-mp1 && ./unitree_probe /dev/ttySTM1 4000000 0'
 ## Gazebo Go1 SITL
 ```bash
 # Mac: Gazebo (headless) + bridge, one command (Ctrl-C stops both):
-stm32mp1/gazebo/run_gazebo_sim.sh            # --gui to watch the Go1
+gazebo/run_gazebo_sim.sh            # --gui to watch the Go1
 # Board: the controller, pointing at the Mac:
 ssh $BOARD "cd /usr/local/cheetah-mp1 && ./stand_sim $MAC"       # holds/squats a Go1 stance (clean demo)
 ssh $BOARD "cd /usr/local/cheetah-mp1 && ./jpos_ctrl_sim $MAC"   # JPos sine sweep
@@ -707,7 +707,7 @@ the `+10*i` ports for any instance beyond 0) before trusting a "frozen
 state"/"identical failure every run" result from a manual session.
 Regenerate the world after editing `make_world.py`:
 ```bash
-cd stm32mp1/gazebo
+cd gazebo
 gz sdf -p unitree_ros/robots/go1_description/urdf/go1.urdf > /tmp/go1_raw.sdf
 python3 make_world.py /tmp/go1_raw.sdf        # -> worlds/go1.sdf
 ```
@@ -740,7 +740,7 @@ ssh $BOARD 'free -m; uptime; ip -br addr'
 The bridge must run in the MIT abstract joint convention for every gait below:
 
 ```bash
-cd stm32mp1/gazebo
+cd gazebo
 export GZ_SIM_RESOURCE_PATH="$PWD/unitree_ros/robots:$PWD/models:/path/to/NinjaPilot/ground/gazebo_bridge/models"
 gz sim -s -r worlds/go1_farm.sdf &                       # headless server (farm world, solid buildings)
 BRIDGE_CONV=mit python3 cheetah_gazebo_bridge.py &       # gz python bindings: use the OpenPilot venv
@@ -784,7 +784,7 @@ cat > /tmp/cfg.txt <<'CFG'
 label-a | static_gait_sim | SG_VX=0.2 SG_T=1.0
 label-b | trot_sim        | TR_V=0.5 TR_DUTY=0.70
 CFG
-RUN_S=25 stm32mp1/gazebo/batch_test.sh /tmp/cfg.txt
+RUN_S=25 gazebo/batch_test.sh /tmp/cfg.txt
 ```
 Prints outcome (UPRIGHT / fell at t / never stood), end pose, distance, mean speed
 and yaw drift per config. It starts the world+bridge once, resets between runs, and
@@ -792,7 +792,7 @@ verifies each reset actually took effect (see CLAUDE.md for why that check exist
 
 ## Headless video capture
 ```bash
-python3 stm32mp1/gazebo/record_video.py out.mp4 25 /chase_cam
+python3 gazebo/record_video.py out.mp4 25 /chase_cam
 ```
 Records the `chase_cam` sensor on the robot's trunk straight into ffmpeg. Needs no
 GUI and does not spam "Saved image to:" toasts the way `/gui/screenshot` polling did.
@@ -835,7 +835,7 @@ run tells you nothing about what the hazard would have done.
 
 **Use `mission_runner.py`, not a bespoke `.sh` script, to launch and verify
 a run.** Per direct instruction to stop writing throwaway shell scripts
-that can hang forever: `stm32mp1/gazebo/conductor/mission_runner.py` talks
+that can hang forever: `gazebo/conductor/mission_runner.py` talks
 only to the conductor's REST API, has a genuine `--timeout` AND a
 `--stall-timeout` (no new orchestration log line for N seconds = abort and
 call `/api/stop` itself, rather than sitting in a fixed `sleep` loop until
@@ -855,16 +855,16 @@ defaults to 100s for exactly this reason, and a TIMEOUT verdict should be
 checked against the raw log before it is trusted as a real wedge.
 
 ```bash
-python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90
-python3 stm32mp1/gazebo/conductor/mission_runner.py \
+python3 gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90
+python3 gazebo/conductor/mission_runner.py \
   --slot "star:10.514:5" --slot "oval:40:5.0" --slot "atom:9.0:6" \
   --dash 100 --dash 100 --dash 100 --timeout 300
 ```
 
-## The Conductor fleet panel (`stm32mp1/gazebo/conductor/`)
+## The Conductor fleet panel (`gazebo/conductor/`)
 
 ```bash
-cd stm32mp1/gazebo/conductor && python3 server.py            # serves on :8420
+cd gazebo/conductor && python3 server.py            # serves on :8420
 open http://127.0.0.1:8420                                   # panel; /docs is the REST reference
 ```
 
@@ -937,7 +937,7 @@ catalog = ['star:10.514:5','oval:40:5.0','atom:9.0:6','spiro:9.0:8','dash:100',
 print(' '.join(f'--slot \"{m}\"' for m in random.sample(catalog, 3)))
 "
 # paste the three --slot args into:
-python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "..." --slot "..." --slot "..." \
+python3 gazebo/conductor/mission_runner.py --slot "..." --slot "..." --slot "..." \
   --timeout 600 --stall-timeout 200
 ```
 

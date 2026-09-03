@@ -1,5 +1,35 @@
 # Cheetah ↔ Go1 Gazebo SITL
 
+> **Moved 2026-08-31**: this tree used to live at `stm32mp1/gazebo/`. It is a
+> host-side SITL harness and has nothing to do with the STM32MP1 board port
+> beyond history — `stm32mp1/` is now just the board port (toolchain, deploy,
+> `lcm_shim`, `robot_main.cpp`). Every reference was rewritten; the relative
+> `#include "../../gazebo/ShmTrace.h"` depths are unchanged because only a
+> path segment was removed, not a directory level.
+
+## Start here
+
+```bash
+./start.sh              # bring the Conductor up (refuses to be a second server)
+./start.sh --open       # ...and open the panel
+./start.sh --restart    # stop.sh first, then start
+./status.sh             # is the rig actually working? (also: leak canary, strays)
+./stop.sh               # SAFE teardown - see below
+./stop.sh --hard        # also -9 any strays the reap left behind
+```
+
+`stop.sh` calls **`/api/stop` first**, then kills the server. That order is
+not cosmetic: `/api/stop` routes through the conductor's own
+`_reap_and_confirm()`, which kills every child it spawned and confirms each
+one dead. Killing the server first leaves it unable to reap what it owned —
+an orphaned `gz sim` then survives into the next run and lands its output in
+that run's log. That has already cost this project a debugging session in
+which three gaits were wrongly recorded as failing.
+
+`conductor/conductor.sh` is the older launcher and does **not** do this — it
+`kill -9`s first. Prefer `start.sh`.
+
+
 Run the Cheetah controller (on the STM32MP1) against a simulated Unitree **Go1** in
 **Gazebo Sim 8 (gz-harmonic)** on the Mac, connected over UDP — the same pattern as
 the OpenPilot `gazebo_bridge`. Simulated **IMU, baro, and GPS** feed the controller;
@@ -14,6 +44,22 @@ Gazebo (Go1)  ── /imu /air_pressure /navsat /joint_state ──►  cheetah_
 ```
 
 ## Layout
+
+- `start.sh` / `stop.sh` / `status.sh` — the entry points above.
+- `conductor/` — the browser control panel on `:8420` (`server.py`), the
+  mission harness (`mission_runner.py`), and the per-run subprocesses that
+  own all gz-transport for a run (`pose_feed.py`, `cam_feed.py`). Nothing
+  long-lived in the server touches gz-transport; see ISSUES.md OPEN-19/21 for
+  why that rule exists and what it cost to learn.
+- `worlds/`, `models/` — generated worlds and visual assets.
+- `ShmTrace.h` — per-tick SHM tracing, included from the controller tree by
+  relative path (`../../gazebo/ShmTrace.h` and friends). It lives here rather
+  than in `robot/include/` because it is a SITL diagnostic.
+- `*Controller.{cpp,hpp}`, `*_main.cpp`, `WaypointNav.*` — the sim-side
+  controllers, built by `robot/CMakeLists.txt` and
+  `user/MIT_Controller/CMakeLists.txt`.
+
+## Historical layout notes
 - `unitree_ros/robots/go1_description/` — the Go1 model (sparse checkout of unitree_ros).
 - `make_world.py` — converts `go1.urdf` → a gz-harmonic world: strips ROS/classic
   plugins, adds IMU + baro (air_pressure) + GPS (navsat) sensors, a joint-state
@@ -28,7 +74,7 @@ Gazebo (Go1)  ── /imu /air_pressure /navsat /joint_state ──►  cheetah_
 ## Run
 On the Mac:
 ```bash
-stm32mp1/gazebo/run_gazebo_sim.sh          # headless  (--gui for the viewer)
+gazebo/run_gazebo_sim.sh          # headless  (--gui for the viewer)
 ```
 On the STM32MP1 (from the deployed package):
 ```bash

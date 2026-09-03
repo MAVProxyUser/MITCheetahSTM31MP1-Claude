@@ -33,9 +33,9 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(ROOT, 'stm32mp1/gazebo/conductor'))
+sys.path.insert(0, os.path.join(ROOT, 'gazebo/conductor'))
 import campaign as _campaign   # noqa: E402  (panel progress)
-RUNNER = os.path.join(ROOT, "stm32mp1/gazebo/conductor/mission_runner.py")
+RUNNER = os.path.join(ROOT, "gazebo/conductor/mission_runner.py")
 CSV_PATH = os.path.join(HERE, "corner_envelope.csv")
 
 # Default tranche: the three flight gaits whose 90-147.5deg "mid-band"
@@ -155,7 +155,7 @@ def main():
                         print("[gate] conductor not answering - recycling",
                               flush=True)
                         sys.path.insert(0, os.path.join(
-                            ROOT, "stm32mp1/gazebo/conductor"))
+                            ROOT, "gazebo/conductor"))
                         import conductor_ctl
                         conductor_ctl.restart_server("server unreachable")
                         if not server_healthy():
@@ -169,7 +169,7 @@ def main():
                               "ran) - recycling and retrying"
                               % (gait, speed, angle), flush=True)
                         sys.path.insert(0, os.path.join(
-                            ROOT, "stm32mp1/gazebo/conductor"))
+                            ROOT, "gazebo/conductor"))
                         import conductor_ctl
                         conductor_ctl.restart_server("launch aborted")
                         continue

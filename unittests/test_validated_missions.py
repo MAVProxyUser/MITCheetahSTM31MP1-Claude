@@ -3,7 +3,7 @@
 Regression suite over this port's ESTABLISHED, validated mission/gait/speed
 combinations - the ones CLAUDE.md documents as the reliable baseline after
 real measurement, not guesses. Each case below is a real Gazebo SITL run
-through the conductor (stm32mp1/gazebo/conductor/), not a synthetic/mocked
+through the conductor (gazebo/conductor/), not a synthetic/mocked
 test - there is no meaningful way to unit-test this controller without the
 sim, and pretending otherwise would just move the lie somewhere less visible.
 
@@ -28,7 +28,7 @@ same way a human operator would - it cannot corrupt sim/controller state by
 construction (see mission_runner.py's own docstring for why that matters).
 
 Requires the conductor server already running:
-    python3 stm32mp1/gazebo/conductor/server.py &
+    python3 gazebo/conductor/server.py &
 """
 import argparse
 import subprocess
@@ -474,7 +474,7 @@ def run_case(case: Case, repeats: int) -> bool:
             # case so a permanently broken feed cannot silently eat the
             # suite.
             print(f"{label} NOFEED - pose feed dead; recycling conductor and retrying")
-            sys.path.insert(0, str(REPO_ROOT / "stm32mp1/gazebo/conductor"))
+            sys.path.insert(0, str(REPO_ROOT / "gazebo/conductor"))
             import conductor_ctl
             conductor_ctl.restart_server("NOFEED in " + case.name)
             proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)

@@ -351,7 +351,7 @@ stm32mp1/deploy.sh push <board-ip> /usr/local/cheetah-mp1
 
 **Gazebo SITL (Go1) — Gazebo on the Mac, controller on the board:**
 ```bash
-stm32mp1/gazebo/run_gazebo_sim.sh                 # Mac: Gazebo (headless) + bridge
+gazebo/run_gazebo_sim.sh                 # Mac: Gazebo (headless) + bridge
 ssh <board-ip> 'cd /usr/local/cheetah-mp1 && ./stand_sim <mac-ip>'   # board: stand + squat
 ```
 

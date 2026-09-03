@@ -12,7 +12,7 @@
 #include <cmath>
 #include "ConvexMPCLocomotion.h"
 #include <Controllers/SprawlGuard.h>
-#include "../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 // Per-foot force cap handed to the convex MPC. Mini-cheetah's 120 N suits a
 // 9 kg / 88 N robot; the Go1 is 13.1 kg / 128 N and its knee (35.55 Nm over a

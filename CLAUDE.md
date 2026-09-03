@@ -446,8 +446,8 @@ acceptance buffer - cruising at the commanded 0.28 m/s between them and pivoting
 at the corners. Repro:
 
 ```bash
-stm32mp1/gazebo/sim_up.sh worlds/go1_farm_flat.sdf --gui
-python3 stm32mp1/gazebo/trail_daemon.py star:3:5 500 &
+gazebo/sim_up.sh worlds/go1_farm_flat.sdf --gui
+python3 gazebo/trail_daemon.py star:3:5 500 &
 ssh $BOARD "cd /usr/local/cheetah-mp1 && WP_MISSION=star:3:5 WP_ACCEPT=0.3 \
   SG_VX=0.28 SG_T=0.85 SG_H=0.30 chrt -f 80 ./static_gait_sim $MAC"
 ```
@@ -1000,7 +1000,7 @@ plus the controller share the CPU, so the sim's real-time factor swings
 
 ### First result from the Mac harness: MPC segment time was capping the walk
 
-`stm32mp1/gazebo/host_sweep.sh <configfile> [seconds]` runs many configs back
+`gazebo/host_sweep.sh <configfile> [seconds]` runs many configs back
 to back, headless, one fresh stack each (with the sensor pre-flight check that
 a stale `gz sim` otherwise defeats). Five configs in ~7 minutes found this:
 
@@ -2956,7 +2956,7 @@ decisively (4-10 m). trot@0.8's 78.7 m does not, and is being repeated.
 
 ## The Conductor (Aug 2026): fleet control panel, cornering fix, dash-as-finish
 
-`stm32mp1/gazebo/conductor/` is a browser panel (`server.py`, aiohttp-free
+`gazebo/conductor/` is a browser panel (`server.py`, aiohttp-free
 stdlib HTTP + polling, `static/*.js`) that orchestrates up to 3 Go1s in Gazebo:
 draft a mission per dog slot (course, gait, speed, dash distance, per-dog
 camera config), launch, watch live telemetry and three body-mounted camera
@@ -3693,7 +3693,7 @@ making that reversal survivable, on the unquestioned assumption that a
 do you mean 'turned around' and 'target' it should be the final
 waypoint!"), it should never have had a reversal at all: a dash is ONE
 straight leg, ending at its own final waypoint. `WaypointNav::makeDash()`
-now does exactly that (`stm32mp1/gazebo/WaypointNav.{hpp,cpp}`), wired
+now does exactly that (`gazebo/WaypointNav.{hpp,cpp}`), wired
 ahead of the `outback:` branch in `mit_sim_main.cpp`'s `navThread()` so
 `dash:100` never falls through to the old course. The pivot-ramp and
 reversal-registration code from the earlier line of work is KEPT - it is
@@ -3750,14 +3750,14 @@ on its feet ... -> ok`, `lying down ... -> ok`, `mission result: PASS`.
 Per direct instruction ("stop using .sh scripts to launch the processes
 and make yourself a proper python launcher that ends properly and reads
 logs properly without just hanging indefinitely"). Lives in
-`stm32mp1/gazebo/conductor/mission_runner.py`, talks ONLY to the
+`gazebo/conductor/mission_runner.py`, talks ONLY to the
 conductor's REST API - never touches gz/bridge/controller processes
 directly, so it structurally cannot cause the "harness kills a legit run"
 class of bug this file already documents.
 
 ```
-python3 stm32mp1/gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90
-python3 stm32mp1/gazebo/conductor/mission_runner.py \
+python3 gazebo/conductor/mission_runner.py --slot "dash:100" --timeout 90
+python3 gazebo/conductor/mission_runner.py \
   --slot "star:10.514:5" --slot "oval:40:5.0" --slot "atom:9.0:6" \
   --gait trotRunning --gait trotRunning --gait trotting \
   --speed 3.5 --speed 3.5 --speed 2.1 \
@@ -4793,7 +4793,7 @@ silently diverge from what was actually on screen, which defeats the
 entire point of the feature.
 
 Also pulled `mission_waypoints()` out of `trail_daemon.py` and
-`mission_viz.py` into a new dependency-free `stm32mp1/gazebo/
+`mission_viz.py` into a new dependency-free `gazebo/
 mission_geometry.py` (no `gz` imports) so the report generator could use
 it without requiring the `gz.transport13` bindings, which only exist in
 specific venvs on this Mac. Found a real, previously-unnoticed bug doing
@@ -7109,7 +7109,7 @@ softness", and part of bounding's "bimodal" all evaporated under solo
 re-testing). A number computed BEFORE launch that predicts which
 combinations should break is testable. A story told afterwards is not.
 
-`stm32mp1/gazebo/conductor/load_budget.py`.
+`gazebo/conductor/load_budget.py`.
 
 ### The intuition was reasonable and the data refutes it
 
@@ -7424,7 +7424,7 @@ the full suite - changing it now would trade evidence for symmetry.
 ## HOST CONTENTION, MEASURED AT LAST - and at N<=3 it does not exist
 
 Per direct instruction, the experiment the load-budget model was built
-for. `stm32mp1/gazebo/conductor/contention_sweep.py`.
+for. `gazebo/conductor/contention_sweep.py`.
 
 **Design, and why it is not another inconclusive multi-dog batch.** Every
 previous fleet batch in this file varied TWO things at once - how many

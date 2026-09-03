@@ -2,7 +2,7 @@
 #include <Utilities/Timer.h>
 #include <eigen3/Eigen/LU>
 #include <eigen3/Eigen/SVD>
-#include "../../../../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
   template <typename T>
 WBIC<T>::WBIC(size_t num_qdot, const std::vector<ContactSpec<T>*>* contact_list,

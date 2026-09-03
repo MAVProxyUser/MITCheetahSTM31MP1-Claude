@@ -35,39 +35,39 @@ if(STM32MP1_BUILD)
 
   # Gazebo SITL executable (same controller, UDP backend to Gazebo on the workstation).
   add_executable(jpos_ctrl_sim
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/sim_main.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/sim_main.cpp
     ${PROJECT_SOURCE_DIR}/user/JPos_Controller/JPos_Controller.cpp)
   target_include_directories(jpos_ctrl_sim PRIVATE ${PROJECT_SOURCE_DIR}/user/JPos_Controller)
   target_link_libraries(jpos_ctrl_sim robot biomimetics dynacore_param_handler pthread)
 
   # Stand controller against Gazebo (holds a Go1 stance; validates the joint map).
   add_executable(stand_sim
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/stand_main.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/StandController.cpp)
-  target_include_directories(stand_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+    ${PROJECT_SOURCE_DIR}/gazebo/stand_main.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/StandController.cpp)
+  target_include_directories(stand_sim PRIVATE ${PROJECT_SOURCE_DIR}/gazebo)
   target_link_libraries(stand_sim robot biomimetics dynacore_param_handler pthread)
 
   # Joint-space creep-gait walk controller against Gazebo (walk A->B).
   add_executable(walk_sim
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/walk_main.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/WalkController.cpp)
-  target_include_directories(walk_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+    ${PROJECT_SOURCE_DIR}/gazebo/walk_main.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/WalkController.cpp)
+  target_include_directories(walk_sim PRIVATE ${PROJECT_SOURCE_DIR}/gazebo)
   target_link_libraries(walk_sim robot biomimetics dynacore_param_handler pthread)
 
   # Dynamic trot (Raibert footholds + attitude feedback); the speed gait.
   add_executable(trot_sim
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/trot_main.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/TrotController.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/WaypointNav.cpp)
-  target_include_directories(trot_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+    ${PROJECT_SOURCE_DIR}/gazebo/trot_main.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/TrotController.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/WaypointNav.cpp)
+  target_include_directories(trot_sim PRIVATE ${PROJECT_SOURCE_DIR}/gazebo)
   target_link_libraries(trot_sim robot biomimetics dynacore_param_handler pthread)
 
   # Statically-stable crawl with CoM shift (abstract convention; BRIDGE_CONV=mit).
   add_executable(static_gait_sim
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/static_gait_main.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/StaticGaitController.cpp
-    ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo/WaypointNav.cpp)
-  target_include_directories(static_gait_sim PRIVATE ${PROJECT_SOURCE_DIR}/stm32mp1/gazebo)
+    ${PROJECT_SOURCE_DIR}/gazebo/static_gait_main.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/StaticGaitController.cpp
+    ${PROJECT_SOURCE_DIR}/gazebo/WaypointNav.cpp)
+  target_include_directories(static_gait_sim PRIVATE ${PROJECT_SOURCE_DIR}/gazebo)
   target_link_libraries(static_gait_sim robot biomimetics dynacore_param_handler pthread)
 
   # Find the co-deployed third-party .so's next to the binary (deploy = copy the folder).

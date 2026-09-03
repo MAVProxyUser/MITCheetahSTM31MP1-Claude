@@ -20,7 +20,7 @@
 
 #include "rt/rt_rc_interface.h"
 #include "Math/orientation_tools.h"
-#include "../../stm32mp1/gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include "../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
 // Defined in RobotRunner.cpp; suspends the z-collapse fall check around
 // known-safe low-height windows (see the sequencer thread below and
