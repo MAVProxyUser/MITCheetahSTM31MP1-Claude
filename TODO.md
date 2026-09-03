@@ -19,6 +19,11 @@
 - [x] **Moved `stm32mp1/gazebo/` → `gazebo/`** with `start.sh`/`stop.sh`/
       `status.sh`. Broke 11 `..`-counting paths doing it; `REPO_ROOT` is now
       self-checking.
+- [x] **OPEN-7 `relief_k`** — measured (c8): parity with the 2.0 cap at
+      lower throughput at every k; stays 0. Its case is mixed terrain.
+- [x] **OPEN-8 closed** — 210 cells + c9's 60-run redo: 22 confirmed, 5
+      marginal, 3 artefacts (all walking). Nothing in the planner reads a
+      per-gait angle table, so the envelope is data, and it is measured.
 - [ ] **OPEN-23** — first A/B confounded by its own probe. `tier2b` re-runs
       it with a probe that closes and a machine-checked drain. Clean N=1
       numbers so far: 10 Hz → 10.1 fps @ 6% GPU, 30 Hz → 15.5 fps @ 12% GPU.

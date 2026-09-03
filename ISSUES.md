@@ -115,52 +115,6 @@ passed on its own in-suite retry.
   a walking entry — campaign c12 (queued) runs rough/trotting 2.5/2.75/3.0
   with a flat control, N=10, to give trotting its own rung.
 
-- **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
-  TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at
-  45/90/135° on solo `corner:25:<angle>` probes, ladders run low to high
-  with every rung measured:
-
-  | gait | measured | what it means |
-  |---|---|---|
-  | trotting | FELL at 3.0 AND 3.5 at every angle; 3.0/45° reproduced **3/3** | ceiling between 2.5 and 3.0 |
-  | trotRunning | PASS at 4.0 **and 4.5**, all angles | no ceiling found yet |
-  | walking | PASS 2.0 all; 2.5 passes 45/90 but FELL at 135° | angle-dependent |
-  | bounding | PASS at 1.5 and 2.0, all angles | no ceiling found yet |
-  | galloping | PASS 1.1; FELL at 1.4 (45/90) | ceiling 1.1–1.4 |
-  | pronking | PASS 0.8; 1.0 marginal | ceiling ~0.8–1.0 |
-
-  **This retires a citation that could not be used.** The old "trotting 2.5
-  PASS / 3.0 FAIL at ≥120°" bracket predated the `x_comp_integral` windup
-  fix, so it was not evidence about the current build. Re-measured, it
-  holds — and at EVERY angle, not just the tight ones, which makes it a
-  speed limit rather than a cornering one.
-  **Second tranche DONE (campaign c9, 2026-09-03): the 30 N=1 non-PASS
-  cells re-run ×2 each on the clean server, 60 runs.** Result:
-
-  | outcome | cells | which |
-  |---|---|---|
-  | **confirmed** (repeats agree with the original) | 22 | every bounding, galloping, trotRunning and trotting ceiling cell, walking 2.0@150 |
-  | **marginal** (repeats split) | 5 | pronking 1.0@45/90, trotting 2.6@135, walking 2.5@75/105 |
-  | **original was an artefact** (repeats all PASS) | 3 | **walking** 2.25@135, walking 2.5@120, walking 2.5@135 |
-  | indeterminate | 1 run | trotting 3.0@45's second repeat TIMEOUT'd at 239 s (unknown verdict; the cell is FELL/FELL + ?) |
-
-  So the leaky-server bias was real but **gait-specific: it hit walking
-  and nothing else.** Walking is the slowest gait — longest runs, most
-  exposure to a stalling conductor. Every other gait's bracket stands
-  exactly as measured. The bracket table above is therefore right for
-  trotting / trotRunning / bounding / galloping / pronking, and WRONG for
-  walking, whose row should read: **2.25 passes 45/90/135°; 2.5 passes
-  30/45/60/90/120/135/150/165° and is marginal at 75/105°** — not "angle-
-  dependent", just a ceiling near 2.5 with noise at two angles.
-  Fixed on the way: `corner_sweep.py`'s detail column was quoting the
-  runner's own advisory text ("...check whether the mission had already
-  reached MISSION COMPLETE / RESULT: PASS"), which made that TIMEOUT read
-  like a hidden PASS. Advisory lines are now excluded.
-  **What is left**: the five marginal cells at N=5+ if anyone needs those
-  exact rungs; otherwise the envelope is measured to the resolution the
-  planner's per-gait `a_lat_max` table uses, and this issue is ready to
-  close once that table is re-read against the corrected walking row.
-
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
   re-validated there, or JCQP made to converge on moving gaits, or the
@@ -249,6 +203,100 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED (was OPEN-8) · The per-gait cornering envelope, measured to the resolution anything reads it at
+
+**Question.** Per gait, at what speed does a solo `corner:25:<angle>` probe
+stop passing, and does the answer depend on the angle?
+
+**Measurement.** 210 cells in `unittests/corner_envelope.csv` (six gaits,
+30–165° in 15° steps, rungs bracketed low-to-high), then campaign c9
+re-ran every N=1 non-PASS cell twice more on the clean conductor (30
+cells, 60 runs). Brackets:
+
+| gait | ceiling | angle-dependent? |
+|---|---|---|
+| trotting | 2.5 passes everywhere; 2.6–2.8 marginal at scattered angles; 3.0 FELL ×3 at 45/90/135 (confirmed) | no — a speed limit |
+| trotRunning | 4.0 passes everywhere; 4.5 FELL at 60/150 (confirmed) | mostly no |
+| walking | 2.25 passes 45/90/135; 2.5 passes 8 of 10 angles, marginal at 75/105 | **no** — corrected by c9 |
+| bounding | 1.5 passes 9 of 10; 2.0 FELL at 5 angles (all confirmed) | ceiling 1.5–2.0 |
+| galloping | 1.3 passes everywhere; 1.4 FELL 45/90 (confirmed) | ceiling 1.3–1.4 |
+| pronking | 0.9 passes everywhere; 1.0 marginal at 45/90 | ceiling ~1.0 |
+
+**What c9 changed.** The pre-2026-08-31 verdicts were taken on a conductor
+leaking ~1 thread/run, biased toward FELL. That bias turned out to be
+**gait-specific**: 22 of 30 cells reproduced, 5 were marginal, and the 3
+outright artefacts were all *walking* (2.25@135, 2.5@120, 2.5@135) — the
+slowest gait, longest runs, most exposure to a stalling server. Every
+other gait's ceiling stands. Walking's row was rewritten; the earlier
+"angle-dependent" claim for it was the leak, not the robot.
+
+**Why it closes rather than refines.** Nothing in the planner reads a
+per-gait angle table: `a_lat_max` is one physics constant (2.5, derated
+by measured friction to `0.9·μ·g`), and corner speed is continuous
+geometry (`v ≤ sqrt(a_lat_max/κ)`, angle-graded fillets). The envelope is
+descriptive data about where each gait's own dynamics give out, and it is
+now measured to finer resolution than anything consumes it at. The five
+marginal cells (N=3, split) are exactly what a ceiling looks like at N=3;
+raising them to N=5+ would sharpen a number nobody reads.
+
+**Also fixed on the way.** `corner_sweep.py` gained `--wait-for-gate`
+(a closed launch gate is waited out, never recorded), `--redo-nonpass
+--reps N` (the second tranche as a repeatable command), `--list` (dry-run
+so a chained sweep can be validated before it fires), and its detail
+column no longer quotes the runner's own timeout advice as if it were a
+verdict.
+
+The original OPEN-8 text follows, for the record of how the brackets were
+built:
+
+- *(was)* **OPEN-8 · The per-gait cornering envelope: the SPEED axis** — `FIRST
+  TRANCHE MEASURED`, brackets still being tightened. 34 valid cells at
+  45/90/135° on solo `corner:25:<angle>` probes, ladders run low to high
+  with every rung measured:
+
+  | gait | measured | what it means |
+  |---|---|---|
+  | trotting | FELL at 3.0 AND 3.5 at every angle; 3.0/45° reproduced **3/3** | ceiling between 2.5 and 3.0 |
+  | trotRunning | PASS at 4.0 **and 4.5**, all angles | no ceiling found yet |
+  | walking | PASS 2.0 all; 2.5 passes 45/90 but FELL at 135° | angle-dependent |
+  | bounding | PASS at 1.5 and 2.0, all angles | no ceiling found yet |
+  | galloping | PASS 1.1; FELL at 1.4 (45/90) | ceiling 1.1–1.4 |
+  | pronking | PASS 0.8; 1.0 marginal | ceiling ~0.8–1.0 |
+
+  **This retires a citation that could not be used.** The old "trotting 2.5
+  PASS / 3.0 FAIL at ≥120°" bracket predated the `x_comp_integral` windup
+  fix, so it was not evidence about the current build. Re-measured, it
+  holds — and at EVERY angle, not just the tight ones, which makes it a
+  speed limit rather than a cornering one.
+  **Second tranche DONE (campaign c9, 2026-09-03): the 30 N=1 non-PASS
+  cells re-run ×2 each on the clean server, 60 runs.** Result:
+
+  | outcome | cells | which |
+  |---|---|---|
+  | **confirmed** (repeats agree with the original) | 22 | every bounding, galloping, trotRunning and trotting ceiling cell, walking 2.0@150 |
+  | **marginal** (repeats split) | 5 | pronking 1.0@45/90, trotting 2.6@135, walking 2.5@75/105 |
+  | **original was an artefact** (repeats all PASS) | 3 | **walking** 2.25@135, walking 2.5@120, walking 2.5@135 |
+  | indeterminate | 1 run | trotting 3.0@45's second repeat TIMEOUT'd at 239 s (unknown verdict; the cell is FELL/FELL + ?) |
+
+  So the leaky-server bias was real but **gait-specific: it hit walking
+  and nothing else.** Walking is the slowest gait — longest runs, most
+  exposure to a stalling conductor. Every other gait's bracket stands
+  exactly as measured. The bracket table above is therefore right for
+  trotting / trotRunning / bounding / galloping / pronking, and WRONG for
+  walking, whose row should read: **2.25 passes 45/90/135°; 2.5 passes
+  30/45/60/90/120/135/150/165° and is marginal at 75/105°** — not "angle-
+  dependent", just a ceiling near 2.5 with noise at two angles.
+  Fixed on the way: `corner_sweep.py`'s detail column was quoting the
+  runner's own advisory text ("...check whether the mission had already
+  reached MISSION COMPLETE / RESULT: PASS"), which made that TIMEOUT read
+  like a hidden PASS. Advisory lines are now excluded.
+  **What is left**: the five marginal cells at N=5+ if anyone needs those
+  exact rungs; otherwise the envelope is measured to the resolution the
+  planner's per-gait `a_lat_max` table uses, and this issue is ready to
+  close once that table is re-read against the corrected walking row.
+
+
 
 ### CLOSED · The conductor thread leak: four attempts, and what finally found it
 
