@@ -163,6 +163,69 @@ passed on its own in-suite retry.
   feet - which is exactly the observed 2.5x disagreement between its
   position and velocity blocks. **Hypothesis, not yet established.**
 
+  **c22 RAN IT, and it refutes the hypothesis above.** (2026-09-03,
+  8 runs flat/walking@3.5 -- over the validated 2.5 so it folds rather
+  than tips -- shadowed by a standalone `pose_feed.py` at 200 Hz for gz
+  ground truth. Rows in `gazebo/conductor/data/c22_open26_truth_vs_estimator.csv`.)
+  The two series have no common clock, so nothing is aligned by time:
+  each is measured against ITS OWN healthy plateau, which also cancels
+  the constant 0.02 m frame offset between gz's model origin (0.307) and
+  the estimator's `position[2]` (0.288).
+
+  **The control validates the instrument.** The three PASS runs end in a
+  deliberate lie-down, and there the estimator tracks ground truth
+  exactly -- descent rate 0.056-0.060 vs 0.057-0.059 m/s, ratio 0.98 /
+  1.00 / 1.02, lead +0.00 s. Whatever goes wrong in a collapse is not
+  the measurement.
+
+  **In a collapse the estimator's height runs AHEAD of the body:**
+
+  | | estimator z | gz truth | ratio |
+  |---|---|---|---|
+  | deliberate lie-down (n=3) | 0.057 m/s | 0.058 m/s | 1.00 |
+  | collapse (n=5) | **0.174 m/s** | **0.098 m/s** | **1.79** |
+
+  Measured as time, the estimator completes the same 0.12 m of descent
+  **0.98 s before the body actually does** (per run: 0.49, 1.32, 1.21,
+  1.39, 0.52 s; the control runs give 0.00).
+
+  **And the velocity block reports ~ZERO through all of it.** `vz` at the
+  bottom of each collapse: 0.00, -0.00, -0.01, -0.00, -0.00 m/s -- while
+  the same state vector's position block is moving at 0.174 m/s and the
+  real body at 0.098. In the control runs `vz` is small but nonzero and
+  consistent with the slow descent (+0.06, -0.06, +0.07). So the filter
+  is not merely imprecise during a fold; **its position and velocity
+  blocks assert incompatible things**, and neither is right.
+
+  **So the hypothesis I wrote above -- "the filter cannot see the body
+  sinking" -- is wrong as stated.** The velocity block indeed cannot see
+  it (0.00 against a real 0.098 m/s). But the position block over-reacts,
+  registering a collapse ~1.8x faster and a full second earlier than it
+  happens. "Blind" was the wrong word in one direction and the right one
+  in the other.
+
+  **Mechanism, offered as hypothesis and NOT established.** The KF
+  corrects body position from foot kinematics, trusting each foot as a
+  fixed world point on the *schedule's* say-so (see c21 above: there is
+  no contact estimation). If the legs buckle while the feet stay planted,
+  the leg's kinematic height shrinks and the filter reads that as the
+  body having dropped -- faster than the body really moved. The same
+  planted-foot assumption pins the velocity measurement at zero. One
+  assumption, both symptoms.
+
+  **Operational consequence worth its own test.** The fall detector fires
+  on the estimator's `z`. If that signal leads the body by ~1 s, the rig
+  has been declaring falls a second before the robot reaches the deck --
+  and every "capability ceiling" this project has measured is a count of
+  those declarations. Whether the robot could recover in that second is
+  **untested**; what is measured is only that the declaration is early.
+
+  **Caveats, stated plainly.** n=5 collapses, one cell, one gait, one
+  speed. 4 of the 5 classify LEVEL by end attitude, matching the
+  archive's dominant mode, but it is not established that an over-speed
+  fold at 3.5 m/s is the same phenomenon as the archive's population.
+  Confirmation at larger N and on a second cell is the next step.
+
   **The decisive next test, and it needs no rebuild.** The trace carries
   the estimator's `z` and `vz` but no ground truth, so we cannot say
   WHICH of the two is wrong. `gazebo/conductor/pose_feed.py` already

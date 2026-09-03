@@ -1,0 +1,9 @@
+wall,rep,verdict,truth_lines,snapshot,truth
+17:48:10,1,PASS,2515,/tmp/cheetah_conductor/archive/shm_trace/20260903_174809_dog0_PASS_c22.json,/tmp/c22/truth_rep1.jsonl
+17:48:48,2,FAIL,1877,/tmp/cheetah_conductor/archive/shm_trace/20260903_174848_dog0_FAIL_c22.json,/tmp/c22/truth_rep2.jsonl
+17:49:37,3,PASS,2506,/tmp/cheetah_conductor/archive/shm_trace/20260903_174937_dog0_PASS_c22.json,/tmp/c22/truth_rep3.jsonl
+17:50:16,4,FAIL,1874,/tmp/cheetah_conductor/archive/shm_trace/20260903_175016_dog0_FAIL_c22.json,/tmp/c22/truth_rep4.jsonl
+17:50:55,5,FAIL,1895,/tmp/cheetah_conductor/archive/shm_trace/20260903_175055_dog0_FAIL_c22.json,/tmp/c22/truth_rep5.jsonl
+17:51:33,6,FAIL,1887,/tmp/cheetah_conductor/archive/shm_trace/20260903_175133_dog0_FAIL_c22.json,/tmp/c22/truth_rep6.jsonl
+17:52:22,7,PASS,2514,/tmp/cheetah_conductor/archive/shm_trace/20260903_175222_dog0_PASS_c22.json,/tmp/c22/truth_rep7.jsonl
+17:53:01,8,FAIL,1881,/tmp/cheetah_conductor/archive/shm_trace/20260903_175301_dog0_FAIL_c22.json,/tmp/c22/truth_rep8.jsonl
