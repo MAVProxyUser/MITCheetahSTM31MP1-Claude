@@ -58,6 +58,24 @@ def done_cells():
     return cells
 
 
+def nonpass_cells():
+    """Cells whose ONLY row is FELL/FAIL - the second tranche. Every one of
+    them was measured N=1, and on a conductor that was leaking ~1 thread per
+    run (fixed 2026-08-31), which both dropped launches and depressed pass
+    rates - i.e. biased toward exactly these verdicts. A cell with several
+    rows already has its repeats and is left alone."""
+    rows = {}
+    if os.path.exists(CSV_PATH):
+        with open(CSV_PATH) as f:
+            for row in csv.DictReader(f):
+                if row["verdict"] in ("TIMEOUT", "REFUSED", "ABORTED"):
+                    continue
+                k = (row["gait"], float(row["speed"]), int(float(row["angle"])))
+                rows.setdefault(k, []).append(row["verdict"])
+    return sorted(k for k, v in rows.items()
+                  if len(v) == 1 and v[0] in ("FELL", "FAIL"))
+
+
 def server_healthy():
     """Is the conductor answering at all? See the call site."""
     try:
@@ -75,6 +93,11 @@ def run_cell(gait, speed, angle, leg):
     spec = "corner:%g:%g" % (leg, angle)
     cmd = [sys.executable, RUNNER, "--slot", spec, "--gait", gait,
            "--speed", str(speed), "--dash", "0",
+           # Sit out a closed launch gate (Time Machine, fleet tearing down)
+           # instead of recording the refusal as a robot verdict - a refused
+           # launch consumed 15 reps in 51 s on another harness before
+           # mission_runner grew this flag and LAUNCH_REFUSED_EXIT (5).
+           "--wait-for-gate", "3600",
            "--extra", "WP_CLOSE_LEG=0"]
     t0 = time.time()
     p = subprocess.run(cmd, capture_output=True, text=True)
@@ -83,7 +106,7 @@ def run_cell(gait, speed, angle, leg):
     if p.returncode == 3 or "LAUNCH ABORTED BY THE SERVER" in out:
         # The launch never ran (world build / gz discovery). Not a verdict.
         return "ABORTED", wall, "launch aborted by the server - re-run"
-    if "launch refused" in out:
+    if p.returncode == 5 or "launch refused" in out:
         # The conductor's launch gate said no (a Time Machine backup, a
         # fleet still active, ...). NOT a mission verdict, and it burned an
         # hour of this sweep's first attempt: the 2026-08-28 first run
@@ -113,13 +136,36 @@ def main():
     ap.add_argument("--angles", default=None,
                      help="comma-separated degrees; default 30..165 step 15")
     ap.add_argument("--leg", type=float, default=25.0)
+    ap.add_argument("--redo-nonpass", action="store_true",
+                     help="ignore --gait/--angles; re-run every cell whose "
+                          "only row is FELL/FAIL, --reps more times each, "
+                          "APPENDING rows (the tally aggregates per cell)")
+    ap.add_argument("--reps", type=int, default=2,
+                     help="repeats per cell in --redo-nonpass mode")
+    ap.add_argument("--list", action="store_true",
+                     help="print the cells that would run, then exit")
     args = ap.parse_args()
 
-    gaits = args.gait or DEFAULT_GAITS
-    angles = ([int(a) for a in args.angles.split(",")] if args.angles
-              else DEFAULT_ANGLES)
-    seen = done_cells()
-    _total = len(gaits) * len(angles)
+    if args.redo_nonpass:
+        # (gait, speed, angle) triples, each repeated --reps times; the skip
+        # set is emptied so existing rows do not suppress the repeat.
+        cells = [c for c in nonpass_cells() for _ in range(args.reps)]
+        seen = set()
+    else:
+        gaits = args.gait or DEFAULT_GAITS
+        angles = ([int(a) for a in args.angles.split(",")] if args.angles
+                  else DEFAULT_ANGLES)
+        cells = [(g.split(":")[0], float(g.split(":")[1]), a)
+                 for g in gaits for a in angles]
+        seen = done_cells()
+    if args.list:
+        todo = [c for c in cells if c not in seen]
+        for c in todo:
+            print("%s@%g angle=%d" % c)
+        print("%d runs (%d already measured, skipped)"
+              % (len(todo), len(cells) - len(todo)))
+        return
+    _total = len(cells)
     _done = 0
 
     new_file = not os.path.exists(CSV_PATH)
@@ -128,10 +174,8 @@ def main():
         if new_file:
             w.writerow(["gait", "speed", "angle", "verdict", "wall_s",
                         "detail", "when"])
-        for gs in gaits:
-            gait, speed = gs.split(":")
-            speed = float(speed)
-            for angle in angles:
+        for gait, speed, angle in cells:
+            if True:   # keeps the original loop body's indentation intact
                 if (gait, speed, angle) in seen:
                     print("[skip] %s@%g angle=%d (already measured)"
                           % (gait, speed, angle), flush=True)

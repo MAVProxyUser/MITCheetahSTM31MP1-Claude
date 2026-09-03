@@ -111,16 +111,21 @@ passed on its own in-suite retry.
   fix, so it was not evidence about the current build. Re-measured, it
   holds — and at EVERY angle, not just the tight ones, which makes it a
   speed limit rather than a cornering one.
-  **What is left**: finer rungs inside each bracket (trotting 2.6/2.8,
-  galloping 1.2/1.3, pronking 0.9/1.0), ×3 repeats on every N=1 non-PASS,
-  and the wider angle grid (30/60/75/105/120/150/165°) at each gait's
-  measured ceiling. All of it is running; `corner_sweep.py` is resumable
-  and now recycles rather than records when a launch aborts.
-  **Method constraint, learned twice in this file**: run the ladder LOW to
-  HIGH and measure EVERY rung — a stop-at-first-failure ladder has twice
-  recorded a ceiling here that had to be retracted.
-
-### Hardware (nothing in this repo is hardware-validated)
+  **Correction (2026-09-02): the list above was already done.** The CSV
+  holds **210 cells**: trotting 2.5/2.6/2.7/2.8/3.0/3.5, galloping
+  0.8–1.4, pronking 0.6–1.0, bounding 1.0–2.0, trotRunning 3.5–4.5, walking
+  2.0–2.5, most at the full 30–165° grid. This entry had not been updated
+  since the first tranche and was still asking for rungs the CSV already
+  contains.
+  **What is actually left — the second tranche, running as campaign c9**:
+  every FELL/FAIL in that CSV is **N=1**, and every one was measured on the
+  conductor that was leaking ~1 thread per run (fixed 2026-08-31), which
+  both dropped launches and depressed pass rates — i.e. biased toward
+  exactly those verdicts. PASS cells are robust to that bias; the 30
+  non-PASS cells are not. `corner_sweep.py --redo-nonpass --reps 2` re-runs
+  each of them twice more on the clean server (60 runs) and appends rows;
+  the tally then aggregates per cell. A bracket only moves if a cell's
+  repeats disagree with its original.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
@@ -190,10 +195,21 @@ passed on its own in-suite retry.
   | 10 Hz / 0.1 s (shipped) | 10.1 | 6% |
   | 30 Hz / 0.033 s | 15.5 | 12% |
 
-  So 30 Hz roughly **doubles GPU for +50% fps** — and does NOT give 30 fps,
-  which is itself worth understanding before paying for it. N=1 per arm;
-  no recommendation until re-measured with a probe that closes cleanly and
-  a settle between reps. Deliberately NOT changing a default blind — this
+  So 30 Hz roughly **doubles GPU for +50% fps** — and does NOT give 30 fps.
+  **tier2b (30 runs, 3 alternating blocks) re-measured with a probe that
+  closes and a machine-checked drain — and the probe was NOT the confound.**
+  `viewers@start` was 0 on every rep, yet the pattern is identical: the
+  first run after each server restart gets the full rate (10.2 / 15.7), and
+  every later run in the block gets a flat **~44%** of it (4.4 / 6.6) — in
+  both arms. A constant fraction, not a decay, which smells like one extra
+  renderer sharing the GPU from run 2 on (`status.sh` has already found a
+  33-hour orphaned `gz sim` once). Also noted, not concluded: pass rate with
+  cameras ON was 10/15 and 8/15 on `rough@2.0`, against 90% camera-dark in
+  c6 — N=15, and confounded by whatever the fps thing is.
+  **Next: campaign c10** (chained last, per priority) — 4 runs after a
+  restart, recording per run: `gz` process count and ages, GPU %, the
+  viewer's delivered fps, and `cam_feed`'s OWN receive rate (new 5 s log
+  line) so sensor-side rate and delivered rate can be told apart. Deliberately NOT changing a default blind — this
   rig has already had machine load silently explain a sim failure.
 
 ---

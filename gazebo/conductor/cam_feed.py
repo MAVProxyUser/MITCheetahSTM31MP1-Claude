@@ -98,6 +98,7 @@ def main():
     def on_image(msg, idx, camname):
         key = "%d:%s" % (idx, camname)
         now = time.time()
+        state["n_" + key] = state.get("n_" + key, 0) + 1   # raw receive count
         # Mute gate BEFORE the encode - unchecking a camera in the panel
         # must stop the work, not just hide the tile (the in-server version
         # gated here too, and that property is worth keeping).
@@ -213,8 +214,29 @@ def main():
     sys.stderr.write("[cam_feed] receiving (%d frames in warmup)\n" % state["count"])
     sys.stderr.flush()
 
+    # RECEIVE-RATE LOG, every 5 s per camera (OPEN-23). tier2b measured the
+    # viewer's DELIVERED rate collapsing to ~44% of the sensor rate on every
+    # run after the first following a server restart, and could not tell
+    # whether the sensor stopped rendering at 10 Hz or the frames were lost
+    # between here and the browser. This line is the sensor-side truth: what
+    # this process actually received from gz, before any encode or transport.
+    rate_seen = {}
+    last_rate_t = time.time()
     while True:
         time.sleep(1.0)
+        now = time.time()
+        if now - last_rate_t >= 5.0:
+            span = now - last_rate_t
+            parts = []
+            for key in sorted(last_emit):
+                n = state.get("n_" + key, 0) - rate_seen.get(key, 0)
+                rate_seen[key] = state.get("n_" + key, 0)
+                parts.append("%s=%.1f" % (key, n / span))
+            if parts:
+                sys.stderr.write("[cam_feed] rx fps over %.0fs: %s\n"
+                                 % (span, " ".join(parts)))
+                sys.stderr.flush()
+            last_rate_t = now
         if args.deaf_after > 0:
             gap = time.time() - state["last"]
             if gap > args.deaf_after:
