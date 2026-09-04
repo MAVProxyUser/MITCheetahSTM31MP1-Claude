@@ -620,6 +620,37 @@ passed on its own in-suite retry.
   worth about 1 recovered excursion in 9 - if someone wants it, it needs
   its own campaign, not this one's leftovers.
 
+  **FINAL, AND IT RETRACTS MY OWN EARLIER READING: the orientation limit
+  does not bind capability AT ALL.** (2026-09-04, 4-point dose-response on
+  matched cells, 28.6 / 45 / 60 / 90 deg. At 90 deg the attitude E-stop is
+  effectively disabled.)
+
+  | limit | trotting flat @3.5 | walking flat @3.5 |
+  |---|---|---|
+  | 28.6 (shipped) | 5/8 (62%) | 7/8 (88%) |
+  | 45 | 12/24 (50%) | 15/16 (94%) |
+  | 60 | 6/16 (38%) | 14/16 (88%) |
+  | 90 (no E-stop) | 6/8 (75%) | 8/8 (100%) |
+
+  **No ordering. 28.6 vs 90 deg: Fisher p = 1.000 on both cells.** The
+  trotting column bounces 38-75% across arms that ought to be monotonic,
+  which is this rig's familiar +/-20 point block noise showing up between
+  arms.
+
+  **So the "+16 points at 45 deg" reported earlier (13/25 vs 17/25,
+  p = 0.387) was noise, and I am retracting it as an effect.** A
+  four-point dose-response is what settled it: two arms could not, because
+  two arms cannot show you that the ordering is absent. That is the
+  cheapest lesson here - when an A/B is suggestive but not significant,
+  another arm is worth more than more N in the same two.
+
+  **The conclusion is now stronger than "approximately right".** Raising
+  the threshold, or removing it, does not buy capability: 87% of
+  excursions past it are unrecoverable (9/67), and the pass rate does not
+  move even with the check effectively off. The E-stop is nearly free - it
+  aborts runs that were going to fail anyway, ~0.4 s earlier. **Every
+  capability ceiling in this record is a real dynamic limit.**
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
