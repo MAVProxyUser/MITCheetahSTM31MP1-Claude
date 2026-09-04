@@ -648,6 +648,37 @@ sweep turned a known-good 21.23 m run into 3.54 m (worst control-loop time
 
 ## Measurement harnesses (Mac)
 
+### The campaign toolchain (gazebo/tools/) — use these, not one-off scripts
+
+Everything below reads its paths from `paths.sh` / `paths.py`, so nothing
+lands in `/tmp`.
+
+| tool | what it is for |
+|---|---|
+| `paths.sh` / `paths.py` | the single definition of `$CHEETAH_DATA`, `RUN_DIR`, `ARCHIVE_DIR`, `CAMPAIGN_DIR`, `LOG_DIR` |
+| `run_queue.sh QUEUEFILE [CAP_S]` | runs a list of jobs, **each under `timeout`** so no job can hang the night; a failure logs and the queue continues; conductor health-checked between jobs |
+| `campaign_truth.sh NAME REPS ARM...` | one run per rep per arm, arms **alternated every rep**; captures the controller ring, gz pose truth (incl. roll/pitch) and gz foot-contact truth; retries the snapshot dump 3x before aborting. `CAMPAIGN_EXTRA=` appends env to every run |
+| `campaign_lib.sh` | `campaign_done` / `campaign_failed` write a marker FILE; `wait_for_campaign NAME DEADLINE` polls that file and **returns 1 on a deadline** rather than blocking |
+| `rig_watchdog.sh [INTERVAL] [STALE]` | alerts to `$LOG_DIR/rig_idle.log` when no mission process has run for STALE seconds. Busy is a `pgrep` question, never a phase string |
+| `distill.py [--prune]` | raw rings → per-run summary + 50 Hz descent window with 2 s pre-roll. 710 snapshots, 5.8 GB → 6.3 MB. `--prune` deletes a raw file only after re-reading its distilled record, and keeps `--keep-recent` full rings |
+| `add_foot_contacts.py WORLD [--remove]` | injects gz foot contact sensors. **Sim-only LABELS** — the operator's Go1 EDU has none, so no control path may read them |
+| `open26_*.py` | the OPEN-26 analysis set: `estop` (which falls E-stop and at what attitude), `excursion` (do excursions past the limit recover), `precursor` (does contact loss precede the fall), `contact_score` (schedule vs inferred contact vs truth), `divergence`, `three_way`, `firetime`, `mechanism`, `attitude`, `ground` |
+
+**The instrument must be proven before the campaign spends the night on
+it.** `campaign_truth.sh` aborts if the first run captures no ground truth,
+or if three snapshot dumps fail. Add the same check to anything new: on
+2026-09-04 a field read 0.000 for hours because `shmtrace`'s free `log()`
+accepted an argument and never forwarded it — it compiled clean, because
+the parameter had a default. **A sentinel value written immediately before
+the call is what exposed it.** Use one.
+
+**Two plumbing traps in this codebase.** `printf` does not reach
+`ctrl_0.log` — debug output goes through the shm text ring, so use
+`shmtrace::logf`. And `mission_runner.py --extra` is **per-slot and
+positional**: several variables go in ONE space-separated argument; a
+second `--extra` silently targets slot 2, which usually does not exist.
+
+
 ```bash
 gazebo/host_sweep.sh <configfile> [secs]   # many env configs, one fresh stack each
 gazebo/dash_sweep.sh                       # 100 m dash: fastest speed per gait
@@ -827,12 +858,53 @@ GUI and does not spam "Saved image to:" toasts the way `/gui/screenshot` polling
 ## Run numbers - use them
 
 Every launch gets a monotonic run number, persisted across server restarts
-(`/tmp/cheetah_conductor/run_seq.txt`). It appears in the panel, on every
+(`$CHEETAH_DATA/conductor/run_seq.txt`). It appears in the panel, on every
 orchestration log line (`run47 dog2: ...`), and inside each dog's own
 controller log via `$SIM_RUN_ID`. Quote it when reporting behaviour - "run
 47's atom did X" is unambiguous, "the atom fell" is not.
 
 ## Harness rules learned the hard way (2026-08-25)
+
+**RUN DATA NEVER LIVES IN /tmp.** (2026-09-04, operator: *"stop working out
+of /tmp for fuck sake!"*) `gazebo/paths.py` and `gazebo/tools/paths.sh` are
+the single definition; everything - conductor `RUN_DIR`, the shm archive,
+campaign CSVs, queue and watchdog logs - resolves under `$CHEETAH_DATA`,
+default `<repo>/../rundata`. macOS purges `/tmp`, and this project had
+already lost `go1_raw.sdf` from there and was one purge away from losing
+5.8 GB of fall traces that every OPEN-26 number rested on. Override with
+`CHEETAH_DATA=` if you want it elsewhere; do not hardcode a path.
+
+**CLASSIFY A FAILURE AT THE TRIGGERING EVENT, NEVER AT THE END OF THE
+TRACE.** (2026-09-04, cost: two days and five dead hypotheses.) OPEN-26
+described a "level collapse" mode - 68% of all falls, body flat, never
+explained - taken from the attitude in each trace's LAST tick. That is the
+pose after the robot has finished falling. The real event was a pitch past
+28.65 deg tripping `checkSafeOrientation()`, the FSM zeroing every leg
+command, and the robot then settling flat. The end of a trace records the
+system's RESPONSE, not the cause. Find the event first - a mode change, a
+safety trip, a watchdog - and classify there. `op_mode` was in the trace
+the whole time and would have answered it on day one. **And when four or
+five plausible mechanisms all fail to explain a phenomenon, suspect the
+phenomenon before inventing a sixth.**
+
+**WHEN AN A/B IS SUGGESTIVE BUT NOT SIGNIFICANT, ADD AN ARM, NOT N.**
+(2026-09-04.) The orientation limit read 13/25 vs 17/25 - +16 points,
+p = 0.387. A power check said even N=100 per arm would reach p<0.05 only
+58% of the time: ~4 hours of rig for a coin flip. A four-point
+dose-response (28.6 / 45 / 60 / 90 deg) settled it in one campaign - the
+pass rates came out 62/50/38/75%, no ordering at all, and the effect was
+retracted as noise. **Two arms cannot show you that the ordering is
+absent.** Where the mechanism offers a denser endpoint, use that instead:
+scoring every attitude EXCURSION rather than one pass/fail per run turned
+n=50 runs into n=67 natural experiments.
+
+**KEEP A HARNESS-TRACKED TASK ALIVE WHILE THE RIG WORKS.** (2026-09-04,
+operator: *"I can tell a job is running, right now your icon is not
+pulsing"*.) Long work launched with `nohup ... & disown` is invisible to
+the operator's UI - it runs, but nothing shows. Launch the queue detached
+so it survives, and hold a Bash tool call with `run_in_background: true`
+that follows `$LOG_DIR/queue.state` and prints each job as it starts.
+
 
 **A campaign must not signal completion by exiting, and no waiter may
 block without a deadline.** (2026-09-03, cost: 6 h 06 m of idle rig.)
@@ -866,7 +938,7 @@ between candidates and assert both halves of the property.
 verification script reported the dash as PASS with numbers byte-identical
 to the previous run: the launch had crashed, no new log was written, and
 the reporter read the PREVIOUS run's file. Only an md5 of the logs caught
-it. Every harness here now `rm -f /tmp/cheetah_conductor/ctrl_*.log`
+it. Every harness here now `rm -f $CHEETAH_DATA/conductor/ctrl_*.log`
 BEFORE each run, and treats a missing log as "never launched", never as a
 result.
 

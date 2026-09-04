@@ -4792,7 +4792,7 @@ Per direct request: "start making a report post mission that includes
 the orchestration log, and what you see on the path planned / path
 driven part of the screen" - motivated by exactly the kind of
 stale/ambiguous-screenshot confusion documented in the section above.
-`mission_runner.py` now writes `/tmp/cheetah_conductor/reports/run<N>_
+`mission_runner.py` now writes `$CHEETAH_DATA/conductor/reports/run<N>_
 report.{txt,png}` on every run - PASS, FAIL, or TIMEOUT/stall abort - with
 the full accumulated orchestration log, a per-dog PASS/FAIL/FELL/
 incomplete breakdown, and a plot of each dog's planned vs. flown path.

@@ -171,7 +171,7 @@ Grouped by what it would actually take to close it.
       `mission_runner.py`'s `harness_timeout()` calls it for every dog
       `find_zombies()` flags (case a) - so BOTH manifestations in this
       entry now get an automatic, timestamped JSON archive under
-      `/tmp/cheetah_conductor/archive/shm_trace/` with the full trace
+      `$CHEETAH_DATA/conductor/archive/shm_trace/` with the full trace
       leading up to the event, without anyone needing to have a
       `shm_reaper.py --watch` process already running. Verified
       end-to-end: a live healthy run's "tick" stream decodes with

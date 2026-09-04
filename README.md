@@ -8,8 +8,11 @@ Cortex-A7 running Linux + a Cortex-M4), driving **Unitree RS485 legs**, with a
 
 > Fork of MIT Cheetah-Software (BSD-3, see `LICENSE`). All original build/run docs
 > for the desktop + Mini Cheetah still apply; this README covers the STM32MP1 port,
-> which lives under **`stm32mp1/`**. See also `CLAUDE.md` (rules + traps),
-> `SKILL.md` (the exact commands), and `TODO.md` (the open backlog — hardware
+> which lives under **`stm32mp1/`** (board side) and **`gazebo/`** (the SITL rig,
+> conductor panel and campaign tooling). See also `CLAUDE.md` (rules + traps),
+> `ISSUES.md` (the issue tracker — open items, and every closed one with the
+> number that closed it), `SKILL.md` (the exact commands), and `TODO.md`
+> (the open backlog — hardware
 > validation gaps, unsolved fleet/speed mysteries, and proposed follow-ups that
 > were never built).
 
@@ -51,6 +54,11 @@ GPU is needed for locomotion — perception/ROS stays separate and optional.
 | Remaining items | ❌ **spawn pose is illegal**: `q=0` is outside the calf joint range (−2.818…−0.888), so all four calves spawn illegal and the legs splay through the floor — the dog excavates itself, and this is the likely source of the boot-time `STATE ESTIMATE WENT NON-FINITE` pair. Also: oval stop residual ~1-in-6 tip |
 | Mac-first host build | ✅ same source builds natively (`-DSTM32MP1_HOST=ON`) for fast iteration |
 | Robot model vs the real Go1 | ✅ **corrected against Unitree's own binary** (see `docs/LEGGED_SPORT_REVERSE.md`) |
+| **Why this port falls (2026-09-04, closed)** | ✅ **every fall is a pitch-triggered safety E-STOP, not a novel "fold"** — the robot pitches past `checkSafeOrientation()`'s 28.65°, the FSM zeroes every leg command (`tauFeedForward` → exactly 0.000) and it then sinks on limp legs and settles *flat*. 19/20 falls; **0/14 passes ever trip it**; E-stop precedes the descent by 0.41 s; the tripping attitude is real (36.9° estimated vs **36.4° gz truth**). The "level collapse" mode in the old record was the settled pose read from a trace's last tick — see `ISSUES.md` CLOSED (was OPEN-26) |
+| **Are the speed ceilings real?** | ✅ **yes.** Four-point dose-response on the orientation limit (28.6 / 45 / 60 / **90°**, where 90 disables the check): no ordering, **Fisher p = 1.000** for 28.6 vs 90 on both cells. Independently only **9 of 67** excursions past 28.65° recover when allowed to. The E-stop aborts runs that were going to fail anyway — **every ceiling in this record is a real dynamic limit**, not a conservative parameter |
+| **Contact without a contact sensor** | ✅ measured: world foot speed from **IMU + joint encoders alone** predicts true contact as well as the gait schedule does, with **half the false-stance rate** (12.8% → 5.8% at equal accuracy). Deliberately sensorless — the Go1 EDU has no foot sensors. Using it as a hard veto on KF foot trust was tried and is **harmful** (8/20 vs 1/20, p=0.020), and that is recorded rather than quietly dropped |
+| **Run data** | ✅ lives in `$CHEETAH_DATA` (default `<repo>/../rundata`), **never `/tmp`** — one definition in `gazebo/paths.py` / `gazebo/tools/paths.sh`. Raw rings are distilled to per-run summaries + 50 Hz descent windows (`gazebo/tools/distill.py`): 710 snapshots, 5.8 GB → 6.3 MB |
+| **Campaign harness** | ✅ `gazebo/tools/run_queue.sh` (every job under `timeout`, a failure never stops the queue), `campaign_truth.sh` (arms alternated **every rep**, ground truth + contact labels per run, instrument proven before the campaign spends the night), `rig_watchdog.sh` (idle rig alarms on a `pgrep`, not a phase string) |
 
 ## The 100 m star mission — repeatable
 

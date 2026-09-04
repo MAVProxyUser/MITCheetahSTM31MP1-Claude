@@ -63,6 +63,176 @@ passed on its own in-suite retry.
 
 ### Mitigated / parked
 
+- **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
+  knob with a price, not a defect. With the transport fixed (see CLOSED, was
+  OPEN-19) a viewer now receives every frame the sensor renders, so the
+  only remaining ceilings are the sensor's own `update_rate` and how often
+  the camera model is teleported — both 10 Hz, both costing GPU inside the
+  render loop. Both are now env knobs with the measured defaults unchanged
+  (`CAM_UPDATE_RATE`, `CHASE_FOLLOW_DT`).
+  **First A/B ran and is CONFOUNDED — do not quote it.** Campaign `tier2`
+  (20 runs, alternating blocks) measured viewer fps with a probe that opens
+  its own MJPEG connection per rep. That probe leaves a server-side handler
+  alive for up to two minutes (`_mjpeg`'s idle timeout), so every rep after
+  the first in a block measured a server with 2-3 stale viewers attached.
+  It shows: 10.1 fps on the first rep of a block, then ~3.1 for the rest;
+  15.5 then ~4.5 for the 30 Hz arm. The pattern is the probe, not the
+  camera.
+  The only clean comparison is the first rep after each server restart:
+
+  | arm | viewer fps | GPU |
+  |---|---|---|
+  | 10 Hz / 0.1 s (shipped) | 10.1 | 6% |
+  | 30 Hz / 0.033 s | 15.5 | 12% |
+
+  So 30 Hz roughly **doubles GPU for +50% fps** — and does NOT give 30 fps.
+  **tier2b (30 runs, 3 alternating blocks) re-measured with a probe that
+  closes and a machine-checked drain — and the probe was NOT the confound.**
+  `viewers@start` was 0 on every rep, yet the pattern is identical: the
+  first run after each server restart gets the full rate (10.2 / 15.7), and
+  every later run in the block gets a flat **~44%** of it (4.4 / 6.6) — in
+  both arms. A constant fraction, not a decay, which smells like one extra
+  renderer sharing the GPU from run 2 on (`status.sh` has already found a
+  33-hour orphaned `gz sim` once). Also noted, not concluded: pass rate with
+  cameras ON was 10/15 and 8/15 on `rough@2.0`, against 90% camera-dark in
+  c6 — N=15, and confounded by whatever the fps thing is.
+  **c10 ran (2026-09-03): tier2b's collapse does NOT reproduce.** Four
+  runs after a fresh restart on the shipped default, recording per run the
+  gz process count and ages, GPU %, the viewer's delivered fps, and
+  `cam_feed`'s OWN receive rate (new 5 s stderr line):
+
+  | run | gz procs | GPU | viewer fps | cam_feed rx fps |
+  |---|---|---|---|---|
+  | 1 | 1 | 10% | 10.0 | 10.0 |
+  | 2 | 1 | 10% | 10.2 | 10.0 |
+  | 3 | 1 | 9% | 10.2 | 10.0 |
+  | 4 | 1 | 10% | 10.1 | 10.0 |
+
+  Every run delivers the sensor's full rate; both remaining hypotheses for
+  the 44% (an extra renderer sharing the GPU; something about run number
+  after a restart) are dead by this data. The only procedural difference
+  from tier2b is that c10 probes ~6 s after the first frame while tier2b
+  probed immediately after a `drain()` poll loop — so tier2b's pattern is
+  most plausibly an artefact of its own sequencing, but that is a guess
+  and is recorded as one. **What is established**: in normal operation
+  the panel receives every frame the sensor renders (c10 here, and the
+  10.1 fps acceptance test in CLOSED/OPEN-19).
+  **Disposition: PARKED, default unchanged.** The clean 30 Hz numbers
+  (first rep after restart, N=3: 15.5 / 14.9 / 15.7 fps at 11–13% GPU vs
+  10.1 at 5–6%) say the sensor at 30 Hz delivers ~15 fps for double the
+  GPU — worth it only if someone wants smoother chase footage more than
+  they want GPU headroom, and this rig has already had host load silently
+  explain a sim failure. Not a defect; a knob with a measured price.
+  
+  **c19 (interleaved, server env swapped every run, N=8 each) answered it
+  — and found a bug in this project's own rate limiter:**
+
+  | arm | `cam_feed` receives | viewer gets | GPU | CPU |
+  |---|---|---|---|---|
+  | 10 Hz / 0.1 s | 10.0 fps | 10.1 | 6% | 30% |
+  | 30 Hz / 0.033 s | **30.4 fps** | **15.1** | 12% | 33% |
+
+  The sensor at 30 Hz renders 30 fps and the per-run subprocess *receives*
+  30.4 of them — then delivers 15.1. Half the frames died in
+  `cam_feed`'s own rate gate: `--rate` defaults to the same 30, so
+  `min_dt` sat exactly on the arrival interval and ordinary jitter put
+  about half the frames a hair under it. The earlier reading, "30 Hz only
+  buys ~15 fps for double the GPU", was measuring that bug, not the
+  camera. Fixed by giving the gate a 10% tolerance
+  (`min_dt = 0.9 / rate`); proven with the stubbed-gz harness, 60/60
+  frames emitted at 30 Hz where it previously dropped half. **The
+  receive-rate log added for exactly this purpose is what separated
+  sensor from transport** — without it the loss was invisible.
+  **c20 ran and this is the real number** (2026-09-03, same interleaved
+  protocol, server env swapped every run, N=8 each, `dash:30` walking @2.0
+  flat, raw rows in `gazebo/conductor/data/c20_open23_camrate_ab.csv`):
+
+  | arm | `cam_feed` receives | viewer gets | GPU | CPU | PASS |
+  |---|---|---|---|---|---|
+  | 10 Hz / 0.1 s (shipped) | 10.0 fps | **10.1** (9.9-10.2) | 6.1% | 36% | 7/8 |
+  | 30 Hz / 0.033 s | 30.4 fps | **27.9** (27.0-28.6) | 12.2% | 37% | 8/8 |
+
+  **2.77x the frames for 2.0x the GPU**, and the viewer now gets 92% of
+  what the sensor renders instead of 50%. Every previous number on this
+  issue -- the 15.5 that got it parked, and the 15.1 in c19 -- was
+  measuring the rate-gate bug above, not the camera. The trade the parked
+  disposition described ("double the GPU for +50% fps") never existed.
+  CPU is unchanged and the pass rate does not separate (7/8 vs 8/8, one
+  fall in the 10 Hz arm).
+
+  **Disposition: still not moving the default, and now for a stated
+  reason rather than a shrug.** 12% of the GPU is cheap for one dog; this
+  conductor runs fleets of three, the cost is in the render loop, and
+  host load has already silently explained a sim failure on this rig
+  once. What changes is that `CAM_UPDATE_RATE=30 CHASE_FOLLOW_DT=0.033`
+  is now a *documented, measured* choice that delivers genuinely smooth
+  chase footage -- the operator's original complaint was "choppy, like
+  you are taking screen shots and stitching them together", and 28 fps is
+  the answer to it. **Open sub-question, worth one short campaign**:
+  whether 12% per dog is additive across a 3-dog fleet. If it is not, the
+  default should move.
+  
+  **Reopen test**, so the next report is a diagnosis and not a hunt: read
+  `$CHEETAH_DATA/conductor/cam_feed.log`. If `rx fps` says 10 while the
+  panel shows less, the loss is server→browser; if `rx fps` is below 10,
+  gz is rendering slower and the answer is in host load, not the panel. Deliberately NOT changing a default blind — this
+  rig has already had machine load silently explain a sim failure.
+
+---
+
+## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED (was OPEN-26) · The "level collapse" was a pitch-triggered safety E-STOP, and the classifier was reading the corpse
+
+**Symptom.** 68% of every `[FALL]` in the archives classified as "level
+collapse" — |roll| < 10°, |pitch| < 15°, body height 0.035–0.09 m — a
+mode this project had never characterised and could not explain.
+
+**Cause.** There is no such mode. The classification was taken from the
+attitude in each trace's LAST tick, which is the pose *after* the robot
+has finished falling. The real sequence, measured:
+
+1. the robot pitches past `SafetyChecker::checkSafeOrientation()`'s
+   0.5 rad = **28.65°** limit;
+2. `ControlFSM::safetyPreCheck()` sets **ESTOP**;
+3. every leg command is zeroed — `tauFeedForward` goes to exactly
+   0.000, measured;
+4. it sinks under gravity on limp legs and settles **flat at ~1.5°**,
+   which is what the classifier saw.
+
+**Evidence.** 19 of 20 falls E-stop this way; **0 of 14 passes ever trip
+it**; the E-stop precedes the body's descent by **0.41 s**. The tripping
+attitude is real, not estimator error: **36.9° estimated vs 36.4° gz
+truth** at the instant it fires.
+
+**And the limit is not what binds capability.** Four-point dose-response
+on matched cells (28.6 / 45 / 60 / 90°, where 90 disables the check in
+practice): trotting flat @3.5 → 62% / 50% / 38% / 75%; walking flat @3.5
+→ 88% / 94% / 88% / 100%. **No ordering; 28.6 vs 90 gives Fisher
+p = 1.000 on both.** Independently, only **9 of 67** excursions past
+28.65° recover when allowed to (13.4%, 95% CI ≈ 5–22%). So the E-stop
+aborts runs that were going to fail anyway, ~0.4 s early. **Every
+capability ceiling in this record is a real dynamic limit.**
+
+**Fix.** No behaviour change. `CTRL_ORIENT_LIMIT_DEG` was added (default
+28.65, unchanged) so the question can be re-asked cheaply if the
+controller changes, and `SafetyChecker` now announces its limit and hold
+once per run. The real fix is to the METHOD, and it is recorded in
+SKILL.md: **classify a failure at the triggering event, never at the end
+of the trace.**
+
+**What it cost, and what that bought.** Two days, a `Record` layout
+change (98 → 150 bytes), and five hypotheses built and killed against a
+phenomenon that was not there — foot kinematics, orientation error,
+contact loss as a cause, a contact gate as a fix, and the estimator
+itself. `op_mode` was already in the trace the whole time and would have
+answered it on day one; nobody had plotted it. The full investigation
+trail is kept below, because each dead end leaves a number that stops it
+being re-run.
+
+**The trail, as it was written (OPEN-26's own log):**
+
+
 - **OPEN-26 · This port fails by FOLDING, not tipping — 2:1, and it has
   never been characterised** — `SOFTWARE, CHARACTERISATION`. Classifying
   every `[FALL]` in the archives by attitude: **68% are "level collapse"**
@@ -690,124 +860,7 @@ passed on its own in-suite retry.
   before z crosses 0.10 — one archived snapshot per class would answer it
   without new rig time.
 
-- **OPEN-23 · Chase-cam smoothness above 10 Hz** — `PARKED, MEASURED`. A
-  knob with a price, not a defect. With the transport fixed (see CLOSED, was
-  OPEN-19) a viewer now receives every frame the sensor renders, so the
-  only remaining ceilings are the sensor's own `update_rate` and how often
-  the camera model is teleported — both 10 Hz, both costing GPU inside the
-  render loop. Both are now env knobs with the measured defaults unchanged
-  (`CAM_UPDATE_RATE`, `CHASE_FOLLOW_DT`).
-  **First A/B ran and is CONFOUNDED — do not quote it.** Campaign `tier2`
-  (20 runs, alternating blocks) measured viewer fps with a probe that opens
-  its own MJPEG connection per rep. That probe leaves a server-side handler
-  alive for up to two minutes (`_mjpeg`'s idle timeout), so every rep after
-  the first in a block measured a server with 2-3 stale viewers attached.
-  It shows: 10.1 fps on the first rep of a block, then ~3.1 for the rest;
-  15.5 then ~4.5 for the 30 Hz arm. The pattern is the probe, not the
-  camera.
-  The only clean comparison is the first rep after each server restart:
 
-  | arm | viewer fps | GPU |
-  |---|---|---|
-  | 10 Hz / 0.1 s (shipped) | 10.1 | 6% |
-  | 30 Hz / 0.033 s | 15.5 | 12% |
-
-  So 30 Hz roughly **doubles GPU for +50% fps** — and does NOT give 30 fps.
-  **tier2b (30 runs, 3 alternating blocks) re-measured with a probe that
-  closes and a machine-checked drain — and the probe was NOT the confound.**
-  `viewers@start` was 0 on every rep, yet the pattern is identical: the
-  first run after each server restart gets the full rate (10.2 / 15.7), and
-  every later run in the block gets a flat **~44%** of it (4.4 / 6.6) — in
-  both arms. A constant fraction, not a decay, which smells like one extra
-  renderer sharing the GPU from run 2 on (`status.sh` has already found a
-  33-hour orphaned `gz sim` once). Also noted, not concluded: pass rate with
-  cameras ON was 10/15 and 8/15 on `rough@2.0`, against 90% camera-dark in
-  c6 — N=15, and confounded by whatever the fps thing is.
-  **c10 ran (2026-09-03): tier2b's collapse does NOT reproduce.** Four
-  runs after a fresh restart on the shipped default, recording per run the
-  gz process count and ages, GPU %, the viewer's delivered fps, and
-  `cam_feed`'s OWN receive rate (new 5 s stderr line):
-
-  | run | gz procs | GPU | viewer fps | cam_feed rx fps |
-  |---|---|---|---|---|
-  | 1 | 1 | 10% | 10.0 | 10.0 |
-  | 2 | 1 | 10% | 10.2 | 10.0 |
-  | 3 | 1 | 9% | 10.2 | 10.0 |
-  | 4 | 1 | 10% | 10.1 | 10.0 |
-
-  Every run delivers the sensor's full rate; both remaining hypotheses for
-  the 44% (an extra renderer sharing the GPU; something about run number
-  after a restart) are dead by this data. The only procedural difference
-  from tier2b is that c10 probes ~6 s after the first frame while tier2b
-  probed immediately after a `drain()` poll loop — so tier2b's pattern is
-  most plausibly an artefact of its own sequencing, but that is a guess
-  and is recorded as one. **What is established**: in normal operation
-  the panel receives every frame the sensor renders (c10 here, and the
-  10.1 fps acceptance test in CLOSED/OPEN-19).
-  **Disposition: PARKED, default unchanged.** The clean 30 Hz numbers
-  (first rep after restart, N=3: 15.5 / 14.9 / 15.7 fps at 11–13% GPU vs
-  10.1 at 5–6%) say the sensor at 30 Hz delivers ~15 fps for double the
-  GPU — worth it only if someone wants smoother chase footage more than
-  they want GPU headroom, and this rig has already had host load silently
-  explain a sim failure. Not a defect; a knob with a measured price.
-  
-  **c19 (interleaved, server env swapped every run, N=8 each) answered it
-  — and found a bug in this project's own rate limiter:**
-
-  | arm | `cam_feed` receives | viewer gets | GPU | CPU |
-  |---|---|---|---|---|
-  | 10 Hz / 0.1 s | 10.0 fps | 10.1 | 6% | 30% |
-  | 30 Hz / 0.033 s | **30.4 fps** | **15.1** | 12% | 33% |
-
-  The sensor at 30 Hz renders 30 fps and the per-run subprocess *receives*
-  30.4 of them — then delivers 15.1. Half the frames died in
-  `cam_feed`'s own rate gate: `--rate` defaults to the same 30, so
-  `min_dt` sat exactly on the arrival interval and ordinary jitter put
-  about half the frames a hair under it. The earlier reading, "30 Hz only
-  buys ~15 fps for double the GPU", was measuring that bug, not the
-  camera. Fixed by giving the gate a 10% tolerance
-  (`min_dt = 0.9 / rate`); proven with the stubbed-gz harness, 60/60
-  frames emitted at 30 Hz where it previously dropped half. **The
-  receive-rate log added for exactly this purpose is what separated
-  sensor from transport** — without it the loss was invisible.
-  **c20 ran and this is the real number** (2026-09-03, same interleaved
-  protocol, server env swapped every run, N=8 each, `dash:30` walking @2.0
-  flat, raw rows in `gazebo/conductor/data/c20_open23_camrate_ab.csv`):
-
-  | arm | `cam_feed` receives | viewer gets | GPU | CPU | PASS |
-  |---|---|---|---|---|---|
-  | 10 Hz / 0.1 s (shipped) | 10.0 fps | **10.1** (9.9-10.2) | 6.1% | 36% | 7/8 |
-  | 30 Hz / 0.033 s | 30.4 fps | **27.9** (27.0-28.6) | 12.2% | 37% | 8/8 |
-
-  **2.77x the frames for 2.0x the GPU**, and the viewer now gets 92% of
-  what the sensor renders instead of 50%. Every previous number on this
-  issue -- the 15.5 that got it parked, and the 15.1 in c19 -- was
-  measuring the rate-gate bug above, not the camera. The trade the parked
-  disposition described ("double the GPU for +50% fps") never existed.
-  CPU is unchanged and the pass rate does not separate (7/8 vs 8/8, one
-  fall in the 10 Hz arm).
-
-  **Disposition: still not moving the default, and now for a stated
-  reason rather than a shrug.** 12% of the GPU is cheap for one dog; this
-  conductor runs fleets of three, the cost is in the render loop, and
-  host load has already silently explained a sim failure on this rig
-  once. What changes is that `CAM_UPDATE_RATE=30 CHASE_FOLLOW_DT=0.033`
-  is now a *documented, measured* choice that delivers genuinely smooth
-  chase footage -- the operator's original complaint was "choppy, like
-  you are taking screen shots and stitching them together", and 28 fps is
-  the answer to it. **Open sub-question, worth one short campaign**:
-  whether 12% per dog is additive across a 3-dog fleet. If it is not, the
-  default should move.
-  
-  **Reopen test**, so the next report is a diagnosis and not a hunt: read
-  `/tmp/cheetah_conductor/cam_feed.log`. If `rx fps` says 10 while the
-  panel shows less, the loss is server→browser; if `rx fps` is below 10,
-  gz is rendering slower and the answer is in host load, not the panel. Deliberately NOT changing a default blind — this
-  rig has already had machine load silently explain a sim failure.
-
----
-
-## CLOSED (symptom → cause → fix → evidence)
 
 ### CLOSED · The fall detector was blind for 8.7 s around every commanded crouch
 
@@ -903,13 +956,13 @@ the mechanism. Why bash waited there and not on the 16 identical
 **Fix -- remove the dependence rather than claim the mechanism.**
 `gazebo/tools/campaign_lib.sh`:
 
-* `campaign_done <name>` writes `/tmp/cheetah_campaigns/<name>.done` the
+* `campaign_done <name>` writes `$CAMPAIGN_DIR/<name>.done` the
   instant the data is complete and **before any teardown runs**;
 * `wait_for_campaign <name> <deadline>` polls that **file**, never a
   pipe, and **returns 1 on a deadline** instead of waiting forever;
 * `gazebo/tools/rig_watchdog.sh` answers the question nobody was asking:
   every 5 min, has `run_id` advanced or is a mission in flight? After 30
-  idle minutes it writes to `/tmp/cheetah_rig_idle.log` *with the list of
+  idle minutes it writes to `$LOG_DIR/rig_idle.log` *with the list of
   campaign shells still alive*, so the cause is captured at the moment it
   happens rather than reconstructed six hours later.
 
