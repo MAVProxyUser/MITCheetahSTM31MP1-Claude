@@ -137,19 +137,31 @@ struct Record {
                                    // at the call site in RobotRunner.cpp. What
                                    // this field carries is what the MPC
                                    // believed it was pushing with.
+  float    track_err[4];          // per-leg |pDes - p|, m: how far each foot
+                                   // is from where the controller ASKED it to
+                                   // be. Added 2026-09-04 to split OPEN-26 in
+                                   // two: during the fold the legs retract by
+                                   // 0.285 m against a 0.288 m standing
+                                   // height, and nothing so far says whether
+                                   // the controller COMMANDS that tuck (a
+                                   // planning/MPC fault) or the legs go there
+                                   // despite the command (a torque/tracking
+                                   // fault). Those are different bugs with
+                                   // different fixes and no measurement here
+                                   // has yet distinguished them.
   uint8_t  op_mode;                // FSM_OperatingMode: 0 NORMAL,
                                    // 1 TRANSITIONING, 2 ESTOP, 3 EDAMP
   uint8_t  finite;                 // 1 if the state estimate was finite
                                    // this tick, 0 if the NaN guard fired
 };
 #pragma pack(pop)
-// 134 bytes (98 -> 118 with kin_z + foot_z[4], -> 134 with foot_fz[4]) -
+// 150 bytes (98 -> 118 kin_z+foot_z, -> 134 foot_fz, -> 150 track_err) -
 // measured directly with a standalone compile after hand-
 // summing the field widths got it wrong twice in a row. Not required to
 // be any particular round number since #pragma pack(1) already guarantees
 // no compiler padding; the number only matters because the Python
 // reaper's struct.unpack format string has to match it exactly.
-static_assert(sizeof(Record) == 134, "Record layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
+static_assert(sizeof(Record) == 150, "Record layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
 
 constexpr uint32_t RING_CAPACITY = 65536;
 
@@ -243,7 +255,7 @@ class Writer {
            float wx, float wy, float wz, float vx, float vy, float vz,
            float z, float period_ms, uint8_t op_mode, uint8_t finite,
            const float contact[4], const float* kin5 = nullptr,
-           const float* fz4 = nullptr) {
+           const float* fz4 = nullptr, const float* te4 = nullptr) {
     ensure_open();
     if (!ring_) return;
     const uint64_t seq = ring_->header.write_seq.load(std::memory_order_relaxed);
@@ -263,6 +275,7 @@ class Writer {
     r.kin_z = kin5 ? kin5[0] : 0.f;
     for (int i = 0; i < 4; ++i) r.foot_z[i] = kin5 ? kin5[1 + i] : 0.f;
     for (int i = 0; i < 4; ++i) r.foot_fz[i] = fz4 ? fz4[i] : 0.f;
+    for (int i = 0; i < 4; ++i) r.track_err[i] = te4 ? te4[i] : 0.f;
     r.op_mode = op_mode;
     r.finite = finite;
     // Publish LAST - see the file header's ordering note.
@@ -419,9 +432,9 @@ inline void log(const char* tag, double t, float roll, float pitch, float yaw,
                  float wx, float wy, float wz, float vx, float vy, float vz,
                  float z, float period_ms, uint8_t op_mode, uint8_t finite,
                  const float contact[4], const float* kin5 = nullptr,
-           const float* fz4 = nullptr) {
+           const float* fz4 = nullptr, const float* te4 = nullptr) {
   Writer::instance().log(tag, t, roll, pitch, yaw, wx, wy, wz, vx, vy, vz,
-                          z, period_ms, op_mode, finite, contact, kin5, fz4);
+                          z, period_ms, op_mode, finite, contact, kin5, fz4, te4);
 }
 
 // The printf replacement call sites actually use: shmtrace::logf(t, "...",

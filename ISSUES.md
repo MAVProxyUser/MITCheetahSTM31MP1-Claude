@@ -523,6 +523,61 @@ passed on its own in-suite retry.
   The control arm is the only reason this is not now written up as the
   mechanism. n=3 per arm; the queue is raising it.
 
+  **SOLVED (2026-09-04). THE "LEVEL COLLAPSE" MODE DOES NOT EXIST. It is
+  a pitch-triggered safety E-STOP, and the classifier was reading the
+  corpse.**
+
+  Every number in this issue rested on classifying each fall by the
+  attitude in its LAST tick: |roll| < 10 and |pitch| < 15 at the end meant
+  "level collapse - belly on the deck, body level", 66-69% of all falls,
+  "not new and not a regression... never characterised". That is the pose
+  AFTER the robot has finished falling.
+
+  Instrumenting the commanded side (`track_err[]` carrying commanded
+  `kin_z`, joint tracking error and feed-forward torque) showed the real
+  sequence in a single fall, and the population confirms it:
+
+  | | n | E-STOPPED | peak pitch before E-stop | pitch at END |
+  |---|---|---|---|---|
+  | FALLS | 20 | **19 (95%)** | **33.3 deg** | **1.5 deg** |
+  | PASSES | 14 | **0 (0%)** | - | - |
+
+  Perfect separation, and the E-stop **precedes the descent by 0.41 s**.
+  `SafetyChecker::checkSafeOrientation()` trips at 0.5 rad = **28.6 deg**;
+  these falls reach 33.3. `ControlFSM::safetyPreCheck()` then sets
+  `ESTOP`, leg commands are zeroed - `tauFeedForward` goes to exactly
+  0.000, measured - and the robot sinks under gravity with limp legs and
+  settles flat at 1.5 deg, which is what the classifier saw.
+
+  **Everything that looked mysterious follows from that, and nothing else
+  was needed:**
+  * torque "indistinguishable from a pass right up to the failure" - it
+    was, until the E-stop zeroed it;
+  * the descent is a SINK, 2-3x slower than free fall - limp legs with
+    joint damping still resist;
+  * contact is lost at the same instant, not before - the legs go slack;
+  * the estimator runs 1.8x fast and `vz` reads ~0 - its foot
+    measurements are garbage once the legs stop tracking;
+  * and the four hypotheses that died (foot kinematics, orientation
+    error, contact as a cause, the contact gate as a fix) were all
+    explaining a phenomenon that was not there.
+
+  **A correction to this project's own record.** CLAUDE.md's standing
+  entry "THE ATOM'S FAILURE IS PITCH, AND THE a_lon DEFAULT IS BACKWARDS"
+  was right. On 2026-09-03 I wrote here that its pitch reasoning "does not
+  transfer" to level collapses because those show roll/pitch <= 4 deg.
+  That was wrong, and wrong for exactly the reason above: I was reading
+  the attitude at the end. **Pitch is the failure mode, in both.**
+
+  **What OPEN-26 becomes.** Not "why does this port fold?" but a sharper
+  and far more useful question: **is 28.6 deg the right limit?** Every
+  capability ceiling this project has measured is the speed at which the
+  robot first pitches past that threshold - a SAFETY PARAMETER, not a
+  dynamic limit. Whether it could recover from 33 deg if not E-stopped is
+  untested and is the obvious next experiment;
+  `CTRL_ORIENT_HOLD_MS` and the threshold are both tunable, and
+  `setOrientTripEnable()` already exists to gate it.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different

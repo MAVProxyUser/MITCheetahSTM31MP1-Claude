@@ -362,7 +362,9 @@ void RobotRunner::run() {
   // foot-buckling hypothesis (the leg geometry collapsing under a planted
   // foot) can be checked against leg motion rather than inferred.
   float _kin5[5] = {0.f, 0.f, 0.f, 0.f, 0.f};   // {kin_z, foot_z[0..3]}
-  float _fz4[4]  = {0.f, 0.f, 0.f, 0.f};       // world-vertical foot force
+  float _fz4[4]  = {0.f, 0.f, 0.f, 0.f};       // world foot speed, m/s
+  float _te4[4]  = {0.f, 0.f, 0.f, 0.f};       // see the block below
+  float _cmdKinZ = -1e9f, _jerrSum = 0.f, _jerrMax = 0.f, _tffSum = 0.f;
   {
     float lowest = 1e9f;
     for (int leg = 0; leg < 4; leg++) {
@@ -450,6 +452,42 @@ void RobotRunner::run() {
       const Vec3<float> vw = _stateEstimate.rBody.transpose() * v_body_frame;
       const float sp = vw.norm();
       if (std::isfinite(sp) && sp < 100.f) _fz4[leg] = sp;
+
+      // TRACKING ERROR: how far this foot is from where it was ASKED to be.
+      // The fold retracts the legs by 0.285 m against a 0.288 m standing
+      // height. If pDes retracts with them, the controller is commanding the
+      // tuck and the fault is upstream in planning/MPC. If pDes stays out
+      // while p comes in, the legs are being overpowered and the fault is
+      // torque or tracking. Nothing measured so far separates those, and they
+      // do not share a fix.
+      // IS THE TUCK COMMANDED, OR IS IT A TRACKING FAILURE?
+      //
+      // This controller drives the legs with JOINT commands: measured live,
+      // |qDes| is populated on 95% of ticks and |tauFeedForward| averages
+      // 6.2 Nm, while forceFeedForward is identically zero and pDes is set on
+      // only 4.6% of ticks (swing only). So a Cartesian |pDes - p| is
+      // meaningless here - it read 0.29 m, the whole leg length, because pDes
+      // is usually zero.
+      //
+      // The decisive quantity is the COMMANDED body height: run the same
+      // forward kinematics on qDes that kin_z runs on q. If commanded kin_z
+      // tucks along with the real one, the controller is asking for the tuck
+      // and the fault is upstream in planning/MPC. If it stays extended while
+      // the real one collapses, the legs are being overpowered and the fault
+      // is torque or tracking. Different bugs, different fixes.
+      Vec3<float> pDesFK; Mat3<float> Jd;
+      computeLegJacobianAndPosition<float>(_quadruped,
+          _legController->commands[leg].qDes, &Jd, &pDesFK, leg);
+      const Vec3<float> pwd = _stateEstimate.rBody.transpose() *
+          (_quadruped.getHipLocation(leg) + pDesFK);
+      if (std::isfinite(pwd[2]) && -pwd[2] > _cmdKinZ) _cmdKinZ = -pwd[2];
+      const float jerr = (_legController->commands[leg].qDes -
+                          _legController->datas[leg].q).norm();
+      if (std::isfinite(jerr) && jerr < 100.f) {
+        _jerrSum += jerr; if (jerr > _jerrMax) _jerrMax = jerr;
+      }
+      const float tff = _legController->commands[leg].tauFeedForward.norm();
+      if (std::isfinite(tff) && tff < 1e4f) _tffSum += tff;
       // NOTE, 2026-09-04, UNRESOLVED: this reads 0.000 on every sample of a
       // 40 s run, which says datas[leg].v (= J * qd) is zero. A diagnostic
       // build put |q|,|qd|,|p|,|v| for leg 0 in these four slots and ALL FOUR
@@ -465,6 +503,12 @@ void RobotRunner::run() {
       // more than the 16 bytes.
     }
     if (std::isfinite(lowest) && lowest < 1e8f) _kin5[0] = -lowest;
+    // [0] the height the CONTROLLER is asking for, [1] mean joint tracking
+    // error, [2] the worst leg's, [3] mean feed-forward torque.
+    _te4[0] = (_cmdKinZ > -1e8f) ? _cmdKinZ : 0.f;
+    _te4[1] = _jerrSum / 4.f;
+    _te4[2] = _jerrMax;
+    _te4[3] = _tffSum / 4.f;
   }
 
   // FALL DETECTOR. MIT's ControlFSM already E-stops on attitude
@@ -567,7 +611,7 @@ void RobotRunner::run() {
           shmtrace::log("FALL", _shmElapsed, rf.rpy[0], rf.rpy[1], rf.rpy[2],
                         rf.omegaBody[0], rf.omegaBody[1], rf.omegaBody[2],
                         rf.vBody[0], rf.vBody[1], rf.vBody[2], bodyZ,
-                        (float)fallen_for, tipped ? 2 : 0, 1, c4, _kin5, _fz4);
+                        (float)fallen_for, tipped ? 2 : 0, 1, c4, _kin5, _fz4, _te4);
         }
         for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
         finalizeStep();
@@ -747,7 +791,7 @@ void RobotRunner::run() {
                     r.omegaBody[0], r.omegaBody[1], r.omegaBody[2],
                     r.vBody[0], r.vBody[1], r.vBody[2],
                     r.position[2], (float)dt_ms_actual, opMode,
-                    _shmFiniteOk ? 1 : 0, contact4, _kin5, _fz4);
+                    _shmFiniteOk ? 1 : 0, contact4, _kin5, _fz4, _te4);
     }
   }
 }

@@ -75,9 +75,9 @@ HEADER_FMT = "<QIIIIII"
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
 assert HEADER_SIZE == 32, f"Header format drifted from ShmTrace.h (got {HEADER_SIZE}, want 32)"
 
-RECORD_FMT = "<dQ20s" + "f" * 24 + "BB"
+RECORD_FMT = "<dQ20s" + "f" * 28 + "BB"
 RECORD_SIZE = struct.calcsize(RECORD_FMT)
-assert RECORD_SIZE == 134, f"Record format drifted from ShmTrace.h's Record (got {RECORD_SIZE}, want 134)"
+assert RECORD_SIZE == 150, f"Record format drifted from ShmTrace.h's Record (got {RECORD_SIZE}, want 150)"
 
 RING_CAPACITY = 65536
 MAGIC = 0x43484554  # "CHET", little-endian bytes happen to spell nothing readable - just a sentinel
@@ -111,6 +111,9 @@ _FIELDS = ["t", "seq", "tag", "roll", "pitch", "yaw", "wx", "wy", "wz",
            # sensorless test - a planted foot does not move - is the one
            # that transfers. Names kept to avoid a third layout change.
            "foot_fz0", "foot_fz1", "foot_fz2", "foot_fz3",
+           # 2026-09-04: per-leg |pDes - p|. Splits "the controller commanded
+           # the tuck" from "the legs went there anyway" - see OPEN-26.
+           "track_err0", "track_err1", "track_err2", "track_err3",
            "op_mode", "finite"]
 
 # CRASH-WORTHY tags: any record with one of these causes a standalone
