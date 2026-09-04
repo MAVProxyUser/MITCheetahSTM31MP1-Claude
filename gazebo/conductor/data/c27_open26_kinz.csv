@@ -1,0 +1,17 @@
+wall,arm,rep,gait,speed,verdict,truth_lines,snapshot,truth
+22:52:56,A,1,walking,3.5,PASS,2522,/tmp/cheetah_conductor/archive/shm_trace/20260903_225256_dog0_PASS_c27.json,/tmp/c27/truth_A_1.jsonl
+22:53:45,B,1,trotting,3.5,PASS,2523,/tmp/cheetah_conductor/archive/shm_trace/20260903_225345_dog0_PASS_c27.json,/tmp/c27/truth_B_1.jsonl
+22:54:34,A,2,walking,3.5,PASS,2523,/tmp/cheetah_conductor/archive/shm_trace/20260903_225434_dog0_PASS_c27.json,/tmp/c27/truth_A_2.jsonl
+22:55:13,B,2,trotting,3.5,FAIL,1942,/tmp/cheetah_conductor/archive/shm_trace/20260903_225513_dog0_FAIL_c27.json,/tmp/c27/truth_B_2.jsonl
+22:56:02,A,3,walking,3.5,PASS,2531,/tmp/cheetah_conductor/archive/shm_trace/20260903_225601_dog0_PASS_c27.json,/tmp/c27/truth_A_3.jsonl
+22:56:41,B,3,trotting,3.5,FAIL,1943,/tmp/cheetah_conductor/archive/shm_trace/20260903_225640_dog0_FAIL_c27.json,/tmp/c27/truth_B_3.jsonl
+22:57:30,A,4,walking,3.5,PASS,2522,/tmp/cheetah_conductor/archive/shm_trace/20260903_225729_dog0_PASS_c27.json,/tmp/c27/truth_A_4.jsonl
+22:58:06,B,4,trotting,3.5,FAIL,1824,/tmp/cheetah_conductor/archive/shm_trace/20260903_225806_dog0_FAIL_c27.json,/tmp/c27/truth_B_4.jsonl
+22:58:55,A,5,walking,3.5,PASS,2525,/tmp/cheetah_conductor/archive/shm_trace/20260903_225855_dog0_PASS_c27.json,/tmp/c27/truth_A_5.jsonl
+22:59:44,B,5,trotting,3.5,PASS,2521,/tmp/cheetah_conductor/archive/shm_trace/20260903_225944_dog0_PASS_c27.json,/tmp/c27/truth_B_5.jsonl
+23:00:33,A,6,walking,3.5,PASS,2517,/tmp/cheetah_conductor/archive/shm_trace/20260903_230033_dog0_PASS_c27.json,/tmp/c27/truth_A_6.jsonl
+23:01:12,B,6,trotting,3.5,FAIL,1881,/tmp/cheetah_conductor/archive/shm_trace/20260903_230112_dog0_FAIL_c27.json,/tmp/c27/truth_B_6.jsonl
+23:02:01,A,7,walking,3.5,PASS,2524,/tmp/cheetah_conductor/archive/shm_trace/20260903_230201_dog0_PASS_c27.json,/tmp/c27/truth_A_7.jsonl
+23:02:38,B,7,trotting,3.5,FAIL,1763,/tmp/cheetah_conductor/archive/shm_trace/20260903_230238_dog0_FAIL_c27.json,/tmp/c27/truth_B_7.jsonl
+23:03:27,A,8,walking,3.5,PASS,2522,/tmp/cheetah_conductor/archive/shm_trace/20260903_230326_dog0_PASS_c27.json,/tmp/c27/truth_A_8.jsonl
+23:04:16,B,8,trotting,3.5,PASS,2509,/tmp/cheetah_conductor/archive/shm_trace/20260903_230415_dog0_PASS_c27.json,/tmp/c27/truth_B_8.jsonl

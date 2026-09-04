@@ -284,6 +284,52 @@ passed on its own in-suite retry.
   unmeasured here. The estimator-vs-truth method itself carries the
   rough-terrain artefact noted above.
 
+  **c27 (2026-09-03) answered BOTH open questions, and the second answer
+  retires a worry I raised on this page.** 16 runs, walking alternated
+  with trotting every run at flat@3.5, gz ground truth alongside, and
+  `kin_z` now in the trace. Rows:
+  `gazebo/conductor/data/c27_open26_kinz.csv`; tools:
+  `gazebo/tools/open26_three_way.py`, `open26_firetime.py`.
+
+  **(1) It is gait-independent.** All 5 collapses were trotting (walking
+  went 8/8 that hour). Trotting: estimator **1.86x** truth, lead
+  **+0.88 s** -- against walking's 1.74x / +0.86 s from c22/c23. The same
+  effect, in a gait with a completely different contact schedule.
+  Controls: 11 passing runs, lead +0.00 to +0.03 s, all three signals
+  agreeing within 1 mm.
+
+  **(2) The DETECTOR's height leads too -- its comment is wrong.**
+  `kin_z` descends at **1.79x** truth and leads by **+0.94 s**, slightly
+  MORE than the estimator it was introduced to be safer than.
+  `RobotRunner.cpp` says of it "it cannot drift"; measured against gz,
+  during a fold, it does.
+
+  **(3) AND THE DETECTOR IS STILL NOT FIRING EARLY. My worry was wrong.**
+  That +0.94 s is measured over the band plateau-0.03 to plateau-0.15
+  (0.288 -> 0.138 m). **A lead over one band does not transfer to a
+  threshold at a different height**, and here it does not survive the
+  trip: at the detector's actual `SIM_FALL_Z` of 0.10 m, `kin_z` reaches
+  the threshold only **0.05 s** before the body truly does (per run:
+  0.01, 0.02, 0.01, 0.21, 0.01 s). Both signals have converged by the
+  bottom. Add the 0.5 s `SIM_FALL_HOLD_S` and the `[FALL]` declaration
+  lands **0.45 s AFTER** the body has actually arrived. The detector is
+  slightly LATE, not early.
+
+  **So: the ceilings in this record are not detector artefacts.** I
+  raised that possibility twice on this page -- first on a wrong premise
+  (that the detector reads the estimator's z; it does not), then on a
+  right premise with a number that does not apply at the threshold. It is
+  now closed with a measurement of the exact quantity at the exact
+  threshold. Every capability ceiling this project has measured counts
+  robots that were genuinely on the deck.
+
+  **What still stands, and it is about control, not detection.** The
+  state estimate the CONTROLLER balances on is wrong by ~1.8x through the
+  middle of a fold, in both gaits, while its velocity block reports ~0.
+  Nothing above softens that; it just moves the consequence from "we
+  mis-count falls" to "the controller is fed a bad picture precisely when
+  it most needs a good one."
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
