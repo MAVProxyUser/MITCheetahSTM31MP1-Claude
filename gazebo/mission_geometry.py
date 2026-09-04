@@ -64,10 +64,29 @@ _NORTH_YAW_RAD = math.pi / 2.0
 # deg. The comment above about "corner:25:45 spawned the dog facing 45 deg,
 # the turn angle, not north" describes exactly this, one mission kind later.
 SPAWN_BEHIND_WP0 = ("corner", "dash", "outback", "course")
+_SPAWN_KNOWN = set(SPAWN_BEHIND_WP0) | {
+    "star", "oval", "atom", "circle", "spiro", "lissajous",
+    "sector", "parallel", "expsquare"}
 
 
 def spawns_behind_wp0(spec):
     """True when the dog starts at the local origin rather than on wp0.
+
+    DERIVED FROM THE GEOMETRY, not from a list (changed 2026-09-04). This used
+    to be membership in the hand-maintained SPAWN_BEHIND_WP0 tuple, and a new
+    mission kind that forgot to join it was silently mis-spawned: `course:`
+    faced its first TURN instead of its first LEG, ran away from wp0 with the
+    distance INCREASING, and pitched out. The tuple's own comment already
+    described that happening to `corner`, one kind earlier - the second time
+    is the signal that a list is the wrong mechanism.
+    
+    The property is not arbitrary. A mission whose wp0 sits at the local
+    origin puts the dog ON wp0 (star, oval, atom, circle, spiro, lissajous -
+    all of them run their points through _shift_first_to_origin); a mission
+    whose wp0 is out at a distance starts the dog at the origin BEHIND it
+    (dash, corner, outback, course). Checked against every kind: the derived
+    rule reproduces the old list exactly, 10 for 10.
+    
 
     WP_SPAWN_ANCHOR=0 in the CONDUCTOR's environment turns this off for
     A/B work (OPEN-24): it restores the pre-2026-08-30 behaviour where the
@@ -78,7 +97,25 @@ def spawns_behind_wp0(spec):
     import os
     if os.environ.get("WP_SPAWN_ANCHOR", "1") == "0":
         return False
-    return spec.split(":", 1)[0] in SPAWN_BEHIND_WP0
+    kind = spec.split(":", 1)[0]
+    try:
+        pts = _mission_waypoints_raw(spec)
+    except Exception:
+        # Unparseable spec: fall back to the legacy list rather than guessing.
+        return kind in SPAWN_BEHIND_WP0
+    if not pts:
+        return kind in SPAWN_BEHIND_WP0
+    n0, e0 = pts[0]
+    derived = math.hypot(n0, e0) > 0.5
+    # The tuple is kept as a cross-check, not as the answer. If a known kind
+    # ever disagrees with its own geometry, that is worth knowing loudly - it
+    # means either the generator or the assumption changed under us.
+    if kind in _SPAWN_KNOWN and derived != (kind in SPAWN_BEHIND_WP0):
+        import sys as _s
+        _s.stderr.write("mission_geometry: %s spawn rule disagrees with the "
+                        "legacy list (derived behind_wp0=%s) - geometry wins, "
+                        "but check the generator\n" % (spec, derived))
+    return derived
 
 
 def mission_opening_bearing_rad(spec):
@@ -206,7 +243,12 @@ def _mission_waypoints_raw(spec):
         # metres, robot frame, leg 1 due north. Raises rather than returning
         # an empty path: a zero-waypoint mission would "complete" instantly
         # and score as a PASS.
-        import os
+        # NOTE: no `import os` here. A local import inside this branch makes
+        # `os` a LOCAL for the whole function, so every OTHER branch that
+        # touches it dies with "local variable 'os' referenced before
+        # assignment" - which is exactly what happened to oval and atom for
+        # about an hour on 2026-09-04. The module-level import is what this
+        # branch uses.
         name = rest[0]
         root = os.environ.get("CHEETAH_COURSES") or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "courses")

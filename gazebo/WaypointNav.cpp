@@ -862,10 +862,36 @@ bool WaypointNav::update(float n, float e, float yaw, float speed, float dt,
   const float eff_accept = (isFinalWp && final_accept_radius >= 0.f)
                                 ? final_accept_radius : accept_radius;
 
-  // half-plane: past the waypoint along the inbound leg, within a corridor
-  if (_legValid) {
-    float legN = wp.north - _legFromN;
-    float legE = wp.east - _legFromE;
+  // half-plane: past the waypoint along the inbound leg, within a corridor.
+  //
+  // WP0 GETS ONE TOO (added 2026-09-04) - DEFENSIVE, and not yet shown to
+  // matter. _legValid is armed by the FIRST arrival, so before that there is
+  // no inbound leg and wp0 can only be taken by the acceptance sphere. That
+  // is a real asymmetry: every other waypoint has two ways to be reached and
+  // wp0 has one.
+  //
+  // HONESTY ABOUT WHY THIS WAS ADDED. It went in believing it explained a
+  // course stuck on wp0 - passing 1.88 m away, never advancing, hunting until
+  // it pitched out. It did not. That dog was SPAWNED 75 deg off course by a
+  // separate bug (mission_geometry aimed it at wp0->wp1, the first TURN,
+  // instead of at the opening leg); once that was fixed the same course hits
+  // wp0 at dist=0.03 m with the acceptance sphere set to 0.05 m. The nav is
+  // accurate; it was being pointed the wrong way.
+  //
+  // Kept because the asymmetry is real and a fast fly-by of wp0 is plausible,
+  // but no measurement here demonstrates it firing. Do not cite it as a fix
+  // for anything until something does.
+  //
+  // The inbound leg for wp0 is the one the dog actually flew: origin -> wp0.
+  // For a mission whose wp0 IS the origin (star, oval, atom - anything run
+  // through _shift_first_to_origin) that leg is zero-length and the
+  // legLen > 0.3 guard below skips it, leaving those missions unchanged.
+  const bool haveLeg = _legValid || _idx == 0;
+  const float fromN = _legValid ? _legFromN : 0.f;
+  const float fromE = _legValid ? _legFromE : 0.f;
+  if (haveLeg) {
+    float legN = wp.north - fromN;
+    float legE = wp.east - fromE;
     float legLen = sqrtf(legN * legN + legE * legE);
     if (legLen > 0.3f) {
       float un = legN / legLen, ue = legE / legLen;
