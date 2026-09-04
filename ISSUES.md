@@ -578,6 +578,45 @@ passed on its own in-suite retry.
   `CTRL_ORIENT_HOLD_MS` and the threshold are both tunable, and
   `setOrientTripEnable()` already exists to gate it.
 
+  **AND THE 28.6 DEG LIMIT IS APPROXIMATELY RIGHT - the ceilings in this
+  record are real** (2026-09-04). Having found that every fall is a
+  pitch-triggered E-stop, the obvious worry was that the ceilings are an
+  artefact of a conservative safety parameter. They are not.
+
+  Pass/fail said little: interleaved, same binary, marginal cell, N=25
+  each - **28.6 deg 13/25 (52%), 45 deg 17/25 (68%)**, +16 points but
+  **Fisher p = 0.387**. A power check showed why chasing that is futile:
+  at those rates even N=100 per arm reaches p<0.05 only 58% of the time.
+  One bit per run is too blunt.
+
+  So the endpoint changed instead. With the limit raised, every crossing
+  of 28.65 deg held past the 60 ms hold is an experiment the shipped limit
+  would have killed - and a run contains several. 80 runs, **every one
+  dumped, pass and fail**, so recovery is not conditioned on falling
+  (`gazebo/tools/open26_excursion.py`):
+
+  | limit | traces | runs with an excursion | excursions | RECOVERED |
+  |---|---|---|---|---|
+  | 28.6 (shipped) | 16 | 4 | 4 | 0 |
+  | 45 | 16 | 6 | 8 | 1 |
+  | 45 (2nd cell) | 16 | 6 | 6 | 0 |
+  | 45 (rough) | 16 | 3 | 5 | 1 |
+  | 60 | 16 | 8 | 9 | 1 |
+
+  **Pooled over the raised arms: 3 of 28 excursions recovered - 11%.**
+  Once this robot pitches past ~29 deg it is going down 89% of the time,
+  whatever the safety checker does. That is why the pass-rate difference
+  was small and insignificant: the limit is not what is binding.
+
+  **So the conclusion is the reassuring one, and it was worth proving
+  rather than assuming.** The capability ceilings this project has spent
+  weeks measuring are close to real dynamic limits, not artefacts of a
+  conservative parameter. `CTRL_ORIENT_LIMIT_DEG` stays at its default;
+  it exists now so the question can be re-asked cheaply if the controller
+  ever changes. The +16 points at 45 deg is a real but unproven effect
+  worth about 1 recovered excursion in 9 - if someone wants it, it needs
+  its own campaign, not this one's leftovers.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
