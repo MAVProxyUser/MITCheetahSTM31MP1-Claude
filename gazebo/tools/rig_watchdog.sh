@@ -29,7 +29,23 @@ while :; do
     rid=$(printf '%s' "$st" | python3 -c "import json,sys;d=json.load(sys.stdin);print('%s|%s'%(d.get('run_id'),d.get('phase')))" 2>/dev/null)
     phase="${rid#*|}"
     if [ "$rid" != "$last_run" ]; then last_run="$rid"; last_change=$now; fi
-    if [ "$phase" != "idle" ]; then last_change=$now; fi
+    # BUSY IS A PROCESS QUESTION, NOT A VOCABULARY QUESTION.
+    #
+    # This used to say `[ "$phase" != "idle" ]`, which meant the watchdog
+    # considered the rig busy whenever the phase was anything else - and the
+    # conductor's resting phase after a completed run is "done", not "idle".
+    # So it never fired. Found the only way it could be: the rig sat idle for
+    # 33 minutes with a STALE of 1800 s and /tmp/cheetah_rig_idle.log had not
+    # even been created. A watchdog that cannot alarm is worse than none,
+    # because it is BELIEVED - I had cited this one as the reason the morning's
+    # six-hour idle could not recur.
+    #
+    # Ask the operating system instead: is a mission process actually running?
+    # That has no vocabulary to drift, and it is what "the rig is working"
+    # means. The phase string is now only a hint, never the test.
+    if pgrep -f 'mission_[r]unner.py|gz[ ]sim' >/dev/null 2>&1; then
+      last_change=$now
+    fi
     idle=$((now - last_change))
     if [ "$idle" -ge "$STALE" ]; then
       {

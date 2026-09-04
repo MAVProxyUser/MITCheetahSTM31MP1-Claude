@@ -68,7 +68,31 @@ fi
 #   disown      - removes it from the job table so bash CANNOT wait on it
 # unittests/test_launcher_detaches.sh is the regression test for this.
 [ -f "$LOG" ] && mv -f "$LOG" "${LOG%.log}.prev.log"
-( cd "$HERE/conductor" && nohup "$PYBIN" -u server.py </dev/null > "$LOG" 2>&1 & disown ) 
+# The launch goes through python's start_new_session=True (a real setsid)
+# and NOT `( nohup ... & )`, because the shell form does not actually break
+# the parent link and this script then cannot exit.
+#
+# Evidence, on this machine, 2026-09-03: `bash gazebo/start.sh` sat alive
+# for 6h19m holding the conductor as its child, parked in __wait4 -
+# confirmed with `sample` on the live pid. It was the same wedge that had
+# already cost six hours of idle rig that morning via a campaign's teardown.
+# I had "fixed" that by adding </dev/null and `disown` here; the live
+# evidence says those did nothing, and my own bake-off had hinted as much
+# before I shipped them as hygiene anyway.
+#
+# I cannot reproduce the wedge synthetically - a trivial script with the
+# same idiom exits fine - so this does not claim to have found bash's
+# reason. It removes the PRECONDITION: the intermediate python exits
+# immediately, the server reparents to init, and this script has no child
+# left to wait on. Verified by checking the server's PPID is 1 below.
+( cd "$HERE/conductor" && "$PYBIN" -c '
+import os, subprocess, sys
+log = open(sys.argv[1], "a")
+subprocess.Popen([sys.argv[2], "-u", "server.py"],
+                 stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                 start_new_session=True)
+' "$LOG" "$PYBIN" )
+
 for i in $(seq 1 30); do
   curl -s -o /dev/null -m 3 "$BASE/api/state" 2>/dev/null && break
   sleep 1
