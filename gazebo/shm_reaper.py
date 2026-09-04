@@ -72,9 +72,9 @@ HEADER_FMT = "<QIIIIII"
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
 assert HEADER_SIZE == 32, f"Header format drifted from ShmTrace.h (got {HEADER_SIZE}, want 32)"
 
-RECORD_FMT = "<dQ20s" + "f" * 15 + "BB"
+RECORD_FMT = "<dQ20s" + "f" * 20 + "BB"
 RECORD_SIZE = struct.calcsize(RECORD_FMT)
-assert RECORD_SIZE == 98, f"Record format drifted from ShmTrace.h's Record (got {RECORD_SIZE}, want 98)"
+assert RECORD_SIZE == 118, f"Record format drifted from ShmTrace.h's Record (got {RECORD_SIZE}, want 118)"
 
 RING_CAPACITY = 65536
 MAGIC = 0x43484554  # "CHET", little-endian bytes happen to spell nothing readable - just a sentinel
@@ -96,7 +96,13 @@ TEXT_RING_CAPACITY = 8192
 # turn each decoded record into a dict for JSON archiving / easy grepping.
 _FIELDS = ["t", "seq", "tag", "roll", "pitch", "yaw", "wx", "wy", "wz",
            "vx", "vy", "vz", "z", "period_ms",
-           "c0", "c1", "c2", "c3", "op_mode", "finite"]
+           "c0", "c1", "c2", "c3",
+           # added 2026-09-03 with the matching ShmTrace.h Record change -
+           # kin_z is the height the FALL DETECTOR actually uses (it prefers
+           # this over the estimate); foot_z* are the per-leg terms it is the
+           # min of. See OPEN-26.
+           "kin_z", "foot_z0", "foot_z1", "foot_z2", "foot_z3",
+           "op_mode", "finite"]
 
 # CRASH-WORTHY tags: any record with one of these causes a standalone
 # --watch run to archive the whole ring immediately. "tick" (the per-tick
@@ -141,6 +147,33 @@ def attach(instance):
         # Either a stale segment from an unrelated process, or the writer
         # is mid-ensure_open() (a few instructions between shm_open and
         # the header being stamped) - either way, do not trust the data.
+        m.close()
+        os.close(fd)
+        return None, None, None
+    # LAYOUT MISMATCH - SAY SO, LOUDLY.
+    #
+    # The writer stamps the record size it is actually using. Until
+    # 2026-09-03 nothing compared it to the size this module is about to
+    # unpack at, and the cost was immediate: a Record layout change (98 ->
+    # 118 bytes for kin_z/foot_z) was edited into this file WHILE campaign
+    # c26 was running against a deployed binary still writing 98-byte
+    # records. Every dump from that moment on returned None, the campaign
+    # wrote "NONE" in its snapshot column without complaint, and 14 of 16
+    # runs lost their trace - discovered only when the analysis came back
+    # with 2 rows.
+    #
+    # Returning None was the LUCKY outcome. Had the sizes been closer, this
+    # would have unpacked at the wrong stride and produced plausible
+    # garbage - numbers that go into the record and are believed. A reader
+    # whose format does not match the writer must fail loudly, never
+    # quietly return nothing.
+    if record_size != RECORD_SIZE:
+        sys.stderr.write(
+            "shm_reaper: RECORD LAYOUT MISMATCH on instance %s - the writer "
+            "is using %d-byte records, this reader unpacks %d. The deployed "
+            "binary and this file are from different commits; rebuild and "
+            "redeploy (gazebo/deploy_host.sh) before trusting any trace.\n"
+            % (instance, record_size, RECORD_SIZE))
         m.close()
         os.close(fd)
         return None, None, None

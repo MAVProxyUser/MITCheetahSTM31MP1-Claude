@@ -349,6 +349,30 @@ void RobotRunner::run() {
     }
   }
 
+  // KINEMATIC BODY HEIGHT, computed ONCE per tick and shared by the fall
+  // detector, the per-tick trace record and the FALL record.
+  //
+  // This used to live inside the detector block and was therefore invisible
+  // to every trace ever archived. That gap mattered: c22/c23 (OPEN-26)
+  // measured the ESTIMATOR's z running 1.74x fast and leading the real body
+  // by 0.86 s during a level collapse, and then could not say whether the
+  // DETECTOR's height does the same - because the detector does not use the
+  // estimator's z. It prefers THIS. 438 archived falls cannot answer it.
+  // Now they can, and foot_z[] carries the per-leg terms so the
+  // foot-buckling hypothesis (the leg geometry collapsing under a planted
+  // foot) can be checked against leg motion rather than inferred.
+  float _kin5[5] = {0.f, 0.f, 0.f, 0.f, 0.f};   // {kin_z, foot_z[0..3]}
+  {
+    float lowest = 1e9f;
+    for (int leg = 0; leg < 4; leg++) {
+      Vec3<float> pw = _stateEstimate.rBody.transpose() *
+          (_quadruped.getHipLocation(leg) + _legController->datas[leg].p);
+      _kin5[1 + leg] = pw[2];
+      if (pw[2] < lowest) lowest = pw[2];
+    }
+    if (std::isfinite(lowest) && lowest < 1e8f) _kin5[0] = -lowest;
+  }
+
   // FALL DETECTOR. MIT's ControlFSM already E-stops on attitude
   // (safetyPreCheck -> 0.5 rad -> PASSIVE), but the PROCESS keeps running, so a
   // run that ended on its side still burns the whole timeout before the harness
@@ -416,16 +440,9 @@ void RobotRunner::run() {
       // feet beside it, so this number goes to ~0.08 the same way the
       // estimated one does - but it cannot drift, and on hardware the
       // orientation is the one thing the IMU gives directly.
-      float kinZ = 0.f;
-      {
-        float lowest = 1e9f;
-        for (int leg = 0; leg < 4; leg++) {
-          Vec3<float> pw = _stateEstimate.rBody.transpose() *
-              (_quadruped.getHipLocation(leg) + _legController->datas[leg].p);
-          if (pw[2] < lowest) lowest = pw[2];
-        }
-        if (std::isfinite(lowest) && lowest < 1e8f) kinZ = -lowest;
-      }
+      // Computed once above, at the top of the tick, so the number the
+      // detector acts on is byte-identical to the one the trace records.
+      const float kinZ = _kin5[0];
       // Prefer the kinematic height whenever it is sane; fall back to the
       // estimate only if FK gave nothing (a leg with non-finite data).
       const bool haveKin = (kinZ > 1e-3f && std::isfinite(kinZ));
@@ -456,7 +473,7 @@ void RobotRunner::run() {
           shmtrace::log("FALL", _shmElapsed, rf.rpy[0], rf.rpy[1], rf.rpy[2],
                         rf.omegaBody[0], rf.omegaBody[1], rf.omegaBody[2],
                         rf.vBody[0], rf.vBody[1], rf.vBody[2], bodyZ,
-                        (float)fallen_for, tipped ? 2 : 0, 1, c4);
+                        (float)fallen_for, tipped ? 2 : 0, 1, c4, _kin5);
         }
         for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
         finalizeStep();
@@ -636,7 +653,7 @@ void RobotRunner::run() {
                     r.omegaBody[0], r.omegaBody[1], r.omegaBody[2],
                     r.vBody[0], r.vBody[1], r.vBody[2],
                     r.position[2], (float)dt_ms_actual, opMode,
-                    _shmFiniteOk ? 1 : 0, contact4);
+                    _shmFiniteOk ? 1 : 0, contact4, _kin5);
     }
   }
 }

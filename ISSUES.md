@@ -295,8 +295,14 @@ passed on its own in-suite retry.
      controller balances on the estimator.
   2. **Does it hold for trotting?** Every number above is walking.
   3. **Confirm the mechanism.** The foot-kinematics story predicts the
-     error grows with leg-angle change during the fold; that is testable
-     against the traces already archived, with no rig time.
+     error grows with leg-angle change during the fold. **CORRECTION: I
+     wrote that this was testable against the archived traces with no rig
+     time. It is not.** `Record` carries only rpy, omegaBody, vBody, z,
+     period, contact phase, op_mode -- no leg angles, no foot positions,
+     nothing kinematic. 438 archived snapshots cannot answer it. The test
+     requires the same `Record` change as (1), which should therefore
+     carry `kinZ` AND enough leg state to check the prediction, in one
+     layout change rather than two.
   Two things that would have been the next test and are now answered:
   which block is wrong (both, in opposite directions -- c22/c23) and
   whether the contact schedule differs (it cannot -- c21).

@@ -102,18 +102,33 @@ struct Record {
                                    // single-tick hitch that only matters
                                    // because of what it lands on
   float    contact[4];            // contactEstimate, per leg, 0..1
+  float    kin_z;                 // THE DETECTOR'S OWN HEIGHT: -min over
+                                   // legs of (rBody^T (hip + p))[2]. This is
+                                   // what RobotRunner's fall test actually
+                                   // consumes (it prefers this over the
+                                   // estimate), and until 2026-09-03 nothing
+                                   // logged it - so 438 archived falls could
+                                   // say the ESTIMATOR's z leads the real
+                                   // body by 0.86 s (OPEN-26) and could not
+                                   // say whether the DETECTOR's height does.
+  float    foot_z[4];             // per-leg (rBody^T (hip + p))[2], the terms
+                                   // kin_z is the min of. Carried because the
+                                   // foot-buckling hypothesis for OPEN-26
+                                   // predicts the error tracks leg-geometry
+                                   // change, and a min alone cannot show that.
   uint8_t  op_mode;                // FSM_OperatingMode: 0 NORMAL,
                                    // 1 TRANSITIONING, 2 ESTOP, 3 EDAMP
   uint8_t  finite;                 // 1 if the state estimate was finite
                                    // this tick, 0 if the NaN guard fired
 };
 #pragma pack(pop)
-// 98 bytes - measured directly with a standalone compile after hand-
+// 118 bytes (was 98 before kin_z + foot_z[4] were added 2026-09-03) -
+// measured directly with a standalone compile after hand-
 // summing the field widths got it wrong twice in a row. Not required to
 // be any particular round number since #pragma pack(1) already guarantees
 // no compiler padding; the number only matters because the Python
 // reaper's struct.unpack format string has to match it exactly.
-static_assert(sizeof(Record) == 98, "Record layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
+static_assert(sizeof(Record) == 118, "Record layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
 
 constexpr uint32_t RING_CAPACITY = 65536;
 
@@ -206,7 +221,7 @@ class Writer {
   void log(const char* tag, double t, float roll, float pitch, float yaw,
            float wx, float wy, float wz, float vx, float vy, float vz,
            float z, float period_ms, uint8_t op_mode, uint8_t finite,
-           const float contact[4]) {
+           const float contact[4], const float* kin5 = nullptr) {
     ensure_open();
     if (!ring_) return;
     const uint64_t seq = ring_->header.write_seq.load(std::memory_order_relaxed);
@@ -221,6 +236,10 @@ class Writer {
     r.z = z;
     r.period_ms = period_ms;
     for (int i = 0; i < 4; ++i) r.contact[i] = contact[i];
+    // kin5 = {kin_z, foot_z[0..3]}. Optional so the recovery/stall call
+    // sites that have no leg data stay untouched and write zeros.
+    r.kin_z = kin5 ? kin5[0] : 0.f;
+    for (int i = 0; i < 4; ++i) r.foot_z[i] = kin5 ? kin5[1 + i] : 0.f;
     r.op_mode = op_mode;
     r.finite = finite;
     // Publish LAST - see the file header's ordering note.
@@ -376,9 +395,9 @@ class Writer {
 inline void log(const char* tag, double t, float roll, float pitch, float yaw,
                  float wx, float wy, float wz, float vx, float vy, float vz,
                  float z, float period_ms, uint8_t op_mode, uint8_t finite,
-                 const float contact[4]) {
+                 const float contact[4], const float* kin5 = nullptr) {
   Writer::instance().log(tag, t, roll, pitch, yaw, wx, wy, wz, vx, vy, vz,
-                          z, period_ms, op_mode, finite, contact);
+                          z, period_ms, op_mode, finite, contact, kin5);
 }
 
 // The printf replacement call sites actually use: shmtrace::logf(t, "...",
