@@ -330,6 +330,38 @@ passed on its own in-suite retry.
   mis-count falls" to "the controller is fed a bad picture precisely when
   it most needs a good one."
 
+  **The foot-kinematics mechanism is NOT supported by its own test
+  (2026-09-04).** `gazebo/tools/open26_mechanism.py` asks the falsifiable
+  question the hypothesis implies: during a collapse, does the estimator's
+  height track `kin_z` (pure leg geometry + orientation) more closely than
+  it tracks the real body? Over c27's 5 collapses:
+
+  | | RMS distance |
+  |---|---|
+  | estimator z <-> leg-kinematic height | 0.0256 m |
+  | estimator z <-> gz ground truth | 0.0280 m |
+
+  **1.1x. Essentially no discrimination**, and 2 of the 5 runs go the
+  other way (0.9x, 0.7x). Note the test was rigged IN the hypothesis's
+  favour: `z` and `kin_z` come from the same record, on the same clock, so
+  that distance is exact, while the truth comparison carries alignment
+  error from two independent clocks. Even with that advantage the
+  hypothesis does not separate.
+
+  **What that kills, and what it opens.** It kills "the estimator is
+  effectively reading the leg geometry" -- the two signals diverge by
+  ~2.6 cm RMS during a fold, having agreed to ~1 mm in normal walking.
+  So `z` and `kin_z` both run ~1.8x fast against truth while NOT tracking
+  each other. Two signals erring in the same direction independently
+  suggests a COMMON INPUT, and they share exactly one: the estimated
+  ORIENTATION. `kin_z` is `-min over legs of (rBody^T (hip + p))[2]`;
+  the position block integrates in the world frame the same attitude
+  defines. A pitched-or-rolled attitude estimate makes every derived
+  height shrink, in both signals, without either tracking the other.
+  **Untested**, because `pose_feed.py` emits only `[x, y, z, yaw]` -- there
+  has never been ground truth for roll and pitch on this rig.
+  n=5; the overnight queue is building the sample to re-run this on.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
