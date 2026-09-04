@@ -416,6 +416,55 @@ passed on its own in-suite retry.
   That reframes what "the fold" is, and it is the first mechanism
   candidate here that is about the ROBOT rather than about the filter.
 
+  **THE OPERATOR WAS RIGHT: contact IS inferable without a sensor, and it
+  beats the schedule where it counts** (2026-09-04). Operator: *"I don't
+  understand how with an IMU and your own known gait patterns how you
+  can't infer that a foot landed from it's position, and the force of the
+  body on the joints... It is seemingly obvious when a leg has made
+  contact."* Measured, against gz foot-contact sensors used purely as
+  labels (his EDU dog has none, so nothing here may become a control
+  input), 8 runs, ~100 Hz samples, all four legs:
+
+  | predictor | accuracy | FALSE STANCE | false swing |
+  |---|---|---|---|
+  | gait schedule (`contactPhase > 0`) | 75.1% | **12.8%** | 12.0% |
+  | world foot speed < 0.15 m/s | 75.1% | **6.0%** | 18.9% |
+  | schedule AND slow (0.15) | 74.8% | **5.8%** | 19.5% |
+  | schedule AND slow (0.10) | 74.4% | **3.9%** | 21.7% |
+
+  **False stance is the error that matters** and the others are not
+  interchangeable with it: when the filter believes a foot is planted it
+  pins that foot as a fixed world point and corrects the body against it.
+  If the foot is really in the air, the filter is being lied to. A false
+  SWING only withholds information - the filter is left more conservative,
+  which is the safe direction. So "same accuracy, 2.2x fewer false
+  stances" is a straight win, and 3.3x fewer for 0.7 points of accuracy
+  is a good trade.
+
+  The signal is `v_foot_world = R^T (vBody + omega x r_foot + v_rel)` -
+  IMU plus joint encoders, exactly what the EDU dog has. No force, no
+  contact sensor: `SpiData` carries no torque field, `tauEstimate` is
+  assembled from commands rather than measured, and the EDU dog has no
+  foot sensors regardless.
+
+  **Three measurement bugs had to be cleared first, each of which made
+  every predictor look like a coin flip** - recorded because each is the
+  kind that produces a confident wrong answer:
+  1. `contactPhase > 0.5` as the stance test. It is progress THROUGH
+     stance, not a flag; `PositionVelocityEstimator.cpp:165` reads it as
+     `phase` and ramps trust over [0,0.2] and [0.8,1]. The right test is
+     `> 0`. Scoring `> 0.5` measured my predicate, not the schedule.
+  2. Foot velocity taken relative to the BODY. At a 3 m/s cruise a planted
+     foot sweeps backwards through the body frame at 3 m/s; the body's own
+     motion has to be added back. Relative speed separated stance from
+     swing 1.4x; world speed separates it usefully.
+  3. Clock alignment. `contact_feed` starts ~7 s after the controller, so
+     anchoring both series at their first sample compared signals seven
+     seconds apart - schedule accuracy read 52%. Now aligned by
+     cross-correlating BODY HEIGHT (trace `z` against pose truth `z`):
+     the same physical quantity in both, and neither is a contact
+     predictor, so the offset cannot tilt the comparison toward either.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
