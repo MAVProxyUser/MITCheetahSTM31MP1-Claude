@@ -84,8 +84,34 @@ def main():
             o = p.orientation
             yaw = math.atan2(2.0 * (o.w * o.z + o.x * o.y),
                              1.0 - 2.0 * (o.y * o.y + o.z * o.z))
+            # ROLL AND PITCH, appended 2026-09-04 for OPEN-26.
+            #
+            # This rig has never had ground truth for attitude - only yaw was
+            # derived, because only yaw was needed for the panel's heading.
+            # OPEN-26 now needs the other two: the estimator's height and the
+            # detector's kin_z both run ~1.8x fast during a fold WITHOUT
+            # tracking each other, and the one input they share is the
+            # estimated ORIENTATION (kin_z is -min over legs of
+            # (rBody^T (hip + p))[2]; the position block integrates in the
+            # world frame that same attitude defines). A tilted attitude
+            # estimate shrinks every derived height in both signals at once.
+            # There was no way to test that without truth for roll/pitch.
+            #
+            # APPENDED, never inserted: every existing consumer indexes this
+            # list positionally (p[2] is z, p[3] is yaw), so adding at the end
+            # cannot break one. Standard ZYX quaternion -> Euler; pitch is
+            # clamped because asin() of a value a hair outside [-1,1] from
+            # rounding throws, and a robot at +-90 deg pitch is a fall, not a
+            # measurement to lose.
+            sinr = 2.0 * (o.w * o.x + o.y * o.z)
+            cosr = 1.0 - 2.0 * (o.x * o.x + o.y * o.y)
+            roll = math.atan2(sinr, cosr)
+            sinp = 2.0 * (o.w * o.y - o.z * o.x)
+            sinp = 1.0 if sinp > 1.0 else (-1.0 if sinp < -1.0 else sinp)
+            pitch = math.asin(sinp)
             out[str(idx)] = [round(p.position.x, 4), round(p.position.y, 4),
-                             round(p.position.z, 4), round(yaw, 4)]
+                             round(p.position.z, 4), round(yaw, 4),
+                             round(roll, 4), round(pitch, 4)]
         if not out:
             return
         state["last_msg"] = now      # a pose WE can use
