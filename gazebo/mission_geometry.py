@@ -56,7 +56,14 @@ _NORTH_YAW_RAD = math.pi / 2.0
 # approach leg was scored as deviation. It made the xtrack column
 # meaningless for every corner probe ever run - a number that looked like a
 # terrain result and was pure geometry.
-SPAWN_BEHIND_WP0 = ("corner", "dash", "outback")
+# "course" belongs here for the same reason "corner" does, and it walked into
+# the identical trap on its first run (2026-09-04): a course file's wp0 is the
+# END of the opening leg, so wp0->wp1 is the first TURN, and aiming the spawn
+# at it started the dog 75 deg off. It ran away from wp0 - distance to target
+# INCREASING, 17.99 -> 22.51 m - hunted, and pitched past the limit at 34.5
+# deg. The comment above about "corner:25:45 spawned the dog facing 45 deg,
+# the turn angle, not north" describes exactly this, one mission kind later.
+SPAWN_BEHIND_WP0 = ("corner", "dash", "outback", "course")
 
 
 def spawns_behind_wp0(spec):
@@ -185,6 +192,39 @@ def _mission_waypoints_raw(spec):
         # noticing star reported 20 m when the C++ ends at 0.
         out.append(out[0])
         return _shift_first_to_origin(out)
+    if kind == "course":
+        # THE ONLY MISSION WHOSE GEOMETRY IS NOT WRITTEN TWICE.
+        #
+        # Everything else in this file is a hand-kept mirror of a C++
+        # generator, and this file's own header records what that costs:
+        # makeStar closed its loop in C++ while the mirror drew it open, and
+        # mission_viz.py's copy lost atom and oval outright. A course is read
+        # from ONE file by both sides - WaypointNav::makeCourseFile reads the
+        # same bytes - so there is no mirror to drift.
+        #
+        # Written by gazebo/tools/design_course.py. Columns are north east,
+        # metres, robot frame, leg 1 due north. Raises rather than returning
+        # an empty path: a zero-waypoint mission would "complete" instantly
+        # and score as a PASS.
+        import os
+        name = rest[0]
+        root = os.environ.get("CHEETAH_COURSES") or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "courses")
+        path = os.path.join(root, name + ".course")
+        pts = []
+        with open(path) as fh:
+            for lineno, line in enumerate(fh, 1):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split()
+                if len(parts) != 2:
+                    raise ValueError("%s line %d is not 'north east': %r"
+                                     % (path, lineno, line))
+                pts.append((float(parts[0]), float(parts[1])))
+        if not pts:
+            raise ValueError("course %s contained no waypoints" % path)
+        return pts
     if kind == "circle":
         r, n = float(rest[0]), int(rest[1])
         pts = [(r * math.sin(2 * math.pi * (i + 1) / n),

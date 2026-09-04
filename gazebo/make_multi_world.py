@@ -65,6 +65,24 @@ def mission_bbox(spec):
     against the probed C++ output for atom and oval (see mit_sim_main.cpp
     smoke tests) before this was trusted for robot placement.
     """
+    # `course:<name>` is the one mission whose geometry lives in a FILE that
+    # both this Python side and WaypointNav::makeCourseFile read, so there is
+    # no mirror here to keep in step - just read the same points and take
+    # their extent. It must be handled before the float parse below, because
+    # its parameter is a name, not a number.
+    if spec.startswith("course:"):
+        import os, sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import mission_geometry as _mg
+        try:
+            pts = _mg.mission_waypoints(spec)
+        except Exception:
+            return None
+        if not pts:
+            return None
+        ns = [0.0] + [p[0] for p in pts]
+        es = [0.0] + [p[1] for p in pts]
+        return (min(ns), max(ns), min(es), max(es))
     try:
         kind, rest = spec.split(":", 1)
         f = [float(x) for x in rest.split(":")]

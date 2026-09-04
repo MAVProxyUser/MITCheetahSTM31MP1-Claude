@@ -54,6 +54,26 @@ class WaypointNav {
    *  as-a-stop path (see CLAUDE.md) - a different maneuver, not a failure of
    *  this mission type. */
   void makeCorner(float leg_m, float angle_deg, float speed);
+
+  /*!
+   * Load a course from a FILE that the Python mirror reads too.
+   *
+   * Every other mission here is written twice - once in this class, once in
+   * gazebo/mission_geometry.py - and the two copies have drifted more than
+   * once (makeStar closed its loop in C++ while the mirror drew it open;
+   * mission_viz's own copy lost atom and oval). A course read from one file
+   * by both sides cannot drift, which is the whole point of this entry.
+   *
+   * Format: '#' comments, then one 'north east' pair per line, metres, robot
+   * frame, leg 1 running due north. Written by
+   * gazebo/tools/design_course.py.
+   *
+   * The path is resolved against $CHEETAH_COURSES (the conductor sets it),
+   * falling back to 'gazebo/courses'. Returns false and leaves the mission
+   * EMPTY if the file cannot be read - the caller must treat that as a
+   * refusal to launch, never as a zero-waypoint mission that "completes".
+   */
+  bool makeCourseFile(const char* name, float speed);
   /*! Append ONE more waypoint after whatever mission is already built, so a
    *  closed loop (star/oval/atom) gets a straight finishing sprint instead of
    *  ending back where it started. Direction continues along the FINAL leg's

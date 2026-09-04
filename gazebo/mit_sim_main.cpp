@@ -8,6 +8,7 @@
 #include <string>
 #include "Utilities/CtrlTuning.h"
 #include <cstdio>
+#include <cstring>   // strncmp, for the course: mission kind
 #include <cstdlib>
 #include <cmath>
 #include <thread>
@@ -97,6 +98,19 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
                  getenv("WP_ATOM_DS")    ? atof(getenv("WP_ATOM_DS"))    : 1.2f, vx);
   }
   else if (sscanf(mission, "circle:%f:%d", &r, &pts) >= 1) nav.makeCircle(r, pts, vx);
+  else if (strncmp(mission, "course:", 7) == 0) {
+    // A course read from a FILE - the only mission whose geometry is not
+    // written twice. If the file is missing this REFUSES rather than running
+    // an empty mission that would "complete" instantly and score as a pass.
+    if (!nav.makeCourseFile(mission + 7, vx)) {
+      // navThread returns void; bail out of the nav thread entirely rather
+      // than fall through with an empty mission, which would "complete"
+      // instantly and be scored as a PASS.
+      shmtrace::logf(0.0, "[nav] course '%s' could not be loaded - nav thread "
+                     "exiting, this run will time out rather than score", mission + 7);
+      return;
+    }
+  }
   else if (sscanf(mission, "dash:%f", &d) == 1)            nav.makeDash(d, vx);
   else if (sscanf(mission, "outback:%f", &d) == 1)         nav.makeOutAndBack(d, vx);
   else if (sscanf(mission, "corner:%f:%f", &d, &r) == 2)   nav.makeCorner(d, r, vx);

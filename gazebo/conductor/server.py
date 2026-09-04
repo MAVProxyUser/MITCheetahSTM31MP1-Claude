@@ -535,6 +535,31 @@ RECIPES = {
     # the sweep measure its own tuning instead of the robot. Verified with
     # this single tuning at three angles: 45 deg PASS 61.3s, 90 deg PASS
     # 54.9s, 135 deg PASS 47.8s, every settle under 0.7 deg roll.
+    # A designed agility course, read from gazebo/courses/<name>.course.
+    # trotRunning at 2.0 is the validated combination for sustained curves;
+    # the course's own tight sections are what the pre-planner brakes for,
+    # and it should not also be fighting an over-ambitious cruise.
+    "course": dict(gait=20, speed=2.0,
+                    # Every knob here is a lesson this project paid for.
+                    #  WP_ACCEPT=1.5 - the default 0.25 m acceptance sphere
+                    #    cannot be hit by a 2 m/s dog, and wp0 has no
+                    #    half-plane fly-by to fall back on (_legValid is only
+                    #    armed by a FIRST arrival), so a course with the
+                    #    default gets stuck on wp0 forever. Measured: the dog
+                    #    passed 1.88 m from wp0, never advanced, hunted, and
+                    #    pitched out at 34.5 deg.
+                    #  WP_ALON=0.4 - THE ATOM LESSON. a_lon defaults to
+                    #    (v_cruise >= 2.2) ? 0.4 : 1.5, so a 2.0 cruise lands
+                    #    in the 1.5 branch and gets 3.75x the longitudinal
+                    #    demand. The atom's trips were pitch (30-37 deg) for
+                    #    exactly this, on the one course that brakes and
+                    #    drives continuously - which is what an agility
+                    #    course is, end to end.
+                    #  WP_ALAT=2.5 - the lateral budget the analyzer plans
+                    #    the corner speeds against.
+                    extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
+                          "WP_ALAT=2.5 WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0",
+                    note="designed agility course (file-defined geometry)"),
     "corner": dict(gait=20, speed=1.5,
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
                           "WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0",
@@ -1917,6 +1942,10 @@ class Fleet:
             for s in locked:
                 i = s["index"]
                 cenv = env.copy()
+                # Where course files live, for the `course:<name>` mission
+                # kind. Both the C++ nav and mission_geometry.py resolve
+                # against this, so one file defines the geometry for both.
+                cenv["CHEETAH_COURSES"] = os.path.join(GAZEBO_DIR, "courses")
                 cenv["SIM_INSTANCE"] = str(i)
                 # STAGGER THE RAMP ACROSS THE FLEET. Every dog used a fixed
                 # 4 s delay, so N dogs launched together reached commanded

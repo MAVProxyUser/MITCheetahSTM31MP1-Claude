@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>   // getenv, for CHEETAH_COURSES
 #include "WaypointNav.hpp"
 #include "ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 
@@ -463,6 +464,52 @@ void WaypointNav::makeCorner(float leg_m, float angle_deg, float speed) {
   _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
   shmtrace::logf(0.0, "[nav] corner mission: %.1f m approach, %.1f deg turn, "
          "%.1f m exit, at %.2f m/s", leg_m, angle_deg, leg_m, speed);
+}
+
+bool WaypointNav::makeCourseFile(const char* name, float speed) {
+  char path[512];
+  const char* dir = getenv("CHEETAH_COURSES");
+  snprintf(path, sizeof(path), "%s/%s.course",
+           (dir && *dir) ? dir : "gazebo/courses", name);
+  FILE* f = fopen(path, "r");
+  if (!f) {
+    shmtrace::logf(0.0, "[nav] COURSE FILE NOT FOUND: %s - refusing to launch. "
+           "(Set CHEETAH_COURSES, or generate it with "
+           "gazebo/tools/design_course.py.)", path);
+    _n = 0; _idx = 0; _complete = false; _legValid = false;
+    return false;
+  }
+  _n = 0;
+  char line[256];
+  int lineno = 0;
+  while (fgets(line, sizeof(line), f)) {
+    ++lineno;
+    char* p = line;
+    while (*p == ' ' || *p == '\t') ++p;
+    if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
+    float north, east;
+    if (sscanf(p, "%f %f", &north, &east) != 2) {
+      shmtrace::logf(0.0, "[nav] course %s line %d is not 'north east': %.40s",
+                     name, lineno, p);
+      continue;
+    }
+    if (_n >= MAXWP) {
+      shmtrace::logf(0.0, "[nav] course %s exceeds MAXWP=%d - truncated",
+                     name, MAXWP);
+      break;
+    }
+    _wp[_n].north = north; _wp[_n].east = east; _wp[_n].speed = speed;
+    ++_n;
+  }
+  fclose(f);
+  _idx = 0; _complete = false; _legValid = false; _dwell = 0.f;
+  if (_n == 0) {
+    shmtrace::logf(0.0, "[nav] course %s contained no waypoints - refusing", name);
+    return false;
+  }
+  shmtrace::logf(0.0, "[nav] course '%s': %d waypoints from %s, at %.2f m/s",
+                 name, _n, path, speed);
+  return true;
 }
 
 void WaypointNav::makeOutAndBack(float distance_m, float speed) {
