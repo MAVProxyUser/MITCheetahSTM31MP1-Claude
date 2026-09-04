@@ -362,6 +362,7 @@ void RobotRunner::run() {
   // foot-buckling hypothesis (the leg geometry collapsing under a planted
   // foot) can be checked against leg motion rather than inferred.
   float _kin5[5] = {0.f, 0.f, 0.f, 0.f, 0.f};   // {kin_z, foot_z[0..3]}
+  float _fz4[4]  = {0.f, 0.f, 0.f, 0.f};       // world-vertical foot force
   {
     float lowest = 1e9f;
     for (int leg = 0; leg < 4; leg++) {
@@ -369,6 +370,65 @@ void RobotRunner::run() {
           (_quadruped.getHipLocation(leg) + _legController->datas[leg].p);
       _kin5[1 + leg] = pw[2];
       if (pw[2] < lowest) lowest = pw[2];
+      // WORLD-VERTICAL FOOT FORCE, the signal a real contact estimator would
+      // use. LegController builds its feed-forward torque as tau = J^T * F,
+      // so the measured force implied by tauEstimate is F = J^-T tau; rotate
+      // by rBody^T for the world vertical. Guarded: J is singular at a fully
+      // extended or folded leg, which is exactly the geometry a fold visits,
+      // and an inf here would poison the whole record.
+      // COMMANDED world-vertical foot force. NOT a measurement, and the
+      // distinction cost a build to establish, so it is written down here:
+      //
+      // I set out to log F = J^-T tauEstimate as the signal a real contact
+      // estimator would use. It came out exactly 0.0 on all 80,164 samples
+      // of a 40 s run. A diagnostic build put |tauEstimate| in a spare slot
+      // and it was zero too - so the input, not the Jacobian. Then the
+      // reason: SpiData (SpineBoard.h) carries q, qd and flags and NO torque
+      // field, and tauEstimate is anyway assembled in updateCommand() out of
+      // commands[] - tauFeedForward, the Cartesian PD, the joint PD. It is
+      // what the motors are being ASKED for, never what they feel. Only the
+      // CHEETAH_3 TiBoard path copies a real measured tau, and this robot is
+      // MINI_CHEETAH.
+      //
+      // So there is no measured contact signal anywhere in this build, and a
+      // contact estimator here would have to infer contact from kinematics
+      // and dynamics rather than read it. What IS available and worth having
+      // is the force the MPC believed it was applying at each foot: set
+      // against the motion that actually resulted, that is a real diagnostic
+      // for a fold, and it is never zero.
+      // WORLD-FRAME FOOT SPEED - the contact signal that needs no sensor.
+      //
+      // Operator, 2026-09-04: "only the expensive dogs have contact sensors I
+      // do not have expensive EDU dog." That settles the design. A gz contact
+      // sensor would have worked in sim and been useless on the real robot,
+      // and the force route is dead anyway: F = J^-T tauEstimate read exactly
+      // 0.0 (SpiData has no torque field; tauEstimate is assembled from
+      // commands[], never measured), and so did the commanded
+      // forceFeedForward - this controller does not route through it.
+      //
+      // Foot speed needs only joint encoders and the IMU, both of which the
+      // EDU dog has. A planted foot is stationary in the world however the
+      // body moves over it; a swinging foot is not. That is the classic
+      // sensorless contact test, and it is what a contact estimator here
+      // would have to be built on - so measure whether it separates BEFORE
+      // anyone builds one.
+      Vec3<float> vw = _stateEstimate.rBody.transpose() *
+                       _legController->datas[leg].v;
+      const float sp = vw.norm();
+      if (std::isfinite(sp) && sp < 100.f) _fz4[leg] = sp;
+      // NOTE, 2026-09-04, UNRESOLVED: this reads 0.000 on every sample of a
+      // 40 s run, which says datas[leg].v (= J * qd) is zero. A diagnostic
+      // build put |q|,|qd|,|p|,|v| for leg 0 in these four slots and ALL FOUR
+      // read zero - yet foot_z, assigned three lines above from
+      // datas[leg].p in the same loop iteration, reads -0.265 and varies.
+      // Those two cannot both be true and I have not explained it. The
+      // sensor path is intact end to end (rt_gazebo.cpp unpack_sensor fills
+      // q and qd for all four legs; the memcpy into _spiData is after the
+      // backend if/else, so it runs for GAZEBO too), so this is not a
+      // plumbing gap. Left instrumented rather than removed: if v is really
+      // zero the estimator's foot-velocity measurements are dead, which
+      // would independently explain OPEN-26's vz ~ 0, and that is worth far
+      // more than the 16 bytes.
     }
     if (std::isfinite(lowest) && lowest < 1e8f) _kin5[0] = -lowest;
   }
@@ -473,7 +533,7 @@ void RobotRunner::run() {
           shmtrace::log("FALL", _shmElapsed, rf.rpy[0], rf.rpy[1], rf.rpy[2],
                         rf.omegaBody[0], rf.omegaBody[1], rf.omegaBody[2],
                         rf.vBody[0], rf.vBody[1], rf.vBody[2], bodyZ,
-                        (float)fallen_for, tipped ? 2 : 0, 1, c4, _kin5);
+                        (float)fallen_for, tipped ? 2 : 0, 1, c4, _kin5, _fz4);
         }
         for (int leg = 0; leg < 4; leg++) _legController->commands[leg].zero();
         finalizeStep();
@@ -653,7 +713,7 @@ void RobotRunner::run() {
                     r.omegaBody[0], r.omegaBody[1], r.omegaBody[2],
                     r.vBody[0], r.vBody[1], r.vBody[2],
                     r.position[2], (float)dt_ms_actual, opMode,
-                    _shmFiniteOk ? 1 : 0, contact4, _kin5);
+                    _shmFiniteOk ? 1 : 0, contact4, _kin5, _fz4);
     }
   }
 }

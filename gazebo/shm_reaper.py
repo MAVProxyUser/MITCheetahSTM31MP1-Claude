@@ -72,9 +72,9 @@ HEADER_FMT = "<QIIIIII"
 HEADER_SIZE = struct.calcsize(HEADER_FMT)
 assert HEADER_SIZE == 32, f"Header format drifted from ShmTrace.h (got {HEADER_SIZE}, want 32)"
 
-RECORD_FMT = "<dQ20s" + "f" * 20 + "BB"
+RECORD_FMT = "<dQ20s" + "f" * 24 + "BB"
 RECORD_SIZE = struct.calcsize(RECORD_FMT)
-assert RECORD_SIZE == 118, f"Record format drifted from ShmTrace.h's Record (got {RECORD_SIZE}, want 118)"
+assert RECORD_SIZE == 134, f"Record format drifted from ShmTrace.h's Record (got {RECORD_SIZE}, want 134)"
 
 RING_CAPACITY = 65536
 MAGIC = 0x43484554  # "CHET", little-endian bytes happen to spell nothing readable - just a sentinel
@@ -102,6 +102,12 @@ _FIELDS = ["t", "seq", "tag", "roll", "pitch", "yaw", "wx", "wy", "wz",
            # this over the estimate); foot_z* are the per-leg terms it is the
            # min of. See OPEN-26.
            "kin_z", "foot_z0", "foot_z1", "foot_z2", "foot_z3",
+           # 2026-09-04: per-leg WORLD FOOT SPEED (m/s). Began as a force
+           # field; there is no measured force in this build, and the
+           # operator's EDU dog has no contact sensors either, so the
+           # sensorless test - a planted foot does not move - is the one
+           # that transfers. Names kept to avoid a third layout change.
+           "foot_fz0", "foot_fz1", "foot_fz2", "foot_fz3",
            "op_mode", "finite"]
 
 # CRASH-WORTHY tags: any record with one of these causes a standalone

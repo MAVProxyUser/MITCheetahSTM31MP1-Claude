@@ -116,19 +116,40 @@ struct Record {
                                    // foot-buckling hypothesis for OPEN-26
                                    // predicts the error tracks leg-geometry
                                    // change, and a min alone cannot show that.
+  float    foot_fz[4];            // per-leg WORLD-FRAME FOOT SPEED, m/s (the
+                                   // name is now historical - it began as a
+                                   // force field; see RobotRunner.cpp for why
+                                   // no force signal exists here). This is the
+                                   // sensorless contact test: a planted foot
+                                   // is stationary in the world. Added
+                                   // 2026-09-04 because OPEN-26 found
+                                   // the KF fully trusting a foot 0.165 m off
+                                   // the ground, because there IS no contact
+                                   // estimation - ContactEstimator::run()
+                                   // copies the gait SCHEDULE. Whether a
+                                   // force-based contact signal would have
+                                   // told planted from airborne has to be
+                                   // measured, not assumed. It cannot be, in
+                                   // this build: SpiData has no torque field
+                                   // and tauEstimate is assembled from
+                                   // commands[], so nothing here observes what
+                                   // a foot actually feels. See the long note
+                                   // at the call site in RobotRunner.cpp. What
+                                   // this field carries is what the MPC
+                                   // believed it was pushing with.
   uint8_t  op_mode;                // FSM_OperatingMode: 0 NORMAL,
                                    // 1 TRANSITIONING, 2 ESTOP, 3 EDAMP
   uint8_t  finite;                 // 1 if the state estimate was finite
                                    // this tick, 0 if the NaN guard fired
 };
 #pragma pack(pop)
-// 118 bytes (was 98 before kin_z + foot_z[4] were added 2026-09-03) -
+// 134 bytes (98 -> 118 with kin_z + foot_z[4], -> 134 with foot_fz[4]) -
 // measured directly with a standalone compile after hand-
 // summing the field widths got it wrong twice in a row. Not required to
 // be any particular round number since #pragma pack(1) already guarantees
 // no compiler padding; the number only matters because the Python
 // reaper's struct.unpack format string has to match it exactly.
-static_assert(sizeof(Record) == 118, "Record layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
+static_assert(sizeof(Record) == 134, "Record layout must stay in sync with the Python reaper's struct format - update BOTH sides together");
 
 constexpr uint32_t RING_CAPACITY = 65536;
 
@@ -221,7 +242,8 @@ class Writer {
   void log(const char* tag, double t, float roll, float pitch, float yaw,
            float wx, float wy, float wz, float vx, float vy, float vz,
            float z, float period_ms, uint8_t op_mode, uint8_t finite,
-           const float contact[4], const float* kin5 = nullptr) {
+           const float contact[4], const float* kin5 = nullptr,
+           const float* fz4 = nullptr) {
     ensure_open();
     if (!ring_) return;
     const uint64_t seq = ring_->header.write_seq.load(std::memory_order_relaxed);
@@ -240,6 +262,7 @@ class Writer {
     // sites that have no leg data stay untouched and write zeros.
     r.kin_z = kin5 ? kin5[0] : 0.f;
     for (int i = 0; i < 4; ++i) r.foot_z[i] = kin5 ? kin5[1 + i] : 0.f;
+    for (int i = 0; i < 4; ++i) r.foot_fz[i] = fz4 ? fz4[i] : 0.f;
     r.op_mode = op_mode;
     r.finite = finite;
     // Publish LAST - see the file header's ordering note.
@@ -395,7 +418,8 @@ class Writer {
 inline void log(const char* tag, double t, float roll, float pitch, float yaw,
                  float wx, float wy, float wz, float vx, float vy, float vz,
                  float z, float period_ms, uint8_t op_mode, uint8_t finite,
-                 const float contact[4], const float* kin5 = nullptr) {
+                 const float contact[4], const float* kin5 = nullptr,
+           const float* fz4 = nullptr) {
   Writer::instance().log(tag, t, roll, pitch, yaw, wx, wy, wz, vx, vy, vz,
                           z, period_ms, op_mode, finite, contact, kin5);
 }
