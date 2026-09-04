@@ -38,6 +38,23 @@ template <typename T>
 bool SafetyChecker<T>::checkSafeOrientation() {
   static const int hold_ticks =
       (ctrl_tuning::integer("CTRL_ORIENT_HOLD_MS", 60)) / 2;   // 2 ms ticks
+  // THE LIMIT IS NOW TUNABLE, AND THAT IS THE POINT (2026-09-04).
+  //
+  // 0.5 rad = 28.65 deg was hardcoded. Measured that day: 19 of 20 falls
+  // E-STOP here first, at a peak pitch of 33.3 deg, and the E-stop precedes
+  // the body's descent by 0.41 s - while 0 of 14 passing runs ever trip it.
+  // Every "capability ceiling" in this project's record is therefore the
+  // speed at which the robot first pitches past THIS NUMBER, not a limit of
+  // its dynamics. Whether it could recover from 33 deg has never been
+  // tested, because nothing has ever been allowed to try.
+  static const float limit_rad =
+      (float)ctrl_tuning::num("CTRL_ORIENT_LIMIT_DEG", 28.65) / 57.2958f;
+  static bool announced = false;
+  if (!announced) {
+    announced = true;
+    shmtrace::logf(0.0, "[orient] limit %.1f deg, hold %d ms",
+                   limit_rad * 57.2958f, hold_ticks * 2);
+  }
   static int over_ticks = 0;
   static float peak = 0.f;
 
@@ -45,7 +62,7 @@ bool SafetyChecker<T>::checkSafeOrientation() {
   const float pitch = std::fabs((float)data->_stateEstimator->getResult().rpy(1));
   const float worst = std::max(roll, pitch);
 
-  if (worst >= 0.5f) {
+  if (worst >= limit_rad) {
     ++over_ticks;
     if (worst > peak) peak = worst;
     if (over_ticks > hold_ticks) {

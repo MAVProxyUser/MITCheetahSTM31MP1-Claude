@@ -21,6 +21,9 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 . gazebo/tools/campaign_lib.sh
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
+# CAMPAIGN_EXTRA appends env overrides to every run's --extra. --extra is
+# per-slot and space-separated, so it has to go inside the SAME argument -
+# a second --extra silently targets slot 2, which does not exist.
 NAME="${1:?name}"; REPS="${2:?reps}"; shift 2
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || { echo "need at least one arm"; exit 2; }
 . gazebo/tools/paths.sh
@@ -45,7 +48,8 @@ one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
   local CONTACT="$DIR/contact_${arm}_$rep.jsonl"
   ( timeout 400 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
       --slot "dash:30" --gait "$gait" --speed "$spd" --dash 0 \
-      --wait-for-gate 1800 --extra "WP_CLOSE_LEG=0" > "$DIR/run.log" 2>&1 ) & local RP=$!
+      --wait-for-gate 1800 --extra "WP_CLOSE_LEG=0 ${CAMPAIGN_EXTRA:-}" \
+      > "$DIR/run.log" 2>&1 ) & local RP=$!
   for i in $(seq 1 90); do pgrep -f 'gz[ ]sim' >/dev/null 2>&1 && break; sleep 1; done
   # the three gz env vars server.py sets on itself; without them the
   # subscribe returns ok and not one message ever arrives
