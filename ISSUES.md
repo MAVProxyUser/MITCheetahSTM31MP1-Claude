@@ -362,6 +362,60 @@ passed on its own in-suite retry.
   has never been ground truth for roll and pitch on this rig.
   n=5; the overnight queue is building the sample to re-run this on.
 
+  **THE ORIENTATION MECHANISM IS ALSO DEAD (2026-09-04, n=14).** With
+  roll/pitch truth finally available: mean |pitch error| **0.02 deg**,
+  |roll error| 1.45 deg, and tilt accounts for **20%** of the height gap --
+  driven entirely by two outliers, while several runs show 0.00 deg of
+  attitude error alongside a 4-6 cm height gap. Attitude is not it.
+
+  **What was actually happening: the divergence is a MID-DESCENT
+  TRANSIENT, and I had been sampling the wrong instant.** Two analyses
+  disagreed -- the rate work said kin_z runs 1.8x fast, the ground work
+  said kin_z tracks truth to 7 mm -- so I printed one collapse's series
+  aligned, with no cleverness:
+
+  | dt | est_z | kin_z | truth |
+  |---|---|---|---|
+  | 0.00 s | 0.258 | 0.260 | 0.260 |
+  | 0.40 s | 0.054 | 0.081 | **0.139** |
+  | 0.80 s | **-0.008** | 0.038 | 0.037 |
+
+  The whole discrepancy lives in a ~0.3 s window in the MIDDLE of the
+  descent and has closed again by the deck. The ground analysis was not
+  wrong, it sampled the bottom -- after convergence. (Its first version
+  was separately broken: it aligned truth to the estimator by matching
+  DEPTH, which is circular. Fixed to align on descent onset, the
+  alignment a 17-run control had already validated at lead 0.00 s.)
+
+  **Measured across 14 collapses** (`gazebo/tools/open26_divergence.py`):
+
+  | | peak below truth |
+  |---|---|
+  | estimator `z` | 0.058 m |
+  | detector `kin_z` | **0.154 m** |
+
+  and the estimator's height goes **below zero** -- a belly underground --
+  in **4/14 (29%)** of collapses. That is not a bias; it is the filter
+  losing the state.
+
+  **The detector is SOUND, now measured at the point that decides it**
+  (`gazebo/tools/open26_firecheck.py`, n=15). `kin_z`'s 0.154 m error
+  happens at heights well above the threshold and has closed by the time
+  it matters: at the tick `kin_z` crosses 0.10, the true body height is
+  **0.096 m**; 0.5 s later when the hold expires it is **0.054 m**. Runs
+  where the robot was still standing (>0.20 m) at declaration: **0/15**.
+  The detector question is closed for the third and last time, and this
+  time at the value it triggers on.
+
+  **A PHYSICAL finding, not an estimator one.** `truth_z - kin_z` IS the
+  lowest foot's height above ground (kin_z is body-above-lowest-foot;
+  truth_z is body-above-ground). Its 0.154 m peak therefore says that
+  mid-fold **all four feet are ~15 cm off the deck** while the body is
+  still at ~0.20 m. The robot is not collapsing onto its legs -- it is
+  pulling every foot off the ground and coming down with them tucked.
+  That reframes what "the fold" is, and it is the first mechanism
+  candidate here that is about the ROBOT rather than about the filter.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
