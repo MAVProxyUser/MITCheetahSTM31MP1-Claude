@@ -496,6 +496,33 @@ passed on its own in-suite retry.
   discard, is untested - but it is a new hypothesis, not a rescue of this
   one, and it needs its own interleaved A/B before anyone believes it.
 
+  **"The robot lets go, then falls" is DEAD - the precursor fires on
+  healthy runs too.** (2026-09-04, `gazebo/tools/open26_precursor.py`,
+  built on the operator's suggestion to use contact inference as an
+  INSTRUMENT rather than a control input - which is also where it works on
+  the real EDU dog.) Every run is read twice: inferred contact (world foot
+  speed < 0.15 m/s, IMU + encoders only) and the gz contact sensors as
+  labels.
+
+  | | n | fired | mean lead before descent |
+  |---|---|---|---|
+  | FELL, inferred | 3 | 3 | 0.71 s |
+  | **PASSED, inferred** | 3 | **3** | **1.89 s** |
+  | FELL, true sensor | 3 | 3 | **0.07 s** |
+  | PASSED, true sensor | 1 | 1 | 1.04 s |
+
+  Two reasons this is dead. **All four feet leaving the ground happens on
+  runs that PASS, with a LONGER lead than on runs that fall** - so it
+  predicts nothing. And by the true sensor the falls' contact loss leads
+  the descent by 0.07 s, which is simultaneity, not causation: the feet
+  come up because the body is already going down. Consequence, not cause.
+
+  Recorded because the story was good: the 0.154 m kin_z gap really does
+  mean the legs tuck, retraction really does reach 0.285 m against a
+  0.288 m standing height, and none of that separates a fall from a pass.
+  The control arm is the only reason this is not now written up as the
+  mechanism. n=3 per arm; the queue is raising it.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different
