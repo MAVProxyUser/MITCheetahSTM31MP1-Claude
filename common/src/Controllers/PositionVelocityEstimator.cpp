@@ -171,6 +171,68 @@ void LinearKFPositionVelocityEstimator<T>::run() {
     } else if (phase > (T(1) - trust_window)) {
       trust = (T(1) - phase) / trust_window;
     }
+    // SENSORLESS CONTACT GATE (SIM_CONTACT_GATE=1, OFF by default).
+    //
+    // There is no contact estimation in this controller: ContactEstimator::run()
+    // copies the gait scheduler's contactPhase, so `trust` above is the
+    // SCHEDULE's opinion that a foot is planted. Measured against gz foot
+    // contact sensors used purely as labels (2026-09-04, 8 runs, all four
+    // legs, ~100 Hz), that opinion is wrong in the dangerous direction 12.8%
+    // of the time: it calls a foot planted while it is actually in the air,
+    // and this filter then pins that foot as a fixed world point and corrects
+    // the body against it.
+    //
+    // The foot's world speed is already available here - v0 is the KF's world
+    // velocity and dp_f the foot's world velocity relative to the body, so
+    // ||v0 + dp_f|| is the foot's speed over the ground. A planted foot is
+    // stationary. Requiring the schedule AND that speed cuts false stance to
+    // 5.8% at 0.15 m/s (SAME overall accuracy, 75.1% vs 75.1%) or 3.9% at
+    // 0.10 m/s (74.4%). The two error types are not interchangeable: a false
+    // stance feeds the filter a fixed point that is moving, while a false
+    // swing merely withholds a measurement and leaves it conservative.
+    //
+    // Uses only the IMU and the joint encoders. That is deliberate - the
+    // operator's Go1 EDU has no foot contact sensors ("only the expensive
+    // dogs have contact sensors"), so a gate built on force or on a sim
+    // contact sensor would work here and not on the real robot. The gz
+    // sensors exist in this project ONLY as labels for scoring this.
+    {
+      static const int gate_on =
+          getenv("SIM_CONTACT_GATE") ? atoi(getenv("SIM_CONTACT_GATE")) : 0;
+      if (gate_on) {
+        static const T gate_th = getenv("SIM_CONTACT_GATE_TH")
+            ? (T)atof(getenv("SIM_CONTACT_GATE_TH")) : T(0.15);
+        // Say so, ONCE. A flag that silently does nothing turns an A/B into
+        // 32 runs of the same arm, and this project has already lost a night
+        // to an instrument that was not running. The counter proves not just
+        // that the gate is compiled in and enabled, but that it is actually
+        // FIRING on real feet.
+        static bool announced = false;
+        static long fired = 0, seen = 0;
+        if (!announced) {
+          announced = true;
+          // shmtrace, NOT printf: this project routed every debug call site
+          // through the shm text ring, and ctrl_0.log is fed from that ring.
+          // A printf here reaches nobody - which is how the first version of
+          // this proof produced zero output and looked like a dead flag.
+          shmtrace::logf(0.0, "[contact-gate] ON, threshold %.3f m/s - a foot "
+                 "the SCHEDULE calls planted is distrusted if it is moving "
+                 "faster than that", (double)gate_th);
+        }
+        const Vec3<T> v_foot_world = v0 + dp_f;
+        const T sp = v_foot_world.norm();
+        ++seen;
+        if (std::isfinite(sp) && sp > gate_th && trust > T(0)) {
+          ++fired; trust = T(0);
+        }
+        if ((seen % 20000) == 0) {
+          shmtrace::logf(0.0, "[contact-gate] vetoed %ld of %ld "
+                 "scheduled-stance samples (%.1f%%)", fired, seen,
+                 100.0 * fired / (double)seen);
+        }
+      }
+    }
+
     //T high_suspect_number(1000);
     T high_suspect_number(100);
 
