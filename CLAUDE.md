@@ -3545,6 +3545,20 @@ express "reverse direction here" - any waypoint with >150 deg direction
 change is now registered as a planner stop.
 
 **4. THE ATOM'S FAILURE IS PITCH, AND THE a_lon DEFAULT IS BACKWARDS.**
+*(2026-09-04: the MECHANISM behind this is now measured, and those pitch
+numbers are the trip points of a specific check. The robot pitches past
+`SafetyChecker::checkSafeOrientation()`'s 0.5 rad = 28.65 deg limit,
+`ControlFSM::safetyPreCheck()` sets ESTOP, every leg command is zeroed -
+`tauFeedForward` goes to exactly 0.000 - and the robot then sinks under
+gravity on limp legs and settles FLAT. 19 of 20 falls do this; 0 of 14
+passes ever trip it, and the E-stop precedes the descent by 0.41 s. The
+tripping attitude is real, not estimator error: estimated 36.9 deg vs gz
+truth 36.4 at the instant it fires. Because the settled pose reads ~1.5
+deg, a classifier reading the LAST tick of a trace calls these "level
+collapses" - which is how ISSUES.md OPEN-26 came to describe a
+non-existent failure mode for two days. Classify a fall by the attitude
+at the E-STOP, never at the end. The limit itself is about right: with it
+raised, only 3 of 28 excursions past 28.65 deg recovered.)*
 Every atom trip measured pitch-dominant (30.5, 33.0, 35.6, 35.9, 36.6,
 36.9 deg) with roll in the teens. A first fix lowering the LATERAL budget
 (WP_ALAT=1.8) was therefore aimed at the wrong axis and the very next run
