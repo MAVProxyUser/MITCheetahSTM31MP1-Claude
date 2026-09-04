@@ -412,8 +412,42 @@ void RobotRunner::run() {
       // sensorless contact test, and it is what a contact estimator here
       // would have to be built on - so measure whether it separates BEFORE
       // anyone builds one.
-      Vec3<float> vw = _stateEstimate.rBody.transpose() *
-                       _legController->datas[leg].v;
+      // WORLD-FRAME FOOT SPEED, per leg - the sensorless contact signal.
+      // A planted foot is stationary in the world however the body moves over
+      // it; a swinging foot is not. Needs only joint encoders and the IMU,
+      // both of which the operator's EDU dog has (it has no contact sensors,
+      // so anything built on foot force would not transfer).
+      //
+      // This read 0.000 for hours and I nearly concluded the leg data was
+      // dead. It was not: shmtrace's free log() wrapper accepted fz4 and
+      // never forwarded it to Writer::log, which took its default nullptr
+      // and wrote zeros - and compiled silently, because the parameter has a
+      // default. A sentinel value of 42.0f written immediately before the
+      // log call is what exposed it. Measured after the fix: |qd| mean 2.67,
+      // max 17.96 rad/s. Every conclusion drawn from this field before
+      // 02:38 on 2026-09-04 is void.
+      // The foot's velocity IN THE WORLD, which is what goes to zero when a
+      // foot is planted. The first version used datas[leg].v alone - the
+      // foot's velocity RELATIVE TO THE BODY - and separated scheduled
+      // stance from swing by only 1.4x (medians 0.808 vs 1.122 m/s, ~52%
+      // recall either way, barely better than a coin). Of course it did: at
+      // a 3 m/s cruise a planted foot sweeps backwards through the body
+      // frame at ~3 m/s. The body's own motion has to be added back.
+      //
+      //   v_foot_world = R_bw^T ( vBody + omegaBody x r_foot + v_rel )
+      //
+      // r_foot is the foot in the body frame (hip + p); rBody is world->body
+      // so its transpose maps body->world. vBody and omegaBody are the IMU's
+      // contribution - which is the operator's point: the IMU plus the gait's
+      // own kinematics is enough to know a foot has landed, with no contact
+      // sensor anywhere.
+      const Vec3<float> r_foot = _quadruped.getHipLocation(leg) +
+                                 _legController->datas[leg].p;
+      const Vec3<float> v_body_frame =
+          _stateEstimate.vBody +
+          _stateEstimate.omegaBody.cross(r_foot) +
+          _legController->datas[leg].v;
+      const Vec3<float> vw = _stateEstimate.rBody.transpose() * v_body_frame;
       const float sp = vw.norm();
       if (std::isfinite(sp) && sp < 100.f) _fz4[leg] = sp;
       // NOTE, 2026-09-04, UNRESOLVED: this reads 0.000 on every sample of a

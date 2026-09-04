@@ -141,6 +141,50 @@ for kind in ("collision", "visual"):
     ET.SubElement(plane, "normal").text = "0 0 1"
     ET.SubElement(plane, "size").text = "50 50"
 
+# ---------------------------------------------------------------------------
+# OPTIONAL FOOT CONTACT SENSORS - SIM-ONLY GROUND TRUTH, NEVER A CONTROL INPUT
+#
+# Operator, 2026-09-04: "only the expensive dogs have contact sensors I do not
+# have expensive EDU dog." So these exist for exactly one purpose: to LABEL
+# what really touched the ground, so a sensorless contact estimator - one that
+# uses only the IMU and the joint encoders, which the EDU dog does have - can
+# be measured against the truth instead of against the gait schedule (which is
+# the thing under suspicion in OPEN-26, and therefore useless as a label).
+#
+# They are OFF by default and gated on SIM_FOOT_CONTACT=1. Nothing in the
+# control path may ever read them: a controller that works here because it
+# reads a contact sensor is a controller that does not work on the real dog.
+# The reader is a separate subscriber process (contact_feed.py), the same
+# arrangement pose_feed.py uses for ground-truth pose.
+if os.environ.get("SIM_FOOT_CONTACT") == "1":
+    _n = 0
+    for _leg in ("FL", "FR", "RL", "RR"):
+        _link = links.get("%s_calf" % _leg)
+        if _link is None:
+            sys.stderr.write("make_world: WARNING no %s_calf link - no contact "
+                             "sensor for that foot\n" % _leg)
+            continue
+        _col = None
+        for _c in _link.findall("collision"):
+            if "foot" in (_c.get("name") or ""):
+                _col = _c.get("name"); break
+        if _col is None:
+            sys.stderr.write("make_world: WARNING no foot collision on %s_calf "
+                             "- no contact sensor for that foot\n" % _leg)
+            continue
+        _s = ET.SubElement(_link, "sensor",
+                           {"name": "%s_foot_contact" % _leg, "type": "contact"})
+        ET.SubElement(_s, "always_on").text = "1"
+        ET.SubElement(_s, "update_rate").text = "500"
+        _cc = ET.SubElement(_s, "contact")
+        ET.SubElement(_cc, "collision").text = _col
+        _n += 1
+    sys.stderr.write("make_world: WARNING %d FOOT CONTACT SENSORS ADDED "
+                     "(SIM_FOOT_CONTACT=1). These are ground-truth LABELS for "
+                     "validating a sensorless estimator. The real EDU dog has "
+                     "no such sensors - nothing in the control path may read "
+                     "them.\n" % _n)
+
 world.append(model)
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)

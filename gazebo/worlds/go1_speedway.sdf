@@ -12,9 +12,6 @@
     <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure" />
     <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat" />
     <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact" />
-    <!-- Renders camera sensors headlessly, so recording never touches the GUI.
-         Replaces the /gui/screenshot loop (which popped a "Saved image to:"
-         toast per frame and stalled the GUI). -->
     <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
       <render_engine>ogre2</render_engine>
     </plugin>
@@ -58,35 +55,7 @@
       </link>
     </model>
     <model name="go1">
-      <!-- Face NORTH (+y) so the dog is parallel to the barn (barn long axis is N-S).
-           Z=0.42, not the old 0.08: every joint spawns at q=0 and DART clamps
-           the calf's illegal q=0 to near its own limit, so even "lying down"
-           the (uncontrolled, undamped-by-any-command) leg reaches ~0.32 m
-           below the body - measured directly via gz topic on FL_calf's
-           settled world pose, not calculated from nominal geometry. At 0.08
-           the feet sat about 0.32 m UNDER the ground plane; 0.42 brings them
-           to about ground level with a couple cm of margin. This is a single
-           Z number - no joint angles or other poses touched. Spawning above
-           the fall-detector's 0.25 m arm height needed a matching change in
-           Stm32mp1HardwareBridge.cpp (suspend the z-collapse check for the
-           boot sequence, same mechanism already used around the dash
-           interlude's own lie-down) - see that file for why a bare threshold
-           bump could not work here (spawn height ends up above the robot's
-           own normal standing height). -->
-      <!-- Spawn z: 0.45 puts STRAIGHT legs' feet at +0.02 (leg reach 0.43),
-         so no solid ever starts inside the floor even at the spawn instant;
-         0.42 left them kissing -0.01. Settle equilibrium is IDENTICAL
-         (measured: 0.42 and 0.60 both settle to body z=0.073, knees
-         -1.71/-2.35, abad at the +-0.864 stop, feet within +-1cm of the
-         plane) - which matches Unitree's own documented startup pose
-         (belly pad flat, legs folded and splayed; source:
-         wiki.cci.arts.ac.uk/books/robotics-lab/page/
-         using-go1-edu-robot-dog-by-unitree, operator-provided
-         2026-08-28). The earlier "feet 10-17cm under at settle" claim
-         was a measurement error: gz pose/info reports LINK poses
-         relative to their MODEL, and the model's own +0.073 was not
-         added. Real limp-settle physics is correct. -->
-    <pose>0 0 0.45 0 0 1.5707963</pose>
+      <pose>0 0 0.45 0 0 1.5707963</pose>
       <link name="base">
         <inertial>
           <pose>0.020866157113366469 0.0018596720421213159 -0.00046917899041193459 0 0 0</pose>
@@ -456,9 +425,6 @@
         </visual>
         <gravity>true</gravity>
         <gravity>true</gravity>
-        <!-- Chase camera for headless video capture (record_video.py subscribes
-             to /chase_cam). Mounted on the trunk: 1.9 m behind, 0.9 m up,
-             pitched 22 deg down. Rides with the body, so a tumble is visible. -->
         <sensor name="chase_cam" type="camera">
           <always_on>1</always_on>
           <update_rate>20</update_rate>
@@ -466,14 +432,17 @@
           <pose>-1.9 0 0.9 0 0.38 0</pose>
           <camera>
             <horizontal_fov>1.15</horizontal_fov>
-            <image><width>960</width><height>540</height><format>R8G8B8</format></image>
-            <clip><near>0.05</near><far>300</far></clip>
+            <image>
+              <width>960</width>
+              <height>540</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.05</near>
+              <far>300</far>
+            </clip>
           </camera>
         </sensor>
-        <!-- FORWARD camera - Chuck UI's front feed. Mounted at the nose,
-             level with a slight downward tilt so the ground ahead is in
-             frame. 480p is deliberate: this feed is polled and JPEG-encoded
-             for a browser tile, not used for vision, so keep it small. -->
         <sensor name="front_cam" type="camera">
           <always_on>1</always_on>
           <update_rate>10</update_rate>
@@ -481,13 +450,17 @@
           <pose>0.28 0 0.02 0 0.15 0</pose>
           <camera>
             <horizontal_fov>1.05</horizontal_fov>
-            <image><width>480</width><height>270</height><format>R8G8B8</format></image>
-            <clip><near>0.03</near><far>200</far></clip>
+            <image>
+              <width>480</width>
+              <height>270</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.03</near>
+              <far>200</far>
+            </clip>
           </camera>
         </sensor>
-        <!-- DOWN (nadir) camera - Chuck UI's other standard feed. Pitch of
-             pi/2 rotates the camera's forward axis from +X to -Z: straight
-             down at the ground the dog is standing/running on. -->
         <sensor name="nadir_cam" type="camera">
           <always_on>1</always_on>
           <update_rate>10</update_rate>
@@ -495,8 +468,15 @@
           <pose>0 0 -0.06 0 1.5708 0</pose>
           <camera>
             <horizontal_fov>1.05</horizontal_fov>
-            <image><width>480</width><height>270</height><format>R8G8B8</format></image>
-            <clip><near>0.03</near><far>50</far></clip>
+            <image>
+              <width>480</width>
+              <height>270</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.03</near>
+              <far>50</far>
+            </clip>
           </camera>
         </sensor>
         <sensor name="cheetah_imu" type="imu">
@@ -515,15 +495,6 @@
         </sensor>
         <sensor name="cheetah_gps" type="navsat">
           <always_on>1</always_on>
-          <!-- GPS_HZ default, matching make_world.py: u-blox NEO-M9V's
-               documented nav update rate ("Up to 50 Hz (4 concurrent GNSS)",
-               NEO-M9V product summary/datasheet, no priority mode required) -
-               a real, faster, still-cited spec superseding the ZED-F9P's
-               20 Hz DGNSS rate used here previously (kept selectable via
-               $GPS_HZ for that or any other regression comparison). The
-               original 10 Hz default was a flat, uncited guess, which
-               combined with the 500 Hz control loop to create the staleness
-               bug in CLAUDE.md's "GPS VELOCITY AIDING" section. -->
           <update_rate>50</update_rate>
           <topic>navsat</topic>
         </sensor>
@@ -815,6 +786,13 @@
         </visual>
         <self_collide>true</self_collide>
         <self_collide>true</self_collide>
+        <sensor name="FL_foot_contact" type="contact">
+          <always_on>1</always_on>
+          <update_rate>500</update_rate>
+          <contact>
+            <collision>FL_calf_fixed_joint_lump__FL_foot_collision_1</collision>
+          </contact>
+        </sensor>
       </link>
       <joint name="FR_hip_joint" type="revolute">
         <pose relative_to="base">0.18809999999999999 -0.04675 0 0 0 0</pose>
@@ -1103,6 +1081,13 @@
         </visual>
         <self_collide>true</self_collide>
         <self_collide>true</self_collide>
+        <sensor name="FR_foot_contact" type="contact">
+          <always_on>1</always_on>
+          <update_rate>500</update_rate>
+          <contact>
+            <collision>FR_calf_fixed_joint_lump__FR_foot_collision_1</collision>
+          </contact>
+        </sensor>
       </link>
       <joint name="RL_hip_joint" type="revolute">
         <pose relative_to="base">-0.18809999999999999 0.04675 0 0 0 0</pose>
@@ -1391,6 +1376,13 @@
         </visual>
         <self_collide>true</self_collide>
         <self_collide>true</self_collide>
+        <sensor name="RL_foot_contact" type="contact">
+          <always_on>1</always_on>
+          <update_rate>500</update_rate>
+          <contact>
+            <collision>RL_calf_fixed_joint_lump__RL_foot_collision_1</collision>
+          </contact>
+        </sensor>
       </link>
       <joint name="RR_hip_joint" type="revolute">
         <pose relative_to="base">-0.18809999999999999 -0.04675 0 0 0 0</pose>
@@ -1679,6 +1671,13 @@
         </visual>
         <self_collide>true</self_collide>
         <self_collide>true</self_collide>
+        <sensor name="RR_foot_contact" type="contact">
+          <always_on>1</always_on>
+          <update_rate>500</update_rate>
+          <contact>
+            <collision>RR_calf_fixed_joint_lump__RR_foot_collision_1</collision>
+          </contact>
+        </sensor>
       </link>
       <frame name="FL_hip_rotor_joint" attached_to="trunk">
         <pose>0.11215 0.04675 0 0 0 0</pose>
@@ -1917,21 +1916,11 @@
       </plugin>
       <pose>0 0 0.45 0 0 0</pose>
     </model>
-
     <scene>
       <ambient>0.6 0.6 0.6 1</ambient>
       <background>0.55 0.72 0.92 1</background>
       <shadows>true</shadows>
     </scene>
-    <!-- OpenPilot farm scenery (Clearpath cpr_agriculture + grass horizon ring),
-         reused verbatim so the dog walks the same field the OP quadcopter flew. -->
-    
-    
-
-    <!-- World-fixed MISSION CAMERA: straight down over the mission area, wide
-         enough for a 5 m star plus margin. Unlike the trunk-mounted chase_cam
-         this never rolls with the robot, so the recording is stable and the
-         planned-vs-actual ground track reads clearly. -->
     <model name="mission_cam">
       <static>true</static>
       <pose>0 0 22 0 1.5707963 1.5707963</pose>
@@ -1942,8 +1931,15 @@
           <topic>overhead_cam</topic>
           <camera>
             <horizontal_fov>1.05</horizontal_fov>
-            <image><width>1080</width><height>1080</height><format>R8G8B8</format></image>
-            <clip><near>0.1</near><far>200</far></clip>
+            <image>
+              <width>1080</width>
+              <height>1080</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>200</far>
+            </clip>
           </camera>
         </sensor>
       </link>

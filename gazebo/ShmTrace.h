@@ -421,7 +421,7 @@ inline void log(const char* tag, double t, float roll, float pitch, float yaw,
                  const float contact[4], const float* kin5 = nullptr,
            const float* fz4 = nullptr) {
   Writer::instance().log(tag, t, roll, pitch, yaw, wx, wy, wz, vx, vy, vz,
-                          z, period_ms, op_mode, finite, contact, kin5);
+                          z, period_ms, op_mode, finite, contact, kin5, fz4);
 }
 
 // The printf replacement call sites actually use: shmtrace::logf(t, "...",

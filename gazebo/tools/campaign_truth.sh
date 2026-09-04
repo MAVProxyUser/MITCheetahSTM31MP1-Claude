@@ -24,7 +24,7 @@ PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/ga
 NAME="${1:?name}"; REPS="${2:?reps}"; shift 2
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || { echo "need at least one arm"; exit 2; }
 DIR=/tmp/$NAME; mkdir -p "$DIR"; OUT=/tmp/$NAME.csv
-echo "wall,arm,rep,gait,terrain,speed,verdict,truth_lines,snapshot,truth" > "$OUT"
+echo "wall,arm,rep,gait,terrain,speed,verdict,truth_lines,snapshot,truth,contact" > "$OUT"
 
 dump_with_retry(){   # $1 = tag -> echoes path or NONE
   local tag="$1" p
@@ -41,6 +41,7 @@ print(shm_reaper.dump_snapshot(0,'$tag') or 'NONE')" 2>/dev/null | tail -1)
 
 one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
   local TRUTH="$DIR/truth_${arm}_$rep.jsonl"
+  local CONTACT="$DIR/contact_${arm}_$rep.jsonl"
   ( timeout 400 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
       --slot "dash:30" --gait "$gait" --speed "$spd" --dash 0 \
       --wait-for-gate 1800 --extra "WP_CLOSE_LEG=0" > "$DIR/run.log" 2>&1 ) & local RP=$!
@@ -51,14 +52,24 @@ one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
       GZ_RELAY=127.0.0.1 "$PYBIN" -u pose_feed.py --world go1_world \
       --names go1_0=0 --rate 200 --warmup 30 --deaf-after 600 \
       </dev/null > "$TRUTH" 2>"$DIR/pf_${arm}_$rep.log" & disown )
+  # GROUND-TRUTH FOOT CONTACT - labels only, never a control input. The real
+  # EDU dog has no contact sensors; these exist so a sensorless estimator can
+  # be scored against truth instead of against the gait schedule, which is the
+  # thing under suspicion. Sim-only, own process, own file.
+  ( cd gazebo/conductor && GZ_PARTITION=cheetah_fleet GZ_IP=127.0.0.1 \
+      GZ_RELAY=127.0.0.1 "$PYBIN" -u contact_feed.py --world go1_world \
+      --model go1_0 --rate 200 --stale 0.01 \
+      </dev/null > "$CONTACT" 2>"$DIR/cf_${arm}_$rep.log" & disown )
   wait $RP
   pkill -f 'pose_feed.py --world go1_world' 2>/dev/null
+  pkill -f 'contact_feed.py --world go1_world' 2>/dev/null
   local V TL SNAP
   V=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
   TL=$(wc -l < "$TRUTH" 2>/dev/null | tr -d ' ')
   SNAP=$(dump_with_retry "${V:-NONE}_$NAME")
-  echo "  $arm rep$rep $gait/$terr@$spd ${V:-NONE} truth=$TL snap=$([ "$SNAP" = NONE ] && echo NONE || echo ok)"
-  echo "$(date +%H:%M:%S),$arm,$rep,$gait,$terr,$spd,${V:-NONE},$TL,$SNAP,$TRUTH" >> "$OUT"
+  local CL; CL=$(wc -l < "$CONTACT" 2>/dev/null | tr -d ' ')
+  echo "  $arm rep$rep $gait/$terr@$spd ${V:-NONE} truth=$TL contact=${CL:-0} snap=$([ "$SNAP" = NONE ] && echo NONE || echo ok)"
+  echo "$(date +%H:%M:%S),$arm,$rep,$gait,$terr,$spd,${V:-NONE},$TL,$SNAP,$TRUTH,$CONTACT" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     if [ "$FAILS" -ge 3 ]; then
