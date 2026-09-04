@@ -1122,6 +1122,53 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       bridge->setControlMode(3);                 // K_BALANCE_STAND
       std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+
+      // STAND CHECKPOINT, and the z test re-armed HERE rather than after
+      // LOCOMOTION+1s.
+      //
+      // Suspending the z-collapse test around this commanded crouch is
+      // correct - the test cannot tell a commanded lie-down from a collapse,
+      // both being a level body under 0.10 m. But suspending it from the
+      // PASSIVE hop all the way to post-LOCOMOTION left ~8.7 s (20+2500+1200
+      // +20+2500+1500+1000 ms) in which a genuine LEVEL fold is invisible,
+      // and a level fold is 66% of this port's falls (OPEN-26).
+      //
+      // A DESCENT-RATE test was the obvious replacement and it is DISPROVEN.
+      // Measured over 26 commanded lie-downs and 11 collapses (c21/c22/c23):
+      // over a 0.2 s window the commanded lie-down peaks at 0.63-0.75 m/s -
+      // FASTER than the weakest collapse (0.30) - and no window from 0.2 s
+      // to 2.0 s separates the two populations. The commanded crouch is slow
+      // on average but has a fast segment; rate on z cannot discriminate.
+      //
+      // What DOES discriminate is that this code KNOWS it commanded a
+      // stand-up. After 2.5 s of STAND_UP and 1.5 s of BALANCE_STAND the
+      // robot is either standing (~0.25-0.29) or it is not (~0.04-0.09) -
+      // a gap no estimator error here can close. Note OPEN-26 measured this
+      // very estimate running 1.74x fast during a fold; that matters for a
+      // threshold at 0.10, and not at all for telling 0.28 from 0.08.
+      // $SIM_STAND_OK_Z (default 0.15) tunes it.
+      {
+        float zStand = 0.f;
+        if (bridge->robotRunner())
+          zStand = bridge->robotRunner()->getStateEstimate().position[2];
+        static const float stand_ok_z =
+            getenv("SIM_STAND_OK_Z") ? atof(getenv("SIM_STAND_OK_Z")) : 0.15f;
+        if (std::isfinite(zStand) && zStand < stand_ok_z)
+          shmtrace::logf(elapsed(),
+              "[stand-check] commanded stand-up did NOT take: z=%.3f m after "
+              "2.5s STAND_UP + 1.5s BALANCE_STAND (expected >=%.2f). Re-arming "
+              "the z-collapse test now - if this is a fold it fires within "
+              "SIM_FALL_HOLD_S instead of after LOCOMOTION.", zStand, stand_ok_z);
+        else
+          shmtrace::logf(elapsed(),
+              "[stand-check] back up: z=%.3f m", zStand);
+      }
+      // Re-arm BEFORE locomotion: by here the robot is supposed to be
+      // standing tall, so there is nothing left for the suspension to
+      // protect, and every millisecond it stays suspended is a millisecond a
+      // fold goes unseen. This alone returns ~2.5 s of the blind window.
+      setFallZEnable(true);
+
       bridge->setControlMode(4);                 // K_LOCOMOTION
       // Let the gait engage before asking it to go anywhere - the same
       // settle window the initial sequencer holds at mission start.
@@ -1148,9 +1195,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
           cur_gait = segNow->gait;
         }
       }
-      // Standing tall and driving again - stop window closes: re-arm both
-      // the z-collapse test and the orientation ESTOP for the dash.
-      setFallZEnable(true);
+      // Stop window closes for the orientation ESTOP. The z-collapse test
+      // was already re-armed above, at the stand checkpoint - it does not
+      // need to wait for locomotion, and waiting cost ~2.5 s of blindness.
       setOrientTripEnable(true);
 
       restart_t = elapsed();   // ramp forward speed again from this standstill
