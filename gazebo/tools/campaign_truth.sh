@@ -23,7 +23,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
 NAME="${1:?name}"; REPS="${2:?reps}"; shift 2
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || { echo "need at least one arm"; exit 2; }
-DIR=/tmp/$NAME; mkdir -p "$DIR"; OUT=/tmp/$NAME.csv
+. gazebo/tools/paths.sh
+DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 echo "wall,arm,rep,gait,terrain,speed,verdict,truth_lines,snapshot,truth,contact" > "$OUT"
 
 dump_with_retry(){   # $1 = tag -> echoes path or NONE

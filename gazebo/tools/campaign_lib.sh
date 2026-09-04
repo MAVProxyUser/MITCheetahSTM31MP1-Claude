@@ -26,8 +26,7 @@
 # contaminated by leftovers from earlier attempts), so this file does not
 # claim to fix bash's exit behaviour. It removes the DEPENDENCE on it.
 set -u
-CAMPAIGN_DIR="${CAMPAIGN_DIR:-/tmp/cheetah_campaigns}"
-mkdir -p "$CAMPAIGN_DIR"
+. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"   # persistent root - never /tmp
 
 # campaign_done <name> [note...]   - call the moment the data is complete.
 campaign_done(){

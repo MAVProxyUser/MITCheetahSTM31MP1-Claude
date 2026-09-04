@@ -18,7 +18,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT=8420
 BASE="http://127.0.0.1:$PORT"
 PYBIN="/Users/kfinisterre/Desktop/OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/bin/python3"
-LOG=/private/tmp/conductor_server.log
+. "$HERE/tools/paths.sh" 2>/dev/null || true
+LOG="${LOG_DIR:-/tmp}/conductor_server.log"
 OPEN=0; RESTART=0
 for a in "$@"; do
   case "$a" in --open) OPEN=1;; --restart) RESTART=1;;

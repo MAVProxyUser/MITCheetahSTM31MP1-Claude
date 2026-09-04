@@ -35,8 +35,9 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 QF="${1:?usage: run_queue.sh QUEUEFILE [PER_JOB_TIMEOUT_S]}"
 JOB_TIMEOUT="${2:-5400}"
-LOG=/tmp/cheetah_queue.log
-STATE=/tmp/cheetah_queue.state
+. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
+LOG="$LOG_DIR/queue.log"
+STATE="$LOG_DIR/queue.state"
 BASE=http://127.0.0.1:8420
 
 say(){ printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
@@ -72,7 +73,7 @@ while IFS= read -r line; do
     124) say "-- job $n: $name TIMED OUT at ${JOB_TIMEOUT}s - killed, moving on" ;;
     *)   say "-- job $n: $name exited $rc (${el}s) - moving on" ;;
   esac
-  printf '%s %s rc=%s %ss\n' "$(date '+%F %T')" "$name" "$rc" "$el" >> /tmp/cheetah_queue.results
+  printf '%s %s rc=%s %ss\n' "$(date '+%F %T')" "$name" "$rc" "$el" >> "$LOG_DIR/queue.results"
 done < "$QF"
 say "== queue done: $n jobs =="
 echo "QUEUE_IDLE" > "$STATE"

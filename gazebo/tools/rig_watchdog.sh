@@ -17,7 +17,8 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 INTERVAL="${1:-300}"; STALE="${2:-1800}"
 BASE=http://127.0.0.1:8420
-ALERT=/tmp/cheetah_rig_idle.log
+. "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
+ALERT="$LOG_DIR/rig_idle.log"
 last_run=""; last_change=$(date +%s)
 
 while :; do
@@ -52,7 +53,7 @@ while :; do
         echo "$(date '+%F %T') ALERT RIG IDLE ${idle}s (run_id/phase stuck at $rid)"
         echo "  campaign shells still alive:"
         ps -eo pid,ppid,etime,command 2>/dev/null | grep -E '/tmp/(c[0-9]+|chain_|ab_)' | grep -v grep | cut -c1-140 | sed 's/^/    /'
-        echo "  campaign markers:"; ls -t /tmp/cheetah_campaigns/*.done 2>/dev/null | head -5 | sed 's/^/    /'
+        echo "  campaign markers:"; ls -t "$CAMPAIGN_DIR"/*.done 2>/dev/null | head -5 | sed 's/^/    /'
       } >> "$ALERT"
       last_change=$now   # re-arm so it reports every STALE, not every tick
     fi

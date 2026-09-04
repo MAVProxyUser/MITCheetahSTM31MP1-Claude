@@ -72,7 +72,13 @@ for _marker in ("robot", "common", "user"):
             "server.py: REPO_ROOT resolved to %r, which has no %r/ - the "
             "conductor's idea of the repo layout is wrong. Fix REPO_ROOT "
             "above (it counts '..' from this file)." % (REPO_ROOT, _marker))
-RUN_DIR = "/tmp/cheetah_conductor"
+# RUN_DIR comes from gazebo/paths.py now, NOT /tmp. The operator put it
+# plainly on 2026-09-04 - "stop working out of /tmp" - after a file this
+# project needed had already vanished from there. 5.8 GB of fall traces that
+# every OPEN-26 number rests on were living in a directory the OS may purge.
+sys.path.insert(0, GAZEBO_DIR)
+import paths as _paths
+RUN_DIR = _paths.RUN_DIR
 PARTITION = "cheetah_fleet"
 WORLD = "go1_world"
 PORT = 8420

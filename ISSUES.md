@@ -465,6 +465,37 @@ passed on its own in-suite retry.
      the same physical quantity in both, and neither is a contact
      predictor, so the offset cannot tilt the comparison toward either.
 
+  **THE CONTACT GATE IS HARMFUL. Measured, and it stays dead.**
+  (2026-09-04, interleaved, same binary both arms, only
+  `SIM_CONTACT_GATE` differing, marginal cell trotting flat @3.5, N=20
+  each.) Rows in `gazebo/conductor/data/gate_ab_contact_gate.csv`:
+
+  | arm | PASS |
+  |---|---|
+  | gate OFF | **8/20** |
+  | gate ON (0.15 m/s) | **1/20** |
+
+  **Fisher two-sided p = 0.020.** Not a null - a significant harm, 40% to
+  5%.
+
+  **Why the offline win did not transfer, which is the lesson.** The
+  offline scoring optimised FALSE STANCE and treated false swing as the
+  cheap error: 12.8% -> 5.8% false stance at equal label accuracy looked
+  like a free improvement. Closed-loop it is not free. Zeroing `trust`
+  does not merely withhold a bad measurement, it discards a whole foot's
+  contribution to the velocity update, and the gate does that on ~20% of
+  samples (false swing rose 12.0% -> 19.5%). A filter this dependent on
+  foot measurements for velocity is hurt more by losing good ones than by
+  occasionally believing a bad one. **A label-accuracy improvement is not
+  a control improvement, and only the A/B could tell the difference.**
+
+  What survives: the finding that contact IS inferable from the IMU and
+  the encoders alone stands (that measurement was against ground-truth
+  labels and is unaffected). What is dead is using it as a hard veto on
+  KF foot trust. A soft derate, or using it to REWEIGHT rather than
+  discard, is untested - but it is a new hypothesis, not a rescue of this
+  one, and it needs its own interleaved A/B before anyone believes it.
+
   **Next, in order.**
   1. **Log `kinZ` and find out whether the DETECTOR's height leads too.**
      The estimator's does, by 0.86 s; the detector uses a different

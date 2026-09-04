@@ -62,6 +62,9 @@ import mmap
 import os
 import struct
 import sys
+import os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+import paths as _paths   # persistent data root - never /tmp
 import time
 
 # MUST mirror ShmTrace.h::Header exactly. run_id was appended (with an
@@ -374,7 +377,7 @@ def tail_text_to_log(instance, log_path, poll_s=0.2, expect_run_id=None):
             time.sleep(poll_s)
 
 
-def dump_snapshot(instance, reason, archive_dir="/tmp/cheetah_conductor/archive/shm_trace",
+def dump_snapshot(instance, reason, archive_dir=None,
                    run_id=None):
     """Write the CURRENT full contents of dog `instance`'s ring to a
     timestamped JSON file under archive_dir - the "oracle" entry point.
@@ -385,6 +388,8 @@ def dump_snapshot(instance, reason, archive_dir="/tmp/cheetah_conductor/archive/
     comment for why that is deliberate). Returns the archive path, or
     None if there was nothing to read (segment never existed).
     """
+    if archive_dir is None:
+        archive_dir = _paths.ARCHIVE_DIR   # persistent, never /tmp
     records = read_all(instance)
     if not records:
         return None
@@ -508,7 +513,7 @@ def main():
     ap.add_argument("--watch", help="comma-separated dog instance indices to watch continuously, e.g. 0,1,2")
     ap.add_argument("--dump", type=int, help="dump a single instance's current ring once and exit")
     ap.add_argument("--reason", default="manual", help="tag for --dump's archive filename")
-    ap.add_argument("--archive-dir", default="/tmp/cheetah_conductor/archive/shm_trace")
+    ap.add_argument("--archive-dir", default=_paths.ARCHIVE_DIR)
     ap.add_argument("--poll", type=float, default=0.5, help="watch/tail-text poll interval, seconds")
     ap.add_argument("--tail-text", type=int, metavar="INSTANCE",
                      help="continuously append INSTANCE's text ring to --append-to "
