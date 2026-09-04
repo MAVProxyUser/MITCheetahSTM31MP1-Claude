@@ -604,6 +604,9 @@ passed on its own in-suite retry.
   | 60 | 16 | 8 | 9 | 1 |
 
   **Pooled over the raised arms: 3 of 28 excursions recovered - 11%.**
+  **Confirmed at scale (2026-09-04, 160 traces, 96 further runs): 9 of 67
+  recovered - 13.4%, 95% CI roughly 5-22%.** Peak attitude in those
+  excursions averaged 43.5 deg.
   Once this robot pitches past ~29 deg it is going down 89% of the time,
   whatever the safety checker does. That is why the pass-rate difference
   was small and insignificant: the limit is not what is binding.
