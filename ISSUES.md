@@ -436,6 +436,60 @@ passed on its own in-suite retry.
 
 ## CLOSED (symptom → cause → fix → evidence)
 
+### CLOSED · The fall detector was blind for 8.7 s around every commanded crouch
+
+**Operator, 2026-09-03:** "make it aware of the mode, and IF the dog has
+been told to lay down, STOP detecting for a 'fall' like you normally do.
+IF you are gonna keep detecting in the moment, use new logic, obviously."
+
+**Half of it already existed.** `setFallZEnable(false)` has wrapped every
+commanded crouch since 2026-08-24, for the reason the operator gave: the
+z test cannot tell a commanded lie-down from a collapse, both being a
+level body descending through 0.10 m.
+
+**The other half did not, and it cost 8.7 s of blindness.** The
+suspension ran from the PASSIVE hop all the way past `K_LOCOMOTION` --
+20+2500+1200+20+2500+1500+1000 ms -- and a LEVEL fold inside that window
+is invisible. Level folds are 66% of this port's falls (OPEN-26).
+
+**The obvious replacement is DISPROVEN, and the measurement is why.** A
+descent-rate test looks right and fails: over 26 commanded lie-downs and
+11 collapses (c21/c22/c23 traces), peak descent rate over a 0.2 s window
+is **0.625-0.748 m/s for the commanded lie-down** against **0.297-1.074
+for a collapse** -- the commanded crouch is FASTER than the weakest
+collapse. Sweeping the window from 0.2 s to 2.0 s, no width separates the
+populations. The crouch is slow on average with a fast segment. My first
+instinct was a 0.12 m/s threshold, which would have fired on every
+lie-down in the archive.
+
+**Fix: use what the rate signal does not have -- the mission knows what
+it commanded.** After 2.5 s of `STAND_UP` and 1.5 s of `BALANCE_STAND`
+the robot is standing (~0.28) or it is not (~0.08). That gap is wide
+enough that the 1.74x estimator error measured in OPEN-26 cannot close
+it, which is worth stating explicitly because the same estimate is
+untrustworthy at a 0.10 threshold and perfectly adequate at this one.
+So `mit_sim_main.cpp` now logs a `[stand-check]` verdict there and
+**re-arms the z test at that point instead of after `LOCOMOTION`**,
+returning ~2.5 s of the window. `$SIM_STAND_OK_Z` (default 0.15) tunes it.
+
+**Evidence.** Both branches exercised live: `[stand-check] back up:
+z=0.286 m` on a healthy run, and the failure branch forced with
+`SIM_STAND_OK_Z=0.5`. c24: 8/10 over the interlude cell, checkpoint
+present on all 8 runs that reached it; both failures fell BEFORE the
+interlude (collapse 28.7 s, tip-over 56.3 s) so the change was not
+implicated. c25, **interleaved, binary swapped every run**, N=8 each:
+**NEW 8/8, OLD 6/8, Fisher p = 0.467** --
+`gazebo/conductor/data/c25_standcheck_ab.csv`.
+
+**Explicitly NOT a claimed improvement.** 8/8 against 6/8 is the kind of
+number this rig produces by chance, and the change *cannot* raise a pass
+rate: it adds a log line and makes the detector fire EARLIER, which can
+only turn passes into failures, never the reverse. What c25 establishes
+is that it does not COST anything, and the `stand-check lines` column
+(1 on every NEW run, 0 on every OLD) doubles as machine proof that the
+A/B actually swapped the binary it claimed to.
+
+
 ### CLOSED · A finished campaign wedged in its own teardown and the rig sat idle for six hours
 
 **Symptom.** At 17:15 the operator asked what had been solved overnight.
