@@ -36,19 +36,29 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-28 · A repeatable mid-course collapse at wp7 on `wkc_finals`** —
-  `OPEN`. 18 of 32 mid-course falls across 162 runs land at waypoint 7, and
-  it is arm-independent (it appears in every arm of all four OPEN-27 rounds,
-  including runs with no treatment at all). Several traces carry *identical*
-  signatures to three decimals across different arms in the same rep
-  (`roll=-0 pitch=5 z=0.054`), so the event is deterministic, not a dice
-  roll. Two flavours: a level fold (`roll≈0, pitch≈0-5, z≈0.04-0.05`) and a
-  rolled one (`roll≈-26…-38, pitch=+9, z≈0.08`). Leading suspect is the
-  course's own costliest feature — the planner prints
-  `+6.45 s at s=129.0 (transient, R=0.04 m)`, a near-point-turn, which is
-  CLOSED-18's hairpin-pivot territory. Not yet traced to the event; the
-  mechanism is unconfirmed and that is the next step. This is the failure
-  that now dominates the course, OPEN-27 having removed the other one.
+- **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
+  OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall
+  closed (was OPEN-27), the remaining failures are mid-course: 32 of 162 runs
+  across four rounds, 18 of them while navigating to wp7. That concentration
+  is **exposure, not a location** — "wp7" is the longest sustained-cruise leg
+  on the course (the falls happen 30-57 m from the target, mid-leg, heading
+  constant, `w ≈ 0`, `v = 1.90` steady), so it simply offers the most seconds
+  at cruise. It is arm-independent, appearing in every arm of all four
+  rounds including untreated ones.
+
+  Traced to the event, it is **OPEN-26 exactly**: steady trot for seconds,
+  then pitch runs 9.7° → 28.2° → 33.5° in about 0.6 s, crosses
+  SafetyChecker's 28.65°, `op_mode` goes to 2, `track_err` drops to the ~3.2
+  floor that means the leg commands have been zeroed, and the body drops.
+  Two of two traces examined, both flavours (level fold and rolled) share it.
+
+  So this is not a new defect — it is the known capability ceiling at
+  1.9 m/s, and OPEN-26 already established that the 28.65° limit is not what
+  binds (a four-point dose-response showed no ordering, p = 1.000, and only
+  9/67 excursions ever recover). Open question is therefore a control one:
+  what makes the pitch run away during a long straight at 1.9. The speed
+  sweep re-running now (`gazebo/tools/wkc_sweep.sh`, with the OPEN-27 fix in)
+  will say where the reliable ceiling actually sits.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
