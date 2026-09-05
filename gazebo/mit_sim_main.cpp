@@ -599,16 +599,31 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     shmtrace::logf(0.0, "[stop] shedding %.2f m/s over %d steps (%.2f s, "
            "%.2f m/s^2 commanded, budget %.2f)", (double)seed, steps,
            steps * 0.05, (double)(seed / (steps * 0.05f)), (double)a_dec);
-    // A ZERO SEED MEANS THE RAMP HAS NOTHING TO DO, AND RUNNING IT ANYWAY IS
-    // NOT FREE. On a real course the planner's own end brake (CLOSED-19's
-    // setEndStop) has already taken the commanded speed to zero by the time
-    // this is called - every finish-line trace on wkc_finals logs
-    // "shedding 0.00 m/s". The 12-step floor then spends 0.6 s stepping zero
-    // down to zero while the robot stands in LOCOMOTION at zero commanded
-    // velocity, which is the regime ConvexMPCLocomotion::zeroVelHold's note
-    // measures as taking the oval's stop from ~1-in-3 tips to 7-of-8. That
-    // 0.6 s is pure exposure. Skip it.
-    if (seed < 0.05f) {
+    // A ZERO SEED MEANS THE RAMP HAS NOTHING TO SHED - AND SKIPPING IT ANYWAY
+    // IS MEASURABLY WORSE, WHICH IS WHY THIS IS OFF BY DEFAULT.
+    //
+    // The reasoning that put it here: on a real course the planner's own end
+    // brake (CLOSED-19's setEndStop) has already taken the commanded speed to
+    // zero by the time this is called - every finish-line trace on
+    // wkc_finals logs "shedding 0.00 m/s" - so the 12-step floor spends 0.6 s
+    // stepping zero down to zero while the robot stands in LOCOMOTION at zero
+    // commanded velocity, the regime ConvexMPCLocomotion::zeroVelHold's note
+    // measures as taking the oval's stop from ~1-in-3 tips to 7-of-8. Pure
+    // exposure, so skip it.
+    //
+    // Measured, and the reasoning was wrong. Skipping it took the untreated
+    // finish-line fall rate from 6/12 to 12/12 on the same course at the same
+    // speed. The ramp is not idle when the seed is zero: its steered branch
+    // keeps the follower's steering live through the first two thirds, which
+    // is the thing CLOSED-19 added to stop the oval tipping sideways out of a
+    // turn. Shedding no speed is not the same as doing nothing.
+    //
+    // Kept as a knob because the exposure argument is still real and a future
+    // version that preserves the steering while shortening the dwell would be
+    // the actual win. WP_STOP_SKIP_NOOP_RAMP=1 to try it.
+    const bool skip_noop = getenv("WP_STOP_SKIP_NOOP_RAMP") &&
+                           atoi(getenv("WP_STOP_SKIP_NOOP_RAMP")) != 0;
+    if (skip_noop && seed < 0.05f) {
       shmtrace::logf(0.0, "[stop] seed is already zero - the planner's end "
              "brake did the stop; skipping the ramp rather than standing in "
              "zero-vel locomotion for %.2f s", steps * 0.05);

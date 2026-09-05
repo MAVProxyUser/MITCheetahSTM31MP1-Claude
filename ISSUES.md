@@ -134,10 +134,38 @@ passed on its own in-suite retry.
   helps (14 % vs 48 %) because it shortens what comes *after*; it cannot fix
   what happens before it is entered.
 
-  **Round 3 running:** the stop wait is now attitude-aware and the zero-seed
-  ramp is skipped (`WP_STOP_ATT_BAIL=0`, `WP_STOP_ATT_DEG` restore/tune).
-  Arms `OLD` (neither) / `STOPBAIL` (stop wait only) / `BOTH`, 14 reps each,
-  so the two stages are attributable separately.
+  **Round 3 (42 runs, `OLD` / `STOPBAIL` / `BOTH`):** the stop wait made
+  attitude-aware, and the zero-seed ramp skipped.
+
+  | arm | reached wp16 | fell at the finish | fell mid-course | **any fall** |
+  |---|---|---|---|---|
+  | `OLD` | 12 | 12 (100 %) | 2 | **14/14** |
+  | `STOPBAIL` | 11 | 5 (45 %) | 3 | **8/14** |
+  | `BOTH` | 9 | **0 (0 %)** | 5 | **5/14** |
+
+  Clean ordering on both endpoints. `OLD` vs `BOTH` p < 0.0001, vs `STOPBAIL`
+  p = 0.0046. The attitude bail is doing most of the work and the settle watch
+  finishes it. The new bail never fired mid-course on any run, so the treated
+  arms did not cause the mid-course falls (those cluster at wp 7 with
+  roll ≈ −26…−38°, pitch +9°, z ≈ 0.08 — a separate repeatable mode).
+
+  **But round 3's baseline is not round 2's**, and that is my doing: the
+  zero-seed ramp skip applied to every arm, and it took the untreated
+  finish-line rate from 6/12 to **12/12**. The ramp is not idle when the seed
+  is zero — its steered branch keeps the follower's steering live through the
+  first two thirds, which is exactly what CLOSED-19 added to stop the oval
+  tipping sideways out of a turn. Shedding no speed is not the same as doing
+  nothing. The skip is now **off by default** (`WP_STOP_SKIP_NOOP_RAMP=1` to
+  try it); the exposure argument that motivated it is still real, and a
+  version that keeps the steering while shortening the dwell would be the
+  actual win.
+
+  Round 3's effect sizes are therefore measured against a baseline I had
+  made worse, and must not be quoted on their own.
+
+  **Round 4 running:** `BASE` (nothing) / `FIX` (attitude bail + settle
+  watch, ramp intact) / `SKIP` (`FIX` plus the skip), 14 reps each — the
+  honest effect size, plus a direct confirmation that the skip is what hurt.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
