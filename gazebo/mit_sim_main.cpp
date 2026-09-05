@@ -569,12 +569,24 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     // against a body CLAUDE.md measures as tracking ~1.2 m/s^2. The faster
     // the dog was going, the more the stop over-demanded - exactly backwards.
     //
-    // Measured cost: an agility course completed all 15 waypoints and then
-    // pitched onto its face AT THE FINISH. 2.11 -> 1.37 -> 0.15 m/s in about
-    // half a second, nose up 11.6 deg on the brake, then over the front feet
-    // to -66 deg. kin_z held 0.27-0.30 throughout, so the legs were still
-    // extended and under it - this was not a collapse, it was a face-plant
-    // from braking harder than the body can brake. Finishing a course and
+    // Motivating observation: an agility course completed all 15 waypoints
+    // and then pitched onto its face AT THE FINISH. 2.11 -> 1.37 -> 0.15 m/s
+    // in about half a second, nose up 11.6 deg on the brake, then over the
+    // front feet to -66 deg. kin_z held 0.27-0.30 throughout, so the legs
+    // were still extended and under it - not a collapse.
+    //
+    // THAT ATTRIBUTION WAS WRONG, and this ramp is not the fix for it.
+    // Reading the same event from the stop instead of from the descent: the
+    // brake COMPLETES, the robot stands still on four feet at z=0.305 for
+    // 1.3 s, and only then pitches over - inside the K_BALANCE_STAND settle
+    // that follows. Two interleaved WP_ADEC campaigns (24 runs at 2.5 m/s,
+    // then 50 at 2.0) found no effect on it, and the first of those never
+    // even exercised the ramp on a failing run. See settleOnFeet below for
+    // the trace and the actual mechanism.
+    //
+    // Bounding the deceleration is still right on its own terms - the fixed
+    // 16-step ramp really did over-demand in proportion to speed - it just
+    // is not what was killing the dog at the finish line. Finishing a course and
     // then falling over is not an acceptable outcome at any speed.
     //
     // Bounding the DECELERATION instead of the duration: steps scale with
@@ -625,6 +637,89 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
+  };
+
+  /* SETTLE ON ITS FEET - WATCHED, not a blind sleep.
+   *
+   * Every K_BALANCE_STAND in this file was followed by a flat
+   * sleep_for(1500 ms) and then a pose read. That dwell is where the
+   * Westminster course's finish-line face-plant actually happens, and it is
+   * NOT the brake. From the trace of the v=1.9 run that completed all 16
+   * waypoints and then went over (run3326):
+   *
+   *   t=218.17  brake begins, 1.99 m/s
+   *   t=218.55  STOPPED - four feet down, z=0.305, body still, pitch +7.7
+   *             (nose up, left over from the brake). BALANCE_STAND entered.
+   *   t=218.94  pitch passes level, still swinging at a constant ~20 deg/s
+   *   t=219.37  pitch -8.8 and flattens; for ~0.2 s it LOOKS settled
+   *   t=219.80  -12.8 and accelerating, wy running out to -6.5 rad/s
+   *   t=220.30  roll 167 deg, on its back. op_mode never left 0.
+   *
+   * The robot came to a clean, stable, four-feet-down stop and fell over
+   * 1.3 s LATER, inside the settle. decelerateAndConfirmStopped's comment
+   * above blames "braking harder than the body can brake" - that reading was
+   * taken from the descent rather than from the stop, and it is wrong: two
+   * interleaved WP_ADEC campaigns found no effect because the ramp is not
+   * the mechanism. Note kin_z holds 0.27-0.33 while z collapses, so the legs
+   * stay extended under it the whole way down - it is driven, not dropped.
+   *
+   * FSM_State_BalanceStand::onEnter's own note already names the mode -
+   * "the marginal impedance regime where the WBC stand slowly rolls over" -
+   * and the interlude below records "an eventual orientation-safety fall
+   * from prolonged undriven standing". The controller has a known slow
+   * divergence; 1.5 s of unwatched dwell in it is the defect. SafetyChecker
+   * will not catch it either: its orientation trip is deliberately suspended
+   * across stop windows (CLOSED-20), which is why op_mode stays 0 to the end.
+   *
+   * So watch it. Leave as soon as it is actually settled, and bail the
+   * moment attitude is past anything a settle needs: at 8 deg there is a
+   * full second of margin before the fall (measured above) and a healthy
+   * stop peaks near 3 deg. Bailing hands straight to the caller's next step,
+   * a damped lie-down - sinking 0.30 m under damping beats a face-plant.
+   *
+   * WP_SETTLE_WATCH=0 restores the blind sleep, so this is an A/B arm rather
+   * than an assertion.
+   */
+  auto settleOnFeet = [&](int max_ms) -> const char* {
+    const bool watch = !getenv("WP_SETTLE_WATCH") || atoi(getenv("WP_SETTLE_WATCH")) != 0;
+    if (!watch) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(max_ms));
+      return "blind";
+    }
+    const float settle_deg = getenv("WP_SETTLE_DEG")
+        ? (float)atof(getenv("WP_SETTLE_DEG")) : 5.0f;
+    const float bail_deg = getenv("WP_SETTLE_BAIL_DEG")
+        ? (float)atof(getenv("WP_SETTLE_BAIL_DEG")) : 8.0f;
+    const float t0 = elapsed();
+    int calm_ms = 0; float worst = 0.f;
+    while ((elapsed() - t0) * 1000.f < (float)max_ms) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      if (!bridge->robotRunner()) continue;
+      const auto& es = bridge->robotRunner()->getStateEstimate();
+      const float r = std::fabs(es.rpy[0]) * 57.2958f;
+      const float p = std::fabs(es.rpy[1]) * 57.2958f;
+      const float w = (r > p) ? r : p;
+      if (w > worst) worst = w;
+      if (w >= bail_deg) {
+        shmtrace::logf(elapsed(),
+               "[settle] BAILING at %.1f deg (roll=%.1f pitch=%.1f) after %.2f s - "
+               "BALANCE_STAND is diverging, handing to the lie-down now",
+               (double)w, (double)(es.rpy[0] * 57.2958f),
+               (double)(es.rpy[1] * 57.2958f), (double)(elapsed() - t0));
+        return "bail";
+      }
+      const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
+                                  es.vBody[1] * es.vBody[1]);
+      calm_ms = (w < settle_deg && spd < 0.10f) ? calm_ms + 20 : 0;
+      if (calm_ms >= 200) {
+        shmtrace::logf(elapsed(), "[settle] settled in %.2f s (worst %.1f deg)",
+               (double)(elapsed() - t0), (double)worst);
+        return "settled";
+      }
+    }
+    shmtrace::logf(elapsed(), "[settle] full %d ms dwell, never held calm (worst %.1f deg)",
+           max_ms, (double)worst);
+    return "timeout";
   };
 
   // ESTOP RECOVERY. See RobotController::isEstopped()'s comment for the
@@ -753,7 +848,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       bridge->setControlMode(1);                 // K_STAND_UP
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       bridge->setControlMode(3);                 // K_BALANCE_STAND
-      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      settleOnFeet(1500);   // watched - see settleOnFeet's note
       bridge->setControlMode(4);                 // K_LOCOMOTION
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
@@ -1088,7 +1183,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //    the oval's stop from ~1-in-3 tips to 7-of-8 - see the measured
       //    note at ConvexMPCLocomotion::zeroVelHold.)
       bridge->setControlMode(3);                 // K_BALANCE_STAND
-      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      settleOnFeet(1500);   // watched - see settleOnFeet's note
 
       // 3. lie down - re-enter STAND_UP with a low target (see the
       //    end-of-mission comment for why this reuses that interpolation).
@@ -1163,7 +1258,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       bridge->setControlMode(1);                 // K_STAND_UP - fresh onEnter
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
       bridge->setControlMode(3);                 // K_BALANCE_STAND
-      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      settleOnFeet(1500);   // watched - see settleOnFeet's note
 
       // STAND CHECKPOINT, and the z test re-armed HERE rather than after
       // LOCOMOTION+1s.
@@ -1290,7 +1385,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // 2. settle on its feet (trot-in-place settle tried and reverted -
       //    see the interlude's matching note).
       bridge->setControlMode(3);                 // K_BALANCE_STAND
-      std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      settleOnFeet(1500);   // watched - see settleOnFeet's note
       const auto& s1 = bridge->robotRunner()->getStateEstimate();
       const float stand_z = s1.position[2];
       const float stand_roll  = std::fabs(s1.rpy[0]) * 57.2958f;

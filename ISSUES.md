@@ -36,6 +36,46 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-27 · The finish-line fall is in the SETTLE, not the brake** —
+  `IN TEST`. The Westminster course (`course:wkc_finals`) at 1.9 m/s reached
+  all 16 waypoints and then went over. It was attributed to braking harder
+  than the body can brake, and `decelerateAndConfirmStopped` was given a
+  bounded-deceleration ramp (`WP_ADEC`) to fix it. **That attribution was
+  wrong.** Two interleaved A/B campaigns found nothing, and the first of them
+  never exercised the ramp on a single failing run: at `dash:30` @ 2.5 m/s all
+  10 falls happened mid-dash (6.5-23.8 m), none printed `[stop] shedding`, so
+  "harsh 8/12 vs bounded 6/12" was dash variance wearing a stop-ramp label.
+  Re-read from the stop rather than from the descent (run3326):
+
+  | t (s) | what |
+  |---|---|
+  | 218.17 | brake begins, 1.99 m/s |
+  | 218.55 | **STOPPED** — four feet down, z=0.305, still. `K_BALANCE_STAND` entered. pitch +7.7° (nose up, from the brake) |
+  | 218.94 | pitch passes level, still swinging at a constant ~20 °/s |
+  | 219.37 | pitch −8.8°, flattens — for ~0.2 s it looks settled |
+  | 219.80 | −12.8° and accelerating, `wy` runs out to −6.5 rad/s |
+  | 220.30 | roll 167°, on its back. `op_mode` never left 0 |
+
+  So it came to a clean, stable stop and fell over **1.3 s later**, inside the
+  blind `sleep_for(1500 ms)` that follows every `setControlMode(3)`. `kin_z`
+  holds 0.27-0.33 the whole way down, so the legs stay extended under it — it
+  is driven, not dropped. `FSM_State_BalanceStand::onEnter` already names the
+  mode in its own comment ("the marginal impedance regime where the WBC stand
+  slowly rolls over") and the dash interlude records "an eventual
+  orientation-safety fall from prolonged undriven standing".
+  `SafetyChecker` cannot catch it: its orientation trip is deliberately
+  suspended across stop windows (see CLOSED, the 8.7 s blind spot), which is
+  why `op_mode` stays 0 to the end.
+
+  Fix under test: `settleOnFeet()` replaces the blind sleep at all four
+  `K_BALANCE_STAND` sites — leave as soon as attitude is actually calm, and
+  bail to the damped lie-down at 8° (a full second of margin; a healthy stop
+  peaks near 3°). `WP_SETTLE_WATCH=0` restores the old blind sleep so this is
+  an A/B arm rather than an assertion; `gazebo/tools/wkc_settle_ab.sh` runs
+  it on the course that produced the fall, scored by
+  `gazebo/tools/stopfix_score.py` on the peak attitude *after* the stop —
+  a value on every run, not a rare binary.
+
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
   re-validated there, or JCQP made to converge on moving gaits, or the
