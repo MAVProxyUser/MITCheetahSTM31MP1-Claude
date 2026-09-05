@@ -72,9 +72,32 @@ passed on its own in-suite retry.
   bail to the damped lie-down at 8° (a full second of margin; a healthy stop
   peaks near 3°). `WP_SETTLE_WATCH=0` restores the old blind sleep so this is
   an A/B arm rather than an assertion; `gazebo/tools/wkc_settle_ab.sh` runs
-  it on the course that produced the fall, scored by
-  `gazebo/tools/stopfix_score.py` on the peak attitude *after* the stop —
-  a value on every run, not a rare binary.
+  it on the course that produced the fall.
+
+  **Round 1 (36 runs, interleaved, `course:wkc_finals` @ 1.9):**
+
+  | arm | reached wp16 | fell at the finish | bailed |
+  |---|---|---|---|
+  | `WATCH` | 14 | **2 (14 %)** | 10 |
+  | `BLIND` | 17 | **8 (47 %)** | — |
+
+  Fisher exact two-tailed **p = 0.068**. Right direction, not separable.
+  Median peak roll after the stop: 10.9° watched vs 63.7° blind; peak *pitch*
+  is unchanged (44.4 vs 46.7), so the bail is catching the rollover and not
+  the nose-down. One of the two `WATCH` failures (rep 7) bailed 0.02 s in at
+  −78.8° — it was already gone before the settle began, so it is not this
+  mechanism at all.
+
+  The endpoint is deliberately "fell **after** reaching the last waypoint",
+  not whole-run PASS/FAIL: the latter also counts mid-course falls, which a
+  settle change cannot touch, and round 1's arms differed 4-vs-1 there on
+  chance alone (the mid-course fallers have no `[settle]` line in their
+  traces, so the change was not involved).
+
+  **Round 2 running:** suggestive-but-not-significant is where this project
+  adds an ARM, not N — `BLIND` / `BAIL8` / `BAIL5`, 14 reps each. A lower
+  bail threshold tests the same mechanism by dose and pools with `BAIL8`
+  against the control at the same time.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
