@@ -36,136 +36,19 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-27 · The finish-line fall is in the SETTLE, not the brake** —
-  `IN TEST`. The Westminster course (`course:wkc_finals`) at 1.9 m/s reached
-  all 16 waypoints and then went over. It was attributed to braking harder
-  than the body can brake, and `decelerateAndConfirmStopped` was given a
-  bounded-deceleration ramp (`WP_ADEC`) to fix it. **That attribution was
-  wrong.** Two interleaved A/B campaigns found nothing, and the first of them
-  never exercised the ramp on a single failing run: at `dash:30` @ 2.5 m/s all
-  10 falls happened mid-dash (6.5-23.8 m), none printed `[stop] shedding`, so
-  "harsh 8/12 vs bounded 6/12" was dash variance wearing a stop-ramp label.
-  Re-read from the stop rather than from the descent (run3326):
-
-  | t (s) | what |
-  |---|---|
-  | 218.17 | brake begins, 1.99 m/s |
-  | 218.55 | **STOPPED** — four feet down, z=0.305, still. `K_BALANCE_STAND` entered. pitch +7.7° (nose up, from the brake) |
-  | 218.94 | pitch passes level, still swinging at a constant ~20 °/s |
-  | 219.37 | pitch −8.8°, flattens — for ~0.2 s it looks settled |
-  | 219.80 | −12.8° and accelerating, `wy` runs out to −6.5 rad/s |
-  | 220.30 | roll 167°, on its back. `op_mode` never left 0 |
-
-  So it came to a clean, stable stop and fell over **1.3 s later**, inside the
-  blind `sleep_for(1500 ms)` that follows every `setControlMode(3)`. `kin_z`
-  holds 0.27-0.33 the whole way down, so the legs stay extended under it — it
-  is driven, not dropped. `FSM_State_BalanceStand::onEnter` already names the
-  mode in its own comment ("the marginal impedance regime where the WBC stand
-  slowly rolls over") and the dash interlude records "an eventual
-  orientation-safety fall from prolonged undriven standing".
-  `SafetyChecker` cannot catch it: its orientation trip is deliberately
-  suspended across stop windows (see CLOSED, the 8.7 s blind spot), which is
-  why `op_mode` stays 0 to the end.
-
-  Fix under test: `settleOnFeet()` replaces the blind sleep at all four
-  `K_BALANCE_STAND` sites — leave as soon as attitude is actually calm, and
-  bail to the damped lie-down at 8° (a full second of margin; a healthy stop
-  peaks near 3°). `WP_SETTLE_WATCH=0` restores the old blind sleep so this is
-  an A/B arm rather than an assertion; `gazebo/tools/wkc_settle_ab.sh` runs
-  it on the course that produced the fall.
-
-  **Round 1 (36 runs, interleaved, `course:wkc_finals` @ 1.9):**
-
-  | arm | reached wp16 | fell at the finish | bailed |
-  |---|---|---|---|
-  | `WATCH` | 14 | **2 (14 %)** | 10 |
-  | `BLIND` | 17 | **8 (47 %)** | — |
-
-  Fisher exact two-tailed **p = 0.068**. Right direction, not separable.
-  Median peak roll after the stop: 10.9° watched vs 63.7° blind; peak *pitch*
-  is unchanged (44.4 vs 46.7), so the bail is catching the rollover and not
-  the nose-down. One of the two `WATCH` failures (rep 7) bailed 0.02 s in at
-  −78.8° — it was already gone before the settle began, so it is not this
-  mechanism at all.
-
-  The endpoint is deliberately "fell **after** reaching the last waypoint",
-  not whole-run PASS/FAIL: the latter also counts mid-course falls, which a
-  settle change cannot touch, and round 1's arms differed 4-vs-1 there on
-  chance alone (the mid-course fallers have no `[settle]` line in their
-  traces, so the change was not involved).
-
-  **Round 2 (42 runs, `BLIND` / `BAIL8` / `BAIL5`):**
-
-  | arm | reached wp16 | fell at the finish | bailed |
-  |---|---|---|---|
-  | `BLIND` | 12 | 6 (50 %) | 0 |
-  | `BAIL8` | 14 | **2 (14 %)** | 11 |
-  | `BAIL5` | 12 | 4 (33 %) | 4 |
-
-  `BAIL8` **replicated round 1 exactly** (2/14 both rounds; pooled 4/28 = 14 %
-  against `BLIND`'s 14/29 = 48 %). But there is no dose ordering — the
-  *stricter* 5° arm bailed **less** (4 vs 11), which is impossible if the
-  threshold were the operative variable. That anomaly is what found the real
-  mechanism.
-
-  **Corrected mechanism — the exposure is BEFORE the settle, not in it.**
-  Reading the `[settle]` lines instead of the totals: almost every bail fires
-  **0.02–0.03 s in, already at 34–171°**. Only one fired as designed (8.6°
-  after 0.51 s). The robot is arriving at `K_BALANCE_STAND` already toppling.
-  Three facts locate the window, measured across 29 runs:
-
-  - `[stop] shedding **0.00** m/s over 12 steps` on *every* finish-line trace.
-    The planner's own end brake (CLOSED-19) has already taken the commanded
-    speed to zero, so `decelerateAndConfirmStopped`'s ramp is a no-op —
-    0.6 s of stepping zero down to zero. **`WP_ADEC` is dead code on a real
-    course**, a third independent reason both earlier A/Bs found nothing.
-  - The shape is extremely repeatable: the dog is physically stopped
-    **0.27–0.30 s** after its last upright sample at speed, and its attitude
-    passes 28.65° **1.15–1.27 s** after that. 6 of 6 `BLIND` finish-line
-    falls, no exceptions.
-  - The wait that follows the ramp watches **speed only** — and a toppling
-    body is not still, so `vBody` never drops under 0.15 and the wait runs its
-    full 2 s backstop. `BALANCE_STAND` is not entered until **+0.94 to
-    +2.07 s**, by which time the robot is at 34–171°.
-
-  So the dog spends up to ~2.6 s stopped, in `LOCOMOTION`, at zero commanded
-  velocity — the regime `ConvexMPCLocomotion::zeroVelHold`'s own note measures
-  as taking the oval's stop from ~1-in-3 tips to 7-of-8. The settle watch
-  helps (14 % vs 48 %) because it shortens what comes *after*; it cannot fix
-  what happens before it is entered.
-
-  **Round 3 (42 runs, `OLD` / `STOPBAIL` / `BOTH`):** the stop wait made
-  attitude-aware, and the zero-seed ramp skipped.
-
-  | arm | reached wp16 | fell at the finish | fell mid-course | **any fall** |
-  |---|---|---|---|---|
-  | `OLD` | 12 | 12 (100 %) | 2 | **14/14** |
-  | `STOPBAIL` | 11 | 5 (45 %) | 3 | **8/14** |
-  | `BOTH` | 9 | **0 (0 %)** | 5 | **5/14** |
-
-  Clean ordering on both endpoints. `OLD` vs `BOTH` p < 0.0001, vs `STOPBAIL`
-  p = 0.0046. The attitude bail is doing most of the work and the settle watch
-  finishes it. The new bail never fired mid-course on any run, so the treated
-  arms did not cause the mid-course falls (those cluster at wp 7 with
-  roll ≈ −26…−38°, pitch +9°, z ≈ 0.08 — a separate repeatable mode).
-
-  **But round 3's baseline is not round 2's**, and that is my doing: the
-  zero-seed ramp skip applied to every arm, and it took the untreated
-  finish-line rate from 6/12 to **12/12**. The ramp is not idle when the seed
-  is zero — its steered branch keeps the follower's steering live through the
-  first two thirds, which is exactly what CLOSED-19 added to stop the oval
-  tipping sideways out of a turn. Shedding no speed is not the same as doing
-  nothing. The skip is now **off by default** (`WP_STOP_SKIP_NOOP_RAMP=1` to
-  try it); the exposure argument that motivated it is still real, and a
-  version that keeps the steering while shortening the dwell would be the
-  actual win.
-
-  Round 3's effect sizes are therefore measured against a baseline I had
-  made worse, and must not be quoted on their own.
-
-  **Round 4 running:** `BASE` (nothing) / `FIX` (attitude bail + settle
-  watch, ramp intact) / `SKIP` (`FIX` plus the skip), 14 reps each — the
-  honest effect size, plus a direct confirmation that the skip is what hurt.
+- **OPEN-28 · A repeatable mid-course collapse at wp7 on `wkc_finals`** —
+  `OPEN`. 18 of 32 mid-course falls across 162 runs land at waypoint 7, and
+  it is arm-independent (it appears in every arm of all four OPEN-27 rounds,
+  including runs with no treatment at all). Several traces carry *identical*
+  signatures to three decimals across different arms in the same rep
+  (`roll=-0 pitch=5 z=0.054`), so the event is deterministic, not a dice
+  roll. Two flavours: a level fold (`roll≈0, pitch≈0-5, z≈0.04-0.05`) and a
+  rolled one (`roll≈-26…-38, pitch=+9, z≈0.08`). Leading suspect is the
+  course's own costliest feature — the planner prints
+  `+6.45 s at s=129.0 (transient, R=0.04 m)`, a near-point-turn, which is
+  CLOSED-18's hairpin-pivot territory. Not yet traced to the event; the
+  mechanism is unconfirmed and that is the next step. This is the failure
+  that now dominates the course, OPEN-27 having removed the other one.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
@@ -385,6 +268,91 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+### CLOSED (was OPEN-27) · The finish-line fall was zero-velocity locomotion, not the brake and not the settle
+
+**Symptom.** The Westminster course (`course:wkc_finals`) at 1.9 m/s reached
+all 16 waypoints and then fell over. Roughly half the time — 18/37 across
+three independent control blocks (47 %, 50 %, 50 %).
+
+**First cause, wrong.** Attributed to braking harder than the body can brake;
+`decelerateAndConfirmStopped` was given a bounded-deceleration ramp
+(`WP_ADEC`). Two interleaved campaigns found nothing, for three separate
+reasons, each of which had to be found the hard way:
+
+1. The first A/B (`dash:30` @ 2.5) never applied the treatment to a failing
+   run — all 10 falls were mid-dash (6.5-23.8 m), none printed
+   `[stop] shedding`. "harsh 8/12 vs bounded 6/12" was dash variance.
+2. Its `peak_pitch_deg` column was stale on every PASS row: it read the newest
+   `*FALL.json` by mtime, and a passing run writes none. **Never key a
+   measurement on mtime.**
+3. On a real course the ramp seed is **zero** — the planner's own end brake
+   (CLOSED-19) has already stopped the dog, so every finish-line trace logs
+   `shedding 0.00 m/s`. `WP_ADEC` is dead code there.
+
+**Second cause, also wrong, and the anomaly that corrected it.** Reading
+run3326 from the stop rather than the descent put the fall 1.3 s *after* a
+clean four-feet-down stop, inside the blind `sleep_for(1500)` that follows
+every `setControlMode(3)`. A watched settle cut finish-line falls from 47 % to
+14 %, replicated exactly (2/14 in two separate rounds) — so the effect was
+real. But a three-arm dose test refused to order: the **stricter** 5° bail
+fired *less often* than the 8° one (4 vs 11), which is impossible if the
+threshold is the operative variable. Reading the `[settle]` lines rather than
+the totals: almost every bail fires **0.02-0.03 s in, already at 34-171°**.
+The robot was arriving at `BALANCE_STAND` already toppling.
+
+**Actual cause.** Between the planner's end brake and `K_BALANCE_STAND` the
+robot stands **stopped, in `LOCOMOTION`, at zero commanded velocity** for up
+to ~2.6 s — the regime `ConvexMPCLocomotion::zeroVelHold`'s own note measures
+as taking the oval's stop from ~1-in-3 tips to 7-of-8. The shape is nearly
+deterministic across 29 runs: physically stopped **0.27-0.30 s** after the
+last upright sample at speed, past SafetyChecker's 28.65° limit **1.15-1.27 s**
+later, 6 of 6 with no exceptions. Nothing shortens that dwell, because the
+wait after the ramp watches **speed only** and a toppling body is not still —
+`vBody` never drops under 0.15, so it burns its full 2 s backstop.
+`SafetyChecker` cannot catch it either: its orientation trip is suspended
+across stop windows (see the 8.7 s blind spot, CLOSED). `op_mode` stays 0 to
+the end.
+
+**Fix (both now default-on).**
+- `decelerateAndConfirmStopped`'s confirm loop ends on **attitude** as well as
+  speed — `WP_STOP_ATT_BAIL=0`, `WP_STOP_ATT_DEG` to restore or tune.
+- `settleOnFeet()` replaces the blind 1.5 s sleep at all four
+  `K_BALANCE_STAND` sites: leave when actually calm, bail to the damped
+  lie-down at 8° — `WP_SETTLE_WATCH=0`, `WP_SETTLE_BAIL_DEG`.
+
+**Evidence.** Round 4, 42 runs, interleaved every rep, ramp intact:
+
+| arm | reached wp16 | fell at the finish | PASS |
+|---|---|---|---|
+| `BASE` (neither) | 8 | 4 (50 %) | 2/14 |
+| `FIX` (both) | 10 | **0 (0 %)** | **9/14** |
+| `SKIP` (`FIX` + zero-seed ramp skip) | 8 | 0 (0 %) | 0/14 |
+
+`FIX` 0/10 against the pooled three-block control 18/37 — **p = 0.0076**.
+All treated arms pooled, 4/38 vs 18/37 — **p = 0.0003**. Whole-run PASS in the
+same interleaved block, `FIX` 9/14 vs `BASE` 2/14 — **p = 0.0183**. Median
+peak attitude after the stop: 48.5° → 16.7° pitch, 37.8° → 8.8° roll; runs
+past the safety limit 7/8 → 1/10.
+
+**A thing I broke and had to un-break.** The zero-seed ramp skip went in
+unconditional, applied to every arm of round 3, and took the *untreated* rate
+from 6/12 to 12/12. The ramp is not idle when the seed is zero — its steered
+branch keeps the follower's steering live through the first two thirds, which
+is exactly what CLOSED-19 added to stop the oval tipping sideways out of a
+turn. **Shedding no speed is not the same as doing nothing.** Now off by
+default (`WP_STOP_SKIP_NOOP_RAMP=1`), and round 4 confirms it: `SKIP` prevents
+the finish-line fall but passes **0/14**.
+
+**Not fixed by this.** Total falls only move 9/14 → 4/14 (p = 0.128), because
+the mid-course mode is untouched — see OPEN-28.
+
+**Tools.** `gazebo/tools/wkc_settle_ab.sh` (arms as `NAME:ENV` pairs),
+`gazebo/tools/stopfix_score.py` (peak attitude after the stop, window taken
+from the trace's own velocity — two clocks live in these traces and on a long
+course the `[nav]` lines run ~18 s behind the records, so a log-keyed window
+scores the wrong seconds; E-stop halts excluded, since that halt is a fall in
+progress rather than a stop).
 
 ### CLOSED (was OPEN-26) · The "level collapse" was a pitch-triggered safety E-STOP, and the classifier was reading the corpse
 
