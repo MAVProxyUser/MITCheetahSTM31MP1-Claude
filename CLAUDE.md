@@ -32,6 +32,26 @@ The rule, permanently:
 
 ## The board (Octavo OSD32MP1-RED)
 
+**Hardware ground truth lives OUTSIDE this repo, and is free to read:**
+`../OP Revo Redux/Octavo/` holds `OSD32MP15x_RED_7x_sch-V1_2-1.pdf` (the RED
+schematic - `pdftotext -layout` then grep it for net names), the
+`OSD32MP1_BRK_Altium_Project/` (`.SchDoc` files read with `strings`), and the
+board images. `../pi/` holds the Go1's own Raspberry Pi filesystem including
+`Legged_sport`. Check these before saying a hardware detail is unknown - on
+2026-09-04 "the repo has nothing on the baseboard" was wrong twice in one
+exchange, with this very section and a full schematic both sitting there.
+
+**RS485 buses on the RED: there is exactly ONE.** From the schematic:
+USART2 (PD3-PD6) is wired to the WiFi/BT module (`USART2_TX->BT_UART_RXD`,
+`USART2_RTS->BT_UART_CTS_N`); UART4 is the debug console. That leaves
+**USART3 on JP20 - pin 8 TX (PB10), pin 10 RX (PB12), pin 11 RTS/DE (PG8)**.
+`rt_unitree` defaults to four buses (`ttySTM1..4`) and cannot get them here:
+one bus carries a 4-motor bench (~1.1 ms of wire time at 112 bytes/motor,
+5 Mbaud) but not twelve (~3.4 ms, past a 2 ms tick). The **BRK** breaks out
+138 GPIO pins, so four USARTs can be pinmuxed there - that is the board for a
+four-bus leg harness. See ISSUES.md OPEN-12.
+
+
 - STM32MP157: **dual Cortex-A7, armv7l 32-bit**, NEON/VFPv4; + a Cortex-M4 (unused here).
 - OpenSTLinux (Yocto dunfell), kernel 5.10.10 **PREEMPT (not PREEMPT_RT)**, **glibc 2.31**,
   gcc/g++ 9.3.0. **426 MB RAM, no swap.** `/usr/local` has room; `/` is tight.
