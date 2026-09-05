@@ -94,10 +94,50 @@ passed on its own in-suite retry.
   chance alone (the mid-course fallers have no `[settle]` line in their
   traces, so the change was not involved).
 
-  **Round 2 running:** suggestive-but-not-significant is where this project
-  adds an ARM, not N — `BLIND` / `BAIL8` / `BAIL5`, 14 reps each. A lower
-  bail threshold tests the same mechanism by dose and pools with `BAIL8`
-  against the control at the same time.
+  **Round 2 (42 runs, `BLIND` / `BAIL8` / `BAIL5`):**
+
+  | arm | reached wp16 | fell at the finish | bailed |
+  |---|---|---|---|
+  | `BLIND` | 12 | 6 (50 %) | 0 |
+  | `BAIL8` | 14 | **2 (14 %)** | 11 |
+  | `BAIL5` | 12 | 4 (33 %) | 4 |
+
+  `BAIL8` **replicated round 1 exactly** (2/14 both rounds; pooled 4/28 = 14 %
+  against `BLIND`'s 14/29 = 48 %). But there is no dose ordering — the
+  *stricter* 5° arm bailed **less** (4 vs 11), which is impossible if the
+  threshold were the operative variable. That anomaly is what found the real
+  mechanism.
+
+  **Corrected mechanism — the exposure is BEFORE the settle, not in it.**
+  Reading the `[settle]` lines instead of the totals: almost every bail fires
+  **0.02–0.03 s in, already at 34–171°**. Only one fired as designed (8.6°
+  after 0.51 s). The robot is arriving at `K_BALANCE_STAND` already toppling.
+  Three facts locate the window, measured across 29 runs:
+
+  - `[stop] shedding **0.00** m/s over 12 steps` on *every* finish-line trace.
+    The planner's own end brake (CLOSED-19) has already taken the commanded
+    speed to zero, so `decelerateAndConfirmStopped`'s ramp is a no-op —
+    0.6 s of stepping zero down to zero. **`WP_ADEC` is dead code on a real
+    course**, a third independent reason both earlier A/Bs found nothing.
+  - The shape is extremely repeatable: the dog is physically stopped
+    **0.27–0.30 s** after its last upright sample at speed, and its attitude
+    passes 28.65° **1.15–1.27 s** after that. 6 of 6 `BLIND` finish-line
+    falls, no exceptions.
+  - The wait that follows the ramp watches **speed only** — and a toppling
+    body is not still, so `vBody` never drops under 0.15 and the wait runs its
+    full 2 s backstop. `BALANCE_STAND` is not entered until **+0.94 to
+    +2.07 s**, by which time the robot is at 34–171°.
+
+  So the dog spends up to ~2.6 s stopped, in `LOCOMOTION`, at zero commanded
+  velocity — the regime `ConvexMPCLocomotion::zeroVelHold`'s own note measures
+  as taking the oval's stop from ~1-in-3 tips to 7-of-8. The settle watch
+  helps (14 % vs 48 %) because it shortens what comes *after*; it cannot fix
+  what happens before it is entered.
+
+  **Round 3 running:** the stop wait is now attitude-aware and the zero-seed
+  ramp is skipped (`WP_STOP_ATT_BAIL=0`, `WP_STOP_ATT_DEG` restore/tune).
+  Arms `OLD` (neither) / `STOPBAIL` (stop wait only) / `BOTH`, 14 reps each,
+  so the two stages are attributable separately.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path

@@ -599,6 +599,21 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     shmtrace::logf(0.0, "[stop] shedding %.2f m/s over %d steps (%.2f s, "
            "%.2f m/s^2 commanded, budget %.2f)", (double)seed, steps,
            steps * 0.05, (double)(seed / (steps * 0.05f)), (double)a_dec);
+    // A ZERO SEED MEANS THE RAMP HAS NOTHING TO DO, AND RUNNING IT ANYWAY IS
+    // NOT FREE. On a real course the planner's own end brake (CLOSED-19's
+    // setEndStop) has already taken the commanded speed to zero by the time
+    // this is called - every finish-line trace on wkc_finals logs
+    // "shedding 0.00 m/s". The 12-step floor then spends 0.6 s stepping zero
+    // down to zero while the robot stands in LOCOMOTION at zero commanded
+    // velocity, which is the regime ConvexMPCLocomotion::zeroVelHold's note
+    // measures as taking the oval's stop from ~1-in-3 tips to 7-of-8. That
+    // 0.6 s is pure exposure. Skip it.
+    if (seed < 0.05f) {
+      shmtrace::logf(0.0, "[stop] seed is already zero - the planner's end "
+             "brake did the stop; skipping the ramp rather than standing in "
+             "zero-vel locomotion for %.2f s", steps * 0.05);
+      steps = 0;
+    }
     for (int k = steps; k >= 0; --k) {
       // STEERED deceleration: keep the follower's steering live through the
       // first 0.5 s of the ramp so the dog straightens onto the exit heading
@@ -627,6 +642,29 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     // the commanded ramp above was enough - a fixed timer here is exactly
     // the class of assumption that cost a day chasing "stale" behaviour
     // elsewhere in this file. Bounded timeout as a backstop only.
+    //
+    // AND GET OUT IF THE BODY IS GOING OVER. Measured on 29 wkc_finals runs
+    // at 1.9 m/s: every finish-line fall has the same shape, and the spread
+    // is tiny - the dog is physically stopped 0.27-0.30 s after its last
+    // upright sample at speed, and its attitude passes SafetyChecker's
+    // 28.65 deg limit 1.15-1.27 s after that. Meanwhile this loop is waiting
+    // on SPEED, and a body that is toppling is not still: vBody stays above
+    // 0.15 m/s, so the wait runs its full 2 s backstop and BALANCE_STAND is
+    // not entered until +0.94 to +2.07 s. By then the robot is at 34-171 deg
+    // and settleOnFeet's bail fires 0.02 s in, far too late to be a fix.
+    //
+    // So the exposure window is HERE, in LOCOMOTION at zero commanded
+    // velocity, not in the settle. Watching attitude as well as speed ends
+    // the wait the moment the body starts going, which is the whole of what
+    // this stage can usefully do about it - the caller's next step is
+    // BALANCE_STAND and then a damped lie-down, both better places to be
+    // than a zero-vel trot.
+    //
+    // WP_STOP_ATT_BAIL=0 restores the speed-only wait, so this is an A/B arm.
+    const bool att_bail = !getenv("WP_STOP_ATT_BAIL") ||
+                          atoi(getenv("WP_STOP_ATT_BAIL")) != 0;
+    const float att_bail_deg = getenv("WP_STOP_ATT_DEG")
+        ? (float)atof(getenv("WP_STOP_ATT_DEG")) : 8.0f;
     const float settle_start = elapsed();
     while (elapsed() - settle_start < 2.0f) {
       if (bridge->robotRunner()) {
@@ -634,6 +672,20 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         const float spd = std::sqrt(es.vBody[0] * es.vBody[0] +
                                      es.vBody[1] * es.vBody[1]);
         if (spd < 0.15f) break;
+        if (att_bail) {
+          const float r = std::fabs(es.rpy[0]) * 57.2958f;
+          const float p = std::fabs(es.rpy[1]) * 57.2958f;
+          if (r >= att_bail_deg || p >= att_bail_deg) {
+            shmtrace::logf(elapsed(),
+                   "[stop] body is going over during the stop wait "
+                   "(roll=%.1f pitch=%.1f, speed still %.2f m/s after %.2f s) "
+                   "- ending the wait now instead of holding zero-vel "
+                   "locomotion for the full backstop",
+                   (double)(es.rpy[0] * 57.2958f), (double)(es.rpy[1] * 57.2958f),
+                   (double)spd, (double)(elapsed() - settle_start));
+            break;
+          }
+        }
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
