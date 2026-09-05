@@ -78,6 +78,31 @@ passed on its own in-suite retry.
     and sets the encoder zero by **fully extending the leg by hand before
     powering**. That removes "waiting on the fast RS485 adapter" as the
     blocker: the U2D2 is the adapter.
+  **BENCH ADAPTER, settled with a vendor spec.** The U2D2 is **FT232HL,
+  max 12 Mbps** (ROBOTIS' own comparison table) against the Go1 motors'
+  5 Mbaud - 2.4x margin. The same table shows why the obvious alternatives
+  fail: the older USB2Dynamixel is FT232RL at **max 3 Mbps**, and so is
+  every FT232R-based USB-RS485 cable including FTDI's own USB-RS485-WE.
+  The U2D2 self-directs, so set `use_rs485_hw_de = false`; the driver
+  already treats a failed `TIOCSRS485` as non-fatal for exactly this case.
+
+  **BOARD-SIDE BUSES: the RED gives ONE, the BRK gives four.** Read off
+  `OP Revo Redux/Octavo/OSD32MP15x_RED_7x_sch-V1_2-1.pdf` rather than
+  assumed:
+
+  | UART | on the RED | usable for RS485? |
+  |---|---|---|
+  | USART2 (PD3-PD6) | wired to the WiFi/BT module (`USART2_TX->BT_UART_RXD`, `USART2_RTS->BT_UART_CTS_N`) | no |
+  | UART4 | the 6-pin 2.54 debug console (`board_setup.sh`: "ttySTM0 is the console") | no |
+  | **USART3** | **JP20 pin 8 = TX (PB10), pin 10 = RX (PB12), pin 11 = RTS/DE (PG8)** | **yes - the only one** |
+
+  So `rt_unitree`'s four-bus default (`ttySTM1..4`) cannot be satisfied on
+  the RED. One bus carries a 4-motor bench fine (~1.1 ms of wire time at
+  112 bytes/motor, 5 Mbaud) but not twelve (~3.4 ms, past a 2 ms tick).
+  The **BRK breaks out 138 GPIO pins** - effectively the whole SiP - so
+  four USARTs can be pinmuxed there. That is the board to build a
+  four-bus leg harness against; the RED is a one-bus bench.
+
   What remains genuinely unverified: the field scalings (T x256, W x128,
   Pos x16384/2pi, K_P x2048, K_W x1024), the FOC mode value, and per-joint
   sign/offset. Those need a motor.
