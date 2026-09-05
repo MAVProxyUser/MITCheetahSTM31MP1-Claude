@@ -103,6 +103,23 @@ passed on its own in-suite retry.
   four USARTs can be pinmuxed there. That is the board to build a
   four-bus leg harness against; the RED is a one-bus bench.
 
+  **The bench no longer needs the board at all (2026-09-04).** `rt_unitree`
+  was Linux-only - `termios2`/`BOTHER` for the custom baud, `TIOCSRS485`
+  for direction - so `unitree_probe` could only run on the MP1. It now has
+  a Darwin path: `IOSSIOSPEED` for the 5 Mbaud (which is not in the `Bxxx`
+  table), and `set_rs485()` returns -1 so the caller takes its existing
+  non-fatal "assume auto-direction transceiver" branch, which is exactly
+  what a U2D2 is. `stm32mp1/tools/build_tools_host.sh` builds a native
+  binary; the cross build is untouched and the board remains the
+  deployment target.
+
+      bash stm32mp1/tools/build_tools_host.sh
+      ls /dev/tty.usb*
+      stm32mp1/tools/bin_host/unitree_probe /dev/tty.usbserial-XXXX 5000000 0
+
+  So one motor + a U2D2 + a Mac closes the remaining unknowns, with no
+  board, no transceiver, no soldering.
+
   What remains genuinely unverified: the field scalings (T x256, W x128,
   Pos x16384/2pi, K_P x2048, K_W x1024), the FOC mode value, and per-joint
   sign/offset. Those need a motor.

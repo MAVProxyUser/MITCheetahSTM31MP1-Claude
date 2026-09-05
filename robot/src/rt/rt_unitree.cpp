@@ -17,13 +17,22 @@
  * K_W x1024), the FOC mode value, and the per-joint gear/sign/offset are taken from the
  * public headers / common practice and must be checked against a live motor before load.
  */
-#ifdef linux
+// Linux is the deployment target (the MP1's own UARTs); macOS is supported
+// ONLY as a bench host driving a self-directing USB-RS485 adapter such as the
+// ROBOTIS U2D2, so a motor can be characterised from the laptop without the
+// board in the loop. See the Darwin branch of set_custom_baud below.
+#if defined(linux) || defined(__APPLE__)
 
 #include "rt/rt_unitree.h"
 
 #include <cstdlib>          // getenv/atoi for $UNITREE_BAUD
+#ifdef linux
 #include <asm/termbits.h>   // struct termios2, BOTHER, TCSETS2/TCGETS2, flag bits
 #include <linux/serial.h>   // struct serial_rs485, SER_RS485_*
+#else
+#include <termios.h>
+#include <IOKit/serial/ioss.h>   // IOSSIOSPEED - arbitrary baud on Darwin
+#endif
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -48,6 +57,24 @@ static spi_data_t    g_data;
 // ---- serial bus setup -------------------------------------------------------
 
 static int set_custom_baud(int fd, int baud) {
+#ifdef __APPLE__
+  // DARWIN: no termios2/BOTHER. Set the framing with classic termios, then
+  // ask the driver for the exact bit rate with IOSSIOSPEED - which is how you
+  // get a non-standard baud (the 5 Mbaud these motors run at is not in the
+  // Bxxx table) on macOS. Must be applied AFTER tcsetattr, or tcsetattr
+  // overwrites it with the speed from the termios struct.
+  struct termios t;
+  if (tcgetattr(fd, &t) < 0) return -1;
+  cfmakeraw(&t);
+  t.c_cflag |= (CS8 | CLOCAL | CREAD);
+  t.c_cflag &= ~(PARENB | CSTOPB | CRTSCTS);
+  t.c_cc[VMIN]  = 0;
+  t.c_cc[VTIME] = 0;                   // non-blocking; we time out with poll()
+  if (tcsetattr(fd, TCSANOW, &t) < 0) return -1;
+  speed_t sp = (speed_t)baud;
+  if (ioctl(fd, IOSSIOSPEED, &sp) < 0) return -1;
+  return 0;
+#else
   struct termios2 tio;
   if (ioctl(fd, TCGETS2, &tio) < 0) return -1;
   tio.c_cflag &= ~CBAUD;
@@ -62,9 +89,19 @@ static int set_custom_baud(int fd, int baud) {
   tio.c_cc[VTIME] = 0;                             // non-blocking; we time out with poll()
   if (ioctl(fd, TCSETS2, &tio) < 0) return -1;
   return 0;
+#endif
 }
 
 static int set_rs485(int fd, bool enable) {
+#ifdef __APPLE__
+  // No TIOCSRS485 on Darwin. Every macOS-supported path here is a
+  // self-directing USB adapter (the U2D2 toggles DE off its own transmit
+  // FIFO), so there is nothing to configure. Returning -1 takes the caller's
+  // existing non-fatal branch - see its comment - rather than inventing a
+  // success it did not achieve.
+  (void)fd; (void)enable;
+  return -1;
+#else
   struct serial_rs485 rs485;
   memset(&rs485, 0, sizeof(rs485));
   if (enable) {
@@ -84,6 +121,7 @@ static int set_rs485(int fd, bool enable) {
     return 1;
   }
   return 0;
+#endif
 }
 
 static int open_bus(const UnitreeBusConfig& bus) {
@@ -288,4 +326,4 @@ void unitree_close() {
 spi_data_t*    get_spi_data()    { return &g_data; }
 spi_command_t* get_spi_command() { return &g_command; }
 
-#endif  // linux
+#endif  // linux || __APPLE__
