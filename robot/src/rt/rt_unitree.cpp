@@ -21,6 +21,7 @@
 
 #include "rt/rt_unitree.h"
 
+#include <cstdlib>          // getenv/atoi for $UNITREE_BAUD
 #include <asm/termbits.h>   // struct termios2, BOTHER, TCSETS2/TCGETS2, flag bits
 #include <linux/serial.h>   // struct serial_rs485, SER_RS485_*
 #include <sys/ioctl.h>
@@ -174,13 +175,34 @@ UnitreeConfig unitree_default_config() {
   cfg.motorType = UnitreeMotorType::A1;
   cfg.num_buses = 4;
   static const char* devs[4] = {"/dev/ttySTM1", "/dev/ttySTM2", "/dev/ttySTM3", "/dev/ttySTM4"};
-  for (int b = 0; b < 4; ++b) { cfg.buses[b].device = devs[b]; cfg.buses[b].baud = 4000000; }
-  const float g = 9.1f;   // A1 gear ratio
+  // BAUD: 5 Mbaud, not 4. The A1 motor runs 4 M; the Go1 LEG motors this port
+  // actually drives run 5 M - independently reported by imcnanie/gooddawg,
+  // which drives Go1 legs standalone off the body ("The Go1 motors operate at
+  // 5 000 000 bps"). $UNITREE_BAUD overrides for an A1 bench.
+  const int baud = getenv("UNITREE_BAUD") ? atoi(getenv("UNITREE_BAUD")) : 5000000;
+  for (int b = 0; b < 4; ++b) { cfg.buses[b].device = devs[b]; cfg.buses[b].baud = baud; }
+
+  // GEAR RATIOS ARE PER-JOINT, AND THEY ARE NOT THE A1's 9.1.
+  //
+  // This said `const float g = 9.1f; // A1 gear ratio` and applied it to all
+  // twelve joints. Wrong twice over. The dynamics model in
+  // common/include/Dynamics/Go1.h already carries the right numbers,
+  // recovered from Unitree's own Legged_sport binary's constant pool
+  // (docs/LEGGED_SPORT_REVERSE.md): abad and hip 6.333, knee 9.4995 - the
+  // knee's extra 1.5x is mechanical, not a different motor. 6.33:1 is the
+  // GO-M8010-6 reduction; the "-6" in that part number IS this ratio.
+  //
+  // The driver was left on the A1 value while the model was corrected, so
+  // joint<->motor conversion was off by 9.1/6.333 = 1.44x on abad and hip.
+  // Since kp/kd scale as 1/g^2, commanded stiffness was out by 2.06x. On a
+  // first bench spin-up that is a modest commanded move driving the motor 44%
+  // further than asked, twice as stiff - i.e. into the hard stop.
+  static const float GEAR[3] = {6.333f, 6.333f, 9.4995f};   // abad, hip, knee
   for (int leg = 0; leg < 4; ++leg)
     for (int j = 0; j < 3; ++j) {
       cfg.joint[leg][j].bus = leg;      // one bus per leg
       cfg.joint[leg][j].motor_id = j;   // 0=abad, 1=hip, 2=knee
-      cfg.joint[leg][j].gear = g;
+      cfg.joint[leg][j].gear = GEAR[j];
       cfg.joint[leg][j].sign = 1.f;
       cfg.joint[leg][j].offset = 0.f;
       cfg.joint[leg][j].present = true;

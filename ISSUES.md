@@ -50,6 +50,37 @@ passed on its own in-suite retry.
 - **OPEN-12 · RS485 bench validation** — `HARDWARE`. Field scalings, FOC
   mode value, CRC word count, per-joint gear/sign/offset — all unverified
   on a live motor; waiting on the fast RS485 adapter.
+  **Materially de-risked 2026-09-04**, from this project's own reversed
+  binary plus two public sources the operator supplied
+  (`aatb-ch/unitree_crc`, `imcnanie/gooddawg`):
+  * **The framing is already RIGHT, and an earlier worry here was wrong.**
+    `motor_msg_GO-M8010-6.h` being vendored-but-never-included looked like
+    the driver might not speak to Go1 legs at all. It does. aatb-ch's
+    capture of a real Go1 RS485 bus gives header **0xFEEE**, CRC32 over
+    **7 words (28 bytes)** — and `rt_unitree`'s
+    `crc32_core(&pkt, (sizeof(pkt)>>2)-1)` with `sizeof(pkt)==34` is
+    exactly 7 words. Same header, same frame, same CRC coverage.
+  * **Gear ratios were wrong and are now FIXED.** The driver used
+    `const float g = 9.1f; // A1 gear ratio` for all twelve joints, while
+    `Go1.h` had long carried the values recovered from Legged_sport's
+    constant pool: abad/hip **6.333**, knee **9.4995**. The model was
+    corrected and the driver never was. Joint<->motor conversion was off
+    by 9.1/6.333 = **1.44x** on abad and hip, and since kp/kd go as
+    1/g^2, commanded stiffness was out by **2.06x**. On a first bench
+    spin-up that is a small commanded move driving the motor 44% past the
+    target at twice the stiffness. Now per-joint from the binary's numbers.
+  * **Baud was wrong and is now FIXED**: 4 Mbaud is the A1; the Go1 leg
+    motors run **5 Mbaud** (gooddawg, which drives Go1 legs off the body).
+    `$UNITREE_BAUD` overrides for an A1 bench.
+  * **Known-good bench hardware**: gooddawg drives Go1 legs standalone
+    with a **ROBOTIS U2D2** over RS485 at **23-25 V** ("low voltage may
+    cause a brownout" — consistent with the binary's `_batteryV = 24.0`),
+    and sets the encoder zero by **fully extending the leg by hand before
+    powering**. That removes "waiting on the fast RS485 adapter" as the
+    blocker: the U2D2 is the adapter.
+  What remains genuinely unverified: the field scalings (T x256, W x128,
+  Pos x16384/2pi, K_P x2048, K_W x1024), the FOC mode value, and per-joint
+  sign/offset. Those need a motor.
 - **OPEN-14 · The QA ladder on the real machine** — `HARDWARE` umbrella.
   Stand → lie → stand → slow walk, legs off the ground first; validates
   joint signs, gearing, RS485 framing, torque scaling, IMU orientation

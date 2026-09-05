@@ -561,7 +561,33 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     const float seed = use_planner
         ? std::min(candidate_speed, (float)planner.plannedSpeed())
         : candidate_speed;
-    for (int k = 15; k >= 0; --k) {
+    // RAMP LENGTH SCALES WITH THE SPEED BEING SHED (2026-09-04).
+    //
+    // This was a FIXED 16 steps x 50 ms = 0.8 s regardless of the speed it
+    // was stopping from, so the implied deceleration rose with the speed:
+    //   1.2 m/s -> 1.5 m/s^2, 2.05 -> 2.6, 3.5 -> 4.4
+    // against a body CLAUDE.md measures as tracking ~1.2 m/s^2. The faster
+    // the dog was going, the more the stop over-demanded - exactly backwards.
+    //
+    // Measured cost: an agility course completed all 15 waypoints and then
+    // pitched onto its face AT THE FINISH. 2.11 -> 1.37 -> 0.15 m/s in about
+    // half a second, nose up 11.6 deg on the brake, then over the front feet
+    // to -66 deg. kin_z held 0.27-0.30 throughout, so the legs were still
+    // extended and under it - this was not a collapse, it was a face-plant
+    // from braking harder than the body can brake. Finishing a course and
+    // then falling over is not an acceptable outcome at any speed.
+    //
+    // Bounding the DECELERATION instead of the duration: steps scale with
+    // seed, floored so a slow stop is not instantaneous and capped so a fast
+    // one cannot ramp forever. $WP_ADEC overrides the budget.
+    const float a_dec = getenv("WP_ADEC") ? (float)atof(getenv("WP_ADEC")) : 1.0f;
+    int steps = (int)std::ceil(seed / std::max(0.05f, a_dec) / 0.05f);
+    if (steps < 12)  steps = 12;    // >= 0.6 s, so a creep still ramps
+    if (steps > 120) steps = 120;   // <= 6 s backstop
+    shmtrace::logf(0.0, "[stop] shedding %.2f m/s over %d steps (%.2f s, "
+           "%.2f m/s^2 commanded, budget %.2f)", (double)seed, steps,
+           steps * 0.05, (double)(seed / (steps * 0.05f)), (double)a_dec);
+    for (int k = steps; k >= 0; --k) {
       // STEERED deceleration: keep the follower's steering live through the
       // first 0.5 s of the ramp so the dog straightens onto the exit heading
       // as it slows, rather than zeroing yaw while it still carries a turn's
@@ -569,7 +595,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       // of the time, before this existed). On a straight approach the
       // follower already outputs w~0 and this is a no-op.
       float w_dec = 0.f;
-      if (use_planner && k > 5) {
+      // Keep steering live through the first ~2/3 of the ramp, the same
+      // fraction the old fixed-length version used (k>5 of 15).
+      if (use_planner && k > steps / 3) {
         SimAuxSensors aux2; gazebo_get_aux(&aux2);
         float N2, E2; nav.toLocal(aux2.gps_lat, aux2.gps_lon, &N2, &E2);
         const auto& es2 = bridge->robotRunner()->getStateEstimate();
@@ -577,7 +605,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         double pv2 = 0, pw2 = 0;
         if (planner.follow(N2, E2, b2, &pv2, &pw2)) w_dec = (float)pw2;
       }
-      bridge->driverCommand().leftStickAnalog[1]  = seed * (float)k / 15.f;
+      bridge->driverCommand().leftStickAnalog[1]  = seed * (float)k / (float)steps;
       bridge->driverCommand().rightStickAnalog[0] = w_dec;
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
