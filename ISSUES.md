@@ -36,6 +36,54 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-29 · MPPI on the Mac GPU — Stage 1 answered, and it is not
+  encouraging** — `STUDIED, STAGE 1 DONE`. Operator asked whether an M4's GPU
+  could prove an MPPI controller works with this codebase, up through the
+  Westminster course. Stage 1 was the cheap decisive test: can *sampling*
+  solve the problem `SolverMPC.cpp` already assembles, on real captured
+  states? `SolverMPC.cpp` now captures its contact-reduced QP and its own
+  answer (`MPC_DUMP`, off by default), and `gazebo/tools/mppi_replay.py`
+  replays them against a batched MPPI-style sampler on MPS.
+
+  400 solves captured from a real trot at 1.9 (nv = 60 trot / 120 stand,
+  nc = 100/200, horizon 10). Three results:
+
+  1. **Cold start is structurally impossible, not a tuning problem.** The
+     feasible fraction of K = 4096 isotropic samples is **0.0000 at every
+     sigma from 0.05 to 2.0**. The origin sits on the lower boundary of all
+     100–200 friction-cone rows (`l = 0`), so feasibility needs that many
+     one-sided conditions to hold at once. The sampler simply keeps choosing
+     its own incumbent — the giveaway was identical cost at every K.
+  2. **Warm-started it works, and adds almost nothing.** From the previous
+     solve the feasible fraction is 0.99 at sigma 0.05. But median cost
+     excess over the QP is +0.0001…+0.0002 — *the same as the control that
+     reuses the previous answer unchanged*. It only earns its keep in the
+     tail: p90 excess falls 0.81 → 0.06 between K = 1 k and 16 k.
+  3. **The GPU is real but the workload is small.** MPS vs CPU per solve:
+     3.4/9.2 ms at K = 1 k, 3.9/23.6 at 4 k, 8.6/86.1 at 16 k, 33.0/340.5 at
+     64 k — ~10× at the top, and sub-linear below 4 k because it is
+     launch-latency-bound, not compute-bound. K = 16 k costs 8.6 ms: inside
+     the 26 ms inline MPC budget, well under the board's 82 ms JCQP, and
+     5–14× *slower* than qpOASES's 0.6–1.7 ms on this same Mac.
+
+  **Verdict.** Sampling is affordable on this GPU and useless on this
+  problem — it is convex, which is sampling's worst case, and ADMM already
+  owns it. Any real MPPI has to change the formulation to something
+  non-convex (contact timing as a decision variable, non-quadratic cost,
+  fuller dynamics), which is a new controller and a research project, not a
+  port. It would also always need a feasible interior point handed to it,
+  since it cannot bootstrap. And none of it reaches the target: the STM32MP1
+  has no compute GPU, so this is an argument about the algorithm and for a
+  different board, not a path to shipping.
+
+  Stage 2 (Python MPPI in the loop over the existing UDP bridge, flat dash)
+  and Stage 3 (the course suite) are not started, and Stage 1 does not
+  recommend them as written.
+
+  Byproducts, both default-off: `MPC_DUMP` / `MPC_DUMP_MAX` capture, and
+  `CTRL_USE_JCQP` to override the yaml so the board's solver can be studied
+  on this host (the Mac ships `use_jcqp: 0`, the board ships `1`).
+
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall
   closed (was OPEN-27), the remaining failures are mid-course: 32 of 162 runs

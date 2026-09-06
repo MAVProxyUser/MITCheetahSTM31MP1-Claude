@@ -47,7 +47,7 @@ one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
   local TRUTH="$DIR/truth_${arm}_$rep.jsonl"
   local CONTACT="$DIR/contact_${arm}_$rep.jsonl"
   ( timeout 400 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
-      --slot "dash:30" --gait "$gait" --speed "$spd" --dash 0 \
+      --slot "${CAMPAIGN_SLOT:-dash:30}" --gait "$gait" --speed "$spd" --dash 0 \
       --wait-for-gate 1800 --extra "WP_CLOSE_LEG=0 ${CAMPAIGN_EXTRA:-}" \
       > "$DIR/run.log" 2>&1 ) & local RP=$!
   for i in $(seq 1 90); do pgrep -f 'gz[ ]sim' >/dev/null 2>&1 && break; sleep 1; done

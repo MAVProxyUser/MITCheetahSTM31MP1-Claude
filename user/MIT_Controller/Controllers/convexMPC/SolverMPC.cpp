@@ -6,6 +6,7 @@
 #include <cmath>
 #include <eigen3/unsupported/Eigen/MatrixFunctions>
 //#include <unsupported/Eigen/MatrixFunctions>
+#include <vector>
 #include <qpOASES.hpp>
 #include <stdio.h>
 #include <sys/time.h>
@@ -439,7 +440,15 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
   // on every matrix. A Cortex-A7's NEON is 4-wide FLOAT and has no
   // double-precision SIMD at all, so the solve was running scalar VFP on data
   // that started out single precision anyway. jcqp_f keeps it float end to end.
-  if(update->use_jcqp == 1) {
+  // $CTRL_USE_JCQP overrides the yaml, so the two solvers can be compared
+  // (and the JCQP path's contact-reduced problem captured) without editing a
+  // version-controlled config. The Mac ships use_jcqp:0 because qpOASES costs
+  // 0.6-1.7 ms here; the board ships 1 because it costs 198 ms there. Anything
+  // that wants to study the board's solver on this host needs this switch.
+  // static: this is the hot solve path and ctrl_tuning::integer does a getenv.
+  // The yaml value cannot change mid-run, so first-call capture is correct.
+  static const int use_jcqp_eff = ctrl_tuning::integer("CTRL_USE_JCQP", update->use_jcqp);
+  if(use_jcqp_eff == 1) {
     // ---- CONTACT-ONLY REDUCTION ----
     // This ports MIT's own qpOASES-path variable elimination to the JCQP path,
     // which never had it: swing-foot forces are pinned to exactly zero by
@@ -516,6 +525,52 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
       if(!fresh && same_table && warm_ok) jc->hotStart();
       jc->runFromDense(update->max_iterations, true, false);
       for(s32 rI = 0; rI < nv; rI++) q_soln[vi[rI]] = jc->getSolution()[rI];
+
+      // ---- OFFLINE QP CAPTURE (opt-in, $MPC_DUMP) ----
+      // Writes the assembled, contact-reduced problem AND the solver's own
+      // answer, so an alternative solver can be scored against the real thing
+      // on real states instead of on a re-derivation of them. Re-deriving the
+      // SRBD in another language to test a solver would be testing the
+      // re-derivation.
+      //
+      // This is blocking file I/O on the MPC worker thread, so it WILL slow
+      // the solve and can make the run itself fall over. That is fine and
+      // expected: a capture run exists to produce matrices, not a good run.
+      // Off unless $MPC_DUMP names a path; $MPC_DUMP_MAX caps the record count
+      // (default 400).
+      static FILE* dumpf = nullptr;
+      static long dumpn = 0, dumpmax = 0;
+      static bool dumpinit = false;
+      if(!dumpinit) {
+        dumpinit = true;
+        const char* dp = getenv("MPC_DUMP");
+        if(dp && *dp) {
+          dumpf = fopen(dp, "wb");
+          dumpmax = getenv("MPC_DUMP_MAX") ? atol(getenv("MPC_DUMP_MAX")) : 400;
+        }
+      }
+      if(dumpf && dumpn < dumpmax) {
+        const s32 hdr[4] = { 0x4D504331 /*"MPC1"*/, nv, nc, (s32)setup->horizon };
+        fwrite(hdr, sizeof(s32), 4, dumpf);
+        std::vector<float> buf;
+        buf.resize((size_t)nv*nv);
+        for(s32 r = 0; r < nv; r++) for(s32 c = 0; c < nv; c++) buf[(size_t)r*nv+c] = (float)jc->P(r,c);
+        fwrite(buf.data(), sizeof(float), (size_t)nv*nv, dumpf);
+        buf.resize(nv);
+        for(s32 r = 0; r < nv; r++) buf[r] = (float)jc->q[r];
+        fwrite(buf.data(), sizeof(float), nv, dumpf);
+        buf.resize((size_t)nc*nv);
+        for(s32 r = 0; r < nc; r++) for(s32 c = 0; c < nv; c++) buf[(size_t)r*nv+c] = (float)jc->A(r,c);
+        fwrite(buf.data(), sizeof(float), (size_t)nc*nv, dumpf);
+        buf.resize(nc);
+        for(s32 r = 0; r < nc; r++) buf[r] = (float)jc->u[r];
+        fwrite(buf.data(), sizeof(float), nc, dumpf);
+        buf.resize(nv);
+        for(s32 r = 0; r < nv; r++) buf[r] = (float)jc->getSolution()[r];
+        fwrite(buf.data(), sizeof(float), nv, dumpf);
+        if(++dumpn >= dumpmax) { fflush(dumpf); fclose(dumpf); dumpf = nullptr;
+          shmtrace::logf(0.0, "[MPCDUMP] wrote %ld QP records, capture complete", dumpn); }
+      }
     }
   } else {
 
@@ -632,7 +687,7 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
         lb_red[i] = lb_qpoases[old];
       }
 
-      if(update->use_jcqp == 0) {
+      if(use_jcqp_eff == 0) {
         Timer solve_timer;
         qpOASES::QProblem problem_red (new_vars, new_cons);
         qpOASES::Options op;
