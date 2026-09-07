@@ -103,10 +103,34 @@ passed on its own in-suite retry.
   So this is not a new defect — it is the known capability ceiling at
   1.9 m/s, and OPEN-26 already established that the 28.65° limit is not what
   binds (a four-point dose-response showed no ordering, p = 1.000, and only
-  9/67 excursions ever recover). Open question is therefore a control one:
-  what makes the pitch run away during a long straight at 1.9. The speed
-  sweep re-running now (`gazebo/tools/wkc_sweep.sh`, with the OPEN-27 fix in)
-  will say where the reliable ceiling actually sits.
+  9/67 excursions ever recover). The open question is a control one: what
+  makes the pitch run away.
+
+  **Three hypotheses killed, each by its own control:**
+
+  | hypothesis | the number | the control | verdict |
+  |---|---|---|---|
+  | overspeed | runaway starts at 2.08 m/s median against a 1.90 command | non-falling runs reach p99 2.12, max 2.26; **12/12 exceed the lowest fall onset** | dead — it is the gait-cycle peak |
+  | host stall | — | control period holds 1.1–2.7 ms right through the window | dead |
+  | turning | 16/23 falls have \|wz\| > 0.25 in the preceding 2 s | **matched** 2 s windows of ordinary cruise: 62.2 % contain one too. p = 0.53 | dead |
+
+  The turning one is worth keeping as a warning: scored per-sample, ordinary
+  cruise is only 5.4 % turning and the same 16/23 comes out at p ≈ 0. The
+  signal was entirely an artifact of comparing a *window* statistic against a
+  *sample* rate. Match the statistic to the claim.
+
+  **Kept:** these falls are **deterministic** — `BASE`, `FIX` and `SKIP` on
+  the same rep give identical numbers to two decimals (1.99 / 1.86 / 2.09 /
+  2.30). Same seed, same fall. That makes the event bisectable rather than a
+  dice roll, which is a far better position than the other two OPEN-26 threads
+  ever had. Also: `dash:60` at 1.9 is **3/3 PASS**, so a straight does not do
+  it, and the speed sweep with the OPEN-27 fix in now reads 1.5/1.7/1.9 all
+  3/3 with 2.1 at 1/3 — the reliable ceiling moved 1.7 → 1.9.
+
+  **Running:** `gazebo/tools/open28_corner.sh` sweeps `corner:12:<angle>` at
+  1.9 across 30/45/60/90/120/135°, 6 reps, interleaved by angle. Correlation
+  has now failed once on the turning question, so this asks it directly with
+  one isolated corner that has a real approach and a real exit.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
