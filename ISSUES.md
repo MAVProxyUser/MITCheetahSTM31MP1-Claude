@@ -127,10 +127,40 @@ passed on its own in-suite retry.
   it, and the speed sweep with the OPEN-27 fix in now reads 1.5/1.7/1.9 all
   3/3 with 2.1 at 1/3 — the reliable ceiling moved 1.7 → 1.9.
 
-  **Running:** `gazebo/tools/open28_corner.sh` sweeps `corner:12:<angle>` at
-  1.9 across 30/45/60/90/120/135°, 6 reps, interleaved by angle. Correlation
-  has now failed once on the turning question, so this asks it directly with
-  one isolated corner that has a real approach and a real exit.
+  **No isolated feature reproduces it.** `corner:<leg>:<angle>` puts one
+  corner with a real approach and a real exit under the same speed:
+
+  | angle | fell | median peak pitch | max |
+  |---|---|---|---|
+  | 30–135° (leg 12 m) | **0/36** | 5.2–6.7° | — |
+  | 150° | 0/6 | 6.4° | 6.9° |
+  | 160° | 0/6 | 6.2° | 6.6° |
+  | 170° | 0/6 | 5.5° | 6.2° |
+  | 175° | 0/6 | 5.3° | 5.5° |
+  | **180°** (the course's own reversal) | 0/6 | **13.5°** | 14.9° |
+
+  0/66, and the worst peak anywhere is 14.9° against a 28.65° limit. The 180°
+  reversal is measurably the hardest — it doubles the peak — but it still has
+  half the margin it needs. `dash:60` at 1.9 is 3/3 PASS. So neither the
+  straights nor any single turn is what fails.
+
+  **A stale-snapshot trap, found and guarded.** Six rows came back identical to
+  two decimals — one run recorded six times. shm segments outlive the process
+  that created them, so a run that aborts before the controller starts leaves
+  *both* `ctrl_0.log` and the ring holding the previous run's contents, and
+  `dump_snapshot` returns them. By each trace's own `[RUNID]`: rounds 1–3 were
+  0 stale out of 35/42/41; round 4 was **5 stale of 42**, all one run, all at
+  the campaign's start. Not constant, so it must be checked per run.
+  Impact, checked not assumed: all five report wp=7 and sit in the excluded
+  bucket, so OPEN-27's headline is unchanged (BASE 4/8 vs FIX 0/10,
+  p = 0.0229); OPEN-28's round-4 count moves 15 → 10, weakening the wp7
+  clustering. `campaign_run_id()` now goes into every campaign row.
+
+  **Running:** `gazebo/tools/open28_subcourse.sh`. If no single feature is
+  hard, what the course adds is the *chaining* — turns with only 6–7 m of
+  recovery between them. Three sub-courses cut from `wkc_finals`' own turn
+  list, each with a real 18 m approach and 20 m exit: `wkc_weave`
+  (75/−75/75/−75), `wkc_box` (90/90/90), `wkc_hairpin` (90 then −180).
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
