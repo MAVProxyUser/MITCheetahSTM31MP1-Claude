@@ -1,5 +1,32 @@
 # TODO.md — open backlog for the STM32MP1 Cheetah port
 
+## 2026-09-08 — the finish-line fall, and what is left on the course
+
+- [x] **OPEN-27 closed — the finish-line fall was zero-velocity locomotion.**
+      Not the brake (two A/B campaigns, three separate reasons they measured
+      nothing) and not the settle (a real 47 % → 14 % effect that was catching
+      the fall, not preventing it — the tell was a stricter bail arm firing
+      *less* often). The robot stands stopped in `LOCOMOTION` at zero commanded
+      velocity for up to 2.6 s because the wait after the ramp watched speed
+      only, and a toppling body is not still. **0/10 vs 4/8**, p = 0.0076.
+- [x] **A regression I introduced and un-introduced.** Skipping the ramp when
+      its seed is zero doubled the untreated fall rate: the ramp is not idle,
+      its steered branch keeps the follower's steering live. Off by default now,
+      with the measurement next to it.
+- [x] **`dump_snapshot` refuses a stale ring.** shm outlives its writer, so an
+      aborted run leaves the previous run's data to be archived as fiction — it
+      happened six times in one campaign. The expectation comes from the
+      runner's own stdout, the one place that cannot be stale.
+- [x] **20 GB of raw rings distilled to 31.6 MB.**
+- [ ] **OPEN-28 — what limits `wkc_finals` at 1.9.** Eight hypotheses dead with
+      their own controls. Live lead: **ride height goes first** — `z` sags
+      before the pitch moves, `kin_z` tracking it, so the legs really shorten.
+      Accumulating falls at n ≈ 100 on a 50 s reproducer to test it at a sample
+      size that can carry the claim.
+- [ ] **OPEN-29 — MPPI.** Stage 1 says sampling cannot cold-start this problem
+      at all and adds nothing warm-started. Stages 2-3 not recommended as
+      scoped; a non-convex reformulation is the only version worth building.
+
 ## 2026-08-31 — chase cam, the conductor thread leak, and the gazebo/ move
 
 - [x] **OPEN-19 chase cam** — was base64 JPEGs inside the whole-state JSON

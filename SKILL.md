@@ -660,8 +660,14 @@ lands in `/tmp`.
 | `campaign_truth.sh NAME REPS ARM...` | one run per rep per arm, arms **alternated every rep**; captures the controller ring, gz pose truth (incl. roll/pitch) and gz foot-contact truth; retries the snapshot dump 3x before aborting. `CAMPAIGN_EXTRA=` appends env to every run |
 | `campaign_lib.sh` | `campaign_done` / `campaign_failed` write a marker FILE; `wait_for_campaign NAME DEADLINE` polls that file and **returns 1 on a deadline** rather than blocking |
 | `rig_watchdog.sh [INTERVAL] [STALE]` | alerts to `$LOG_DIR/rig_idle.log` when no mission process has run for STALE seconds. Busy is a `pgrep` question, never a phase string |
-| `distill.py [--prune]` | raw rings → per-run summary + 50 Hz descent window with 2 s pre-roll. 710 snapshots, 5.8 GB → 6.3 MB. `--prune` deletes a raw file only after re-reading its distilled record, and keeps `--keep-recent` full rings |
+| `distill.py [--prune]` | raw rings → per-run summary + 50 Hz descent window with 2 s pre-roll. Most recently **668 snapshots, 20 GB → 31.6 MB**. `--prune` deletes a raw file only after re-reading its distilled record, and keeps `--keep-recent` full rings |
 | `add_foot_contacts.py WORLD [--remove]` | injects gz foot contact sensors. **Sim-only LABELS** — the operator's Go1 EDU has none, so no control path may read them |
+| `campaign_launched_run_id LOG` | the only run id that cannot be stale — `[runner] launched run N` from the runner's **own stdout**. Pass it to `dump_snapshot(expect_run_id=…)`, which then refuses to archive a ring belonging to a different run. Without it an aborted run's ring was recorded six times as six data points |
+| `campaign_health_gate VERDICT` | consecutive `NONE` verdicts are a HOST problem, not a result: clears a wedged fleet at two, stops the campaign at four |
+| `open28_*.sh` | the OPEN-28 set: `corner` (isolated `corner:<leg>:<angle>` sweeps), `subcourse` (interleaved `course:` arms), `duration` (duration vs features, with a positive control) |
+| `design_course.py NAME "turn,leg …"` | writes a `.course` file plus the judge's map. Every OPEN-28 sub-course was cut from `wkc_finals`' own turn list, so the geometry is the course's, not invented |
+| `stopfix_score.py` | peak attitude **after the stop**, windowed from the trace's own velocity. Two clocks live in these traces — on a long course the `[nav]` lines run ~18 s behind the records — so a log-keyed window scores the wrong seconds |
+| `mppi_replay.py --dump FILE` | replays captured QP problems against a batched MPS sampler. Capture them with `MPC_DUMP=<path>` (plus `CTRL_USE_JCQP=1` on this Mac, which ships `use_jcqp: 0`) |
 | `open26_*.py` | the OPEN-26 analysis set: `estop` (which falls E-stop and at what attitude), `excursion` (do excursions past the limit recover), `precursor` (does contact loss precede the fall), `contact_score` (schedule vs inferred contact vs truth), `divergence`, `three_way`, `firetime`, `mechanism`, `attitude`, `ground` |
 
 **The instrument must be proven before the campaign spends the night on

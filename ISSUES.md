@@ -209,12 +209,32 @@ passed on its own in-suite retry.
   *lower*). Three tests at n = 4 is where small-sample luck bites, so these
   are a direction to test, not a result.
 
-  **Running:** `open28_duration.sh` — `wkc_finals` (positive control) /
-  `long_easy` (200 m of 40° turns) / `dash:200`, 6 reps at 1.9. Every
-  reproducer so far is 30–60 s against the course's 230–280 s, so anything
-  cumulative is invisible to all of them by construction. Next after that:
-  a large `hp_gap20` run to turn n = 4 falls into n = 20 and test the
-  loss-of-support picture properly.
+  **Duration is part of it, but not all of it.** `wkc_finals` (positive
+  control) / `long_easy` (200 m of 40° turns) / `dash:200`, 6 reps at 1.9,
+  all fell **1/6**. A 200 m straight falls; a 60 m one did not. But the peak
+  excursions are nothing alike — 17.9° on the course against 5.6° and 7.7° —
+  so the course is doing something the others are not, at the same fall rate.
+
+  Normalised to falls per 100 m of cruise, everything measured so far:
+
+  | mission | fell | m/run | falls per 100 m |
+  |---|---|---|---|
+  | `corner:12:{30…135}` | 0/36 | 36 | 0.000 |
+  | `corner:8:{150…180}` | 0/30 | 24 | 0.000 |
+  | `wkc_weave` / `box` / `hairpin` | 0/30 | 82 | 0.000 |
+  | `long_easy` (40° × 10) | 1/6 | 388 | 0.043 |
+  | `wkc_finals` | 1/6 | 203 | 0.082 |
+  | `dash:200` straight | 1/6 | 200 | 0.083 |
+  | `hp_gap07…20` | 4/32 | 84 | **0.148** |
+
+  Distance alone would give every row the same rate; it does not. But every
+  zero in that table is also a short mission, so the two are confounded at
+  these sample sizes — which is the honest statement, not a mechanism.
+
+  **Running:** `hp_gap07` vs `hp_gap20`, **50 reps each**. That does two jobs
+  at once: it accumulates enough falls to test the loss-of-support picture at
+  a sample size that can carry it, and it settles whether approach length
+  before the reversal matters, at n = 50 instead of n = 8.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
