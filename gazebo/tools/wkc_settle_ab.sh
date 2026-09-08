@@ -47,13 +47,14 @@ DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 [ -s "$OUT" ] || echo "wall,arm,rep,verdict,waypoints,fall,settle,run_id,snapshot" > "$OUT"
 FAILS=0
 
-dump_with_retry(){
-  local tag="$1" p
+dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
+  local tag="$1" want="${2:-}" p
   for try in 1 2 3; do
     p=$(python3 -c "
 import sys; sys.path.insert(0,'gazebo')
 import shm_reaper
-print(shm_reaper.dump_snapshot(0,'$tag') or 'NONE')" 2>/dev/null | tail -1)
+w='$want'
+print(shm_reaper.dump_snapshot(0,'$tag', expect_run_id=(w or None)) or 'NONE')" 2>/dev/null | tail -1)
     [ "${p:-NONE}" != "NONE" ] && { echo "$p"; return 0; }
     sleep 3
   done
@@ -70,7 +71,7 @@ one(){ local arm="$1" rep="$2" env="$3"
   W=$(grep -c 'reached wp' "$L" 2>/dev/null || echo 0)
   F=$(grep -oE '\[FALL\] [a-z]+' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
   S=$(grep -oE '\[settle\] (BAILING|settled|full)' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
-  SNAP=$(dump_with_retry "${arm}${rep}_${NAME}_${V_:-NONE}")
+  SNAP=$(dump_with_retry "${arm}${rep}_${NAME}_${V_:-NONE}" "$(campaign_launched_run_id "$DIR/run.log")")
   echo "  $arm rep$rep ${V_:-NONE} wp=$W ${F:-nofall} settle=${S:-none} snap=$([ "$SNAP" = NONE ] && echo NONE || echo ok)"
   echo "$(date +%H:%M:%S),$arm,$rep,${V_:-NONE},$W,${F:-none},${S:-none},$(campaign_run_id),$SNAP" >> "$OUT"
   if [ "$SNAP" = NONE ]; then

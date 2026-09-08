@@ -71,6 +71,9 @@ wait_for_campaign(){
 # is exactly why it has to be checked every run rather than assumed.
 #
 # Every campaign should write this into its CSV and drop rows whose id repeats.
+# WEAKER than campaign_launched_run_id: ctrl_0.log is itself stale when a
+# launch is refused, so this agrees with a stale ring instead of catching it.
+# Kept for recording the id in a CSV; use the launched id for the check.
 campaign_run_id(){   # -> the controller run id behind the CURRENT ctrl_0.log
   grep -oE '\[RUNID\] run=[0-9]+' "$RUN_DIR/ctrl_0.log" 2>/dev/null |
     tail -1 | grep -oE '[0-9]+'
@@ -107,4 +110,19 @@ campaign_health_gate(){   # $1 = this run's verdict
     return 1
   fi
   return 0
+}
+
+# THE ONLY RUN ID THAT CANNOT BE STALE.
+#
+# mission_runner prints "[runner] launched run N" to its OWN stdout, after the
+# conductor has accepted the launch. That file is truncated per invocation, so
+# unlike $RUN_DIR/ctrl_0.log (which a refused launch leaves holding the
+# previous run) it cannot carry a previous run's number. If the launch was
+# refused the line is simply absent, which is itself the answer.
+#
+# Pass the result to shm_reaper.dump_snapshot(expect_run_id=...) and it will
+# refuse to archive a ring belonging to some other run.
+campaign_launched_run_id(){   # $1 = the runner's stdout log
+  grep -oE '\[runner\] launched run [0-9]+' "$1" 2>/dev/null |
+    tail -1 | grep -oE '[0-9]+'
 }

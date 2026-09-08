@@ -24,13 +24,14 @@ DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 [ -s "$OUT" ] || echo "wall,angle,rep,verdict,waypoints,fall,peak_pitch,peak_roll,run_id,snapshot" > "$OUT"
 FAILS=0
 
-dump_with_retry(){
-  local tag="$1" p
+dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
+  local tag="$1" want="${2:-}" p
   for try in 1 2 3; do
     p=$(python3 -c "
 import sys; sys.path.insert(0,'gazebo')
 import shm_reaper
-print(shm_reaper.dump_snapshot(0,'$tag') or 'NONE')" 2>/dev/null | tail -1)
+w='$want'
+print(shm_reaper.dump_snapshot(0,'$tag', expect_run_id=(w or None)) or 'NONE')" 2>/dev/null | tail -1)
     [ "${p:-NONE}" != "NONE" ] && { echo "$p"; return 0; }
     sleep 3
   done
@@ -45,7 +46,7 @@ one(){ local ang="$1" rep="$2"
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
   W=$(grep -c 'reached wp' "$L" 2>/dev/null || echo 0)
   F=$(grep -oE '\[FALL\] [a-z]+' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
-  SNAP=$(dump_with_retry "a${ang}r${rep}_${NAME}_${V_:-NONE}")
+  SNAP=$(dump_with_retry "a${ang}r${rep}_${NAME}_${V_:-NONE}" "$(campaign_launched_run_id "$DIR/run.log")")
   local PP PR
   read -r PP PR <<< "$(python3 - "$SNAP" <<'PY'
 import sys,json

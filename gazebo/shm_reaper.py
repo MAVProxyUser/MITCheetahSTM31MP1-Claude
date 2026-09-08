@@ -57,6 +57,7 @@ wrong twice before landing on the right number):
 """
 import argparse
 import ctypes
+import re
 import json
 import mmap
 import os
@@ -380,8 +381,26 @@ def tail_text_to_log(instance, log_path, poll_s=0.2, expect_run_id=None):
             time.sleep(poll_s)
 
 
+_RUNID_RE = re.compile(r"\[RUNID\] run=(\d+)")
+
+
+def _ring_run_id(text_records):
+    """The run id the RING ITSELF is carrying, read from the controller's own
+    boot/heartbeat line ("[RUNID] run=NNNN instance=N"). This is the only
+    identity that travels WITH the data, which is what makes it trustworthy:
+    every other candidate - the campaign's expectation, $RUN_DIR/ctrl_0.log,
+    the archive filename - is written by someone who may be looking at a
+    different run than the one in shared memory."""
+    rid = None
+    for r in text_records or ():
+        m = _RUNID_RE.search(r.get("msg", "") if isinstance(r, dict) else str(r))
+        if m:
+            rid = m.group(1)
+    return rid
+
+
 def dump_snapshot(instance, reason, archive_dir=None,
-                   run_id=None):
+                   run_id=None, expect_run_id=None):
     """Write the CURRENT full contents of dog `instance`'s ring to a
     timestamped JSON file under archive_dir - the "oracle" entry point.
     Safe to call from ANY process (the launcher, server.py, a standalone
@@ -390,6 +409,26 @@ def dump_snapshot(instance, reason, archive_dir=None,
     until explicitly unlinked - see ShmTrace.h's Writer destructor
     comment for why that is deliberate). Returns the archive path, or
     None if there was nothing to read (segment never existed).
+
+    THAT SURVIVAL IS ALSO A TRAP, so pass `expect_run_id`.
+
+    Because the segment outlives its writer, a run that ABORTS before the
+    controller starts leaves the previous run's contents sitting in the ring -
+    and this function will archive them, happily, as a complete and plausible
+    record of a run that never happened. Measured on open28_subcourse: a gz sim
+    survived its run, the conductor refused every later launch, and 7 of 24
+    campaign rows were fiction. $RUN_DIR/ctrl_0.log is no defence, because it is
+    stale in exactly the same way at exactly the same time.
+
+    `expect_run_id` is checked against the run id carried INSIDE the ring, so
+    the two things being compared come from different places. On a mismatch
+    this refuses: nothing is written and None is returned. Callers already
+    treat None as "the instrument is not working" and retry or abort, which is
+    the correct response here too.
+
+    The ring's own id is always recorded as `ring_run_id` whether or not an
+    expectation was given, so a snapshot taken without one is still checkable
+    after the fact.
     """
     if archive_dir is None:
         archive_dir = _paths.ARCHIVE_DIR   # persistent, never /tmp
@@ -405,6 +444,16 @@ def dump_snapshot(instance, reason, archive_dir=None,
     # the numeric trace, which is the one this function's caller actually
     # cares about) just gets an empty list here instead of failing.
     text_records = read_all_text(instance)
+    ring_run = _ring_run_id(text_records)
+    if expect_run_id is not None and ring_run is not None and \
+            str(ring_run) != str(expect_run_id):
+        print(f"[shm_reaper] REFUSING to archive dog{instance}: the ring carries "
+              f"run {ring_run}, caller expected run {expect_run_id}. The run "
+              f"almost certainly never started and this is the PREVIOUS run's "
+              f"data - writing it would be fiction.", flush=True)
+        return None
+    if run_id is None:
+        run_id = ring_run
     os.makedirs(archive_dir, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     run_tag = f"run{run_id}_" if run_id is not None else ""
@@ -414,6 +463,8 @@ def dump_snapshot(instance, reason, archive_dir=None,
             "instance": instance,
             "reason": reason,
             "run_id": run_id,
+            "ring_run_id": ring_run,
+            "expected_run_id": expect_run_id,
             "captured_at": ts,
             "n_records": len(records),
             "span_s": (records[-1]["t"] - records[0]["t"]) if len(records) > 1 else 0.0,

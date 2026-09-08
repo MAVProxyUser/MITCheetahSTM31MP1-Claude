@@ -30,13 +30,14 @@ ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || { echo "need at least one arm"; exit 2; }
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 echo "wall,arm,rep,gait,terrain,speed,verdict,truth_lines,snapshot,truth,contact" > "$OUT"
 
-dump_with_retry(){   # $1 = tag -> echoes path or NONE
-  local tag="$1" p
+dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
+  local tag="$1" want="${2:-}" p
   for try in 1 2 3; do
     p=$(python3 -c "
 import sys; sys.path.insert(0,'gazebo')
 import shm_reaper
-print(shm_reaper.dump_snapshot(0,'$tag') or 'NONE')" 2>/dev/null | tail -1)
+w='$want'
+print(shm_reaper.dump_snapshot(0,'$tag', expect_run_id=(w or None)) or 'NONE')" 2>/dev/null | tail -1)
     [ "${p:-NONE}" != "NONE" ] && { echo "$p"; return 0; }
     sleep 3
   done
@@ -71,7 +72,7 @@ one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
   local V TL SNAP
   V=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
   TL=$(wc -l < "$TRUTH" 2>/dev/null | tr -d ' ')
-  SNAP=$(dump_with_retry "${V:-NONE}_$NAME")
+  SNAP=$(dump_with_retry "${V:-NONE}_$NAME" "$(campaign_launched_run_id "$DIR/run.log")")
   local CL; CL=$(wc -l < "$CONTACT" 2>/dev/null | tr -d ' ')
   echo "  $arm rep$rep $gait/$terr@$spd ${V:-NONE} truth=$TL contact=${CL:-0} snap=$([ "$SNAP" = NONE ] && echo NONE || echo ok)"
   echo "$(date +%H:%M:%S),$arm,$rep,$gait,$terr,$spd,${V:-NONE},$TL,$SNAP,$TRUTH,$CONTACT" >> "$OUT"
