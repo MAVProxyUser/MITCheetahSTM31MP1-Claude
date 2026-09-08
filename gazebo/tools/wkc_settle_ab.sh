@@ -44,7 +44,7 @@ NAME=wkc_settle_ab
 N="${1:-18}"; V="${2:-1.9}"; shift 2 2>/dev/null || true
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || ARMS=(WATCH:WP_SETTLE_WATCH=1 BLIND:WP_SETTLE_WATCH=0)
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,arm,rep,verdict,waypoints,fall,settle,snapshot" > "$OUT"
+[ -s "$OUT" ] || echo "wall,arm,rep,verdict,waypoints,fall,settle,run_id,snapshot" > "$OUT"
 FAILS=0
 
 dump_with_retry(){
@@ -72,7 +72,7 @@ one(){ local arm="$1" rep="$2" env="$3"
   S=$(grep -oE '\[settle\] (BAILING|settled|full)' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
   SNAP=$(dump_with_retry "${arm}${rep}_${NAME}_${V_:-NONE}")
   echo "  $arm rep$rep ${V_:-NONE} wp=$W ${F:-nofall} settle=${S:-none} snap=$([ "$SNAP" = NONE ] && echo NONE || echo ok)"
-  echo "$(date +%H:%M:%S),$arm,$rep,${V_:-NONE},$W,${F:-none},${S:-none},$SNAP" >> "$OUT"
+  echo "$(date +%H:%M:%S),$arm,$rep,${V_:-NONE},$W,${F:-none},${S:-none},$(campaign_run_id),$SNAP" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }

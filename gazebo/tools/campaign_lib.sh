@@ -56,3 +56,22 @@ wait_for_campaign(){
   echo "[campaign] $n signalled: $(cat "$CAMPAIGN_DIR/$n.done")"
   return 0
 }
+
+# THE SNAPSHOT MUST BE FROM THE RUN YOU JUST DID.
+#
+# shm segments outlive the process that created them (deliberately - see
+# ShmTrace.h), so when a run aborts before the controller starts, BOTH
+# $RUN_DIR/ctrl_0.log and the shm ring still hold the PREVIOUS run's contents.
+# dump_snapshot returns them happily and the campaign records a complete,
+# plausible, entirely fictitious data point.
+#
+# Measured: round 4 of wkc_settle_ab recorded run 3479 SIX times - three arms
+# x two reps - all reporting the same fall at the same place, because its first
+# six runs never started. Rounds 1-3 were clean, so this is not constant, which
+# is exactly why it has to be checked every run rather than assumed.
+#
+# Every campaign should write this into its CSV and drop rows whose id repeats.
+campaign_run_id(){   # -> the controller run id behind the CURRENT ctrl_0.log
+  grep -oE '\[RUNID\] run=[0-9]+' "$RUN_DIR/ctrl_0.log" 2>/dev/null |
+    tail -1 | grep -oE '[0-9]+'
+}

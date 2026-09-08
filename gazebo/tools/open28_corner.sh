@@ -21,7 +21,7 @@ NAME=open28_corner
 N="${1:-6}"; V="${2:-1.9}"; LEG="${3:-12}"
 ANGLES="${ANGLES:-30 45 60 90 120 135}"
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,angle,rep,verdict,waypoints,fall,peak_pitch,peak_roll,snapshot" > "$OUT"
+[ -s "$OUT" ] || echo "wall,angle,rep,verdict,waypoints,fall,peak_pitch,peak_roll,run_id,snapshot" > "$OUT"
 FAILS=0
 
 dump_with_retry(){
@@ -62,7 +62,7 @@ except Exception: print("")
 PY
 )"
   echo "  angle=$ang rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?}"
-  echo "$(date +%H:%M:%S),$ang,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},$SNAP" >> "$OUT"
+  echo "$(date +%H:%M:%S),$ang,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},$(campaign_run_id),$SNAP" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }

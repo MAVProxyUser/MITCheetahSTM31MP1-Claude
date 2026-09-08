@@ -1,0 +1,87 @@
+#!/bin/bash
+# OPEN-28: no single FEATURE reproduces it, so test the SEQUENCES.
+#
+# What has been ruled out on wkc_finals at 1.9:
+#   dash:60 straight            3/3 PASS
+#   corner:12:{30..135}         0/36 fell, median peak pitch 5.2-6.7 deg
+#   corner:8:{150..180}         passing too, peak pitch 12.4 at the 180 reversal
+# All far below SafetyChecker's 28.65. An isolated feature at this speed is
+# easy; the full course falls mid-run about a fifth of the time. So what the
+# course adds is the CHAINING - features with only 6-7 m of recovery between
+# them - not any one of them.
+#
+# Three sub-courses cut straight from wkc_finals' own turn list, each with a
+# real 18 m approach and a 20 m exit:
+#   wkc_weave    0,18 75,7 -75,6 75,6 -75,6 0,20     the zig-zag
+#   wkc_box      0,18 90,6 90,6 90,7 0,20            three 90s in a row
+#   wkc_hairpin  0,18 90,7 -180,9 0,20               the reversal in context
+# Interleaved by course within each rep so a drifting host cannot order them.
+set -u
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+. gazebo/tools/paths.sh
+. gazebo/tools/campaign_lib.sh
+NAME=open28_subcourse
+N="${1:-8}"; V="${2:-1.9}"
+COURSES="${COURSES:-wkc_weave wkc_box wkc_hairpin}"
+DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,run_id,snapshot" > "$OUT"
+FAILS=0
+
+dump_with_retry(){
+  local tag="$1" p
+  for try in 1 2 3; do
+    p=$(python3 -c "
+import sys; sys.path.insert(0,'gazebo')
+import shm_reaper
+print(shm_reaper.dump_snapshot(0,'$tag') or 'NONE')" 2>/dev/null | tail -1)
+    [ "${p:-NONE}" != "NONE" ] && { echo "$p"; return 0; }
+    sleep 3
+  done
+  echo NONE; return 1
+}
+
+one(){ local crs="$1" rep="$2"
+  timeout 300 python3 gazebo/conductor/mission_runner.py --terrain flat \
+    --slot "course:$crs" --gait trotting --speed "$V" --dash 0 \
+    --wait-for-gate 1800 > "$DIR/run.log" 2>&1
+  local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
+  V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
+  W=$(grep -c 'reached wp' "$L" 2>/dev/null || echo 0)
+  F=$(grep -oE '\[FALL\] [a-z]+' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
+  RID=$(campaign_run_id)
+  SNAP=$(dump_with_retry "${crs}r${rep}_${NAME}_${V_:-NONE}")
+  local PP PR
+  read -r PP PR <<< "$(python3 - "$SNAP" <<'PY'
+import sys,json
+p=sys.argv[1]
+if p=="NONE": print(""); raise SystemExit
+try:
+    R=[x for x in json.load(open(p))["records"] if x.get("pitch") is not None]
+    k=next((i for i in range(1,len(R)) if R[i]["op_mode"]==2 and R[i-1]["op_mode"]!=2), len(R))
+    W=[x for x in R[:k] if x["t"] > 5.0]
+    print("%.1f %.1f" % (max(abs(x["pitch"]) for x in W)*57.2958,
+                         max(abs(x["roll"])  for x in W)*57.2958))
+except Exception: print("")
+PY
+)"
+  echo "  $crs rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} run=$RID"
+  echo "$(date +%H:%M:%S),$crs,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},$RID,$SNAP" >> "$OUT"
+  if [ "$SNAP" = NONE ]; then
+    FAILS=$((FAILS+1))
+    [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
+  else FAILS=0; fi
+}
+
+for r in $(seq 1 "$N"); do for c in $COURSES; do one "$c" "$r"; done; done
+echo "  --- fell, by sub-course (at ${V} m/s) ---"
+for c in $COURSES; do
+  f=$(awk -F, -v A="$c" '$2==A && $6!="none"' "$OUT"|wc -l|tr -d ' ')
+  n=$(awk -F, -v A="$c" '$2==A' "$OUT"|wc -l|tr -d ' ')
+  pp=$(awk -F, -v A="$c" '$2==A && $7!=""{print $7}' "$OUT"|sort -n|awk '{v[NR]=$1}END{if(NR)print v[int((NR+1)/2)]}')
+  echo "    $c: fell $f/$n   median peak pitch ${pp:-?} deg"
+done
+# stale-snapshot guard: a repeated run id means the run never started and the
+# ring still held the previous one (see campaign_run_id).
+dup=$(awk -F, 'NR>1{print $9}' "$OUT" | sort | uniq -d | wc -l | tr -d ' ')
+[ "$dup" -gt 0 ] && echo "  WARNING: $dup repeated run id(s) - those rows are stale, drop them"
+campaign_done "$NAME" "sub-course sweep done"
