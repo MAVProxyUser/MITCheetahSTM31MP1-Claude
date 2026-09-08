@@ -70,6 +70,7 @@ PY
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
   else FAILS=0; fi
+  campaign_health_gate "${V_:-NONE}" || { campaign_failed "$NAME" "host not running missions"; exit 1; }
 }
 
 for r in $(seq 1 "$N"); do for c in $COURSES; do one "$c" "$r"; done; done

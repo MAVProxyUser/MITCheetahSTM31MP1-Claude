@@ -75,3 +75,36 @@ campaign_run_id(){   # -> the controller run id behind the CURRENT ctrl_0.log
   grep -oE '\[RUNID\] run=[0-9]+' "$RUN_DIR/ctrl_0.log" 2>/dev/null |
     tail -1 | grep -oE '[0-9]+'
 }
+
+# A WEDGED FLEET EATS A CAMPAIGN SILENTLY.
+#
+# Measured on open28_subcourse: a gz sim process survived its run, the
+# conductor stayed at phase "running", and every later launch was refused
+# ("a fleet is already active - stop it first"). The runner waited out its
+# gate and returned verdict NONE, so 7 of 24 rows were fictitious - the ring
+# still held an older run, which only the run-id guard caught. The campaign
+# reported a full sweep it had not performed.
+#
+# So: consecutive NONE verdicts are a HOST problem, not a result. Clear it
+# once, and if that does not take, stop rather than keep writing rows.
+# Call as: campaign_health_gate "$VERDICT"
+CAMPAIGN_NONE_STREAK=0
+campaign_health_gate(){   # $1 = this run's verdict
+  if [ "${1:-NONE}" = "NONE" ]; then
+    CAMPAIGN_NONE_STREAK=$((CAMPAIGN_NONE_STREAK+1))
+  else
+    CAMPAIGN_NONE_STREAK=0; return 0
+  fi
+  if [ "$CAMPAIGN_NONE_STREAK" -eq 2 ]; then
+    echo "  [health] 2 consecutive NONE verdicts - clearing the fleet and carrying on"
+    curl -s -m 15 -X POST http://127.0.0.1:8420/api/stop >/dev/null 2>&1
+    sleep 10
+    pkill -f "gz[ ]sim -s -r" 2>/dev/null
+    sleep 5
+  elif [ "$CAMPAIGN_NONE_STREAK" -ge 4 ]; then
+    echo "  [health] 4 consecutive NONE verdicts after a clear - the host is not"
+    echo "           running missions. Stopping rather than writing more fiction."
+    return 1
+  fi
+  return 0
+}
