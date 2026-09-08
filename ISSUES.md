@@ -156,11 +156,65 @@ passed on its own in-suite retry.
   p = 0.0229); OPEN-28's round-4 count moves 15 → 10, weakening the wp7
   clustering. `campaign_run_id()` now goes into every campaign row.
 
-  **Running:** `gazebo/tools/open28_subcourse.sh`. If no single feature is
-  hard, what the course adds is the *chaining* — turns with only 6–7 m of
-  recovery between them. Three sub-courses cut from `wkc_finals`' own turn
-  list, each with a real 18 m approach and 20 m exit: `wkc_weave`
-  (75/−75/75/−75), `wkc_box` (90/90/90), `wkc_hairpin` (90 then −180).
+  **Chaining is dead too, and the dose-response is what killed it.** Three
+  sub-courses cut from the course's own turn list, 10 reps each:
+
+  | sub-course | fell | median peak pitch | max |
+  |---|---|---|---|
+  | `wkc_box` (90/90/90) | 0/10 | 7.5° | 19.1° |
+  | `wkc_weave` (75/−75/75/−75) | 0/10 | 8.3° | 12.5° |
+  | `wkc_hairpin` (90 then −180) | **0/10** | **16.1°** | 20.9° |
+
+  The hairpin roughly doubles the excursion of the other two, so sequencing
+  does cost something — but nothing fell. Then the dose-response on the
+  variable the hypothesis actually names, recovery distance before the
+  reversal, 8 reps each:
+
+  | gap | fell | median peak pitch | max |
+  |---|---|---|---|
+  | 7 m | 0/8 | 18.5° | 22.0° |
+  | 10 m | 1/8 | 17.8° | 21.7° |
+  | 14 m | 1/8 | 18.9° | 34.2° |
+  | 20 m | 2/8 | 16.5° | 38.5° |
+
+  Slope −0.13°/m, R² 0.47 — no gradient, and the falls go the *wrong way*.
+  More recovery is not better. Approach speed into the reversal was the
+  obvious follow-up and it is also flat: fell 2.19 m/s, passed 2.20,
+  p = 0.459.
+
+  **What it did buy: a 50 s reproducer.** The `hp_gap` family falls 4/32
+  (12.5 %) with peak pitch reaching 34–38°, against a 250 s course that falls
+  20–30 %. Five times the falls per hour of rig time.
+
+  **The live lead — the body sinks BEFORE the pitch runs away.** Read
+  backward from the E-stop rather than forward from the last calm sample,
+  both traces examined in detail show the same order:
+
+  ```
+  hp_gap14 rep6      z      pitch
+    t-0.55s        0.271      5.1     sustained roll -10 deg, height held
+    t-0.50s        0.254      3.8     <- HEIGHT GOES FIRST
+    t-0.45s        0.247      9.6
+    t-0.35s        0.232     17.2
+    t-0.20s        0.195     25.7
+    t-0.05s        0.179     29.9     -> E-stop
+  ```
+
+  `kin_z` tracks `z` the whole way down, so the legs really are shortening —
+  this is loss of support, not an estimator artifact. Across the `hp_gap`
+  family, falls differ from passes on exactly the quantities that picture
+  predicts, though at n = 4 falls and with tiny effects: height lost across
+  the run 0.009 vs 0.004 m (p = 0.035), median |roll| at cruise 0.90° vs
+  0.70° (p = 0.010), median foot-force sum 9.39 vs 9.56 (p = 0.005, falls
+  *lower*). Three tests at n = 4 is where small-sample luck bites, so these
+  are a direction to test, not a result.
+
+  **Running:** `open28_duration.sh` — `wkc_finals` (positive control) /
+  `long_easy` (200 m of 40° turns) / `dash:200`, 6 reps at 1.9. Every
+  reproducer so far is 30–60 s against the course's 230–280 s, so anything
+  cumulative is invisible to all of them by construction. Next after that:
+  a large `hp_gap20` run to turn n = 4 falls into n = 20 and test the
+  loss-of-support picture properly.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
