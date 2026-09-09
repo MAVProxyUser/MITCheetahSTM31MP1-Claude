@@ -7,6 +7,8 @@
 #include <eigen3/unsupported/Eigen/MatrixFunctions>
 //#include <unsupported/Eigen/MatrixFunctions>
 #include <vector>
+#include <string>
+#include <cstring>
 #include <qpOASES.hpp>
 #include <stdio.h>
 #include <sys/time.h>
@@ -533,43 +535,52 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
       // SRBD in another language to test a solver would be testing the
       // re-derivation.
       //
-      // This is blocking file I/O on the MPC worker thread, so it WILL slow
-      // the solve and can make the run itself fall over. That is fine and
-      // expected: a capture run exists to produce matrices, not a good run.
+      // BUFFERED, because the first version was not and that made the capture
+      // unusable for the question it was needed for. Blocking file I/O on the
+      // MPC worker slows the solve enough to change the dynamics, so a capture
+      // run was not a representative run - fine for "what does an ordinary
+      // solve look like", useless for "what is the solve doing at the moment
+      // the robot loses attitude", which is the OPEN-28 question. Records are
+      // held in memory and written once at the cap, so the loop sees only the
+      // memcpy.
+      //
+      // Cost: about 39 KB per record at nv=60, so MPC_DUMP_MAX=2000 is ~78 MB
+      // of RSS for a 60 s run. Deliberate and bounded.
+      //
       // Off unless $MPC_DUMP names a path; $MPC_DUMP_MAX caps the record count
       // (default 400).
-      static FILE* dumpf = nullptr;
+      static std::vector<float>* dumpbuf = nullptr;
+      static std::string dumppath;
       static long dumpn = 0, dumpmax = 0;
       static bool dumpinit = false;
       if(!dumpinit) {
         dumpinit = true;
         const char* dp = getenv("MPC_DUMP");
         if(dp && *dp) {
-          dumpf = fopen(dp, "wb");
+          dumppath = dp;
           dumpmax = getenv("MPC_DUMP_MAX") ? atol(getenv("MPC_DUMP_MAX")) : 400;
+          dumpbuf = new std::vector<float>();
+          dumpbuf->reserve((size_t)dumpmax * 6000);
         }
       }
-      if(dumpf && dumpn < dumpmax) {
-        const s32 hdr[4] = { 0x4D504331 /*"MPC1"*/, nv, nc, (s32)setup->horizon };
-        fwrite(hdr, sizeof(s32), 4, dumpf);
-        std::vector<float> buf;
-        buf.resize((size_t)nv*nv);
-        for(s32 r = 0; r < nv; r++) for(s32 c = 0; c < nv; c++) buf[(size_t)r*nv+c] = (float)jc->P(r,c);
-        fwrite(buf.data(), sizeof(float), (size_t)nv*nv, dumpf);
-        buf.resize(nv);
-        for(s32 r = 0; r < nv; r++) buf[r] = (float)jc->q[r];
-        fwrite(buf.data(), sizeof(float), nv, dumpf);
-        buf.resize((size_t)nc*nv);
-        for(s32 r = 0; r < nc; r++) for(s32 c = 0; c < nv; c++) buf[(size_t)r*nv+c] = (float)jc->A(r,c);
-        fwrite(buf.data(), sizeof(float), (size_t)nc*nv, dumpf);
-        buf.resize(nc);
-        for(s32 r = 0; r < nc; r++) buf[r] = (float)jc->u[r];
-        fwrite(buf.data(), sizeof(float), nc, dumpf);
-        buf.resize(nv);
-        for(s32 r = 0; r < nv; r++) buf[r] = (float)jc->getSolution()[r];
-        fwrite(buf.data(), sizeof(float), nv, dumpf);
-        if(++dumpn >= dumpmax) { fflush(dumpf); fclose(dumpf); dumpf = nullptr;
-          shmtrace::logf(0.0, "[MPCDUMP] wrote %ld QP records, capture complete", dumpn); }
+      if(dumpbuf && dumpn < dumpmax) {
+        auto put = [&](float v) { dumpbuf->push_back(v); };
+        // the four header ints ride in the same float stream, bit-cast, so the
+        // reader needs no second file and the record stays self-describing
+        auto puti = [&](s32 v) { float f; memcpy(&f, &v, 4); dumpbuf->push_back(f); };
+        puti(0x4D504331); puti(nv); puti(nc); puti((s32)setup->horizon);
+        for(s32 r = 0; r < nv; r++) for(s32 c = 0; c < nv; c++) put((float)jc->P(r,c));
+        for(s32 r = 0; r < nv; r++) put((float)jc->q[r]);
+        for(s32 r = 0; r < nc; r++) for(s32 c = 0; c < nv; c++) put((float)jc->A(r,c));
+        for(s32 r = 0; r < nc; r++) put((float)jc->u[r]);
+        for(s32 r = 0; r < nv; r++) put((float)jc->getSolution()[r]);
+        if(++dumpn >= dumpmax) {
+          FILE* f = fopen(dumppath.c_str(), "wb");
+          if(f) { fwrite(dumpbuf->data(), sizeof(float), dumpbuf->size(), f); fclose(f); }
+          shmtrace::logf(0.0, "[MPCDUMP] buffered %ld QP records (%.1f MB), written at the cap",
+                 dumpn, dumpbuf->size() * 4.0 / 1e6);
+          delete dumpbuf; dumpbuf = nullptr;
+        }
       }
     }
   } else {
