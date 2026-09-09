@@ -760,8 +760,24 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       // then collapsed level at z=0.091 with no orientation trip.
       static const float YAW_ERR_MAX =
           ctrl_tuning::num("CTRL_YAW_ERR_MAX", 0.40f);
+      const bool yaw_sat = (e > YAW_ERR_MAX) || (e < -YAW_ERR_MAX);
       if (e >  YAW_ERR_MAX) _yaw_des = seResult.rpy[2] + YAW_ERR_MAX;
       if (e < -YAW_ERR_MAX) _yaw_des = seResult.rpy[2] - YAW_ERR_MAX;
+      // DIAGNOSTIC (OPEN-28). A saturated yaw error is the state this comment
+      // block already warns about - "paid for out of body height" - and it is
+      // invisible in the trace, so there is no way to tell whether the yaw
+      // excursions that enter OPEN-28's failure mode are preceded by it.
+      // Logged on the RISING EDGE only, so a sustained saturation is one line
+      // rather than five hundred a second.
+      {
+        static bool was_sat = false;
+        if (yaw_sat && !was_sat)
+          shmtrace::logf(0.0, "[YAWSAT] heading error hit the %.2f rad clamp "
+                 "(e=%.3f, commanded turn rate %.2f, rate-feedback %s)",
+                 (double)YAW_ERR_MAX, (double)e, (double)_yaw_turn_rate,
+                 (std::fabs(_yaw_turn_rate) < 0.05f) ? "ACTIVE" : "GATED OFF");
+        was_sat = yaw_sat;
+      }
 
       // PROPORTIONAL HEADING FEEDBACK ON THE YAW-RATE CHANNEL.
       // The angle reference above is tracked by the MPC at Q[2]=10, but the yaw
@@ -777,7 +793,20 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
       // commanded); disabled by CTRL_YAW_RATE_KP=0.
       static const float yaw_rate_kp =
           ctrl_tuning::num("CTRL_YAW_RATE_KP", 1.5f);
-      if (std::fabs(_yaw_turn_rate) < 0.05f) {
+      // THE GATE IS THE SUSPECT (OPEN-28). The corrective rate is applied only
+      // while HOLDING heading; the moment a turn is commanded it is switched
+      // off, and the only thing left fighting yaw drift is the saturating angle
+      // error this block was written to avoid relying on. Every entry into
+      // OPEN-28's failure mode measured so far has a commanded turn rate around
+      // 0.30 rad/s - six times the 0.05 threshold - so the feedback is off in
+      // exactly the regime where the excursions happen.
+      //
+      // CTRL_YAW_RATE_ALWAYS=1 keeps it on through turns, subtracting the
+      // corrective rate from the commanded one rather than replacing it, so a
+      // deliberate turn is still executed.
+      static const bool yaw_ff_always =
+          ctrl_tuning::integer("CTRL_YAW_RATE_ALWAYS", 0) != 0;
+      if (yaw_ff_always || std::fabs(_yaw_turn_rate) < 0.05f) {
         _yaw_rate_ff = -yaw_rate_kp * e;
         const float ff_max = 0.8f;
         if (_yaw_rate_ff >  ff_max) _yaw_rate_ff =  ff_max;
