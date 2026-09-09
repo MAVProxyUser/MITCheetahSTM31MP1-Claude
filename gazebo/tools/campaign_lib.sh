@@ -149,3 +149,28 @@ campaign_check_csv(){   # $1 = csv path
   fi
   return 0
 }
+
+# DO NOT START A CAMPAIGN ON TOP OF ANOTHER ONE.
+#
+# Measured: a yaw-cap sweep was still on its last rep when the next campaign
+# launched. The old campaign's final row landed in the NEW campaign's csv, and
+# its `.done` marker - written seconds later - terminated the new campaign's
+# watcher immediately, which then reported a one-row result for a 90-run
+# experiment. Neither campaign was wrong; the overlap was.
+#
+# Two things have to be true before a campaign starts: nothing else is running,
+# and no marker is lying around from last time. Call this first.
+campaign_claim(){   # $1 = campaign name
+  local name="$1" other
+  other=$(pgrep -fl "gazebo/tools/.*\.sh" 2>/dev/null |
+          grep -v "campaign_lib" | grep -v "[[:space:]]$$[[:space:]]" |
+          grep -vc "^$$ " || true)
+  if pgrep -f "[m]ission_runner.py" >/dev/null 2>&1; then
+    echo "  REFUSING to start $name: a mission is already running."
+    echo "  Wait for it, or stop it - overlapping campaigns write into each"
+    echo "  other's csv and each other's markers."
+    return 1
+  fi
+  rm -f "$CAMPAIGN_DIR/$name.done" "$CAMPAIGN_DIR/$name.failed"
+  return 0
+}
