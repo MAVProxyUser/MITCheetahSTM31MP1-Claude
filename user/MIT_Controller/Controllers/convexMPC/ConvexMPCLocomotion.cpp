@@ -1671,12 +1671,34 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
   //       twice in the same binary, so this is a deliberate second tuning that
   //       Unitree ships for some other mode - worth testing against speed,
   //       where holding commanded position matters more than holding height.
+  //   2 = MIT's vector with ONLY the attitude-rate weights changed, so the
+  //       effect of rate damping is attributable. Vector 1 moves four things at
+  //       once (angle, position, height AND rates) and cannot isolate any of
+  //       them.
+  //
+  //       Why this arm exists (OPEN-28). MIT's Q puts *exactly zero* cost on
+  //       roll rate and pitch rate - Q[6] and Q[7] - and only 0.25 on the roll
+  //       and pitch angles, the smallest weights in the vector. Measured on 41
+  //       entries into the failure mode: the body yaws at a median 1.70 rad/s
+  //       while the follower is commanding 0.30, a ratio of 6.4x, and in 20 of
+  //       those 41 the command is under 0.3 rad/s - it is being asked to go
+  //       nearly straight. So the yaw is a DISTURBANCE, not a response to a
+  //       demand, which is why capping the commanded yaw rate did nothing
+  //       (0.8/1.0/1.2 gave 7/29, 5/29, 8/29 crossings and medians 18.8, 18.5,
+  //       18.4 deg). With no cost on the attitude rates there is nothing in the
+  //       objective that resists the resulting angular velocity, and the
+  //       excursion runs to SafetyChecker's limit.
   {
     static const int qsel = ctrl_tuning::integer("CTRL_MPC_Q", 0);
     if (qsel == 1) {
       const float qU[12] = {0.5f,0.5f,10.f, 20.f,20.f,15.f,
                             0.1f,0.1f,1.f,  0.5f,0.5f,0.5f};
       for (int i = 0; i < 12; i++) Q[i] = qU[i];
+    } else if (qsel == 2) {
+      // Unitree's rate weights, MIT's everything else.
+      Q[6] = ctrl_tuning::num("CTRL_MPC_QWX", 0.1f);
+      Q[7] = ctrl_tuning::num("CTRL_MPC_QWY", 0.1f);
+      Q[8] = ctrl_tuning::num("CTRL_MPC_QWZ", 1.0f);
     }
   }
 

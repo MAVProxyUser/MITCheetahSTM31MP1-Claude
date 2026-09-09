@@ -323,11 +323,50 @@ passed on its own in-suite retry.
   Right quantity, wrong value — the same trap as
   `feedback-effect-size-does-not-transfer`.
 
-  **Running:** the dose-response that would confirm it — `WP_MAX_YAWRATE`
-  0.8 / 1.0 / 1.2 on `hp_gap20`, 30 reps each, interleaved. Endpoint is peak
-  attitude (continuous, every run yields one) with the crossing rate second.
-  If lowering the cap lowers both, the mechanism is confirmed and the lever is
-  already in the code.
+  **The commanded yaw is not the lever.** `WP_MAX_YAWRATE` 0.8 / 1.0 / 1.2 on
+  `hp_gap20`, 30 reps each, interleaved:
+
+  | yaw cap | crossed 28.65° | fell | median peak attitude |
+  |---|---|---|---|
+  | 0.8 | 7/29 | 3/29 | 18.8° |
+  | 1.0 | 5/29 | 2/29 | 18.5° |
+  | 1.2 | 8/29 | 3/29 | 18.4° |
+
+  Flat. Cutting the commanded ceiling by a third changes nothing — and reading
+  the command **at the moment of the excursion** (the `[nav]` ring timestamps
+  do align with the records; it was the `[stm32mp1]` heartbeat on the other
+  clock) says why:
+
+  - body **1.70 rad/s** (97°/s) against a command of **0.30 rad/s** (17°/s)
+  - **ratio 6.4×**, and in **20 of 41** entries the follower is asking for
+    under 0.3 rad/s — the dog is being told to go nearly straight
+
+  **So the yaw is a disturbance, not a response to a demand.** Capping a
+  command that is not the source cannot help, which is exactly what the sweep
+  shows.
+
+  ### The candidate cause, and it is in MIT's cost function
+
+  ```
+  float Q[12] = {0.25, 0.25, 10, 2, 2, 50, 0, 0, 0.3, 0.2, 0.2, 0.1};
+                  roll pitch yaw  x  y  z  wx wy  wz  vx  vy  vz
+  ```
+
+  `Q[6]` and `Q[7]` — **roll rate and pitch rate — are exactly zero**, and the
+  roll and pitch *angle* weights are 0.25, the smallest in the vector. With no
+  cost on the attitude rates there is nothing in the objective that resists
+  the angular velocity a yaw disturbance produces, and the excursion runs to
+  the limit.
+
+  Unitree's own second vector, recovered from `Legged_sport` .rodata and
+  already wired as `CTRL_MPC_Q=1`, is `{0.5,0.5,10, 20,20,15, 0.1,0.1,1,
+  0.5,0.5,0.5}` — **non-zero rate weights**. It moves four things at once
+  though, so `CTRL_MPC_Q=2` was added: MIT's vector with *only* the rate
+  weights changed (`CTRL_MPC_QWX/QWY/QWZ`), so the effect is attributable.
+
+  **Running:** `q0` (MIT default) / `q2` (rate damping alone) / `q1`
+  (Unitree's full vector), 30 reps each on `hp_gap20`, interleaved. Endpoint
+  is peak attitude, with the crossing rate second.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
