@@ -39,6 +39,14 @@ LIMIT = 28.65
 ap = argparse.ArgumentParser()
 ap.add_argument("--csv", required=True)
 ap.add_argument("--fallcol", default="fall")
+ap.add_argument("--outcome", default="crossing", choices=("fall", "crossing"),
+                help="THE EVENT TO STUDY. 'fall' was the wrong choice for a year "
+                     "of this issue: 34 runs cross SafetyChecker's limit and only "
+                     "14 of them fall, because the recovery ladder stands 59%% of "
+                     "them back up. Recovery is downstream noise; the mechanism "
+                     "lives at the crossing. Studying falls threw away 20 of 34 "
+                     "events and is why every discriminant came back null.")
+ap.add_argument("--limit", type=float, default=28.65)
 a = ap.parse_args()
 
 rows = [r for r in csv.DictReader(open(a.csv)) if r.get("course") or r.get("arm")]
@@ -111,13 +119,21 @@ F, P = [], []
 for r in clean:
     pr = profile(r)
     if pr:
-        (F if r.get(a.fallcol) not in ("none", "", None) else P).append(pr)
+        if a.outcome == "fall":
+            hit = r.get(a.fallcol) not in ("none", "", None)
+        else:
+            try:
+                hit = max(float(r.get("peak_pitch") or 0),
+                          float(r.get("peak_roll") or 0)) >= a.limit
+            except ValueError:
+                hit = False
+        (F if hit else P).append(pr)
 
-print(f"\n  scored {len(F)} falls and {len(P)} passes")
+print(f"\n  outcome = {a.outcome}: {len(F)} events, {len(P)} non-events")
 if not F or not P:
     print("  need both to compare"); raise SystemExit
 
-print(f"\n  {'quantity':<32} {'fell':>9} {'passed':>9} {'z':>7} {'p':>7}")
+print(f"\n  {'quantity':<32} {'event':>9} {'non-ev':>9} {'z':>7} {'p':>7}")
 for key, label in (("z", "median ride height (m)"),
                    ("sag", "height lost across the run (m)"),
                    ("roll", "median |roll| at cruise (deg)"),

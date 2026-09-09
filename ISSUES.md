@@ -231,10 +231,57 @@ passed on its own in-suite retry.
   zero in that table is also a short mission, so the two are confounded at
   these sample sizes — which is the honest statement, not a mechanism.
 
-  **Running:** `hp_gap07` vs `hp_gap20`, **50 reps each**. That does two jobs
-  at once: it accumulates enough falls to test the loss-of-support picture at
-  a sample size that can carry it, and it settles whether approach length
-  before the reversal matters, at n = 50 instead of n = 8.
+  **Approach length and loss of support: both dead at full n.** `hp_gap07`
+  2/46 vs `hp_gap20` 5/46, p = 0.434 — the n = 8 signal did not hold. And the
+  support picture, scored at n = 5 falls against 85 passes with a Bonferroni
+  threshold: height lost across the run p = 0.374 (it was 0.035 at n = 4),
+  ride height *higher* in the falls, |roll| p = 0.046. Only foot-force sum
+  survived, and that was small-sample luck too — re-scored on crossings below
+  it is p = 0.102. The sequencing claim I made from two hand-picked traces
+  ("height goes first") is **2 of 5** measured per fall. It does not hold.
+
+  ### The settling test: it is NOT margin. There is a second mode.
+
+  With ten hypotheses dead, the remaining possibility was that there is
+  nothing to find — that every run draws a peak excursion from one smooth
+  distribution and falls when the draw crosses 28.65°. That is testable and it
+  failed. Fit only the *body* (peaks below a cut well under the limit, with
+  that cut's truncation in the likelihood), then extrapolate:
+
+  | threshold | observed P(peak ≥ x) | predicted | |
+  |---|---|---|---|
+  | 25.0° | 0.154 | 0.058 | 2.7× |
+  | **28.65°** | **0.131** | **0.027** | **4.9×** |
+  | 32.0° | 0.115 | 0.014 | 8.2× |
+  | 36.0° | 0.088 | 0.006 | 15× |
+  | 40.0° | 0.081 | 0.003 | 27× |
+
+  The real tail is far heavier than the body predicts and the gap *widens*
+  with distance — from 25° to 40° the observed probability barely halves,
+  where a Gumbel drops twenty-fold. Insensitive to the fit cut (22° → 0.018,
+  25° → 0.027 against 0.131 observed).
+
+  Pooling missions of different difficulty would manufacture a heavy tail, so
+  it was refit **within** each family: `hp_gap` predicts 0.003 and observes
+  0.215 (**69×**), `corner` 12×, `wkc_sub` 4.8×. Not a mixture artefact.
+
+  **So OPEN-28 is a real distinct mechanism, and roughly 13 % of runs enter
+  it.** Once entered the excursion runs a long way — that flat tail from 25°
+  to 40° is the signature.
+
+  ### And the event to study was the wrong one all along
+
+  260 runs: **34 cross the limit, 14 fall.** Every fall crosses; nothing falls
+  without crossing; **59 % of crossings recover** via the ESTOP ladder.
+  Recovery is downstream noise. Studying falls threw away 20 of 34 events,
+  which is why every discriminant came back null at n = 4–14.
+
+  Re-scored on **crossings** (`--outcome crossing`, n = 22 vs 76 in `hp_gap`):
+  still nothing separates at Bonferroni — ride height p = 0.640, sag 0.059,
+  roll 0.044, foot force 0.102. So the mode is not predicted by any
+  *run-level* property. It is entered by something momentary, and the next
+  analysis is event-aligned: all 34 crossings aligned on the instant attitude
+  leaves its band, against matched windows from runs that never crossed.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
