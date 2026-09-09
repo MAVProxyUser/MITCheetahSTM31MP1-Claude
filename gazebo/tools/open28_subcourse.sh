@@ -23,6 +23,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 NAME=open28_subcourse
 N="${1:-8}"; V="${2:-1.9}"
 COURSES="${COURSES:-wkc_weave wkc_box wkc_hairpin}"
+# ARMS lets one course be run under several env settings, interleaved every rep -
+# for a dose-response on a knob rather than a comparison of shapes. Format is
+# NAME:ENV, e.g. ARMS="yaw08:WP_MAX_YAWRATE=0.8 yaw12:WP_MAX_YAWRATE=1.2".
+ARMS="${ARMS:-}"
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 [ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,run_id,snapshot" > "$OUT"
 FAILS=0
@@ -41,10 +45,10 @@ print(shm_reaper.dump_snapshot(0,'$tag', expect_run_id=(w or None)) or 'NONE')" 
   echo NONE; return 1
 }
 
-one(){ local crs="$1" rep="$2"
+one(){ local crs="$1" rep="$2" env="${3:-}"
   timeout 300 python3 gazebo/conductor/mission_runner.py --terrain flat \
     --slot "course:$crs" --gait trotting --speed "$V" --dash 0 \
-    --wait-for-gate 1800 > "$DIR/run.log" 2>&1
+    --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
   W=$( { grep -c 'reached wp' "$L" 2>/dev/null || echo 0; } | head -1 )
@@ -65,8 +69,9 @@ try:
 except Exception: print("")
 PY
 )"
-  echo "  $crs rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} run=$RID"
-  echo "$(date +%H:%M:%S),$crs,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},$RID,$SNAP" >> "$OUT"
+  local LBL="$crs"; [ -n "${env:-}" ] && LBL=$(echo "$env" | tr -d ' =' )
+  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} run=$RID"
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},$RID,$SNAP" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
@@ -74,7 +79,13 @@ PY
   campaign_health_gate "${V_:-NONE}" || { campaign_failed "$NAME" "host not running missions"; exit 1; }
 }
 
-for r in $(seq 1 "$N"); do for c in $COURSES; do one "$c" "$r"; done; done
+for r in $(seq 1 "$N"); do
+  if [ -n "$ARMS" ]; then
+    for a in $ARMS; do one "$COURSES" "$r" "${a#*:}" ; done
+  else
+    for c in $COURSES; do one "$c" "$r"; done
+  fi
+done
 echo "  --- fell, by sub-course (at ${V} m/s) ---"
 for c in $COURSES; do
   f=$(awk -F, -v A="$c" '$2==A && $6!="none"' "$OUT"|wc -l|tr -d ' ')

@@ -279,9 +279,55 @@ passed on its own in-suite retry.
   Re-scored on **crossings** (`--outcome crossing`, n = 22 vs 76 in `hp_gap`):
   still nothing separates at Bonferroni — ride height p = 0.640, sag 0.059,
   roll 0.044, foot force 0.102. So the mode is not predicted by any
-  *run-level* property. It is entered by something momentary, and the next
-  analysis is event-aligned: all 34 crossings aligned on the instant attitude
-  leaves its band, against matched windows from runs that never crossed.
+  *run-level* property. It is entered by something momentary.
+
+  ### Found: the mode is entered by a yaw-rate overshoot
+
+  Event-aligned, each entry against **its own run's earlier cruise** (31 entry
+  windows vs 812 control windows, so every run-level confound is identical by
+  construction):
+
+  | channel | entry | own cruise | p |
+  |---|---|---|---|
+  | `wz` yaw rate | 1.671 | 0.220 | <0.0001 |
+  | `wx` roll rate | 2.339 | 0.901 | <0.0001 |
+  | `wy` pitch rate | 1.880 | 1.096 | <0.0001 |
+  | max joint track error | 29.2 | 22.9 | <0.0001 |
+  | peak foot-force sum | 14.0 | 11.1 | <0.0001 |
+  | **all four feet off ground** | **0.000** | **0.000** | — |
+  | **control period** | **3.71** | **3.57** | **0.958** |
+
+  `wx` and `wy` are near-tautological (they are the derivatives of the
+  attitude being thresholded). **`wz` is not** — yaw rate is independent of
+  the pitch/roll definition, and it is up **7.6×**. Timing is definitively
+  dead (p = 0.958) and there is no airborne phase.
+
+  And it is a genuine **precursor**, not part of the event:
+
+  - `|wz|` passes 1.0 rad/s before the attitude passes 12° in **29 of 29**
+    entries, by a median of **2.0 s** (censored at the 2 s search window, so
+    the true lead is longer).
+  - In a window ending 0.6 s *before* any attitude rise: entering runs
+    **1.53 rad/s (88°/s)**, never-entering runs **0.21 rad/s (12°/s)**,
+    p < 0.0001, z = +8.63.
+
+  **And the body is not doing what it was told.** The follower's yaw command
+  is capped at `WP_MAX_YAWRATE`, default **1.20 rad/s**, and the run maximum
+  is exactly 1.20 in every trace. The body reaches a median **1.78** and up to
+  **1.99** — a ratio of **1.48**, with **24 of 28** entries exceeding anything
+  commanded by more than 25 %. This is a yaw-tracking **overshoot**, not the
+  planner asking too much.
+
+  That also explains the earlier turning null: that test used `|wz| > 0.25`
+  rad/s (14°/s) as "turning", which is ordinary cruise. Entry involves 88°/s.
+  Right quantity, wrong value — the same trap as
+  `feedback-effect-size-does-not-transfer`.
+
+  **Running:** the dose-response that would confirm it — `WP_MAX_YAWRATE`
+  0.8 / 1.0 / 1.2 on `hp_gap20`, 30 reps each, interleaved. Endpoint is peak
+  attitude (continuous, every run yields one) with the crossing rate second.
+  If lowering the cap lowers both, the mechanism is confirmed and the lever is
+  already in the code.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
