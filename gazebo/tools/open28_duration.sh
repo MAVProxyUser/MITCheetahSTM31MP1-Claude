@@ -31,6 +31,7 @@ NAME=open28_duration
 N="${1:-6}"; V="${2:-1.9}"
 ARMS=("wkcfin:course:wkc_finals" "longeasy:course:long_easy" "long:dash:200")
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
+campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 [ -s "$OUT" ] || echo "wall,arm,rep,verdict,waypoints,fall,secs,peak_pitch,peak_roll,run_id,snapshot" > "$OUT"
 FAILS=0
 

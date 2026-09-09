@@ -21,6 +21,7 @@ NAME=open28_corner
 N="${1:-6}"; V="${2:-1.9}"; LEG="${3:-12}"
 ANGLES="${ANGLES:-30 45 60 90 120 135}"
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
+campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 [ -s "$OUT" ] || echo "wall,angle,rep,verdict,waypoints,fall,peak_pitch,peak_roll,run_id,snapshot" > "$OUT"
 FAILS=0
 

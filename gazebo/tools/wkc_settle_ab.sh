@@ -44,6 +44,7 @@ NAME=wkc_settle_ab
 N="${1:-18}"; V="${2:-1.9}"; shift 2 2>/dev/null || true
 ARMS=("$@"); [ ${#ARMS[@]} -gt 0 ] || ARMS=(WATCH:WP_SETTLE_WATCH=1 BLIND:WP_SETTLE_WATCH=0)
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
+campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 [ -s "$OUT" ] || echo "wall,arm,rep,verdict,waypoints,fall,settle,run_id,snapshot" > "$OUT"
 FAILS=0
 
