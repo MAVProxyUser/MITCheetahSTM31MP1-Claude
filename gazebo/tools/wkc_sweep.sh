@@ -14,7 +14,7 @@ for r in 1 2 3; do
       --slot "course:wkc_finals" --gait trotting --speed $v --dash 0 \
       --wait-for-gate 1800 > "$CAMPAIGN_DIR/wkc_run.log" 2>&1
     V=$(grep -oE "VERDICT: [A-Z]+" "$CAMPAIGN_DIR/wkc_run.log" | head -1 | awk '{print $2}')
-    W=$(grep -c 'reached wp' "$RUN_DIR/ctrl_0.log" 2>/dev/null || echo 0)
+    W=$( { grep -c 'reached wp' "$RUN_DIR/ctrl_0.log" 2>/dev/null || echo 0; } | head -1 )
     F=$(grep -oE '\[FALL\] [a-z]+' "$RUN_DIR/ctrl_0.log" 2>/dev/null | tail -1 | awk '{print $2}')
     echo "  v=$v rep$r ${V:-NONE} wp=$W ${F:-}"
     echo "$(date +%H:%M:%S),$v,$r,${V:-NONE},$W,${F:-none},$((SECONDS-t0))" >> "$OUT"

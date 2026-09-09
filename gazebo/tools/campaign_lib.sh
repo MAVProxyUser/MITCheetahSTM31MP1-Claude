@@ -126,3 +126,26 @@ campaign_launched_run_id(){   # $1 = the runner's stdout log
   grep -oE '\[runner\] launched run [0-9]+' "$1" 2>/dev/null |
     tail -1 | grep -oE '[0-9]+'
 }
+
+# A CSV ROW THAT SPLIT IN TWO IS SILENT CORRUPTION.
+#
+# `W=$(grep -c PATTERN FILE || echo 0)` looks defensive and is a landmine:
+# grep -c EXITS 1 when the count is zero, so it prints "0" AND the fallback
+# prints "0", and the variable becomes $'0\n0'. Every run that reached zero
+# waypoints therefore wrote a two-line record. Found in five scripts and four
+# campaigns; the orphan tail then parses as its own row with the course name
+# in the waypoint column, which is how "collapsed 2/2, 100% fell" appeared in
+# a summary table.
+#
+# Nothing flagged it. Call this at the end of a campaign so it does.
+campaign_check_csv(){   # $1 = csv path
+  local bad
+  bad=$(awk -F, 'NR>1 && $1 !~ /^[0-9][0-9]:/' "$1" 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${bad:-0}" -gt 0 ]; then
+    echo "  WARNING: $1 has $bad row(s) that do not start with a timestamp -"
+    echo "           a field contained a newline and split the record. Repair"
+    echo "           before trusting any count from this file."
+    return 1
+  fi
+  return 0
+}

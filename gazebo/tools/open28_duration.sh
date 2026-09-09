@@ -54,7 +54,7 @@ one(){ local arm="$1" slot="$2" rep="$3" t0=$SECONDS
     --wait-for-gate 1800 > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
-  W=$(grep -c 'reached wp' "$L" 2>/dev/null || echo 0)
+  W=$( { grep -c 'reached wp' "$L" 2>/dev/null || echo 0; } | head -1 )
   F=$(grep -oE '\[FALL\] [a-z]+' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
   RID=$(campaign_launched_run_id "$DIR/run.log")
   SNAP=$(dump_with_retry "${arm}r${rep}_${NAME}_${V_:-NONE}" "$RID")
