@@ -364,9 +364,40 @@ passed on its own in-suite retry.
   though, so `CTRL_MPC_Q=2` was added: MIT's vector with *only* the rate
   weights changed (`CTRL_MPC_QWX/QWY/QWZ`), so the effect is attributable.
 
-  **Running:** `q0` (MIT default) / `q2` (rate damping alone) / `q1`
-  (Unitree's full vector), 30 reps each on `hp_gap20`, interleaved. Endpoint
-  is peak attitude, with the crossing rate second.
+  **The rate-damping hypothesis is refuted.** 30 reps each on `hp_gap20`,
+  interleaved:
+
+  | arm | crossed 28.65° | fell | median peak attitude |
+  |---|---|---|---|
+  | `q0` MIT default | 11/30 | 3/30 | 19.8° |
+  | `q2` rate damping alone | 10/30 | 3/30 | 18.2° |
+  | `q1` Unitree's full vector | **4/30** | 1/30 | 18.1° |
+
+  `q2` vs `q0`: **p = 1.000**. Giving the attitude rates non-zero weight —
+  the specific thing I predicted would matter — changes nothing. That arm also
+  raised the yaw-*rate* weight 0.3 → 1.0, and that did nothing either. So
+  `Q[6] = Q[7] = 0` is not why the disturbance goes unrejected, however
+  suggestive it looked.
+
+  **But Unitree's full vector does something**: 4/30 vs 11/30 crossings,
+  Fisher **p = 0.072**. Suggestive, not significant — which is where this
+  project adds an arm rather than N.
+
+  `q1` differs from `q0` in four independent groups, and the rates are already
+  excluded, so the effect is in one of the other three:
+
+  | group | MIT | Unitree | arm |
+  |---|---|---|---|
+  | roll/pitch angle, height | 0.25, 0.25, 50 | 0.5, 0.5, 15 | `q5` |
+  | **x/y position** | **2, 2** | **20, 20** | `q3` |
+  | linear velocity | 0.2, 0.2, 0.1 | 0.5, 0.5, 0.5 | `q4` |
+  | attitude rates | 0, 0, 0.3 | 0.1, 0.1, 1.0 | `q2` — **dead** |
+
+  Position is a **10×** change and by far the largest.
+
+  **Running:** `q0` / `q1` / `q3` / `q4` / `q5`, 26 reps each = 130 runs,
+  interleaved. `q1` replicates the effect and the other three say which group
+  carries it.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path

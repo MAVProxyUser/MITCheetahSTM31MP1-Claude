@@ -1696,9 +1696,36 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
       for (int i = 0; i < 12; i++) Q[i] = qU[i];
     } else if (qsel == 2) {
       // Unitree's rate weights, MIT's everything else.
+      //
+      // MEASURED AND REFUTED (OPEN-28, 30 reps interleaved against qsel 0):
+      // 10/30 limit crossings against the default's 11/30, p = 1.000, median
+      // peak attitude 18.2 vs 19.8. Zero cost on the attitude rates is NOT why
+      // the yaw disturbance goes unrejected, even though it looked like the
+      // obvious candidate. Note this arm also raised the yaw-RATE weight
+      // (0.3 -> 1.0) and that did nothing either. Kept as the arm that killed
+      // the hypothesis.
       Q[6] = ctrl_tuning::num("CTRL_MPC_QWX", 0.1f);
       Q[7] = ctrl_tuning::num("CTRL_MPC_QWY", 0.1f);
       Q[8] = ctrl_tuning::num("CTRL_MPC_QWZ", 1.0f);
+    } else if (qsel == 3) {
+      // Unitree's POSITION weights only: 2 -> 20, a 10x change and by far the
+      // largest single difference between the two vectors. In the same
+      // campaign the full Unitree vector cut crossings to 4/30 against 11/30
+      // (p = 0.072) while the rates alone did nothing, so the effect lives in
+      // one of the other four groups and this is the biggest of them.
+      Q[3] = ctrl_tuning::num("CTRL_MPC_QX", 20.f);
+      Q[4] = ctrl_tuning::num("CTRL_MPC_QY", 20.f);
+    } else if (qsel == 4) {
+      // Unitree's linear-VELOCITY weights only: 0.2/0.2/0.1 -> 0.5/0.5/0.5.
+      Q[9]  = ctrl_tuning::num("CTRL_MPC_QVX", 0.5f);
+      Q[10] = ctrl_tuning::num("CTRL_MPC_QVY", 0.5f);
+      Q[11] = ctrl_tuning::num("CTRL_MPC_QVZ", 0.5f);
+    } else if (qsel == 5) {
+      // Unitree's ANGLE and HEIGHT weights only: roll/pitch 0.25 -> 0.5, and
+      // z 50 -> 15. The remaining pair.
+      Q[0] = ctrl_tuning::num("CTRL_MPC_QR", 0.5f);
+      Q[1] = ctrl_tuning::num("CTRL_MPC_QP", 0.5f);
+      Q[5] = ctrl_tuning::num("CTRL_MPC_QZ", 15.f);
     }
   }
 
