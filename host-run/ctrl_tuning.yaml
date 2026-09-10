@@ -74,9 +74,11 @@
 # the joint PD target is clamped into the range less a margin, and a soft
 # stop (spring-damper, capped) is added to the feed-forward when the JOINT
 # itself is past the range. The A/B against the previous behaviour is the
-# open31_jointlimits campaign; until it reports, the code default (ON) is
-# what ships and these lines stay commented.
-# CTRL_JOINT_LIMITS: 1
+# open31_jointlimits campaign (2026-09-10, hp_gap20 at 1.9, 8 reps
+# interleaved): 8/8 vs 8/8, the calf off its mechanical stop (17.5 % -> 0 %
+# of the boot fold), no command outside the range, and the reversal-exit
+# peak pitch 4 deg lower in 8 of 8 pairs. Ships ON.
+CTRL_JOINT_LIMITS: 1
 # CTRL_JOINT_LIMITS_MARGIN_DEG: 2
 # CTRL_JOINT_LIMITS_K: 100      # N*m/rad of the soft stop
 # CTRL_JOINT_LIMITS_D: 1        # N*m*s/rad

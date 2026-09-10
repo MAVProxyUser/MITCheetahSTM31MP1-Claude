@@ -146,13 +146,38 @@ passed on its own in-suite retry.
   fold the COMMAND never goes below −151° (0.00 %) while the joint sits on
   the −161.5° stop 17 % of the time — the leg folds past its target under
   gravity at kp 8, so it is the soft stop, not the clamp, that acts there.
-  Deploys through `deploy_host.sh` the moment the rig is idle after the
-  fleet re-test, then `open31_jointlimits` (hp_gap20, N = 8, dumps on) and
-  `open31_jointlimits_wkc` (N = 6), arms `CTRL_JOINT_LIMITS=0/1`
-  interleaved. Done = no verdict regression, the counters non-zero where
-  the dumps showed the stop, and the calf's time outside −151..−53° in the
-  jl1 arm near zero by `open31_score.py`; then the yaml line goes live.
-  Fixes (2) and (3) stay filed behind it.
+  **Deployed 13:02 and A/B'd** (`open31_jointlimits`, hp_gap20 at 1.9,
+  8 reps, arms interleaved, dumps on, `open31_score.py`):
+
+  | arm | PASS | calf on the −161.5° stop, stand-up / finish | calf < −151° (soft-stop band) | active commands outside −151..−53°, locomotion | peak pitch, median |
+  |---|---|---|---|---|---|
+  | limits OFF | 8/8 | **17.5 % / 6.0 %** of leg-samples | 20.6 % / 29.7 % | **2.3 %** (all on the extension side, > −53°) | 16.6° |
+  | limits ON | 8/8 | **0.00 % / 0.08 %** | 19.8 % / 28.8 % | **0.00 %** | **12.7°** |
+
+  Counters: 0 / 0 with the flag off, a median 22,962 clamps and 12,074
+  soft-stop events per run with it on — the feature demonstrably fires.
+  The joint no longer touches the mechanical stop anywhere in the run; it
+  still sits up to 1.5° past the operational edge during the boot fold
+  and the lie-down (the soft stop is a spring, and gravity on a belly-down
+  fold compresses it — that band is the design, not a leak). No verdict
+  regression, and one effect that was not asked for: the peak pitch of
+  the run, which sits at the exit of the 180° reversal (t ≈ 70 s) in
+  every trace, is **lower with the limits on in 8 of 8 pairs** (2.3–5.7°,
+  mean 4.0°; sign test p = 0.004). Candidate mechanism, not established:
+  the 2.3 % of locomotion commands the clamp removes ask for a calf
+  straighter than −53°, i.e. a foothold only a straight leg reaches, and
+  the reversal exit is where the swing legs reach farthest. Side effect
+  recorded: 0–5 yaw-saturation events in 4 of 8 limits-on runs, none with
+  them off. Host column: `loop_max` median 8.6 ms (max 39) in the OFF
+  runs against 3.5 ms in the ON runs — host noise that happened to land on
+  one arm; no verdict depended on it. **Fix (1) ships ON**
+  (`CTRL_JOINT_LIMITS: 1` live in `ctrl_tuning.yaml`). The wkc_finals
+  repeat (`open31_jointlimits_wkc`, N = 6) is queued in the same chain as a
+  second course. Fixes (2) (boot-fold / lie-down targets that keep the calf
+  above −151°) and (3) (`_maxLegLength` at the kinematic reach) stay filed:
+  (2) is now cosmetic on the sim (the soft stop holds the joint off the
+  stop) but on hardware a fold target the joint cannot reach is still a
+  stalled motor, and (3) is the mechanism candidate above.
 
 - **OPEN-29 · MPPI on the Mac GPU — Stage 1 answered, and it is not
   encouraging** — `CLOSED 2026-09-10, NOT PURSUED`. Stage 1 was the

@@ -1212,8 +1212,12 @@ error.
 | binary, 2nd set | ±55° | -33..165° | -151..-53° | operational clamp (round degrees) |
 | `go1_const.h` | ±60° | -38..170° | -156..-48° | permissive SDK bound |
 
-The worlds now use the mechanical set. The operational set belongs as a
-controller-side clamp and is **not yet enforced anywhere in this port**.
+The worlds now use the mechanical set. The operational set is enforced
+controller-side since 2026-09-10 (OPEN-31: `LegController::updateCommand`
+clamps every joint PD target into it less a 2° margin and adds a capped
+soft stop when the joint itself is past it; counted in the heartbeat,
+`CTRL_JOINT_LIMITS` in `ctrl_tuning.yaml`; A/B 8/8 vs 8/8 with the calf off
+its mechanical stop and the reversal-exit peak pitch 4° lower).
 
 ### What Unitree built that MIT (and we) lack
 - **27 FSM states** vs MIT's 12 (`Dance`, `TwoLegHop`, `TurnOverMove`, `Space`,
