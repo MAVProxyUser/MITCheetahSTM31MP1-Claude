@@ -18,7 +18,8 @@
       happened six times in one campaign. The expectation comes from the
       runner's own stdout, the one place that cannot be stale.
 - [x] **20 GB of raw rings distilled to 31.6 MB.**
-- [ ] **OPEN-28 — what limits `wkc_finals` at 1.9.** Eight hypotheses dead with
+- [x] **OPEN-30 closed 2026-09-10** — the finish tips were the arrival (stick at zero under a body at cruise); body-seeded ramp + trend-based settle bail: 15/15 clean vs 11/15.
+- [ ] **OPEN-28 — what limits `wkc_finals` at 1.9.** The mid-cruise collapse was macOS loopback UDP freezing commands 40 ms once a second (unix datagrams now; hp_gap20 24/24 reach the finish); the residual on wkc is a speed-dependent exchange failure above 2.0 m/s body speed, speed-cap A/B running. Eight hypotheses dead with
       their own controls. Live lead: **ride height goes first** — `z` sags
       before the pitch moves, `kin_z` tracking it, so the legs really shorten.
       Accumulating falls at n ≈ 100 on a 50 s reproducer to test it at a sample

@@ -85,7 +85,10 @@ passed on its own in-suite retry.
   on this host (the Mac ships `use_jcqp: 0`, the board ships `1`).
 
 - **OPEN-30 · The lie-down tips onto its side at the finish, and it is not
-  OPEN-28** — `OPEN`. On `hp_gap20`, of 51 runs that reached the end without
+  OPEN-28** — `CLOSED 2026-09-10` (the arrival, not the lie-down: the
+  stick was at zero under a body still at cruise; the ramp now seeds from
+  the body's speed and the settle bails on a worsening trend — 15/15 clean
+  finishes against 11/15, details at the end of this entry). On `hp_gap20`, of 51 runs that reached the end without
   an E-stop, **12 roll past 28.65° during the stop/lie-down and 10 fail the
   judge** (`laydown: z=0.078 roll=40.5 → BAD`). Present in every `WP_VSLEW`
   arm (4/2/4/2), so not the slew. The roll comes to rest at **40.5° in four
@@ -128,6 +131,24 @@ passed on its own in-suite retry.
   doing all of the deceleration. n = 3 vs 3; the campaign was stopped
   because both arms were collapsing mid-course at 3/6 (below) and the
   finish cannot be measured on a course that is not reached.
+
+  **The full A/B (`open30_finish3`, 12 + 12 interleaved on `hp_gap20`,
+  08:05–08:55, host stragglers swept, every run reached the finish):**
+
+  | arm | finishes | wait completed (speed < 0.15) | settle attitude | laydown attitude | tips (roll ≥ 24°) | PASS |
+  |---|---|---|---|---|---|---|
+  | fin_old (stick seed, entry-angle bail) | 12 | 1/12 (11 attitude bails at 0.16–0.38 s with 0.25–0.46 m/s still on the body) | roll 1–9°, pitch 3–13° | pitch 13–14° in 6 of the passes | **2** (40.5° both) | 10/12 |
+  | fin_new (body seed, trend bail) | 12 | **12/12** (seed 1.91–1.99 m/s, a ~40-step ramp) | roll 0.0–0.7°, pitch 1.4–1.8° | roll 0.0–4.1°, pitch 0.0–0.3° | **0** | **12/12** |
+
+  Pooled with the partial: **15/15 vs 11/15** on the verdict, and every
+  continuous endpoint moved by an order of magnitude in the direction the
+  anatomy predicted. Both halves ship on by default
+  (`WP_STOP_SEED_MEASURED`, `WP_SETTLE_TREND`); the planner's end brake
+  leaving the body at cruise 1.5 m from the point is left as it is — the
+  ramp now handles it, and shortening the acceptance radius would change
+  every course's geometry. This is the finish-line fall class the operator
+  ruled out ("we should NEVER do that EVER"), on the course where OPEN-27's
+  fix had not reached.
 
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall
