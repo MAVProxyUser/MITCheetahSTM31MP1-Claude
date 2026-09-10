@@ -906,6 +906,14 @@ passed on its own in-suite retry.
   exchange still fails more often above 2.0 m/s on a quiet host is what
   the final 30 answers from their dumps; the cap has bound only during
   accelerations so far (`[VCAP] body 0.98 over stick 0.93`).
+  Host-state change mid-campaign, for the record: at 10:18 (after row
+  ~22) the operator authorised killing the other simulators and the
+  firmware simulator that had held a full core for 6.6 days was stopped;
+  rows before and after it are not on the same host. Spotlight's
+  `corespotlightd` was at 74 % at that moment — `.metadata_never_index`
+  in `rundata/` is not honoured on a directory, only at a volume root, so
+  excluding `rundata` from indexing has to be done in System Settings →
+  Spotlight Privacy; noted for the operator rather than changed.
 
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
