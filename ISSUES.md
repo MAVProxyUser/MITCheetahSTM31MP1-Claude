@@ -433,7 +433,8 @@ passed on its own in-suite retry.
   The moving crossings look like this, every one: **≥6 s of nominal trot at
   1.9–2.0 m/s, z = 0.27, pitch 2–3°, wz ≈ 0 — then z drops ~3 cm in ~0.3 s
   and the attitude jumps 25° in 0.2 s.** Tested at that instant with matched
-  controls: force envelope 0.84 vs 0.87 (p = 0.93); loop period over the last
+  controls: force envelope 0.84 vs 0.87 (p = 0.93 — **withdrawn**, it summed
+  foot SPEEDS, see the `foot_fz` correction below); loop period over the last
   second 4.33 vs 4.26 ms (the 0.3 s spike is during the collapse); mean
   feed-forward torque identical until −0.4 s, exceeds +3σ a median **0.13 s**
   before the crossing, and z/attitude precede it in 11–12 of 16 — the
@@ -480,7 +481,8 @@ passed on its own in-suite retry.
   **The A/B closed: 11/30 vs 6/30 moving crossings, p = 0.25.** Not
   separable, and consistent with what the per-exchange analysis then found —
   doubling torque rescues intermediate cases, because it only acts on the
-  *recovery*; it does not touch the support hole that initiates the fall.
+  *recovery*; it does not touch ~~the support hole that initiates the fall~~
+  (the "support hole" was a misread field — see the `foot_fz` correction).
 
   ### Through the instrument at n=33 runs, 86 sink events — the picture inverts once more
 
@@ -576,56 +578,82 @@ passed on its own in-suite retry.
   random 18.9; **0 events under 3 cm in any group.** No leg touches another
   leg. Whatever pushes the swing hip off its command is not a leg.
 
-  ### The handoff: where the escalations actually come from
+  ### The handoff, first version — WITHDRAWN: `foot_fz` is foot SPEED
 
-  Every prior anatomy was measured at the *sink* — the 2 cm threshold — which
-  turned out to be a mixture. Splitting it: the **recovered** sinks are a foot
-  landing ~24 ms before the clock says stance (random: 14 ms) onto swing gains
-  (`kp = 8`), a soft leg taking load, a gentle 2 cm dip — routine. The
-  **escalations** are preceded not by an early touchdown but by a *normal*
-  diagonal exchange 48 ms earlier. Measured at that exchange, against 313
-  ordinary exchanges:
+  Named error, per the rule at the top of CLAUDE.md. On 2026-09-04 the trace
+  field `foot_fz` was changed from a force to the per-leg **world-frame foot
+  speed in m/s** (`ShmTrace.h` says so in the header — "the name is now
+  historical"; `RobotRunner.cpp` computes `|rBody^T (vBody + ω×r + v_leg)|`).
+  The OPEN-26 scripts written that morning use it as a speed. From 09-05 the
+  OPEN-28 analyses read it as a force again: the "force envelope" control,
+  `open28_support.py`'s `fz`, `open28_entry.py`'s `fzmin/fzmax`, the "loaded
+  leg switched to swing" and "what load did the soft leg take" checks, and the
+  first `open28_handoff.py` — "new pair loaded (Σfz ≥ 4)", "old pair off
+  (fz < 1)". The memory rule *read the writer, not the field name* was written
+  on this very issue after `track_err[3]`, and a field named `fz` whose header
+  comment says SPEED was read as force anyway. The check has to be a grep of
+  the header for every field a script consumes, at the time the script is
+  written.
 
-  | at the stance exchange (t = 0: new foot reaches the ground) | escalated | random |
-  |---|---|---|
-  | old pair fully off the ground | 0 ms | 0 ms |
-  | **new pair loaded (Σfz ≥ 4)** | **+25 ms** | **0 ms** |
-  | **support hole** (new loaded *after* old off) | **6/11** | **4/313** |
-  | MPC knee torque still commanded on the OLD pair, first 60 ms | **11.4** | 6.4 |
-  | body drop within 90 ms | 3.9 cm | 0.8 cm |
+  Withdrawn: the "force envelope" dead hypothesis (never measured); the table
+  that read "new pair loaded +25 ms after old pair off, 6/11 escalations vs
+  4/313" — what it measured is that at escalations the NEW feet were still
+  moving ≥ 4 m/s summed 25 ms after touchdown, i.e. a foot that lands and
+  keeps moving, with the old pair planted; the conclusion "the contact table
+  is behind the feet" drawn from it; and the lead-1 "hole rate" baseline.
+  What survives: the escalation/recovered split by early touchdown (foot
+  height against the schedule), the old-pair torque 11.4 vs 6.4 (bridge), and
+  the campaign's raw data, which is re-scored below.
 
-  A support hole at the exchange in 55 % of escalations and 1.3 % of normal
-  steps (p ≈ 10⁻⁷). The old pair has left the ground and the MPC is still
-  pushing on it at nearly twice the normal torque while the new pair — on the
-  ground — is not yet loaded. **The contact table is behind the feet.** For
-  ~25 ms nothing supports a 12 kg body; it reaches 0.45 m/s, and by the time
-  the new pair is pushing it is falling faster than a nominal stance force
-  arrests — which is why doubled torque rescues some and not the worst.
+  ### On honest signals: every exchange is a ballistic hop, and the contact table runs (knob + 2) segments ahead of the feet
 
-  Killed on the way: a flight-phase landing (escalations in flight **0/12**;
-  gait 9 is 50 % duty, no flight by design).
+  `open28_handoff.py` v2 uses only checked writers: `c0..c3` (the gait
+  SCHEDULE — `contactEstimate` copies it), `z + foot_z` (FK foot height),
+  `z`/`vz`, and the bridge's `tau_ff` on its wall clock, aligned by first
+  dumped row = first trace record (validated against the E-stop edge on five
+  FAIL runs: ±6 ms; a cross-correlation "refinement" was tried and moved the
+  offset by +50..+106 ms because Σ|τ| is periodic at the half-cycle — do not
+  refine). An exchange is a scheduled flip (a pair's `c` rising); everything
+  below is relative to that instant.
 
-  The lever already exists. `OffsetDurationGait::getMpcTable` shifts the table
-  by `CTRL_MPC_SCHED_LEAD` MPC steps — MIT +1, Unitree 0 — and the port's own
-  comment says it was made switchable "because on this port the latency is
-  much larger than on either of theirs." One step is **22 ms** on this
-  course (`dtMPC`; 11 control ticks — measured from the trace: c0 rising
-  edges every 0.2200 s, ten segments, 50 % duty. An earlier draft of this
-  entry said 45 ms from the constructor default; the schedule sets 22 at
-  boot and never changes it in these runs). The escalation hole was
-  **+25 ms — one MPC step.**
+  **The 60-run baseline (knob 1, the shipped default), 38,700 exchanges** —
+  old-pair max knee |τ_ff| at −80/−60/−44/−30/−22/0/+8 ms:
+  **20.4 / 16.5 / 1.0 / 0.9 / 0.9 / 17.3 / 13.4** N·m. The stance pair's MPC
+  force is CUT at the −66 ms boundary — three MPC segments before its
+  scheduled swing — and it stays on the ground unloaded for 66 ms of its
+  110 ms stance. The trace agrees without the bridge: body vz at
+  −44/−22/0/+8/+30 ms = **+0.30 / +0.05 / −0.16 / −0.20 / 0.00** m/s, i.e.
+  a_z ≈ −10 m/s² over [−44, +8] — **free fall for ~50 ms of every 110 ms
+  half-cycle** — then +9 m/s² as the NEW pair, which lands 16 ms EARLY on
+  swing gains (kp 700 Cartesian in the WBC's swing task), arrests it. The
+  trot is a sequence of hops with a 0.8 cm bob; the early touchdown is not a
+  defect, it is what has been catching the body. The 17.3 N·m burst on the
+  old pair at 0..+8 ms is swing initiation.
 
-  **Baseline at lead = 1** (the 60 A/B runs, all at the default): **78,000
-  exchanges**, hole rate **0.74 % / 0.69 %**, old-pair torque 6.2, loading
-  delay p90 0 ms — against **55 % and 11.4** at the eleven escalations. That
-  is the contrast the dose-response has to move. `open28_handoff.py` scores
-  every exchange, ~1,100 per run, so a 20-rep arm carries ~20,000 — a
-  0.3-point change in hole rate is detectable, power the fall counts never
-  had. Running: lead 0 / 1 / 2, 20 reps each.
+  **Manipulation check** (the SCHED_LEAD campaign, 15 runs so far): knob
+  0 / 1 / 2 → cut at the **−44 / −66 / −88 ms** boundary (±10 ms sampling),
+  unsupported time (neither pair both on the ground and commanded) 18 / 44 /
+  86 ms per exchange. The knob works, 22 ms per step, and the effective lead
+  is **knob + 2**. One of the two extra steps is in the code: `run()` takes
+  `mpcTable = gait->getMpcTable()` — a pointer INTO the gait's `_mpc_table` —
+  then the async prefetch block, which is not gated on `_mpcAsync`,
+  recomputes `_mpc_table` one segment ahead and "restores" only
+  `setIterations`, so the inline solve reads the NEXT segment's table through
+  the aliased pointer. MIT's own +1 on top makes +2. The third step is
+  measured, not yet located; a per-solve print of `_iteration` against
+  `table[0..3]` settles it and is queued behind the campaign.
 
-  The integer knob's resolution (22 ms) matches the phenomenon (a 25 ms
-  hole), so if the direction shows, a step count is probably the right
-  unit and no finer knob is needed.
+  This retires "the contact table is behind the feet": it is AHEAD of them,
+  by 66 ms, and the body is unsupported for roughly the second half of every
+  stance. OPEN-28's crossings are the cases where the early-touchdown catch
+  is defeated — which is why doubled torque rescued the intermediate cases
+  (a stronger catch) and no planner-side lever moved the initiation.
+
+  Next: (1) the dose-response tells whether 44 vs 66 vs 88 ms of free fall
+  moves crossings and sinks; (2) a build that fixes the aliasing and prints
+  the table per solve, probed at knob 0 and −1 until the cut sits at the
+  flip; (3) that configuration A/B'd interleaved against the default on
+  `hp_gap20` and `wkc_finals`.
 
   ### Two of my own claims corrected
 

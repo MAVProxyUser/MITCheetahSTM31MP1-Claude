@@ -653,6 +653,7 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
   // where it cannot cause a discontinuity. Done BEFORE setIterations so a
   // boundary change takes effect on the cycle that is just starting.
   applySchedule(gaitNumber, _x_vel_des, gait);
+  _gaitNow = gait;
 
   gait->setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset);
   jumping.setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset);
@@ -1052,6 +1053,17 @@ void ConvexMPCLocomotion::run(ControlFSMData<float>& data) {
     for (int i = 0; i < 4 * horizonLength && i < (int)(sizeof(_mpcTableNext)/sizeof(int)); ++i)
       _mpcTableNext[i] = nxt[i];
     gait->setIterations(iterationsBetweenMPC, iterationCounter - _iterSegOffset);   // restore
+    // RE-FETCH the current table. `mpcTable` above is a pointer INTO the
+    // gait's own `_mpc_table`, which the prefetch just overwrote with the
+    // NEXT segment's contacts, and setIterations does not recompute it. So
+    // the inline solve was reading one segment ahead through the alias, on
+    // top of MIT's own +1 in getMpcTable: measured 2026-09-10 (OPEN-28) as
+    // the stance pair's MPC force being cut at the -66 ms boundary, three
+    // segments before its scheduled swing, with the body in free fall for
+    // ~50 ms of every 110 ms half-cycle. $CTRL_MPC_TABLE_ALIAS=1 restores
+    // the aliased read for A/B.
+    static const bool keep_alias = ctrl_tuning::flag("CTRL_MPC_TABLE_ALIAS", false);
+    if (!keep_alias) mpcTable = gait->getMpcTable();
   }
   updateMPCIfNeeded(_mpcAsync ? _mpcTableNext : mpcTable, data, omniMode);
 
@@ -1905,6 +1917,18 @@ void ConvexMPCLocomotion::solveDenseMPC(int *mpcTable, ControlFSMData<float> &da
     for (int i = 0; i < 12*horizonLength; ++i) in.traj[i]=trajAll[i];
     for (int i = 0; i < 4*horizonLength; ++i) in.table[i]=mpcTable[i];
     in.t_ms = nowMs();
+    // $STM32MP1_MPC_IN=2: EVERY solve, the step-0 table beside the gait's
+    // own segment index and contact state at the same tick - the schedule
+    // lead, measured at the solver's input with nothing else in the way.
+    {
+      static const int mpcin = getenv("STM32MP1_MPC_IN") ? atoi(getenv("STM32MP1_MPC_IN")) : 0;
+      if (mpcin >= 2 && _gaitNow) {
+        Vec4<float> cs = _gaitNow->getContactState();
+        shmtrace::logf(0.0, "[MPCIN2] seg=%d table0=%d%d%d%d table1=%d%d%d%d c=%.2f %.2f %.2f %.2f",
+               _gaitNow->getCurrentGaitPhase(), mpcTable[0], mpcTable[1], mpcTable[2], mpcTable[3],
+               mpcTable[4], mpcTable[5], mpcTable[6], mpcTable[7], cs[0], cs[1], cs[2], cs[3]);
+      }
+    }
     Vec3<float> trInl[3][4];
     _runSolve(in, trInl);
     for (int leg = 0; leg < 4; ++leg) {

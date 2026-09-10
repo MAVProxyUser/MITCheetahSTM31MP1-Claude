@@ -1,21 +1,35 @@
 #!/usr/bin/env python3
-"""Score every stance exchange: is the new pair loaded before the old pair leaves?
+"""Score every stance exchange against the SCHEDULE, on honest signals.
 
-OPEN-28's escalations begin at a diagonal exchange where the new stance pair
-is loaded ~25 ms AFTER the old pair has left the ground, while the MPC is
-still commanding torque on the airborne pair - a support hole, seen in 6/11
-escalations and 4/313 ordinary exchanges. The contact table is behind the
-feet, and CTRL_MPC_SCHED_LEAD shifts that table.
+The first version of this scorer read the trace's `foot_fz` as a foot FORCE.
+It is a foot SPEED (m/s) - `ShmTrace.h` says so in its header, and has since
+2026-09-04 - so "new pair loaded (Σfz ≥ 4)" measured "new feet moving fast",
+"old pair off (fz < 1)" measured "old feet planted", and the "support hole"
+the lead campaign was launched to test was a misread. This version uses only
+signals whose writers were checked (`robot/src/RobotRunner.cpp`):
 
-This scores the quantity the mechanism moves, at EVERY exchange in every run,
-so a 20-rep arm carries hundreds of samples instead of a handful of falls:
+  c0..c3      contactEstimate = the gait SCHEDULE (0 in swing, 0..1 in stance)
+  foot_z0..3  FK foot height terms; z + foot_z = height above ground
+  z           estimated body height (kin_z is the detector's FK height)
+  bridge dump tau_ff per joint at 100 Hz - the torque the leg controller
+              actually sent, on the bridge's wall clock; first dumped row =
+              first trace record (checked against the E-stop edge, +-6 ms)
 
-  * new-pair loading delay (ms) after the new foot reaches the ground
-  * support-hole rate: exchanges where the new pair loads after the old is off
-  * MPC torque still on the old pair in the first 60 ms after exchange
-  * escalations and crossings, second
+An EXCHANGE is a scheduled flip: the tick c_l rises for a diagonal pair. For
+each one, relative to that flip:
 
-Usage: open28_handoff.py --csv .../open28_sched.csv
+  early touchdown   how long before the flip each NEW foot met the ground
+  old-pair torque   max knee |tau_ff| of the OLD pair at fixed offsets - the
+                    MPC de-loads it when the TABLE says swing, so the drop
+                    time is where CTRL_MPC_SCHED_LEAD shows (0 / -22 / -44 ms
+                    if the knob works: one MPC step is 22 ms here)
+  unsupported       ms in [-80,+60] with NEITHER pair both on the ground and
+                    above 3 N*m at the knee
+  physical gap      time from the last old liftoff to the first new touchdown
+                    (positive = both pairs airborne, i.e. flight)
+  body drop         z lost in the 90 ms after the flip; sink = > 2 cm
+
+Usage: open28_handoff.py --csv .../open28_sched.csv [--limit 28.65]
 """
 import csv, json, os, math, argparse, statistics as st, bisect, collections
 
@@ -26,35 +40,92 @@ ap.add_argument("--limit", type=float, default=28.65)
 a = ap.parse_args()
 gh = lambda y, l: y["z"] + y[f"foot_z{l}"]
 DIAG = {0: 3, 1: 2, 2: 1, 3: 0}
+OFFS = [-80, -60, -44, -30, -22, -14, -8, 0, 8, 14, 22, 30, 44, 60]   # ms
+TAU_ON = 3.0     # N*m of knee feed-forward that counts as "commanded"
+GROUND = 0.01    # m
 
 
-def exchanges(pre, i0, i1):
-    """A touchdown is a descent through 1 cm by a foot that was genuinely in
-    swing - above 2 cm at some point in the previous 50 ms. Without that, the
-    foot height jittering around the 1 cm line double-counts: 36k 'exchanges'
-    in 30 runs where a 3-4 Hz trot over 40 s of cruise produces ~600 real
-    touchdowns per run, and every phantom scores as an instant, hole-free
-    exchange that dilutes the rate."""
+def align(D, ALL):
+    """Bridge clock -> trace clock offset: the bridge's first dumped command
+    against the trace's first record. Validated against the E-stop edge (legs
+    zeroed in both clocks) on five FAIL runs: agrees to +-6 ms, i.e. the 10 ms
+    dump quantisation. A cross-correlation refinement of Σ|tau_ff| against
+    track_err3 was tried first and moved the offset by +50..+106 ms - the gait
+    makes that correlation periodic at the half-cycle, so it locks onto the
+    wrong tooth. Do not refine."""
+    return D[0][0] - ALL[0]["t"]
+
+
+def crossings(seq, thr, rising, hold):
+    """Indices where seq crosses thr in the given direction and holds for
+    `hold` samples - the debounce that kills 1 cm jitter double-counts."""
     out = []
-    for n in range(i0 + 26, i1):
-        for l in range(4):
-            if gh(pre[n-1], l) >= 0.01 and gh(pre[n], l) < 0.01 \
-                    and any(gh(pre[m], l) > 0.02 for m in range(n - 25, n)):
-                out.append((n, l))
+    for i in range(1, len(seq) - hold):
+        if rising:
+            ok = seq[i-1] < thr and all(v >= thr for v in seq[i:i+hold])
+        else:
+            ok = seq[i-1] >= thr and all(v < thr for v in seq[i:i+hold])
+        if ok:
+            out.append(i)
     return out
 
 
-def score(pre, D, Dt, off, n, l):
-    new = [l, DIAG[l]]; old = [m for m in range(4) if m not in new]
-    t0 = pre[n]["t"]; W = pre[n:n+45]
-    fz = lambda y, m: y.get(f"foot_fz{m}", 0)
-    t_off = next(((y["t"] - t0) * 1000 for y in W if all(fz(y, m) < 1.0 for m in old)), None)
-    t_on = next(((y["t"] - t0) * 1000 for y in W if sum(fz(y, m) for m in new) >= 4.0), None)
-    a_, b_ = bisect.bisect_left(Dt, t0 + off), bisect.bisect_left(Dt, t0 + off + 0.06)
-    seg = D[a_:b_]
-    tau_old = st.median(max(abs(tf[3*m+2]) for m in old) for _, tf in seg) if seg else float("nan")
-    return dict(delay=t_on, hole=(t_off is not None and t_on is not None and t_on > t_off), tau_old=tau_old,
-                drop=pre[n]["z"] - min(y["z"] for y in W))
+def score_exchange(pre, n, new, old, D, Dt, off):
+    t0 = pre[n]["t"]
+    lo = max(0, n - 60); hi = min(len(pre), n + 60)   # +-120 ms at 500 Hz
+    W = pre[lo:hi]
+    rel = lambda i: (W[i]["t"] - t0) * 1000.0
+    # physical touchdown of each new foot (last downward crossing before +80 ms)
+    td = []
+    for l in new:
+        seq = [gh(y, l) for y in W]
+        c = [rel(i) for i in crossings(seq, GROUND, False, 3) if rel(i) <= 80]
+        td.append(c[-1] if c else None)
+    # physical liftoff of each old foot (first upward crossing after -80 ms)
+    lo_ = []
+    for l in old:
+        seq = [gh(y, l) for y in W]
+        c = [rel(i) for i in crossings(seq, GROUND, True, 3) if rel(i) >= -80]
+        lo_.append(c[0] if c else None)
+    # torque timelines from the bridge, nearest sample within 6 ms
+    def knee(t_ms, legs):
+        i = bisect.bisect_left(Dt, t0 + off + t_ms / 1000.0)
+        cands = [j for j in (i - 1, i) if 0 <= j < len(Dt) and abs(Dt[j] - (t0 + off + t_ms / 1000.0)) <= 0.006]
+        if not cands:
+            return None
+        j = min(cands, key=lambda j: abs(Dt[j] - (t0 + off + t_ms / 1000.0)))
+        return max(abs(D[j][1][3*m + 2]) for m in legs)
+    tl_old = [knee(o, old) for o in OFFS]
+    tl_new = [knee(o, new) for o in OFFS]
+    fine = list(range(-80, 62, 2))
+    ko = [(o, knee(o, old)) for o in fine]; kn = [(o, knee(o, new)) for o in fine]
+    drop = next((o for o, v in ko if v is not None and v < TAU_ON), None) if any(v is not None and v >= TAU_ON for o, v in ko if o <= -60) else None
+    # UNSUPPORTED time: ms in [-80,+60] where NEITHER pair is both on the
+    # ground and commanded above threshold - a swinging leg's PD torque is
+    # not support; an early-landed foot being pushed down by its swing PD is
+    def down(o, legs):          # any foot of the pair on the ground at offset o (trace, 500 Hz)
+        i = n + int(round(o / 2.0))
+        return 0 <= i < len(pre) and any(gh(pre[i], m) < GROUND for m in legs)
+    both_off = 2 * sum(1 for (o, vo), (_, vn) in zip(ko, kn)
+                       if vo is not None and vn is not None
+                       and not (vo >= TAU_ON and down(o, old)) and not (vn >= TAU_ON and down(o, new)))
+    rise = next((o for o, v in kn if v is not None and v >= TAU_ON and (drop is None or o >= drop)), None)
+    # body vertical velocity and height at the same offsets (trace, 500 Hz):
+    # an unsupported body accelerates down at g, and that needs no bridge
+    def at(o, key):
+        i = n + int(round(o / 2.0))
+        return pre[i][key] if 0 <= i < len(pre) else None
+    tl_vz = [at(o, "vz") for o in OFFS]
+    tl_z = [at(o, "z") for o in OFFS]
+    z0 = pre[n]["z"]; Wz = pre[n:n+45]
+    dropz = z0 - min(y["z"] for y in Wz) if Wz else 0.0
+    tds = [v for v in td if v is not None]; los = [v for v in lo_ if v is not None]
+    return dict(early=[-v for v in tds],                     # + = landed before the flip
+                lift=los,                                     # rel. flip, + = after
+                phys_gap=(min(tds) - max(los)) if (len(tds) == 2 and len(los) == 2) else None,
+                drop=drop, rise=rise, both_off=both_off,
+                cmd_gap=(rise - drop) if (drop is not None and rise is not None) else None,
+                tl_old=tl_old, tl_new=tl_new, tl_vz=tl_vz, tl_z=tl_z, dropz=dropz)
 
 
 rows, seen = [], set()
@@ -65,7 +136,7 @@ for r in csv.DictReader(open(a.csv)):
     if rid:
         seen.add(rid)
     rows.append(r)
-by = collections.defaultdict(lambda: dict(ex=[], runs=0, cross=0, esc=0))
+by = collections.defaultdict(lambda: dict(ex=[], runs=0, cross=0))
 for r in rows:
     dp, sp_ = r.get("bridge_dump", ""), r.get("snapshot", "")
     if not (dp and os.path.exists(dp) and sp_ and sp_ != "NONE" and os.path.exists(sp_)):
@@ -77,30 +148,83 @@ for r in rows:
             try: D.append((float(f[0]), [float(v) for v in f[61:73]]))
             except ValueError: pass
     d = json.load(open(sp_)); ALL = [x for x in d["records"] if x.get("t") is not None]
-    R = [x for x in ALL if x.get("vx") is not None and x.get("roll") is not None and x.get("z") is not None and x.get("foot_z0") is not None and x["t"] > 6.0]
+    R = [x for x in ALL if x.get("vx") is not None and x.get("roll") is not None and x.get("z") is not None
+         and x.get("foot_z0") is not None and x.get("c0") is not None and x["t"] > 6.0]
     if len(R) < 800 or len(D) < 500:
         continue
     k = next((i for i in range(1, len(R)) if R[i]["op_mode"] == 2 and R[i-1]["op_mode"] != 2), None)
-    pre = R[:k] if k else R; off = D[0][0] - ALL[0]["t"]; Dt = [q[0] for q in D]
+    pre = R[:k] if k else R
+    off = align(D, ALL); Dt = [q[0] for q in D]
     sp = lambda x: math.hypot(x["vx"], x["vy"])
     g = by[r.get("course", "?")]; g["runs"] += 1
     ic = next((i for i, x in enumerate(pre) if max(abs(x["roll"]), abs(x["pitch"])) * R2D >= a.limit), None)
     if ic is not None and k and sp(pre[ic]) > 0.8:
         g["cross"] += 1
     cru = [j for j in range(600, len(pre) - 100) if sp(pre[j]) > 1.5 and max(abs(pre[j]["pitch"]), abs(pre[j]["roll"])) * R2D < 10]
-    if len(cru) > 2:
-        for n, l in exchanges(pre, cru[0], cru[-1]):
-            g["ex"].append(score(pre, D, Dt, off, n, l))
+    if len(cru) <= 2:
+        continue
+    i0, i1 = cru[0], cru[-1]
+    for lead_leg in (0, 1):                       # pair A = {0,3} flips with c0, pair B = {1,2} with c1
+        new = [lead_leg, DIAG[lead_leg]]; old = [m for m in range(4) if m not in new]
+        for n in range(max(i0, 61), min(i1, len(pre) - 61)):
+            if pre[n-1][f"c{lead_leg}"] <= 0 and pre[n][f"c{lead_leg}"] > 0:
+                g["ex"].append(score_exchange(pre, n, new, old, D, Dt, off))
 
-print(f"\n  {'arm':<24} {'runs':>4} {'exchanges':>9} {'delay p50':>9} {'delay p90':>9} {'hole rate':>10} {'tau old':>8} {'drop p99':>9} {'crossed':>8}")
+med = lambda v: st.median(v) if v else float("nan")
+pct = lambda v, p: sorted(v)[int(p * (len(v) - 1))] if v else float("nan")
+print(f"\n  {'arm':<24} {'runs':>4} {'exch':>6} {'early td p50':>12} {'p90':>6} {'old tau drop':>12} {'unsupp p50':>11} {'p90':>6} {'phys gap p50':>12} {'p90':>6} {'sink':>6} {'dz p50':>7} {'crossed':>8}")
 for arm in sorted(by):
     g = by[arm]; ex = g["ex"]
     if not ex:
         continue
-    dl = sorted(q["delay"] for q in ex if q["delay"] is not None)
-    holes = sum(1 for q in ex if q["hole"])
-    to = [q["tau_old"] for q in ex if q["tau_old"] == q["tau_old"]]
-    dr = sorted(q["drop"] for q in ex)
-    print(f"  {arm:<24} {g['runs']:>4} {len(ex):>9} {st.median(dl):>8.0f}ms {dl[int(0.9*len(dl))]:>8.0f}ms "
-          f"{100*holes/len(ex):>9.2f}% {st.median(to):>8.1f} {100*dr[int(0.99*len(dr))]:>7.1f}cm {g['cross']:>4}/{g['runs']}")
-print("\n  the mechanism predicts hole rate and old-pair torque fall as the table is brought back into step with the feet.")
+    early = [v for q in ex for v in q["early"]]
+    drops = [q["drop"] for q in ex if q["drop"] is not None]
+    cg = [q["both_off"] for q in ex]
+    pg = [q["phys_gap"] for q in ex if q["phys_gap"] is not None]
+    dz = [q["dropz"] for q in ex]
+    sink = sum(1 for v in dz if v > 0.02)
+    print(f"  {arm:<24} {g['runs']:>4} {len(ex):>6} {med(early):>10.0f}ms {pct(early,0.9):>4.0f}ms {med(drops):>10.0f}ms "
+          f"{med(cg):>9.0f}ms {pct(cg,0.9):>4.0f}ms {med(pg):>10.0f}ms {pct(pg,0.9):>4.0f}ms {100*sink/len(ex):>5.1f}% "
+          f"{100*med(dz):>5.1f}cm {g['cross']:>4}/{g['runs']}")
+print("\n  old-pair max knee |tau_ff| (N*m, median over exchanges) at ms relative to the scheduled flip:")
+print(f"  {'arm':<24} " + " ".join(f"{o:>5}" for o in OFFS))
+for arm in sorted(by):
+    ex = by[arm]["ex"]
+    if not ex:
+        continue
+    cols = []
+    for i in range(len(OFFS)):
+        v = [q["tl_old"][i] for q in ex if q["tl_old"][i] is not None]
+        cols.append(f"{med(v):>5.1f}")
+    print(f"  {arm:<24} " + " ".join(cols))
+print("\n  new-pair max knee |tau_ff|, same offsets:")
+for arm in sorted(by):
+    ex = by[arm]["ex"]
+    if not ex:
+        continue
+    cols = []
+    for i in range(len(OFFS)):
+        v = [q["tl_new"][i] for q in ex if q["tl_new"][i] is not None]
+        cols.append(f"{med(v):>5.1f}")
+    print(f"  {arm:<24} " + " ".join(cols))
+print("\n  body vz (m/s, median) at the same offsets - free fall reads as a ramp of -0.098 per 10 ms:")
+for arm in sorted(by):
+    ex = by[arm]["ex"]
+    if not ex:
+        continue
+    cols = []
+    for i in range(len(OFFS)):
+        v = [q["tl_vz"][i] for q in ex if q["tl_vz"][i] is not None]
+        cols.append(f"{med(v):>5.2f}")
+    print(f"  {arm:<24} " + " ".join(cols))
+print("\n  body z (cm, median) relative to z at the flip:")
+for arm in sorted(by):
+    ex = by[arm]["ex"]
+    if not ex:
+        continue
+    cols = []
+    for i in range(len(OFFS)):
+        v = [100 * (q["tl_z"][i] - q["tl_z"][OFFS.index(0)]) for q in ex if q["tl_z"][i] is not None and q["tl_z"][OFFS.index(0)] is not None]
+        cols.append(f"{med(v):>5.2f}")
+    print(f"  {arm:<24} " + " ".join(cols))
+print("\n  if the knob works, 'old tau drop' sits at 0 / -22 / -44 ms for lead 0 / 1 / 2; if it does not, this campaign measured nothing.")

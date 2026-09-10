@@ -991,7 +991,7 @@ portable to get there:
   and the hardware backends;
 - the MPC worker's `cpu_set_t` affinity + `SCHED_FIFO` is now `#ifdef __linux__`.
 
-### Two facts about the trace that each cost a day (OPEN-28)
+### Three facts about the trace that each cost a day (OPEN-28)
 
 **The `[nav]` lines run ~18 s BEHIND the numeric records and the
 `[stm32mp1]` heartbeat.** `mit_sim_main`'s `elapsed()` starts when nav takes
@@ -1007,6 +1007,15 @@ order: the commanded kinematic height (m), the mean joint tracking error
 (N·m) — see the `_te4` block in `RobotRunner.cpp`. The field kept its name for
 layout compatibility. Slot 3 read as "leg 3 in 17/17 falls" for an hour before
 the writer was read. Read the writer, not the name.
+
+**`foot_fz[0..3]` is the per-leg world-frame FOOT SPEED in m/s, not a
+force.** Changed 2026-09-04 (`RobotRunner.cpp`: `|rBody^T (vBody + ω×r +
+v_leg)|`), header says so. Six days of OPEN-28 analysis read it as force
+anyway and built a "support hole" mechanism and a campaign on it — withdrawn
+2026-09-10. There is NO per-foot force in the trace; commanded torque per
+joint is in the bridge dump (`BRIDGE_DUMP`, `f[61:73]`), and the schedule is
+`c0..c3`. Grep the writer for every field a script reads, when the script is
+written.
 
 ### THE trap: `PeriodicTask` free-runs on non-Linux
 

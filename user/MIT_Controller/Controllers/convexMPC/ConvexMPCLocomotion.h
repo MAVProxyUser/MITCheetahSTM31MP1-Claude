@@ -170,6 +170,7 @@ private:
   Vec4<float> swingTimes;
   FootSwingTrajectory<float> footSwingTrajectories[4];
   OffsetDurationGait trotting, bounding, pronking, jumping, galloping, standing, trotRunning, walking, walking2, pacing;
+  Gait* _gaitNow = nullptr;   // the gait run() selected this tick, for diagnostics outside run()
   MixedFrequncyGait random, random2;
   Mat3<float> Kp, Kd, Kp_stance, Kd_stance;
   bool firstRun = true;
