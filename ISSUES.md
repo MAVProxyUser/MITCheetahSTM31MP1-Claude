@@ -516,11 +516,20 @@ passed on its own in-suite retry.
   the instant the error closes; the planner's `a_lon` shapes the *profile*,
   and nothing between `follow()` and the stick rate-limits the live command.
 
-  **`WP_VSLEW`** caps how fast the applied speed may rise per tick, at the last
-  point before it becomes a stick; deceleration left free; `[VSLEW]` logs when
-  it binds. Dose-response queued on `hp_gap20` with **peak post-exit roll** as
-  the endpoint — continuous, on every run, the quantity the exit produces —
-  scored by `open28_exitroll.py`.
+  **`WP_VSLEW` works exactly as built, and it is not the OPEN-28 fix.** Dose-
+  response on `hp_gap20`, ~24 reps per arm, interleaved:
+
+  | `WP_VSLEW` | exit accel (m/s²) | median exit roll | p90 | moving crossings |
+  |---|---|---|---|---|
+  | off | 2.30 | 15.5° | 18.3° | 12/25 |
+  | 1.5 | 1.13 | 11.1° | 13.2° | 10/25 |
+  | 0.8 | 0.74 | 7.6° | 8.6° | 10/24 |
+  | 0.4 | **0.38** | **4.8°** | 5.2° | 13/24 |
+
+  Exit acceleration lands on target; exit roll is monotone and every arm is
+  p < 0.0001 against off. **Crossings are flat.** So the reversal exit was a
+  real, measurable, now-fixed defect — and not where the collapses come from.
+  Kept as a knob (default off) pending a decision on the course-time cost.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
