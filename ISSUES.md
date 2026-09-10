@@ -36,6 +36,36 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-34 · Three dogs on the 100 m dash at 3.0 fail where one or two
+  pass — and every harness instrument is clean** — `OPEN, UNEXPLAINED`.
+  Re-measured 2026-09-10 13:00 (`fleet_dash_retest.log`, six 3-dog reps of
+  `dash:100` trotting 3.0 on the unix-socket transport, fleet cap held at
+  3): **1 of 18 dog-runs passed**; the accidental 2-dog rep earlier that
+  day passed 2/2 and the solo dash at this speed is table-grade (3/3 at
+  3.1 commanded). Every failure is the same event: the orientation ESTOP,
+  pitch 29–38.5° with roll under 22°, at 2.9–3.1 m/s, **27–28 s into each
+  dog's own mission** (the trip times are staggered by exactly the launch
+  stagger: dog0 ≈ 28 s, dog1 ≈ 33 s, dog2 ≈ 37 s), i.e. the moment each dog
+  reaches its cruise — deterministic, not a coin flip. Measured during the
+  reps, all clean: sim real-time factor mean 1.000 / p5 0.997 / p50 1.000
+  (`/stats`, 20 s windows); command path 500/s with backlog ≤ 2; IMU path
+  499–501/s with a worst gap ≤ 4 ms in cruise (the new bridge `imu_rx` /
+  `imu_gap_max` fields — the one ~100 ms gap per run is in the first second,
+  before the controller connects); control loop ≤ 3.4 ms on reps 4–6. Reps
+  1–3 carried 10–12 ms loop hiccups on every dog, which were **my own RTF
+  sampler** (`gz topic -e -t /stats` prints at 1 kHz) — killed before rep 4,
+  and the failure rate did not change (0/9 after), so those hiccups are
+  exonerated as the cause and recorded as an instrument load a campaign
+  must not carry. With RTF, transport, sensor freshness and loop timing all
+  measured clean, what remains is something that scales with three dogs in
+  ONE engine: shared physics (though DART solves a dog touching only the
+  static ground as its own island), or a world-build difference in the
+  3-slot `fleet.sdf`. Two discriminating experiments, both manual: the same
+  three dogs in three SEPARATE engines (`sim_up_n.sh`), and one active dog
+  beside two idle spawned dogs in one engine. Not run today — the rig is on
+  OPEN-31/32/33. Until then, confirm any dash result single-dog (the rule
+  the old CLAUDE.md note already carries).
+
 - **OPEN-33 · Sim-fidelity gaps that were never A/B'd: foot friction and a
   noise-free orientation** — `IN PROGRESS, SOFTWARE`. Filed 2026-09-10 from
   CLAUDE.md's "known places the sim is more generous than reality" table.
