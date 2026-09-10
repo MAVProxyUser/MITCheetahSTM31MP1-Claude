@@ -567,11 +567,15 @@ passed on its own in-suite retry.
   at speed: the front stance foot drifts back through stance at 2 m/s while
   the rear swing foot reaches forward, and on a 0.38 m body the nominal
   clearance at end-of-stance is a few centimetres. All twelve leg links carry
-  `self_collide`, so it is modelled. It needs nothing but speed, it is
-  deterministic per seed, it happens on either diagonal, and it leaves no
-  precursor in any body channel — every property this issue has had from the
-  start. Testable from the dump alone: joint angles → forward kinematics →
-  foot-to-calf distance at onset.
+  `self_collide`, so it is modelled. Testable from the dump alone: joint
+  angles → forward kinematics → foot-to-calf distance at onset.
+
+  **Tested, and dead (16th).** MIT's `computeLegJacobianAndPosition` ported
+  verbatim (self-check: stance feet at −0.277 m, |y| 0.128 m — convention
+  correct). Minimum swing-foot-to-stance-calf distance over [−100, +50] ms
+  around the sink: escalated **18.3–20.5 cm** (median 19.3), recovered 18.3,
+  random 18.9; **0 events under 3 cm in any group.** No leg touches another
+  leg. Whatever pushes the swing hip off its command is not a leg.
 
   ### Two of my own claims corrected
 
