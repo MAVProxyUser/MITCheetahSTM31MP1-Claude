@@ -34,7 +34,7 @@ ARMS="${ARMS:-}"
 DUMP="${DUMP:-0}"
 campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -53,9 +53,16 @@ print(shm_reaper.dump_snapshot(0,'$tag', expect_run_id=(w or None)) or 'NONE')" 
 
 one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   env="${env//,/ }"
+  # SPEED=<m/s> inside an arm's env sets that arm's cruise instead of $V, so a
+  # speed ladder can be run INTERLEAVED (one rung per rep) rather than as
+  # blocks - blocks are not a comparison on this rig. The token is consumed
+  # here and not passed to the controller.
+  local v="$V" tok rest=""
+  for tok in $env; do case "$tok" in SPEED=*) v="${tok#SPEED=}";; *) rest="${rest:+$rest }$tok";; esac; done
+  env="$rest"
   [ "$DUMP" = 1 ] && env="${env:+$env }BRIDGE_DUMP=$DIR/bridge_{RUN}.csv"
   timeout 300 python3 gazebo/conductor/mission_runner.py --terrain flat \
-    --slot "course:$crs" --gait trotting --speed "$V" --dash 0 \
+    --slot "course:$crs" --gait trotting --speed "$v" --dash 0 \
     --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
@@ -88,7 +95,7 @@ PY
   # so a run that survived a 469 ms freeze and one that ran clean are not
   # the same row (2026-09-10: three of six control runs carried 44-469 ms)
   local LM; LM=$(grep 'ctrl loop' "$L" 2>/dev/null | grep -oE 'maxPeriod=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-}" >> "$OUT"
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
