@@ -541,6 +541,38 @@ passed on its own in-suite retry.
   exactly what removes the support. The trace cannot see a foot slide; Gazebo's
   contact truth can, and that campaign is queued behind the A/B.
 
+  ### The anatomy of an escalation, with the controls it needs
+
+  Measured at the onset of every sink — the 9 that escalated, the 95 that
+  recovered, and 234 random cruise instants — from the bridge dump's joint
+  angles and the trace's foot heights:
+
+  | at onset | escalated | recovered | random |
+  |---|---|---|---|
+  | first joint to leave its command (>0.15 rad) is a **swing hip** | **100 % (9/9)** | 37 % | 39 % |
+  | first leg geometry to move (>2 cm) is a **stance** leg | **100 % (9/9)** | 63 % | 24 % |
+  | a stance joint over its torque limit, 60 ms before | 100 % | 88 % | 49 % |
+  | that swing hip over its torque limit, 60 ms before | **22 %** | 75 % | 57 % |
+
+  Two rows discriminate and two do not. The stance-joint clip is a feature of
+  *sinks* (100 vs 88 %), not of escalation — the torque story is finally dead
+  as a cause. What every escalation has, and most sinks do not, is a **swing
+  leg's hip pushed ≥0.15 rad off its trajectory while its motor has headroom**
+  (22 % clipped vs 75 % on ordinary swings), followed within ~30 ms by a
+  stance leg giving way. Rear hips in 7 of 8. A soft swing-leg gain
+  (kp = 8 N·m/rad) deflects 0.15 rad under ~1 N·m — a few newtons at the
+  foot. That is a swing foot **hitting something**.
+
+  On flat ground the something is another leg. Hindlimb–forelimb interference
+  at speed: the front stance foot drifts back through stance at 2 m/s while
+  the rear swing foot reaches forward, and on a 0.38 m body the nominal
+  clearance at end-of-stance is a few centimetres. All twelve leg links carry
+  `self_collide`, so it is modelled. It needs nothing but speed, it is
+  deterministic per seed, it happens on either diagonal, and it leaves no
+  precursor in any body channel — every property this issue has had from the
+  start. Testable from the dump alone: joint angles → forward kinematics →
+  foot-to-calf distance at onset.
+
   ### Two of my own claims corrected
 
   The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
