@@ -862,6 +862,19 @@ ssh $BOARD "/sbin/ip route replace $MAC/32 dev eth0; cd /usr/local/cheetah-mp1 &
 `WP_MISSION=circle:<radius_m>:<points>` or `outback:<metres>` · `WP_ACCEPT` acceptance
 radius m · `WP_LOOP` repeat forever. Progress prints as `[nav] reached wpNN ...`.
 
+### Finish and cruise knobs (MIT stack, `mit_sim_main.cpp`, 2026-09-08..10)
+Each is an A/B arm first; the default is the measured winner or off.
+| knob | default | what it does |
+|---|---|---|
+| `WP_STOP_SEED_MEASURED` | 1 | the stop ramp starts from the BODY's speed, not the stick's (on hp_gap20 every finish logged "shedding 0.00" while the body still carried 0.2–0.5 m/s — OPEN-30) |
+| `WP_STOP_ATT_BAIL` / `WP_STOP_ATT_DEG` | 1 / 8 | end the post-ramp wait early when the body is going over (OPEN-27) |
+| `WP_SETTLE_WATCH` / `WP_SETTLE_DEG` / `WP_SETTLE_BAIL_DEG` | 1 / 5 / 8 | BALANCE_STAND settle is watched, not a blind 1.5 s sleep (OPEN-27) |
+| `WP_SETTLE_TREND` / `_DEG` / `WP_SETTLE_CAP_DEG` | 1 / 3 / 20 | the settle bails on a WORSENING attitude (entry + 3°, capped) rather than the entry angle (OPEN-30) |
+| `WP_STOP_SKIP_NOOP_RAMP` | 0 | skip the ramp when its seed is zero — measured to DOUBLE finish falls; the ramp's steered branch matters |
+| `WP_VSLEW` | 0 | m/s² slew on a rising speed command; cuts the reversal-exit roll 15.5 → 4.8° at 0.4, costs course time |
+| `WP_VCAP_GAIN` / `WP_VCAP_MARGIN` | 0 / 0.05 | pulls the stick down by gain × the body's overshoot above the command (the body runs 2.0–2.1 on long legs at a 1.9 command and the stance exchange fails steeply above 2.0 — OPEN-28) |
+| `CTRL_MPC_SCHED_LEAD` (yaml) | 2 | the contact table's index offset at the solver input; the physical lead is +1. 2 = physical 3 = every shipped result. Do not set 3 (physical 4: 18/20 collapse) |
+
 ## Batch gait testing (do not hand-run sweeps)
 ```bash
 cat > /tmp/cfg.txt <<'CFG'
