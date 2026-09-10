@@ -67,11 +67,13 @@ def dump_stats(path):
             calf = float(r[1 + 3 * leg + 2]) * D
             abad = float(r[1 + 3 * leg + 0]) * D
             cmd_calf = -float(r[25 + 3 * leg + 2]) * D     # MIT knee -> URDF calf
+            kp_calf = float(r[37 + 3 * leg + 2])             # a command with kp 0 is inert (limp boot, PASSIVE)
             o["n"] += 1
             o["calf_below"] += calf < CALF_LO; o["calf_above"] += calf > CALF_HI
             o["stop_lo"] += calf <= STOP_LO + 0.3; o["stop_hi"] += calf >= STOP_HI - 0.3
             o["abad_stop"] += abs(abad) >= ABAD_STOP - 0.2
-            o["cmd_below"] += cmd_calf < CALF_LO; o["cmd_above"] += cmd_calf > CALF_HI
+            if kp_calf > 0.0:
+                o["cmd_below"] += cmd_calf < CALF_LO; o["cmd_above"] += cmd_calf > CALF_HI
             o["calf_min"] = min(o["calf_min"], calf); o["calf_max"] = max(o["calf_max"], calf)
     return out
 
@@ -108,7 +110,7 @@ def main(paths):
                 statistics.median(a["roll"]) if a["roll"] else float("nan"),
                 ("%d" % statistics.median(a["clamps"])) if a["clamps"] else "-",
                 ("%d" % statistics.median(a["stops"])) if a["stops"] else "-", a["hb_missing"]))
-            print("         %-8s %8s  %-19s %-15s %-15s %-9s %-19s" % ("phase", "leg-smp", "calf range (deg)", "calf< -151 / > -53", "on stop lo / hi", "abad stop", "CMD calf < -151 / > -53"))
+            print("         %-8s %8s  %-19s %-15s %-15s %-9s %-19s" % ("phase", "leg-smp", "calf range (deg)", "calf< -151 / > -53", "on stop lo / hi", "abad stop", "CMD(kp>0) calf < -151 / > -53"))
             for ph in ("standup", "loco", "finish"):
                 o = a["dump"].get(ph)
                 if not o: continue
