@@ -45,8 +45,10 @@ passed on its own in-suite retry.
   fast swings; what the sim still lacks is the torque-speed (back-EMF)
   derating, which is the actuator-dynamics row. What is left to measure:
   (1) **foot friction** — the proto ships feet at μ 0.6 against a ground
-  plane with no friction element (DART default 1.0), so the effective pair
-  depends on the engine's combine rule; the `concrete` surface kind sets
+  plane with no friction element (default 1.0), and DART combines a pair by
+  the MINIMUM (`ContactSurface.cpp` v6.13.2, read from source), so the
+  shipped pair is exactly the URDF's 0.6 - not a flattering number; the
+  `concrete` surface kind sets
   BOTH sides to 0.90 (`apply_terrain` + `apply_surface_feet`), which is the
   rubber-on-concrete figure. Arm `flat` vs `concrete`, interleaved on
   hp_gap20 at 1.9. (2) **orientation noise** — `VectorNavOrientationEstimator`
