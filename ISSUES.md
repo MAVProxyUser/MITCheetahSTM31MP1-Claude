@@ -79,8 +79,32 @@ passed on its own in-suite retry.
   clamp off vs on (interleaved, N = 6), the PREVIOUS binary on the same
   sprint if both arms fail, the item 6 A/Bs with whichever clamp setting
   ships, and a bracket of the OPEN-28 cruise knobs (table lead, transport)
-  if the clamp is not the cause. Until it reports, this item's claim is
-  only "3 dogs failed 17/18 with every instrument clean".
+  if the clamp is not the cause.
+  **14:35 — the premise is gone; this is a solo-sprint regression.**
+  `dash30_jointlimits` (solo, interleaved, N = 6 each): clamp OFF 1/6,
+  clamp ON 1/6 — same signature, the clamp is exonerated. The 07:04 binary
+  (the one the 2-dog reps passed on) redeployed for `dash30_oldbin`: 2/6,
+  its two passes peaking at 24–25° of pitch, a few degrees under the
+  28.65° limit. The one clean pass of the day (run 4695) cruised at a
+  genuine 3.0–3.3 m/s by GPS with a 6° peak, so the course is achievable;
+  the sprint is simply marginal now, solo, on both binaries (4/18 solo
+  dog-runs vs 1/18 in fleets — not distinguishable at these N). Against
+  the late-August table (trotting 3.1 commanded crossed 3/3, the wall at
+  3.2) that is a regression, and no solo trotting dash above 1.9 had been
+  run on any build since — the "one passes, three fail" reading was built
+  on a table nobody re-ran (CLAUDE.md rule 3, again). Audit of every
+  default that changed since that table (commit a3f4aa2): the world
+  gained only four foot-contact LABEL sensors; the bridge's PD/torque path
+  is unchanged; the mission side gained finish/boot knobs only
+  (`WP_ADEC`, `WP_SETTLE_*`, `WP_STOP_ATT_DEG`, `WP_VCAP_*` at 0); the
+  controller/bridge ship three behaviour changes ON — the contact-table
+  lead implementation (`CTRL_MPC_TABLE_ALIAS` off, knob 2), the unix-socket
+  transport with the bridge draining commands from its main loop, and the
+  joint clamp (exonerated). Chain B brackets lead 1 / lead 3 / UDP; chain C
+  (`campaign_chain_20260910c.sh`) adds the exact shipped lead (knob 1 +
+  alias), the bridge receive thread, and velocity aiding off. If every arm
+  is null, the next candidates are the contact label sensors (strip with
+  `add_foot_contacts.py --remove`) and the table's own provenance.
 
 - **OPEN-33 · Sim-fidelity gaps that were never A/B'd: foot friction and a
   noise-free orientation** — `IN PROGRESS, SOFTWARE`. Filed 2026-09-10 from
