@@ -1027,13 +1027,40 @@ passed on its own in-suite retry.
   exchange still fails more often above 2.0 m/s on a quiet host is what
   the final 30 answers from their dumps; the cap has bound only during
   accelerations so far (`[VCAP] body 0.98 over stick 0.93`).
-  Harness note for the speed ladder that followed (`open28_wkc_ladder`):
-  from 12:04 to 12:12 a mis-keyed launcher started the 3-dog fleet re-test
-  while the ladder was still running (the two runners alternated launches
-  and the conductor capped the fleet at 2 after a 3/3 fleet fall); the
-  ladder rows stamped after 12:04 and the two fleet reps are void and set
-  aside. The ladder's separation (1.9 and 2.0 pass, 2.2 and 2.4 fail) was
-  already established in the 17 rows before it.
+  **Speed ladder result** (`open28_wkc_ladder`, 2026-09-10 11:06–12:51,
+  32 runs, four rungs interleaved one rung per rep, transport-fixed build):
+
+  | cruise | PASS | where the failures trip | peak pitch, median (deg) |
+  |---|---|---|---|
+  | 1.9 | **8/8** | — | 20.2 |
+  | 2.0 | **8/8** | — (one run reached 28.2) | 22.7 |
+  | 2.2 | 1/8 | 7/7 after wp08, in the −180° reversal | 30.9 |
+  | 2.4 | 0/8 | 8/8 after wp08, in the −180° reversal | 33.0 |
+
+  Every failure is the same event: the orientation ESTOP (pitch 29.7–36.0°
+  against the 28.65° limit) between wp08 and wp09 — the 9 m leg that IS the
+  hairpin reversal — never the mid-cruise collapse this issue was about.
+  Peak pitch rises monotonically with speed and 2.0 touched 28.2° once, so
+  2.0 is the edge of the envelope, not a safe cruise; the course's limit on
+  this build is one feature's pitch excursion, and the next lever is the
+  reversal's entry/exit shaping (`WP_VSLEW`, the settle/exit knobs) at 2.2,
+  not cruise. Host column: `loop_max` 2.6–17 ms across passes and failures
+  alike, one 233 ms run (4615) among the 2.2 failures; four of the eight
+  2.4 failures ran under 4.4 ms, so the separation does not rest on it.
+  Harness note, corrected: from 12:04 a mis-keyed launcher started the
+  3-dog fleet re-test during the ladder. The archive timeline shows the
+  conductor serialised the launches — 4626 → 4627 (fleet) → 4628 → 4629
+  (fleet) → 4630 — so the ladder rows ALTERNATED with the fleet reps rather
+  than overlapping them, ran on an idle rig, agree with the other reps, and
+  are kept; what was void was the fleet reps' intent (and the cap-to-2 they
+  triggered), not the ladder rows. The earlier "rows after 12:04 are void"
+  was written before the timeline was read. What those two accidental
+  fleet reps did show: 3 dogs on `dash:100` trotting 3.0 all tripped the
+  orientation ESTOP (pitch 29.7–32.2°) at 3.05–3.12 m/s cruise at
+  DIFFERENT times (28, 36, 48 s), loops ≤ 4.25 ms, unix transport clean
+  (500/s, backlog ≤ 2), while the 2-dog rep passed 2/2 — the old
+  "trotting dash fails in parallel" item survives the transport fix; the
+  chained 6-rep re-test with an RTF sampler is what answers it.
 
   Host-state change mid-campaign, for the record: at 10:18 (after row
   ~22) the operator authorised killing the other simulators and the
