@@ -102,9 +102,15 @@ passed on its own in-suite retry.
   transport with the bridge draining commands from its main loop, and the
   joint clamp (exonerated). Chain B brackets lead 1 / lead 3 / UDP; chain C
   (`campaign_chain_20260910c.sh`) adds the exact shipped lead (knob 1 +
-  alias), the bridge receive thread, and velocity aiding off. If every arm
-  is null, the next candidates are the contact label sensors (strip with
-  `add_foot_contacts.py --remove`) and the table's own provenance.
+  alias), the bridge receive thread, and velocity aiding off. The table's
+  own provenance widens the window: its rows are dated 2026-08-22
+  (`git blame`), so the x_comp_integral clamp (default 1.0 since 08-27; the
+  table ran stock's unbounded integrator) and velocity aiding (default ON
+  since 08-28) are inside it too — chain C carries aiding-off, chain E
+  (`campaign_chain_20260910e.sh`) carries the clamp at stock and a run
+  with the four foot-contact label sensors stripped from the proto. If
+  every arm is null the regression is in something no knob restores and
+  the next step is a build bisect against the 08-22 tree.
 
 - **OPEN-33 · Sim-fidelity gaps that were never A/B'd: foot friction and a
   noise-free orientation** — `IN PROGRESS, SOFTWARE`. Filed 2026-09-10 from
