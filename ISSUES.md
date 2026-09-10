@@ -441,6 +441,36 @@ passed on its own in-suite retry.
   The **lie-down tips** (roll ≈ 29° at z ≈ 0.10, no E-stop, 8 of 9 at the
   finish) are a separate judge-level issue and are excluded from "crossings".
 
+  ### The candidate that fits everything: Gazebo's silent torque clip
+
+  The controller clamps joint torque at `setMaxTorqueCheetah3(208.5)` — a
+  **Cheetah 3** number, on a Go1. The bridge applies the impedance law with no
+  clamp. The only limit the Go1 ever meets is the SDF's **23.7 N·m** (abad,
+  hip) and **35.55 N·m** (knee), enforced by Gazebo and reported to nobody.
+  The QP is allowed `f_max = 175 N` vertical and ±70 N in the friction cone
+  per foot; at the Go1's levers that is ~24 N·m vertical plus ~14 N·m
+  horizontal on a knee limited to 35.55, and the hip/thigh at 23.7 is closer
+  still. **The controller's own bounds permit forces the motors cannot
+  deliver, and nothing tells it.**
+
+  Every measured property fits: instantaneous; no precursor in any body-state
+  or control channel; joints and height depart *together* (the torque
+  available fell, not the command); commanded torque ramps 0.18 s later into a
+  cap already binding; deterministic per seed; worse with speed.
+
+  Instruments, all committed: `server.py` now forwards `BRIDGE_*` from a slot's
+  extra to the bridge (`BRIDGE_DUMP` is the only record carrying both `q` and
+  `tau_ff` per joint, and per-run extra never reached the bridge before);
+  `fleet_world.py::apply_effort_scale` (`GO1_EFFORT_SCALE`, diagnostic only —
+  the real motors do not scale); `open28_torque.py` reads the dump back;
+  `open28_clip.sh` runs base vs ×2 interleaved with the dump on both.
+
+  **Queued behind the running campaign:** conductor restart (the forwarding
+  needs it), one-run proof of each instrument, then the A/B. If ×2 removes the
+  moving crossings *and* the base arm's dump shows `|tau_ff|` crossing the
+  limit before the sink, this closes — with the fix on the controller side:
+  bound the QP to what the motors have, with margin.
+
   ### Two of my own claims corrected
 
   The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
