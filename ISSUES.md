@@ -649,6 +649,63 @@ passed on its own in-suite retry.
   is defeated — which is why doubled torque rescued the intermediate cases
   (a stronger catch) and no planner-side lever moved the initiation.
 
+  ### THE INITIATOR, FOUND: the bridge freezes the command for 40 ms once a second, and a freeze at the exchange is the collapse
+
+  Re-doing the crossing anatomy on honest signals (the last scheduled
+  exchange before each sink, against the same run's ordinary exchanges,
+  86 runs): at **20 of 26** crossing exchanges the NEW pair's last touchdown
+  came ≥ 30 ms AFTER the flip (ordinary: 0.7 %), and in ordinary cruise a
+  late landing is followed by a > 2 cm sink **49 %** of the time against
+  **0.06 %** after a normal one. The joint commands in the bridge dump then
+  showed what a "late landing" is: the swing command (hip q_des −0.50, hip
+  τ −19.6, knee +12.8 — the swing PD driving the foot forward) is HELD past
+  the flip for 20–40 ms, the just-landed feet skate at 1.8–2.1 m/s instead
+  of stopping (ordinary: 0.04–0.09 m/s), the body free-falls on, the
+  stance switch then arrives with the body 0.7 cm down at −0.47 m/s and the
+  WBC sweeps the new pair back violently (hip q_des −0.50 → −1.30 in 30 ms,
+  knee τ −29 N·m), the feet fling 4 cm into the air, the old pair barely
+  lifts, and z drops 3 cm in 30 ms.
+
+  The hold is the **bridge's receive thread being starved**. The dump rows
+  (every 5th command, 100 Hz) show gaps of 33–45 ms roughly once per
+  1.01 s, followed by 3 rows at 0–2 ms spacing — a backlog drained in a
+  burst. So the controller kept sending (its own period never left
+  2.4–2.9 ms; the E-stop edge aligns the two clocks to ±6 ms), the packets
+  sat in the socket buffer, and `udp_rx` did not run for ~40 ms while the
+  bridge's MAIN loop — whose `stalls>5ms` counter reads **0** every second —
+  kept applying the stale `cmd`. The instrument measured the wrong thread.
+
+  Conditioned on every scheduled flip in the 86 runs (54,000 exchanges):
+
+  | exchange class | n | sink > 2 cm | crossing ≤ 400 ms |
+  |---|---|---|---|
+  | no receive gap within [−80, +60] ms | 52,960 | 0.32 % | 0.05 % |
+  | a ≥ 30 ms gap elsewhere in that window | 454 | 10.4 % | 0.00 % |
+  | **a ≥ 30 ms gap STARTING in [−25, +5] ms of the flip** | **128** | **24.2 %** | **14.1 %** |
+
+  A 280× enrichment. 74 of 86 runs carry at least one such gap (26 of them
+  crossed); of the 12 that carry none, 3 crossed. The gap is the initiator;
+  the table-lead free fall above is what makes an exchange fragile enough
+  for a 40 ms freeze to kill it — under the shipped lead the body is
+  already falling at −0.16 m/s when the frozen swing command holds the
+  catching feet forward.
+
+  This is a defect of the SIM HARNESS (`cheetah_gazebo_bridge.py`), not of
+  the robot, and it has been in every result since the bridge existed. It
+  also reframes the campaign history: the "second mode" in the tail test,
+  the base rate swinging 0.37 → 0.17 between campaigns, and every
+  planner-side null are what a ~1 Hz external hazard with a 30 ms lethal
+  window looks like from the outside. On hardware the analogue is the
+  RS485 thread — which this port already flags for a four-bus harness.
+
+  Fix, queued behind the running campaign (a fresh bridge process starts
+  per run, so the file must not change mid-campaign): drain the command
+  socket non-blocking from the main loop itself — the thread that
+  demonstrably never stalls — instead of a second thread, log the largest
+  backlog drained per second, and raise `SO_RCVBUF`. Then re-run the lead-1
+  baseline on `hp_gap20` with the fixed bridge (prediction: crossings fall
+  from 11/30 and 6/30 to the no-gap rate), then the lead fix on top.
+
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
   predicts crossings and sinks ordered lead 0 ≤ 1 ≤ 2. It FORBIDS lead 2
