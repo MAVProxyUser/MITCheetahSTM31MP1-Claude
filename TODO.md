@@ -25,7 +25,7 @@
       before the pitch moves, `kin_z` tracking it, so the legs really shorten.
       Accumulating falls at n ≈ 100 on a 50 s reproducer to test it at a sample
       size that can carry the claim.
-- [ ] **OPEN-29 — MPPI.** Stage 1 says sampling cannot cold-start this problem
+- [x] **OPEN-29 closed 2026-09-10, not pursued.** Stage 1 says sampling cannot cold-start this problem
       at all and adds nothing warm-started. Stages 2-3 not recommended as
       scoped; a non-convex reformulation is the only version worth building.
 
