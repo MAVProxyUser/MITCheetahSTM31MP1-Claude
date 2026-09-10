@@ -770,6 +770,23 @@ not run for you automatically the same way - `lsof -i :9100 -i :9101` (and
 the `+10*i` ports for any instance beyond 0) before trusting a "frozen
 state"/"identical failure every run" result from a manual session.
 
+### Stragglers are not mission processes: sweep by CPU and by age
+
+2026-09-10: the collapse rate on hp_gap20 went 0/15 → 65 % and wkc_finals
+3/15 with every port sweep and pgrep pattern reporting the rig clear. `ps
+-eo pid,etime,time,pcpu,command -r | head` found a `gz topic -e ... -n 1`
+that had spun for 12 days at 52 % CPU (8,361 CPU-minutes), two feed
+scripts orphaned by a withdrawn campaign at ~28 % each, and Spotlight
+indexing 38 GB of snapshot JSON. Killed the three and put
+`.metadata_never_index` in `rundata/`: hp_gap20 24/24 reached the finish,
+wkc_finals 10/10 — through single loop stalls of 45–197 ms, which the runs
+survive; it is SUSTAINED contention that kills them, by a mechanism not
+yet measured. `campaign_claim` now runs `campaign_host_sweep` (kills
+topic echoes older than ten minutes and feed scripts with ppid 1, prints
+the busiest processes) and every campaign CSV carries `loop_max_ms`. The
+operator's own processes (a firmware simulator at 100 % of one core) are
+noted, not killed.
+
 ### Transport: unix-domain datagrams on the host, UDP only for the board
 
 macOS holds loopback UDP datagrams for 20-45 ms about 0.1-0.6 times a
