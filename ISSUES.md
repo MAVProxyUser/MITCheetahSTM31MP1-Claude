@@ -483,32 +483,44 @@ passed on its own in-suite retry.
   limit before the sink, this closes — with the fix on the controller side:
   bound the QP to what the motors have, with margin.
 
-  ### First look through the instrument (one crossing run, before the A/B)
+  ### Through the instrument at n=33 runs, 86 sink events — the picture inverts once more
 
-  `BRIDGE_DUMP` reached the bridge (4316 rows × 73 columns, 43 s) on a probe
-  run that happened to cross. Commanded joint torque, as a fraction of the
-  motor limit the simulator enforces:
+  The probe's "knees at 100 % in cruise" was a **one-run artefact.** Across 33
+  dumps the cruise p99 is 0.66–0.87 of the limit and **0.0 % of cruise samples
+  exceed it**, in passed and crossed runs alike. The clip does not bind in
+  ordinary cruise, and it does not initiate anything.
 
-  | joint | cruise p99 | last 0.6 s before the crossing |
-  |---|---|---|
-  | FL-hip | 0.75 | **1.75** |
-  | FR-hip | 0.76 | **1.22** |
-  | RR-hip | 0.76 | **1.02** |
-  | FR-knee | 0.95 | **1.09** |
-  | FL-knee | **1.00** | **1.04** |
-  | RL-knee | **1.05** | **1.09** |
+  What the dumps *do* show, once the event is defined properly. The 2 cm sink
+  I had been treating as the collapse's first symptom is **routine**: 86
+  events in 33 runs, one every ~17 s of cruise, split exactly 43/43 between
+  the two diagonal stance pairs, from a body that is *calmer* than average
+  (|wy| 0.99 vs 1.48 rad/s before onset, p = 0.003). It happens equally in
+  both arms (39 vs 47 events), so the torque limit has nothing to do with
+  causing it. Almost all recover.
 
-  Two things. **The knees run at the limit in ordinary cruise** — p99 of
-  1.00–1.05 on two of them, 0.80–0.95 on the others. Footfall impulse of
-  ~2× bodyweight on a ~0.14 m lever is ~35 N·m, which *is* the knee's
-  35.55 N·m: at 1.9 m/s trot under this tuning there is no headroom. And at
-  the crossing the **hips** demand up to 1.75× what the motors have. The
-  controller is asking for torque the simulated Go1 cannot deliver, in
-  cruise routinely and at the collapse by a wide margin.
+  **The ones that don't are the ones the controller cannot afford:**
 
-  n = 1, no passing-run comparison yet, and "first exceedance" is meaningless
-  when a joint sits at 1.0 all the time. The A/B (base vs ×2 limits, both
-  with the dump) is what decides it.
+  | | escalated (8) | recovered (78) | p |
+  |---|---|---|---|
+  | demand 0.3 s *before* onset | 0.82× | 0.92× | 0.018 |
+  | **demand in the first 0.15 s after onset** | **1.73×** | **0.92×** | **< 0.0001** |
+  | escalation per sink, base | 6/39 | | |
+  | escalation per sink, ×2 limits | 2/47 | | 0.13 |
+
+  Within 150 ms of a sink starting — before the attitude has moved — the
+  controller asks for **1.73× the motor's torque** on the sinks that will go
+  over, and **0.92×** on the ones that will recover. Recovery from an ordinary
+  sink already uses **92 % of the motor.** There is no reserve. A somewhat
+  larger sink needs ~1.7× and gets 1.0×, clipped silently by Gazebo, and the
+  leg cannot hold. With the limits doubled the same demand is met and
+  escalation drops 15 % → 4 % (not yet separable at 86 events; the 60-run
+  campaign is still collecting).
+
+  So the mechanism is **recovery margin, not a trigger**: the initiating
+  perturbation is common and small, and the collapse is the subset whose
+  recovery exceeds a torque limit the controller does not know it has. That
+  is why fifteen precursor hypotheses died — there is no rare precursor, only
+  a routine one that occasionally outruns the budget.
 
   ### Two of my own claims corrected
 
