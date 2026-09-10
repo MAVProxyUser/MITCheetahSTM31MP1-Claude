@@ -8,6 +8,8 @@
  * frame").
  */
 
+#include "Utilities/CtrlTuning.h"
+#include <atomic>
 #include "Controllers/LegController.h"
 
 /*!
@@ -127,7 +129,6 @@ void LegController<T>::updateData(const TiBoardData* tiBoardData) {
 /*!
  * Update the "leg command" for the SPIne board message
  */
-template <typename T>
 // OPERATIONAL JOINT LIMITS (OPEN-31). Unitree's firmware enforces a joint
 // range narrower than the URDF's mechanical stops - abad +-55 deg, thigh
 // -33..165, calf -151..-53 (go1_const.h / the binary's second limit set) -
@@ -140,8 +141,6 @@ template <typename T>
 // into the range less a margin, and a soft stop (spring-damper, capped)
 // is added to the feed-forward when the JOINT itself is past the range.
 // $CTRL_JOINT_LIMITS=0 disables for A/B; margin/stiffness are knobs.
-#include "Utilities/CtrlTuning.h"
-#include <atomic>
 std::atomic<long> g_jointLimitClamps{0}, g_jointLimitStops{0};
 namespace {
 constexpr float kJLo[3] = {-55.f * 0.0174533f, -165.f * 0.0174533f,  53.f * 0.0174533f};
