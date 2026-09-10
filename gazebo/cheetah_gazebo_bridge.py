@@ -122,7 +122,19 @@ QUAT_CONJ = os.environ.get("QUAT_CONJ", "0") == "1"
 if QUAT_CONJ:
     print("[bridge] IMU quaternion: conjugated (body->world => world->body)", flush=True)
 
+# SENSOR-SIDE FRESHNESS. cmd_rx/rx_backlog_max measure the COMMAND path; this
+# measures the IMU path from gz-transport: messages per second and the worst
+# wall-clock gap between two of them. A fleet of three shares one engine and
+# one transport, and a controller stepping on a stale pose is the same
+# failure as a bridge holding a stale command (OPEN-28), from the other side.
+_imu_stat = [0, 0.0, 0.0]   # [count this second, last arrival, worst gap s]
+
 def on_imu(msg: IMU):
+    now = time.time()
+    if _imu_stat[1] > 0.0 and now - _imu_stat[1] > _imu_stat[2]:
+        _imu_stat[2] = now - _imu_stat[1]
+    _imu_stat[1] = now
+    _imu_stat[0] += 1
     with lock:
         imu["accel"] = [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z]
         imu["gyro"]  = [msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z]
@@ -517,10 +529,12 @@ def main():
                 la = round(gps["lat"], 5); lo = round(gps["lon"], 5)
             print(f"[bridge] cmd_rx={cmd_rx[0]}/s peer={peer_ip[0]} imu_az={round(imu['accel'][2],2)} "
                   f"q_FR_hip={q0} tau=[{t0},{t2}] stalls>{5}ms={stalls[0]}/worst={round(stalls[1]*1000,1)}ms "
-                  f"baro={bp}Pa/{ba}m gps=({la},{lo}) rx_backlog_max={_backlog[0]}"
+                  f"baro={bp}Pa/{ba}m gps=({la},{lo}) rx_backlog_max={_backlog[0]} "
+                  f"imu_rx={_imu_stat[0]}/s imu_gap_max={round(_imu_stat[2]*1000,1)}ms"
                   + (f" tau_ff_guard={tau_ff_guard[0]}/worst_scale={round(tau_ff_guard[1],2)}"
                      if tau_ff_guard[0] else ""), flush=True)
             cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0; _backlog[0] = 0
+            _imu_stat[0] = 0; _imu_stat[2] = 0.0
             tau_ff_guard[0] = 0; tau_ff_guard[1] = 1.0
         last += period
         dt = last - now
