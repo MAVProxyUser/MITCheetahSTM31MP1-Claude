@@ -400,6 +400,13 @@ passed on its own in-suite retry.
   between campaigns; the base rate moved more than the effect. Every isolated
   group flat. The cost vector is not the lever.
 
+  **The heading-feedback gate: dead.** `CTRL_YAW_RATE_ALWAYS` 0 vs 1, 30 reps
+  each, interleaved: crossings 6/30 vs 5/30, falls 2/30 vs 2/30, median peak
+  roll 14.9° vs 15.6° — p = 1.00 on all three. The gate is real and it is off
+  in the failing regime, but turning it on changes nothing. The first four
+  rows had read 46.7/45.6 vs 18.1/15.3 on roll; that was two unlucky control
+  draws, and I flagged it as n = 2 at the time. Thirteen hypotheses dead.
+
   ### Two of my own claims corrected
 
   The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
