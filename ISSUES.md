@@ -794,8 +794,19 @@ passed on its own in-suite retry.
   a cruise collapse. OPEN-30 is now the dominant failure on this course
   and is next.
 
-  Transfer to the course the issue is about: `open28_wkc_transport`,
-  udp_old vs unix_old on `wkc_finals`, 15 reps each, running.
+  **Transfer to `wkc_finals` (`open28_wkc_transport`, 15 + 15
+  interleaved, 05:56–06:56):** udp_old **1 PASS**, 12/15 crossings at
+  speed; unix_old **3 PASS**, 7/15 crossings. Receive gaps 0.319/s → 0.006/s.
+  On this course a lethal-window gap crossed 5.0 % of the time (4/80) and
+  the no-gap exchanges 0.21 % — against hp_gap20's 0.05 % — so the transport
+  was only ever the initiator of about a third of the wkc crossings; the
+  rest are a no-freeze collapse of the same exchange. Checked whether
+  shorter freezes (≥ 12 ms) carry the remainder: crossing rate 0.17 % with
+  one at the flip and 0.17 % without — no. **6 of the 7 clean-transport
+  crossings are on the wp06→wp07 leg at a body speed of 2.04–2.13 m/s**
+  (commanded 1.9): the long sustained-cruise leg, the one the record
+  already singled out as "exposure, not a location". The speed there is
+  the next thing to test.
 
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
