@@ -598,6 +598,13 @@ void Stm32mp1HardwareBridge::run() {
              _robotParams.controller_dt * 1000.f,
              simRunId, simInst);
       _robotRunner->clearMax();
+      // The MOTOR task is a separate thread and the control loop's numbers say
+      // nothing about it: the sim bridge saw the command stream freeze for
+      // 33-45 ms about once a second (OPEN-28's initiator) with the control
+      // loop at 2.5 ms throughout. This line is the sender's own period.
+      shmtrace::logf(_healthElapsed, "[stm32mp1] motor task: maxRuntime=%.2f ms  maxPeriod=%.2f ms",
+             motorTask.getMaxRuntime() * 1000.f, motorTask.getMaxPeriod() * 1000.f);
+      motorTask.clearMax();
     }
   }
 }

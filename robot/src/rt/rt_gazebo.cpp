@@ -9,7 +9,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,7 +26,20 @@ namespace {
 GazeboUdpConfig    g_cfg;
 VectorNavData*     g_imu = nullptr;
 int                g_sock = -1;
-struct sockaddr_in g_peer;      // where commands are sent
+struct sockaddr_in g_peer;      // where commands are sent (UDP)
+// UNIX-DOMAIN TRANSPORT ($GAZEBO_SOCK_DIR, host build). macOS holds loopback
+// UDP datagrams for 20-45 ms about 0.1-0.6 times a second - measured with a
+// standalone sender/receiver pair on a quiet host (latency max 37 ms, 12
+// stalls in 20 s) while an AF_UNIX datagram pair beside it delivered in
+// under 1 ms. A command frozen for 40 ms across a stance exchange was the
+// initiator of most of OPEN-28's mid-cruise collapses. When the directory is
+// set and the peer is 127.0.0.1, commands and sensors travel over
+// <dir>/cmd_<port>.sock and <dir>/sensor_<port>.sock instead; the UDP
+// socket is still bound so the conductor's stale-port sweep keeps working.
+bool               g_unix = false;
+int                g_holder = -1;   // the UDP bind kept as a port holder
+struct sockaddr_un g_peer_un;
+char               g_bind_path[128] = {0};
 std::thread        g_thread;
 std::atomic<bool>  g_run{false};
 std::mutex         g_mtx;
@@ -108,10 +123,33 @@ int init_gazebo(const GazeboUdpConfig& cfg, VectorNavData* imu_out) {
     close(g_sock); g_sock = -1; return -1;
   }
 
+  const char* sd = getenv("GAZEBO_SOCK_DIR");
+  if (sd && *sd && strcmp(cfg.peer_addr, "127.0.0.1") == 0) {
+    int us = socket(AF_UNIX, SOCK_DGRAM, 0);
+    struct sockaddr_un ua; memset(&ua, 0, sizeof(ua)); ua.sun_family = AF_UNIX;
+    snprintf(g_bind_path, sizeof(g_bind_path), "%s/sensor_%d.sock", sd, cfg.sensor_port);
+    snprintf(ua.sun_path, sizeof(ua.sun_path), "%s", g_bind_path);
+    unlink(g_bind_path);
+    if (us < 0 || bind(us, (struct sockaddr*)&ua, sizeof(ua)) < 0) {
+      printf("[rt_gazebo] unix bind(%s) failed: %s - staying on UDP\n", g_bind_path, strerror(errno));
+      if (us >= 0) close(us);
+      g_bind_path[0] = 0;
+    } else {
+      setsockopt(us, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+      memset(&g_peer_un, 0, sizeof(g_peer_un)); g_peer_un.sun_family = AF_UNIX;
+      snprintf(g_peer_un.sun_path, sizeof(g_peer_un.sun_path), "%s/cmd_%d.sock", sd, cfg.cmd_port);
+      g_holder = g_sock;      // keep the UDP port bound for the stale-port sweep
+      g_sock = us; g_unix = true;
+    }
+  }
   g_run.store(true);
   g_thread = std::thread(reader_loop);
-  printf("[rt_gazebo] UDP up: recv sensors on :%d, send commands to %s:%d\n",
-         cfg.sensor_port, cfg.peer_addr, cfg.cmd_port);
+  if (g_unix)
+    printf("[rt_gazebo] UNIX up: recv sensors on %s, send commands to %s (UDP :%d held)\n",
+           g_bind_path, g_peer_un.sun_path, cfg.sensor_port);
+  else
+    printf("[rt_gazebo] UDP up: recv sensors on :%d, send commands to %s:%d\n",
+           cfg.sensor_port, cfg.peer_addr, cfg.cmd_port);
   return 0;
 }
 
@@ -138,8 +176,10 @@ void gazebo_send_receive(spi_command_t* command, spi_data_t* data) {
     c.tau_ff[leg*3+1] = command->tau_hip_ff[leg];
     c.tau_ff[leg*3+2] = command->tau_knee_ff[leg];
   }
-  if (g_sock >= 0)
-    sendto(g_sock, &c, sizeof(c), 0, (struct sockaddr*)&g_peer, sizeof(g_peer));
+  if (g_sock >= 0) {
+    if (g_unix) sendto(g_sock, &c, sizeof(c), 0, (struct sockaddr*)&g_peer_un, sizeof(g_peer_un));
+    else        sendto(g_sock, &c, sizeof(c), 0, (struct sockaddr*)&g_peer, sizeof(g_peer));
+  }
 
   // copy the latest feedback out
   std::lock_guard<std::mutex> lk(g_mtx);
@@ -150,6 +190,8 @@ void gazebo_close() {
   g_run.store(false);
   if (g_thread.joinable()) g_thread.join();
   if (g_sock >= 0) { close(g_sock); g_sock = -1; }
+  if (g_holder >= 0) { close(g_holder); g_holder = -1; }
+  if (g_unix && g_bind_path[0]) unlink(g_bind_path);
 }
 
 float gazebo_sensor_hz() { return g_hz.load(); }

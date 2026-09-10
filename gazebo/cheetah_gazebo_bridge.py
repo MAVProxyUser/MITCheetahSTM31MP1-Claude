@@ -219,13 +219,42 @@ def _clear_stale_port(port):
         time.sleep(0.3)  # let the kernel release the port before we bind it
 
 _clear_stale_port(CMD_PORT)
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 try:
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)   # a second of packets, so a stall loses nothing
+    _udp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)   # a second of packets, so a stall loses nothing
 except OSError:
     pass
-sock.bind(("0.0.0.0", CMD_PORT))
-sock.settimeout(0.1)
+_udp.bind(("0.0.0.0", CMD_PORT))
+_udp.settimeout(0.1)
+# UNIX-DOMAIN TRANSPORT ($GAZEBO_SOCK_DIR). macOS holds loopback UDP datagrams
+# for 20-45 ms about 0.1-0.6 times a second (measured standalone: latency
+# max 37 ms, 12 stalls in 20 s, while an AF_UNIX pair beside it delivered in
+# under 1 ms). A command frozen 40 ms across a stance exchange was the
+# initiator of most OPEN-28 collapses. With the directory set, commands come
+# in on <dir>/cmd_<port>.sock and sensors go out to <dir>/sensor_<port>.sock;
+# the UDP socket stays bound so the conductor's stale-port sweep still sees
+# this process. Unset (or empty) = UDP, for A/B.
+SOCK_DIR = os.environ.get("GAZEBO_SOCK_DIR") or ""
+_sensor_path = None
+if SOCK_DIR:
+    os.makedirs(SOCK_DIR, exist_ok=True)
+    _cmd_path = os.path.join(SOCK_DIR, f"cmd_{CMD_PORT}.sock")
+    _sensor_path = os.path.join(SOCK_DIR, f"sensor_{SENSOR_PORT}.sock")
+    try:
+        os.unlink(_cmd_path)
+    except FileNotFoundError:
+        pass
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)
+    except OSError:
+        pass
+    sock.bind(_cmd_path)
+    sock.settimeout(0.1)
+    print(f"[bridge] IPC: unix datagrams ({_cmd_path} -> {_sensor_path}); UDP :{CMD_PORT} held", flush=True)
+else:
+    sock = _udp
+    print("[bridge] IPC: loopback UDP (GAZEBO_SOCK_DIR unset)", flush=True)
 
 def _ingest(data, addr):
     """One command packet -> cmd (and the dump). Shared by both receive paths."""
@@ -235,8 +264,8 @@ def _ingest(data, addr):
     if vals[0] != COMMAND_MAGIC:
         return
     if peer_ip[0] is None:
-        peer_ip[0] = addr[0]
-        print(f"[bridge] controller at {addr[0]}", flush=True)
+        peer_ip[0] = addr[0] if isinstance(addr, tuple) else (addr or "unix")
+        print(f"[bridge] controller at {peer_ip[0]}", flush=True)
     cmd_rx[0] += 1
     last_cmd_t[0] = time.time()
     with lock:
@@ -331,9 +360,12 @@ def send_sensor():
                       ba, bp, glat, glon, galt, *gvel,
                       *tpos, *tquat, *tvw)
     try:
-        sock.sendto(pkt, (peer_ip[0], SENSOR_PORT))
+        if _sensor_path:
+            sock.sendto(pkt, _sensor_path)
+        else:
+            sock.sendto(pkt, (peer_ip[0], SENSOR_PORT))
     except OSError:
-        pass   # controller restarting / gone; keep the bridge alive
+        pass   # controller restarting / gone / not bound yet; keep the bridge alive
 
 _ready = {"joints": False, "pose": False}
 

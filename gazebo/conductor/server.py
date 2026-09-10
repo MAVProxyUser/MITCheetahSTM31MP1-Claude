@@ -79,6 +79,8 @@ for _marker in ("robot", "common", "user"):
 sys.path.insert(0, GAZEBO_DIR)
 import paths as _paths
 RUN_DIR = _paths.RUN_DIR
+SOCK_DIR = os.path.join(RUN_DIR, "sock")     # unix datagram sockets, controller <-> bridge
+os.makedirs(SOCK_DIR, exist_ok=True)
 PARTITION = "cheetah_fleet"
 WORLD = "go1_world"
 PORT = 8420
@@ -1934,8 +1936,14 @@ class Fleet:
                 # environment, so BRIDGE_DUMP - the one instrument that carries
                 # both q and tau_ff per joint - could never be switched on for a
                 # single run. Forward any BRIDGE_* key from the slot's extra.
+                # GAZEBO_SOCK_DIR: the controller<->bridge transport. Set for
+                # BOTH processes (unix datagrams; macOS loopback UDP stalls
+                # 20-45 ms about once a second - OPEN-28's initiator). A slot
+                # extra of GAZEBO_SOCK_DIR= (empty) puts that dog back on UDP
+                # for A/B; the controller sees the same token on its launch line.
+                senv["GAZEBO_SOCK_DIR"] = SOCK_DIR
                 for kv in (s.get("extra") or "").split():
-                    if "=" in kv and kv.split("=", 1)[0].startswith("BRIDGE_"):
+                    if "=" in kv and (kv.split("=", 1)[0].startswith("BRIDGE_") or kv.split("=", 1)[0] == "GAZEBO_SOCK_DIR"):
                         k_, v_ = kv.split("=", 1)
                         senv[k_] = v_.replace("{RUN}", str(self.run_id)).replace("{DOG}", str(i))
                 archive_log(os.path.join(RUN_DIR, "bridge_%d.log" % i), self.run_id - 1)
@@ -1963,6 +1971,7 @@ class Fleet:
                 # kind. Both the C++ nav and mission_geometry.py resolve
                 # against this, so one file defines the geometry for both.
                 cenv["CHEETAH_COURSES"] = os.path.join(GAZEBO_DIR, "courses")
+                cenv["GAZEBO_SOCK_DIR"] = SOCK_DIR
                 cenv["SIM_INSTANCE"] = str(i)
                 # STAGGER THE RAMP ACROSS THE FLEET. Every dog used a fixed
                 # 4 s delay, so N dogs launched together reached commanded

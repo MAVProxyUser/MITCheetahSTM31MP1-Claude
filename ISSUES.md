@@ -698,13 +698,29 @@ passed on its own in-suite retry.
   window looks like from the outside. On hardware the analogue is the
   RS485 thread — which this port already flags for a four-bus harness.
 
-  Fix, queued behind the running campaign (a fresh bridge process starts
-  per run, so the file must not change mid-campaign): drain the command
-  socket non-blocking from the main loop itself — the thread that
-  demonstrably never stalls — instead of a second thread, log the largest
-  backlog drained per second, and raise `SO_RCVBUF`. Then re-run the lead-1
-  baseline on `hp_gap20` with the fixed bridge (prediction: crossings fall
-  from 11/30 and 6/30 to the no-gap rate), then the lead fix on top.
+  **The drain did not fix it, and that located the freeze.** With the
+  command socket drained from the bridge's main loop, the dump still showed
+  gaps of 30–63 ms at 0.09–0.21/s and `rx_backlog_max` of 10–22 packets once
+  a second — a burst of queued packets arriving in one 2 ms pass. The
+  controller's motor task (the sender, a separate thread — now given its
+  own line in the heartbeat, `[stm32mp1] motor task: maxPeriod`) ran at
+  p50 3.0 / p90 3.7 ms with one 46 ms event in 70 s. So neither end
+  stalled: **the macOS kernel holds loopback UDP datagrams**. Reproduced
+  standalone with a Python sender/receiver pair on a quiet host: send-to-
+  receive latency max 37 ms, 12 stalls ≥ 20 ms in 20 s, `sendto` never
+  blocking, seq contiguous — and unaffected by 1 Hz `/api/state` polls or
+  a 1 Hz 2 MB loopback TCP transfer. An **AF_UNIX datagram** pair measured
+  beside it: latency max 0.8 ms, zero delivery stalls.
+
+  Fix (2026-09-10 04:06): `rt_gazebo.cpp` and `cheetah_gazebo_bridge.py`
+  carry commands and sensors over Unix-domain datagram sockets
+  (`$GAZEBO_SOCK_DIR/cmd_<port>.sock`, `sensor_<port>.sock`) when the
+  directory is set and the peer is 127.0.0.1; the UDP ports stay bound so
+  the conductor's stale-port sweep still works; `server.py` sets the
+  directory for both processes, and a slot extra of `GAZEBO_SOCK_DIR=`
+  (empty) puts a dog back on UDP for A/B. The board is unaffected (remote
+  peer → UDP as before). Validation run, then the 4-arm interleaved
+  campaign on `hp_gap20`: transport × lead.
 
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
