@@ -817,6 +817,23 @@ passed on its own in-suite retry.
   default reverts to the alias path until the difference is located; if the
   control also collapses, the rig changed.
 
+  **Resolved: the rig changed.** The control collapsed 2/4 too (all three
+  arms 2–3 of 4), and the controller's own heartbeat showed stalls of
+  46–191 ms in half the runs. `ps -r` found the load: a `gz-transport-topic
+  -e -t /world/go1_world/pose/info -n 1` that had been spinning for **12
+  days at 52 % CPU (8,361 CPU-minutes)** — a one-shot echo that never got
+  its message — plus `pose_feed.py` and `contact_feed.py` orphaned by the
+  withdrawn contact-truth campaign 12 h earlier at ~28 % each, beside the
+  operator's own firmware simulator pinning a core. None are mission
+  processes, so every hygiene check reported the rig clear. Killed the
+  three (not the operator's process); load 5.9 → 3.6. Control batch on the
+  same binary and config, six runs: **6/6 PASS**, three of them through
+  single stalls of 44, 47 and 469 ms — so the binary is exonerated, the
+  lead-path arms are equivalent, and every mid-course rate measured
+  07:00–07:46 is void. What sustained contention does that a single stall
+  does not is not measured; the campaign gate now sweeps stragglers by CPU
+  and age and records the loop's worst period per run in the CSV.
+
   **And a mistake of my own, caught six runs in.** I set the default
   `CTRL_MPC_SCHED_LEAD` to 3 on the reasoning "knob = physical lead with
   the alias fixed", which rested on the solver-input print (table0 =

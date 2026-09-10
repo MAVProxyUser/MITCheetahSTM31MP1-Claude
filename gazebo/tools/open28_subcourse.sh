@@ -34,7 +34,7 @@ ARMS="${ARMS:-}"
 DUMP="${DUMP:-0}"
 campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -84,7 +84,11 @@ PY
   if [ -n "${arm:-}" ]; then LBL="$arm"; elif [ -n "${env:-}" ]; then LBL=$(echo "$env" | tr -d ' =' ); fi
   local BD=""; [ "$DUMP" = 1 ] && BD="$DIR/bridge_${RID}.csv"
   echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID"
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP" >> "$OUT"
+  # the control loop's worst period in this run (ms) - a host-stall column,
+  # so a run that survived a 469 ms freeze and one that ran clean are not
+  # the same row (2026-09-10: three of six control runs carried 44-469 ms)
+  local LM; LM=$(grep 'ctrl loop' "$L" 2>/dev/null | grep -oE 'maxPeriod=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-}" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }

@@ -160,8 +160,27 @@ campaign_check_csv(){   # $1 = csv path
 #
 # Two things have to be true before a campaign starts: nothing else is running,
 # and no marker is lying around from last time. Call this first.
+campaign_host_sweep(){
+  # STRAGGLERS ARE NOT MISSION PROCESSES, so the port sweeps and the pgrep
+  # patterns never see them. 2026-09-10: a `gz topic -e ... -n 1` had spun for
+  # 12 days at 52 % CPU and two feed scripts orphaned by a withdrawn campaign
+  # ran 12 h at ~28 % each; the collapse rate on hp_gap20 went 0/15 -> 65 %
+  # and every check said the rig was clear. Kill topic echoes older than ten
+  # minutes and feed scripts nobody owns (ppid 1), then print what is left.
+  local p
+  for p in $(ps -eo pid,etime,command | awk '/gz-transport-topic -e|gz topic -e/ && !/awk/ {
+      n=split($2,a,":"); if ($2 ~ /-/ || n>=3 || (n==2 && a[1]+0>=10)) print $1}'); do
+    echo "  [sweep] killing stuck gz topic echo pid $p (up $(ps -o etime= -p "$p" | tr -d ' '))"; kill "$p" 2>/dev/null
+  done
+  for p in $(ps -eo pid,ppid,command | awk '$2==1 && /(pose|contact|cam)_feed\.py/ && !/awk/ {print $1}'); do
+    echo "  [sweep] killing orphaned feed pid $p"; kill "$p" 2>/dev/null
+  done
+  echo "  [host] load$(uptime | sed 's/.*load averages*//'); busiest: $(ps -eo pcpu,comm -r | sed -n 2,4p | awk '{printf "%s %.0f%%  ", $2, $1}')"
+}
+
 campaign_claim(){   # $1 = campaign name
   local name="$1" other
+  campaign_host_sweep
   other=$(pgrep -fl "gazebo/tools/.*\.sh" 2>/dev/null |
           grep -v "campaign_lib" | grep -v "[[:space:]]$$[[:space:]]" |
           grep -vc "^$$ " || true)
