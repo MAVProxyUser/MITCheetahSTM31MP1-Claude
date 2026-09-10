@@ -84,6 +84,10 @@ cd /usr/local/cheetah-mp1
 ```
 UDP: controller → bridge on :9100 (impedance command), bridge → controller on :9101
 (IMU/joint/baro/GPS). The bridge learns the controller's IP from its first packet.
+On the host, with `GAZEBO_SOCK_DIR` set (the conductor sets it), both ends use
+unix-domain datagram sockets in that directory instead — macOS loopback UDP
+stalls deliveries by 20–45 ms about once a second, which froze commands across
+stance exchanges (OPEN-28). The UDP ports stay bound as holders.
 
 ## Notes / next
 - Joint map is identity (Go1 `{hip,thigh,calf}` = Cheetah `{abad,hip,knee}`); the Go1

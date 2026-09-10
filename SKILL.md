@@ -769,6 +769,26 @@ If you ever bring a dog up by hand OUTSIDE the conductor (`sim_up.sh`,
 not run for you automatically the same way - `lsof -i :9100 -i :9101` (and
 the `+10*i` ports for any instance beyond 0) before trusting a "frozen
 state"/"identical failure every run" result from a manual session.
+
+### Transport: unix-domain datagrams on the host, UDP only for the board
+
+macOS holds loopback UDP datagrams for 20-45 ms about 0.1-0.6 times a
+second (measured standalone, 2026-09-10: send-to-receive latency max 37 ms,
+12 stalls in 20 s, unaffected by host load; an AF_UNIX pair beside it:
+max 0.8 ms). A command frozen 40 ms across a stance exchange was the
+initiator of most OPEN-28 collapses. So the conductor sets
+`GAZEBO_SOCK_DIR=$RUN_DIR/sock` for BOTH the bridge and the controller, and
+they talk over `cmd_<port>.sock` / `sensor_<port>.sock` there; the UDP ports
+are still bound (as holders) so the stale-port checks above keep working.
+The bridge prints `[bridge] IPC: unix datagrams ...` and the controller
+`[rt_gazebo] UNIX up: ...` - if a run's logs say `loopback UDP` / `UDP up`,
+the env did not reach one end and the run carries the freezes. A slot extra
+of `GAZEBO_SOCK_DIR=` (empty) puts that dog back on UDP for A/B. Manual
+runs outside the conductor: export the variable for both processes, or
+accept UDP. The bridge's stats line carries `rx_backlog_max` (packets found
+waiting per drain pass: 1-2 healthy, 10-22 was the UDP signature) and the
+controller's heartbeat carries `[stm32mp1] motor task: maxPeriod`, the
+sender's own period - the control loop's numbers say nothing about it.
 Regenerate the world after editing `make_world.py`:
 ```bash
 cd gazebo
