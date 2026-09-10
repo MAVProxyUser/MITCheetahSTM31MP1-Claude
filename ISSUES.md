@@ -719,8 +719,20 @@ passed on its own in-suite retry.
   the conductor's stale-port sweep still works; `server.py` sets the
   directory for both processes, and a slot extra of `GAZEBO_SOCK_DIR=`
   (empty) puts a dog back on UDP for A/B. The board is unaffected (remote
-  peer → UDP as before). Validation run, then the 4-arm interleaved
-  campaign on `hp_gap20`: transport × lead.
+  peer → UDP as before). Validation run 4427 on the unix transport: **0
+  receive gaps ≥ 20 ms in 87 s (worst 14 ms; UDP: 0.08–0.21/s ≥ 30 ms,
+  worst 63), backlog ≤ 2 packets per pass** — and the run still collapsed
+  at wp2, with the SAME anatomy as the gap-initiated ones and no gap: the
+  new pair reaches the ground moving 0.7–1.3 m/s and never takes the load
+  (vz keeps falling to −0.39 m/s through +36 ms, ordinary exchanges bottom
+  at −0.2 by +8), then the retraction, then z −2.5 cm in 30 ms. So the
+  frozen command was one trigger of a failure the exchange can produce on
+  its own when the catching feet skate instead of gripping; the campaign's
+  no-gap crossing rate (0.05 % of exchanges, 3 of 12 gap-free runs) is what
+  the transport fix converges to, and the table lead (k0: the body is not
+  falling when the feet arrive) is the lever on the residual. Running now:
+  `open28_fix2x2` — udp_old / unix_old / unix_k1 / unix_k0, 15 reps each,
+  interleaved, on `hp_gap20`.
 
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
