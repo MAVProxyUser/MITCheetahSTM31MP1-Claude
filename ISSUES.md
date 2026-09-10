@@ -94,7 +94,29 @@ passed on its own in-suite retry.
   target. This is the OPEN-27 lie-down chain (PASSIVE hop → STAND_UP at 0.15 →
   edamp) going over sideways on this course; `wkc_finals` did not show it
   (FIX 9/14 PASS). Excluded from every OPEN-28 count as "lie-down tips".
-  Untouched so far; separate mechanism, separate fix.
+
+  **Anatomy (2026-09-10, the 38 finishes of `open28_fix2x2`, 9 tipped).**
+  Every finish is the same sequence. The waypoint fires at 1.5 m with the
+  body at 0.2–0.5 m/s; `[stop] shedding 0.00 m/s` — the planner's end brake
+  had the STICK at zero already, so the ramp is 0.6 s of zero-velocity
+  locomotion under a moving body (the OPEN-27 dwell, on this course); the
+  body pitches **8–12° nose-down** in it; the stop wait's 8° attitude bail
+  fires at 0.1–0.4 s with 0.2–0.5 m/s still on the body (36/38); the settle
+  watch enters at 9–13° and its 8° bail fires on the first sample
+  (0.03 s, 38/38 — "BALANCE_STAND is diverging" was judging the ENTRY angle);
+  the lie-down begins from that posture and 9/38 come to rest at 24–45°
+  roll (40.5° to the decimal five times: the body propped on the folded
+  legs). Nothing in the chain had a chance to level the body.
+
+  Fix built (deployed after the running campaign), both halves A/B-able:
+  (1) `decelerateAndConfirmStopped` floors its seed at the body's measured
+  speed (`WP_STOP_SEED_MEASURED`, default on) so the stick follows the body
+  down instead of standing at zero under it; (2) `settleOnFeet` bails on a
+  worsening trend — entry + 3°, floored at the old 8°, capped at 20° —
+  instead of the entry angle (`WP_SETTLE_TREND`, default on), so a body that
+  comes in at 10° gets its 1.5 s of BALANCE_STAND. Test: interleaved A/B on
+  `hp_gap20`, both halves off vs on, endpoint = tips per finish and the
+  attitude at lie-down entry.
 
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall

@@ -558,9 +558,33 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
    * there is exactly one place that decision is made.
    */
   auto decelerateAndConfirmStopped = [&](float candidate_speed) {
-    const float seed = use_planner
+    float seed = use_planner
         ? std::min(candidate_speed, (float)planner.plannedSpeed())
         : candidate_speed;
+    // SEED FROM THE BODY, NOT THE STICK (OPEN-30, 2026-09-10). On hp_gap20
+    // every one of 38 finishes logged "shedding 0.00 m/s": the planner's end
+    // brake had the COMMAND at zero by the time the waypoint fired while the
+    // body still carried 0.2-0.5 m/s, so the ramp below was 0.6 s of
+    // zero-velocity locomotion under a moving body - the exact dwell OPEN-27
+    // closed on wkc_finals - and the body pitched 8-12 deg nose-down in it,
+    // both watchdogs bailed within 0.4 s, and the lie-down began from that
+    // posture: 9 of 38 tipped past 24 deg roll. With the seed floored at the
+    // measured speed the stick follows the body down instead of standing at
+    // zero under it. $WP_STOP_SEED_MEASURED=0 restores the stick seed for A/B.
+    {
+      const bool seed_meas = !getenv("WP_STOP_SEED_MEASURED") ||
+                             atoi(getenv("WP_STOP_SEED_MEASURED")) != 0;
+      if (seed_meas && bridge->robotRunner()) {
+        const auto& es0 = bridge->robotRunner()->getStateEstimate();
+        const float meas = std::sqrt(es0.vBody[0] * es0.vBody[0] +
+                                     es0.vBody[1] * es0.vBody[1]);
+        if (std::isfinite(meas) && meas > seed) {
+          shmtrace::logf(0.0, "[stop] seed raised from the stick's %.2f to the body's %.2f m/s",
+                 (double)seed, (double)std::min(meas, 2.0f));
+          seed = std::min(meas, 2.0f);
+        }
+      }
+    }
     // RAMP LENGTH SCALES WITH THE SPEED BEING SHED (2026-09-04).
     //
     // This was a FIXED 16 steps x 50 ms = 0.8 s regardless of the speed it
@@ -759,6 +783,20 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
         ? (float)atof(getenv("WP_SETTLE_BAIL_DEG")) : 8.0f;
     const float t0 = elapsed();
     int calm_ms = 0; float worst = 0.f;
+    // BAIL ON A WORSENING TREND, NOT THE ENTRY ANGLE (OPEN-30). Every finish
+    // on hp_gap20 entered this watch at 9-13 deg pitch, so the 8 deg bail
+    // fired on the FIRST sample, after 0.03 s, and BALANCE_STAND never got
+    // the 1.5 s it exists for: the lie-down began from the tilted, still-
+    // moving posture. "Diverging" has to mean getting worse than it came
+    // in: the bail line is the entry angle plus a margin, never below the
+    // old threshold, with a hard cap. $WP_SETTLE_TREND=0 restores the fixed
+    // threshold for A/B.
+    const bool trend = !getenv("WP_SETTLE_TREND") || atoi(getenv("WP_SETTLE_TREND")) != 0;
+    const float trend_margin = getenv("WP_SETTLE_TREND_DEG")
+        ? (float)atof(getenv("WP_SETTLE_TREND_DEG")) : 3.0f;
+    const float hard_cap = getenv("WP_SETTLE_CAP_DEG")
+        ? (float)atof(getenv("WP_SETTLE_CAP_DEG")) : 20.0f;
+    float entry = -1.f;
     while ((elapsed() - t0) * 1000.f < (float)max_ms) {
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
       if (!bridge->robotRunner()) continue;
@@ -766,8 +804,15 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       const float r = std::fabs(es.rpy[0]) * 57.2958f;
       const float p = std::fabs(es.rpy[1]) * 57.2958f;
       const float w = (r > p) ? r : p;
+      if (entry < 0.f) {
+        entry = w;
+        if (trend && entry >= bail_deg)
+          shmtrace::logf(elapsed(), "[settle] entered at %.1f deg - bailing only past %.1f (trend) or %.1f (cap)",
+                 (double)entry, (double)(entry + trend_margin), (double)hard_cap);
+      }
       if (w > worst) worst = w;
-      if (w >= bail_deg) {
+      const float bail_line = trend ? std::min(hard_cap, std::max(bail_deg, entry + trend_margin)) : bail_deg;
+      if (w >= bail_line) {
         shmtrace::logf(elapsed(),
                "[settle] BAILING at %.1f deg (roll=%.1f pitch=%.1f) after %.2f s - "
                "BALANCE_STAND is diverging, handing to the lie-down now",
