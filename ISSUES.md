@@ -43,10 +43,12 @@ passed on its own in-suite retry.
   3): **1 of 18 dog-runs passed**; the accidental 2-dog rep earlier that
   day passed 2/2 and the solo dash at this speed is table-grade (3/3 at
   3.1 commanded). Every failure is the same event: the orientation ESTOP,
-  pitch 29–38.5° with roll under 22°, at 2.9–3.1 m/s, **27–28 s into each
-  dog's own mission** (the trip times are staggered by exactly the launch
-  stagger: dog0 ≈ 28 s, dog1 ≈ 33 s, dog2 ≈ 37 s), i.e. the moment each dog
-  reaches its cruise — deterministic, not a coin flip. Measured during the
+  pitch 29–38.5° with roll under 22°, at 2.9–3.1 m/s, and on each dog's
+  OWN clock it is the same event every time: the ramp starts at 19.4 /
+  24.4 / 29.4 s (the conductor's 5 s per-slot mission delay), cruise
+  (> 2.9 m/s) is reached 5.5 s later, and the ESTOP follows **2.7–3.2 s
+  after reaching cruise, 17–19 m from the start, on all six dog-runs of
+  reps 5–6** — deterministic, not a coin flip. Measured during the
   reps, all clean: sim real-time factor mean 1.000 / p5 0.997 / p50 1.000
   (`/stats`, 20 s windows); command path 500/s with backlog ≤ 2; IMU path
   499–501/s with a worst gap ≤ 4 ms in cruise (the new bridge `imu_rx` /
