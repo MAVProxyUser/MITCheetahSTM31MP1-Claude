@@ -220,8 +220,68 @@ def _clear_stale_port(port):
 
 _clear_stale_port(CMD_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)   # a second of packets, so a stall loses nothing
+except OSError:
+    pass
 sock.bind(("0.0.0.0", CMD_PORT))
 sock.settimeout(0.1)
+
+def _ingest(data, addr):
+    """One command packet -> cmd (and the dump). Shared by both receive paths."""
+    if len(data) != struct.calcsize(COMMAND_FMT):
+        return
+    vals = struct.unpack(COMMAND_FMT, data)
+    if vals[0] != COMMAND_MAGIC:
+        return
+    if peer_ip[0] is None:
+        peer_ip[0] = addr[0]
+        print(f"[bridge] controller at {addr[0]}", flush=True)
+    cmd_rx[0] += 1
+    last_cmd_t[0] = time.time()
+    with lock:
+        cmd["q_des"]  = list(vals[2:14])
+        cmd["qd_des"] = list(vals[14:26])
+        cmd["kp"]     = list(vals[26:38])
+        cmd["kd"]     = list(vals[38:50])
+        cmd["tau_ff"] = list(vals[50:62])
+        if _dump_f:
+            _dump_n[0] += 1
+            if (_dump_n[0] % 5) == 0:
+                row = [f"{time.time():.3f}"]
+                row += [f"{v:.4f}" for v in qj]
+                row += [f"{v:.3f}" for v in cmd["qd_des"]]
+                row += [f"{v:.4f}" for v in cmd["q_des"]]
+                row += [f"{v:.1f}" for v in cmd["kp"]]
+                row += [f"{v:.2f}" for v in cmd["kd"]]
+                row += [f"{v:.2f}" for v in cmd["tau_ff"]]
+                _dump_f.write(",".join(row) + "\n")
+
+# RECEIVE PATH. The command socket is drained from the MAIN loop, not a
+# thread. Measured 2026-09-10 (OPEN-28, 86 runs): a `udp_rx` thread stopped
+# running for 33-45 ms about once per second - the dump then shows a burst
+# of queued packets - while this loop's own stalls>5ms counter read 0. The
+# frozen `cmd` held a SWING command through a stance exchange, the landing
+# feet skated instead of gripping, and that was the initiator of 21 of 27
+# mid-cruise collapses. Draining here ties command freshness to the loop
+# that demonstrably never stalls. BRIDGE_RX_THREAD=1 restores the thread
+# for A/B; rx_backlog_max in the 1 Hz stats line is how many packets one
+# drain found waiting (a healthy loop sees 0-2).
+RX_THREAD = os.environ.get("BRIDGE_RX_THREAD") == "1"
+_backlog = [0]     # max packets drained in one pass, this second
+
+def drain_commands():
+    n = 0
+    while True:
+        try:
+            data, addr = sock.recvfrom(4096)
+        except (BlockingIOError, socket.timeout, InterruptedError):
+            break
+        n += 1
+        _ingest(data, addr)
+    if n > _backlog[0]:
+        _backlog[0] = n
+    return n
 
 def udp_rx():
     while True:
@@ -229,33 +289,7 @@ def udp_rx():
             data, addr = sock.recvfrom(4096)
         except socket.timeout:
             continue
-        if len(data) != struct.calcsize(COMMAND_FMT):
-            continue
-        vals = struct.unpack(COMMAND_FMT, data)
-        if vals[0] != COMMAND_MAGIC:
-            continue
-        if peer_ip[0] is None:
-            peer_ip[0] = addr[0]
-            print(f"[bridge] controller at {addr[0]}", flush=True)
-        cmd_rx[0] += 1
-        last_cmd_t[0] = time.time()
-        with lock:
-            cmd["q_des"]  = list(vals[2:14])
-            cmd["qd_des"] = list(vals[14:26])
-            cmd["kp"]     = list(vals[26:38])
-            cmd["kd"]     = list(vals[38:50])
-            cmd["tau_ff"] = list(vals[50:62])
-            if _dump_f:
-                _dump_n[0] += 1
-                if (_dump_n[0] % 5) == 0:
-                    row = [f"{time.time():.3f}"]
-                    row += [f"{v:.4f}" for v in qj]
-                    row += [f"{v:.3f}" for v in cmd["qd_des"]]
-                    row += [f"{v:.4f}" for v in cmd["q_des"]]
-                    row += [f"{v:.1f}" for v in cmd["kp"]]
-                    row += [f"{v:.2f}" for v in cmd["kd"]]
-                    row += [f"{v:.2f}" for v in cmd["tau_ff"]]
-                    _dump_f.write(",".join(row) + "\n")
+        _ingest(data, addr)
 
 # BRIDGE_DUMP=<path>: record every 5th command packet (100 Hz) with the joint
 # state at arrival - q, q_des, kp, kd, tau_ff for all 12 joints. Mac-side and
@@ -273,7 +307,12 @@ if _dump_f:
                   + ",".join(f"kd{i}" for i in range(12)) + ","
                   + ",".join(f"tff{i}" for i in range(12)) + "\n")
 
-threading.Thread(target=udp_rx, daemon=True).start()
+if RX_THREAD:
+    threading.Thread(target=udp_rx, daemon=True).start()
+    print("[bridge] command receive: THREAD (BRIDGE_RX_THREAD=1, the path measured starving)", flush=True)
+else:
+    sock.setblocking(False)
+    print("[bridge] command receive: drained from the main loop", flush=True)
 
 def send_sensor():
     with lock:
@@ -389,6 +428,8 @@ def main():
     tau_ff_guard = [0, 1.0]   # ticks where the micro-staleness guard engaged, worst scale seen
     prev = time.time()
     while True:
+        if not RX_THREAD:
+            drain_commands()
         scale = control_step()
         send_sensor()
         now = time.time()
@@ -407,10 +448,10 @@ def main():
                 la = round(gps["lat"], 5); lo = round(gps["lon"], 5)
             print(f"[bridge] cmd_rx={cmd_rx[0]}/s peer={peer_ip[0]} imu_az={round(imu['accel'][2],2)} "
                   f"q_FR_hip={q0} tau=[{t0},{t2}] stalls>{5}ms={stalls[0]}/worst={round(stalls[1]*1000,1)}ms "
-                  f"baro={bp}Pa/{ba}m gps=({la},{lo})"
+                  f"baro={bp}Pa/{ba}m gps=({la},{lo}) rx_backlog_max={_backlog[0]}"
                   + (f" tau_ff_guard={tau_ff_guard[0]}/worst_scale={round(tau_ff_guard[1],2)}"
                      if tau_ff_guard[0] else ""), flush=True)
-            cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0
+            cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0; _backlog[0] = 0
             tau_ff_guard[0] = 0; tau_ff_guard[1] = 1.0
         last += period
         dt = last - now
