@@ -137,9 +137,18 @@ struct Record {
                                    // at the call site in RobotRunner.cpp. What
                                    // this field carries is what the MPC
                                    // believed it was pushing with.
-  float    track_err[4];          // per-leg |pDes - p|, m: how far each foot
-                                   // is from where the controller ASKED it to
-                                   // be. Added 2026-09-04 to split OPEN-26 in
+  float    track_err[4];          // NOT PER-LEG, despite the name. Since
+                                   // 2026-09-04 these carry four diagnostics
+                                   // (see RobotRunner.cpp, the _te4 block):
+                                   //   [0] cmdKinZ - the height the controller
+                                   //       is asking for, m
+                                   //   [1] mean joint tracking error, rad
+                                   //   [2] worst leg's joint error, rad
+                                   //   [3] mean |tauFeedForward|, N*m
+                                   // The name stayed for layout compatibility;
+                                   // it cost a day when [3] read as "leg 3 in
+                                   // 17/17 falls". Originally intended as
+                                   // per-leg |pDes - p| to split OPEN-26 in
                                    // two: during the fold the legs retract by
                                    // 0.285 m against a 0.288 m standing
                                    // height, and nothing so far says whether

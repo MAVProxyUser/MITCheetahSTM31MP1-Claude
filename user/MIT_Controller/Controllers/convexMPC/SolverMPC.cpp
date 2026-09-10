@@ -730,6 +730,39 @@ void solve_mpc(update_data_t* update, problem_setup* setup)
             vc++;
           }
         }
+        // ---- OFFLINE CAPTURE, qpOASES PATH (opt-in, $MPC_DUMP) ----
+        // The JCQP path has had this since OPEN-29; this host runs qpOASES,
+        // and OPEN-28's moving crossings happen here - 6 s of clean trot at
+        // cruise, then z drops 3 cm and the attitude jumps 25 deg in 0.2 s.
+        // That is a leg giving way, not a body running away, and the
+        // candidate is the control side: a transient bad or stale solve.
+        // Same record layout as the JCQP dump (reduced P is not available
+        // here, so H_red/g_red/A_red/ub_red and q_red are written), buffered
+        // and flushed at the cap so the worker sees only a memcpy.
+        {
+          static std::vector<float>* dbuf = nullptr;
+          static std::string dpath; static long dn = 0, dmax = 0; static bool dinit = false;
+          if(!dinit) { dinit = true; const char* dp = getenv("MPC_DUMP");
+            if(dp && *dp) { dpath = dp; dmax = getenv("MPC_DUMP_MAX") ? atol(getenv("MPC_DUMP_MAX")) : 400;
+              dbuf = new std::vector<float>(); dbuf->reserve((size_t)dmax * 6000); } }
+          if(dbuf && dn < dmax) {
+            auto put = [&](float v){ dbuf->push_back(v); };
+            auto puti = [&](s32 v){ float f; memcpy(&f, &v, 4); dbuf->push_back(f); };
+            puti(0x4D504331); puti(new_vars); puti(new_cons); puti((s32)setup->horizon);
+            for(int i = 0; i < new_vars*new_vars; i++) put((float)H_red[i]);
+            for(int i = 0; i < new_vars; i++) put((float)g_red[i]);
+            for(int i = 0; i < new_cons*new_vars; i++) put((float)A_red[i]);
+            for(int i = 0; i < new_cons; i++) put((float)ub_red[i]);
+            for(int i = 0; i < new_vars; i++) put((float)q_red[i]);
+            // one extra float per record on this path: the solver's return code,
+            // because "what did qpOASES say" is exactly the question
+            put((float)rval);
+            if(++dn >= dmax) { FILE* f = fopen(dpath.c_str(), "wb");
+              if(f) { fwrite(dbuf->data(), sizeof(float), dbuf->size(), f); fclose(f); }
+              shmtrace::logf(0.0, "[MPCDUMP] qpOASES: buffered %ld records (%.1f MB), written at the cap", dn, dbuf->size()*4.0/1e6);
+              delete dbuf; dbuf = nullptr; }
+          }
+        }
       } else { // use jcqp == 2
         QpProblem<double> reducedProblem(new_vars, new_cons);
 

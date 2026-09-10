@@ -50,7 +50,7 @@ one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
   local CONTACT="$DIR/contact_${arm}_$rep.jsonl"
   ( timeout 400 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
       --slot "${CAMPAIGN_SLOT:-dash:30}" --gait "$gait" --speed "$spd" --dash 0 \
-      --wait-for-gate 1800 --extra "WP_CLOSE_LEG=0 ${CAMPAIGN_EXTRA:-}" \
+      --wait-for-gate 1800 --extra "WP_CLOSE_LEG=0 ${CAMPAIGN_EXTRA//\{REP\}/${arm}_$rep}" \
       > "$DIR/run.log" 2>&1 ) & local RP=$!
   for i in $(seq 1 90); do pgrep -f 'gz[ ]sim' >/dev/null 2>&1 && break; sleep 1; done
   # the three gz env vars server.py sets on itself; without them the
@@ -77,6 +77,11 @@ one(){ local arm="$1" rep="$2" gait="$3" terr="$4" spd="$5"
   local CL; CL=$(wc -l < "$CONTACT" 2>/dev/null | tr -d ' ')
   echo "  $arm rep$rep $gait/$terr@$spd ${V:-NONE} truth=$TL contact=${CL:-0} snap=$([ "$SNAP" = NONE ] && echo NONE || echo ok)"
   echo "$(date +%H:%M:%S),$arm,$rep,$gait,$terr,$spd,${V:-NONE},$TL,$SNAP,$TRUTH,$CONTACT" >> "$OUT"
+  # A QP capture is ~100 MB per run; keep it only where there is something to
+  # read. CAMPAIGN_EXTRA="MPC_DUMP=$DIR/qp_{REP}.bin ..." names one per run.
+  if [ -n "${CAMPAIGN_PRUNE_DUMPS_ON_PASS:-}" ] && [ "${V:-}" = "PASS" ]; then
+    rm -f "$DIR"/qp_"${arm}_$rep".bin
+  fi
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     if [ "$FAILS" -ge 3 ]; then

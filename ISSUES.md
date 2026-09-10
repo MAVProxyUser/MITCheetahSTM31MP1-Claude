@@ -407,6 +407,40 @@ passed on its own in-suite retry.
   rows had read 46.7/45.6 vs 18.1/15.3 on roll; that was two unlucky control
   draws, and I flagged it as n = 2 at the time. Thirteen hypotheses dead.
 
+  ### Where the crossings actually are, and what the trace cannot see
+
+  The nav lines sit ~18 s **behind** the records (I had this right in
+  OPEN-27, then wrongly "corrected" it). Placed on the nav clock, the moving
+  crossings are **mid-straight at full cruise** — 9 m into the opening leg,
+  3 m into the westbound leg, 12 m after the reversal — not at the reversal
+  and not at a corner. The reversal work answered a real but different
+  question: `WP_VSLEW` cuts the exit roll 14.5° → 4.9° with a clean
+  dose-response and takes exit-window crossings to zero, but the crossings
+  were never mostly there.
+
+  The moving crossings look like this, every one: **≥6 s of nominal trot at
+  1.9–2.0 m/s, z = 0.27, pitch 2–3°, wz ≈ 0 — then z drops ~3 cm in ~0.3 s
+  and the attitude jumps 25° in 0.2 s.** Tested at that instant with matched
+  controls: force envelope 0.84 vs 0.87 (p = 0.93); loop period over the last
+  second 4.33 vs 4.26 ms (the 0.3 s spike is during the collapse); mean
+  feed-forward torque identical until −0.4 s, exceeds +3σ a median **0.13 s**
+  before the crossing, and z/attitude precede it in 11–12 of 16 — the
+  controller is *fighting* the collapse, not causing it. Fourteen hypotheses.
+
+  Also found: `track_err[0..3]` are not per-leg errors — they are `cmdKinZ`,
+  mean joint error, worst joint error, mean |τ_ff| (`RobotRunner.cpp`, the
+  `_te4` block). Slot 3 read as "leg 3 in 17/17 falls" for an hour.
+
+  Something under the body **gives, instantaneously, with no precursor the
+  trace can carry**: a foot slipping, a contact-solver pop, or a
+  self-collision. The trace has no foot-level horizontal data, so it cannot
+  tell them apart. Gazebo contact truth and pose truth can. Next campaign:
+  `hp_gap20` under `campaign_truth.sh` with the qpOASES QP capture on, dumps
+  kept only for runs that cross.
+
+  The **lie-down tips** (roll ≈ 29° at z ≈ 0.10, no E-stop, 8 of 9 at the
+  finish) are a separate judge-level issue and are excluded from "crossings".
+
   ### Two of my own claims corrected
 
   The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
