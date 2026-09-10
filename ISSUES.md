@@ -168,8 +168,10 @@ passed on its own in-suite retry.
   is off by **0.17 m/s** on average during a 1.9 m/s trot while forward
   is off by 0.04 — a fact about the LinearKF worth its own look (the MPC
   reads vz, weight 0.1; the height governor reads dz/dt). The dash (3.0)
-  and wkc_finals arms are running in the same chain; unless they invert
-  this, the gate stays OFF and this closes as measured-null.
+  arm was stopped at 0/4 (both arms) because the sprint itself is marginal
+  on this build (OPEN-34) — it carries no information about the gate; the
+  wkc_finals arm runs in chain D (`campaign_chain_20260910d.sh`). Unless
+  wkc inverts this, the gate stays OFF and this closes as measured-null.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
