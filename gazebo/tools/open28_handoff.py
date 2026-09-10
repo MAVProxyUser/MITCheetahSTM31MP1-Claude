@@ -29,10 +29,17 @@ DIAG = {0: 3, 1: 2, 2: 1, 3: 0}
 
 
 def exchanges(pre, i0, i1):
+    """A touchdown is a descent through 1 cm by a foot that was genuinely in
+    swing - above 2 cm at some point in the previous 50 ms. Without that, the
+    foot height jittering around the 1 cm line double-counts: 36k 'exchanges'
+    in 30 runs where a 3-4 Hz trot over 40 s of cruise produces ~600 real
+    touchdowns per run, and every phantom scores as an instant, hole-free
+    exchange that dilutes the rate."""
     out = []
-    for n in range(i0 + 1, i1):
+    for n in range(i0 + 26, i1):
         for l in range(4):
-            if gh(pre[n-1], l) >= 0.01 and gh(pre[n], l) < 0.01:
+            if gh(pre[n-1], l) >= 0.01 and gh(pre[n], l) < 0.01 \
+                    and any(gh(pre[m], l) > 0.02 for m in range(n - 25, n)):
                 out.append((n, l))
     return out
 
