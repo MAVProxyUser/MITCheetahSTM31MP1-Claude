@@ -1675,13 +1675,21 @@ class Fleet:
                               chase=s["cam_chase"], distance=s["chase_distance"],
                               height=s["chase_height"], degree=s["chase_degree"])
                         for s in locked]
+            # GO1_EFFORT_SCALE from any slot's extra reaches the world builder
+            # (OPEN-28: a diagnostic arm that raises the SDF joint effort limits
+            # to test whether Gazebo's silent torque clip is the mechanism).
+            wenv = os.environ.copy()
+            for s in locked:
+                for kv in (s.get("extra") or "").split():
+                    if kv.startswith("GO1_EFFORT_SCALE="):
+                        wenv["GO1_EFFORT_SCALE"] = kv.split("=", 1)[1]
             r = subprocess.run(
                 [sys.executable, os.path.join(HERE, "fleet_world.py"),
                  "--terrain=%s" % terrain_kind,
                  "--cam_config=%s" % json.dumps(cam_cfgs),
                  os.path.join(GAZEBO_DIR, "worlds/go1_speedway.sdf"),
                  world_out] + [s["mission"] for s in locked],
-                capture_output=True, text=True)
+                capture_output=True, text=True, env=wenv)
             if r.returncode != 0:
                 self._note("world build FAILED: " + r.stderr[-500:])
                 with self.lock:
@@ -1921,6 +1929,15 @@ class Fleet:
                 senv = env.copy()
                 senv["SIM_INSTANCE"] = str(i)
                 senv["SIM_MODEL"] = name
+                # Per-run env for the BRIDGE (OPEN-28). The controller gets the
+                # slot's `extra` env; the bridge got only the server's inherited
+                # environment, so BRIDGE_DUMP - the one instrument that carries
+                # both q and tau_ff per joint - could never be switched on for a
+                # single run. Forward any BRIDGE_* key from the slot's extra.
+                for kv in (s.get("extra") or "").split():
+                    if "=" in kv and kv.split("=", 1)[0].startswith("BRIDGE_"):
+                        k_, v_ = kv.split("=", 1)
+                        senv[k_] = v_.replace("{RUN}", str(self.run_id)).replace("{DOG}", str(i))
                 archive_log(os.path.join(RUN_DIR, "bridge_%d.log" % i), self.run_id - 1)
                 blog = open(os.path.join(RUN_DIR, "bridge_%d.log" % i), "w")
                 bp = subprocess.Popen(

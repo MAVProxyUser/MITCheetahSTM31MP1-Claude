@@ -228,6 +228,30 @@ def apply_surface_feet(proto, kind):
         raise SystemExit("apply_surface_feet: expected 8 mu edits, made %d" % n)
 
 
+def apply_effort_scale(proto, scale):
+    """DIAGNOSTIC ONLY (OPEN-28). Multiply every joint <effort> limit in the
+    PROTO by `scale`. The controller's LegController clamps torque at
+    setMaxTorqueCheetah3(208.5) - a Cheetah 3 number - and the bridge applies
+    the impedance law with no clamp, so the only torque limit the Go1 ever
+    meets is this SDF's 23.7 / 35.55 N*m, enforced by Gazebo silently. The
+    QP's own bounds (f_max 175 N vertical, +-70 N in the cone) permit force
+    combinations whose joint torques exceed that. If raising the limit removes
+    the mid-straight collapses, the clip is the mechanism; the real fix is
+    then on the controller side (bound the QP to what the motors have), never
+    this - the real dog's motors do not scale."""
+    if scale is None or abs(scale - 1.0) < 1e-9:
+        return
+    n = 0
+    for lim in proto.iter("limit"):
+        eff = lim.find("effort")
+        if eff is not None and eff.text:
+            eff.text = "%g" % (float(eff.text) * scale)
+            n += 1
+    if n != 12:   # 4 legs x 3 joints - a proto change would break this silently
+        raise SystemExit("apply_effort_scale: expected 12 effort edits, made %d" % n)
+    print("GO1_EFFORT_SCALE=%g applied to %d joint effort limits" % (scale, n))
+
+
 def layout(missions):
     """[(mission_spec, spawn_north, spawn_east, (n0,n1,e0,e1) world bbox), ...]"""
     slots = []
@@ -283,6 +307,7 @@ def main():
     tree, world, proto = load_proto(src)
     apply_terrain(world, terrain_kind, os.path.dirname(os.path.abspath(out)), slots=slots)
     apply_surface_feet(proto, terrain_kind)
+    apply_effort_scale(proto, float(os.environ.get("GO1_EFFORT_SCALE", "1")))
 
     for i, (spec, north, east, bbox) in enumerate(slots):
         yaw = mission_spawn_yaw_rad(spec)
