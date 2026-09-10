@@ -68,7 +68,8 @@ for r in rows:
     if not snap or snap == "NONE" or not os.path.exists(snap) or not os.path.exists(dump):
         continue
     d = json.load(open(snap))
-    R = [x for x in d.get("records", []) if x.get("vx") is not None and x.get("roll") is not None and x["t"] > 6.0]
+    ALL = [x for x in d.get("records", []) if x.get("t") is not None]
+    R = [x for x in ALL if x.get("vx") is not None and x.get("roll") is not None and x["t"] > 6.0]
     if len(R) < 600:
         continue
     k = next((i for i in range(1, len(R)) if R[i]["op_mode"] == 2 and R[i-1]["op_mode"] != 2), None)
@@ -79,9 +80,30 @@ for r in rows:
     if len(D) < 500:
         continue
     # The bridge stamps wall time; the trace stamps its own clock. Align on the
-    # bridge's first command after the controller start: both begin within a
-    # second of each other, and the analysis only needs +-0.1 s.
-    off = D[0][0] - R[0]["t"]
+    # bridge's first command against the trace's FIRST record - not R[0], which
+    # is already filtered to t > 6 s and would put the window six seconds off.
+    # Then refine: the 100 Hz dump and the 500 Hz trace both carry the
+    # controller's q_des-vs-q behaviour, so cross-correlate |tau_ff| sum
+    # against the trace's own feed-forward diagnostic (track_err[3] =
+    # mean |tau_ff|) over the whole run and take the lag that maximises it.
+    off = D[0][0] - ALL[0]["t"]
+    try:
+        tr = [(x["t"], x.get("track_err3", 0.0)) for x in ALL if x.get("track_err3") is not None]
+        if len(tr) > 2000:
+            import bisect
+            tt = [t for t, _ in tr]; tv = [v for _, v in tr]
+            best, bl = -1e18, 0.0
+            for lag in [off + k * 0.05 for k in range(-40, 41)]:
+                acc = 0.0; n = 0
+                for t, tau in D[::5]:
+                    i = bisect.bisect_left(tt, t - lag)
+                    if 0 < i < len(tt):
+                        acc += tv[i] * sum(abs(v) for v in tau); n += 1
+                if n and acc / n > best:
+                    best, bl = acc / n, lag
+            off = bl
+    except Exception:
+        pass
     ratio = lambda tau: max(abs(tau[j]) / LIM[j] for j in range(12))
     cruise = [ratio(tau) for t, tau in D if any(abs(t - off - x["t"]) < 0.01 and math.hypot(x["vx"], x["vy"]) > 1.5 and att(x) < 8 for x in pre[::50])]
     rec = dict(arm=r.get("arm") or r.get("course"), rep=r.get("rep"), crossed=(ic is not None and k is not None),
