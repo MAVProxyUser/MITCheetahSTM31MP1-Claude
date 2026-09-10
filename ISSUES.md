@@ -782,9 +782,24 @@ passed on its own in-suite retry.
   n = 15 (pooled 9/30 vs 0/15, p ≈ 0.05), in the same direction as the
   dose-response (cut −44 ms crossed 10/20 against −66's 7/20). The
   "free-fall window" is real and it is not the lever; MIT's own alignment
-  (lead 0) is the worst of the three here. The alias fix stays in the code
-  and the default `CTRL_MPC_SCHED_LEAD` becomes **3**, which is
-  bit-for-bit the behaviour every result in this file was measured at.
+  is the worst of the three here.
+
+  **And a mistake of my own, caught six runs in.** I set the default
+  `CTRL_MPC_SCHED_LEAD` to 3 on the reasoning "knob = physical lead with
+  the alias fixed", which rested on the solver-input print (table0 =
+  table[seg + knob], true) and on the scorer's "old tau drop" column
+  (biased near the flip by the swing-initiation burst). The first six runs
+  of the finish A/B on that build collapsed **6/6 mid-course**, and their
+  knee-torque cliff sat at **−88 ms** with 76–80 ms unsupported — the
+  dose-response's worst arm (physical lead 4). Re-reading every arm's
+  torque timeline: the physical lead is **knob + 1** (fixed path: knob 0
+  → cut −22, 1 → −44, 3 → −88; alias path: knob + 2). One segment between
+  the solver's table index and the legs is still unlocated. The default is
+  now **2** — physical 3, bit-for-bit what every result in this file was
+  measured at — and the rule for the next default change is written into
+  memory: one probe run, and read the manipulation-check columns, before
+  a campaign. The six runs are set aside as
+  `open30_finish_INVALID_lead4.csv`.
 
   3. **What is left on `hp_gap20` is not OPEN-28.** On the clean transport
   the failures are finish-line tips (OPEN-30: the dog reaches all five

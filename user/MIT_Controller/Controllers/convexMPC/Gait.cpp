@@ -144,15 +144,22 @@ int* OffsetDurationGait::getMpcTable()
     // This port restores _iteration from the post-increment counter (the
     // async prefetch's restore) so the same +1 IS a lead here, and until
     // 2026-09-10 a pointer alias on the prefetched table added one more:
-    // the shipped behaviour was an effective lead of 3 - the stance pair's
-    // MPC force cut 66 ms before its scheduled swing. Measured on hp_gap20
-    // (ISSUES.md OPEN-28, 60 + 60 interleaved runs): shorter leads collapse
-    // MORE (lead 0, MIT's own alignment, 4/15 mid-course; lead 1, 5/15;
-    // lead 3, 0/15 on the same transport). So the default is 3 - bit-for-bit
-    // what every result in this tree was measured at - with the alias fixed
-    // so the knob means what it says. Unitree's build has no +1 at all.
+    // the shipped behaviour was a PHYSICAL lead of 3 - the stance pair's
+    // MPC force cut 66 ms before its scheduled swing. THE KNOB IS ONE LESS
+    // THAN THE PHYSICAL LEAD: the solver's step-0 table is table[seg + knob]
+    // (verified at the solver input, $STM32MP1_MPC_IN=2), and the torque
+    // reaches the legs one segment later than that index implies (measured
+    // from the knee-torque cliff in the bridge dump: knob 0 -> cut 22 ms
+    // before the swing, 1 -> 44, 3 -> 88; where that step lives is not yet
+    // located). Measured on hp_gap20 (ISSUES.md OPEN-28, 60 + 60 interleaved
+    // runs): shorter physical leads collapse MORE (1: 4/15 mid-course, 2:
+    // 5/15, 3: 0/15 on the same transport) and longer ones collapse most
+    // (4: 18/20 and 6/6). So the default is 2 = physical 3 = bit-for-bit what
+    // every result in this tree was measured at. Setting this to 3 on
+    // 2026-09-10 gave physical 4 and 6 collapses in 6 runs. Unitree's build
+    // has no +1 at all.
     static const int sched_lead =
-        ctrl_tuning::integer("CTRL_MPC_SCHED_LEAD", 3);
+        ctrl_tuning::integer("CTRL_MPC_SCHED_LEAD", 2);
     int iter = (i + _iteration + sched_lead) % _nIterations;
     Array4i progress = iter - _offsets;
     for(int j = 0; j < 4; j++)

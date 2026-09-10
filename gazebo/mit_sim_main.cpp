@@ -1655,6 +1655,31 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       }
       v_prev = v_apply;
     }
+    // MEASURED-SPEED CAP ($WP_VCAP_GAIN, 0 = off). The body runs 5-10 %
+    // faster than the stick on long straights (wkc_finals: commanded 1.90,
+    // body 2.04-2.13 on the wp06->wp07 leg), and the stance exchange fails
+    // steeply with body speed - on the clean transport, crossings per
+    // exchange 0.04-0.11 % at 1.9 m/s, 0.6-1.8 % at 2.1 (OPEN-28). This
+    // pulls the stick down by gain x the overshoot above a margin, never
+    // below half the planned command, so the course's speed limit is held
+    // on the body and not on the command.
+    {
+      static const float vcap_gain = getenv("WP_VCAP_GAIN") ? (float)atof(getenv("WP_VCAP_GAIN")) : 0.f;
+      static const float vcap_margin = getenv("WP_VCAP_MARGIN") ? (float)atof(getenv("WP_VCAP_MARGIN")) : 0.05f;
+      static int cap_hits = 0;
+      if (vcap_gain > 0.f && bridge->robotRunner()) {
+        const auto& esc = bridge->robotRunner()->getStateEstimate();
+        const float v_meas = std::sqrt(esc.vBody[0] * esc.vBody[0] + esc.vBody[1] * esc.vBody[1]);
+        const float over = v_meas - v_apply - vcap_margin;
+        if (std::isfinite(over) && over > 0.f) {
+          const float capped = std::max(0.5f * v_apply, v_apply - vcap_gain * over);
+          if ((cap_hits++ % 50) == 0)
+            shmtrace::logf(elapsed(), "[VCAP] body %.2f over stick %.2f: commanding %.2f",
+                   (double)v_meas, (double)v_apply, (double)capped);
+          v_apply = capped;
+        }
+      }
+    }
     bridge->driverCommand().leftStickAnalog[1]  = v_apply;
     bridge->driverCommand().rightStickAnalog[0] = yaw_sign * nw;
 
