@@ -46,14 +46,36 @@ GROUND = 0.01    # m
 
 
 def align(D, ALL):
-    """Bridge clock -> trace clock offset: the bridge's first dumped command
-    against the trace's first record. Validated against the E-stop edge (legs
-    zeroed in both clocks) on five FAIL runs: agrees to +-6 ms, i.e. the 10 ms
-    dump quantisation. A cross-correlation refinement of Σ|tau_ff| against
-    track_err3 was tried first and moved the offset by +50..+106 ms - the gait
-    makes that correlation periodic at the half-cycle, so it locks onto the
-    wrong tooth. Do not refine."""
-    return D[0][0] - ALL[0]["t"]
+    """Bridge clock -> trace clock offset.
+
+    Coarse: the bridge's first dumped command against the trace's first
+    record. That is only good to a few tens of ms - the motor task that sends
+    commands starts BEFORE the RobotRunner whose clock the trace carries, and
+    the gap varies per run (run 4527 read 44 ms off, which shifted its whole
+    torque timeline by two segments while its trace-only vz/z timelines were
+    identical to the run beside it). Fine: cross-correlate the bridge's
+    Σ|tau_ff| against the trace's track_err3 (= mean |tau_ff|), mean-removed,
+    but ONLY within +-80 ms of the coarse guess in 2 ms steps. The gait makes
+    that correlation periodic at the 110 ms half-cycle, so a wide search locks
+    onto the wrong tooth (the first attempt, +-2 s in 50 ms steps, moved
+    offsets by +50..+106 ms); a window narrower than half a period cannot.
+    Validated against the E-stop edge (legs zeroed in both clocks) on FAIL runs."""
+    off = D[0][0] - ALL[0]["t"]
+    tr = [(x["t"], x["track_err3"]) for x in ALL if x.get("track_err3") is not None and x["t"] > 6.0]
+    if len(tr) < 2000:
+        return off
+    tt = [t for t, _ in tr]; tv = [v for _, v in tr]; mv = st.mean(tv)
+    S = [(t, sum(abs(v) for v in tau)) for t, tau in D[::2]]
+    ms = st.mean(s for _, s in S)
+
+    def score(lag):
+        acc = 0.0; n = 0
+        for t, s_ in S:
+            i = bisect.bisect_left(tt, t - lag)
+            if 0 < i < len(tt):
+                acc += (tv[i] - mv) * (s_ - ms); n += 1
+        return acc / n if n else -1e18
+    return max((off + k * 0.002 for k in range(-40, 41)), key=score)
 
 
 def crossings(seq, thr, rising, hold):

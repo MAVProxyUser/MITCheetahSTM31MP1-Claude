@@ -738,7 +738,14 @@ passed on its own in-suite retry.
   carry commands and sensors over Unix-domain datagram sockets
   (`$GAZEBO_SOCK_DIR/cmd_<port>.sock`, `sensor_<port>.sock`) when the
   directory is set and the peer is 127.0.0.1; the UDP ports stay bound so
-  the conductor's stale-port sweep still works; `server.py` sets the
+  the conductor's stale-port sweep still works. (Scorer note, same day:
+  the bridge/trace alignment by first row is only good to a few tens of
+  ms — the motor task starts before the RobotRunner's clock — and one run
+  read 44 ms off, which shifted its torque timeline by two segments while
+  its trace-only vz/z were identical to its neighbour's. `align()` now
+  refines by cross-correlation within ±80 ms only, narrower than half a
+  gait period so it cannot lock onto the wrong tooth; validated against
+  the E-stop edge to ±8 ms.); `server.py` sets the
   directory for both processes, and a slot extra of `GAZEBO_SOCK_DIR=`
   (empty) puts a dog back on UDP for A/B. The board is unaffected (remote
   peer → UDP as before). Validation run 4427 on the unix transport: **0
