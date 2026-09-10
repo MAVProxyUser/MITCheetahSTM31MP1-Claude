@@ -135,7 +135,30 @@ passed on its own in-suite retry.
   the verdicts, peak attitude and loop-max columns compared; an effect
   either way is recorded as an envelope fact (not tuned away), a null is
   recorded as a null. Campaigns `item6_friction`, `item6_orinoise`
-  (`campaign_chain_20260910.sh`).
+  (chain B, `campaign_chain_20260910b.sh`, after chain A was stopped).
+  **Friction result (14:54, hp_gap20 at 1.9, 6 pairs interleaved) — NOT a
+  null, and in the uncomfortable direction:**
+
+  | surface | pair μ | PASS | peak roll, median (max) | peak pitch, median | body yaw rate at the reversal apex |
+  |---|---|---|---|---|---|
+  | shipped `flat` | 0.6 | 6/6 | 14.8° (16.4) | 13.8° | −1.2 rad/s |
+  | `concrete` | 0.9 | 6/6 | **24.4° (27.0)** | 17.3° | −1.5 to −1.7 rad/s |
+
+  Concrete's peak roll is higher in 6 of 6 pairs (+4.4 to +13.4°, mean
+  +9.6°; sign test p = 0.016) and its worst run sat **1.6° under the
+  28.65° orientation ESTOP**. Every peak is the same event, the apex of
+  the 180° reversal at t ≈ 40.6 s, and the trace says why: with grip the
+  feet do not skate, the body actually turns at the rate the follower
+  asks (−1.5 to −1.7 rad/s against −1.2 on the shipped surface), and the
+  lateral load that comes with it rolls the body. The shipped surface has
+  been making the hairpin SAFER by slipping. Consequence for the envelope:
+  every hp_gap / wkc reversal number in this tracker was measured at
+  μ 0.6; on the real rubber-on-concrete figure the 1.9 hairpin has almost
+  no roll margin, and the pre-planner's lateral budget (`a_lat_max` 2.5,
+  friction-capped only below μ 0.28) does not know that more grip means
+  more roll. Not tuned away here — recorded. The right follow-ups are a
+  reversal speed ladder ON concrete and a yaw-rate cap that the body
+  actually obeys on a grippy surface.
 
 - **OPEN-32 · The estimator trusts the schedule, not the foot: A/B the
   sensorless contact gate** — `IN PROGRESS, SOFTWARE`. `SIM_CONTACT_GATE=1`
