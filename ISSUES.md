@@ -36,10 +36,47 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-33 · Sim-fidelity gaps that were never A/B'd: foot friction and a
+  noise-free orientation** — `IN PROGRESS, SOFTWARE`. Filed 2026-09-10 from
+  CLAUDE.md's "known places the sim is more generous than reality" table.
+  Corrected on filing: that table's **joint velocity "unbounded" row was a
+  record error** — every joint in `go1_speedway.sdf` carries
+  `<velocity>30.1</velocity>` (12 of 12, re-checked) and the hip reaches it in
+  fast swings; what the sim still lacks is the torque-speed (back-EMF)
+  derating, which is the actuator-dynamics row. What is left to measure:
+  (1) **foot friction** — the proto ships feet at μ 0.6 against a ground
+  plane with no friction element (DART default 1.0), so the effective pair
+  depends on the engine's combine rule; the `concrete` surface kind sets
+  BOTH sides to 0.90 (`apply_terrain` + `apply_surface_feet`), which is the
+  rubber-on-concrete figure. Arm `flat` vs `concrete`, interleaved on
+  hp_gap20 at 1.9. (2) **orientation noise** — `VectorNavOrientationEstimator`
+  forwards the sim's exact pose; the bridge now perturbs the quaternion with
+  a 0.5° RMS bias random walk (τ ≈ 5 s) plus 30 % white noise
+  (`BRIDGE_ORI_NOISE_DEG`, applied in `send_sensor`, printed on startup).
+  Arm 0 vs 0.5°, interleaved. Done = both A/Bs run at N ≥ 6 per arm with
+  the verdicts, peak attitude and loop-max columns compared; an effect
+  either way is recorded as an envelope fact (not tuned away), a null is
+  recorded as a null. Campaigns `item6_friction`, `item6_orinoise`
+  (`campaign_chain_20260910.sh`).
+
+- **OPEN-32 · The estimator trusts the schedule, not the foot: A/B the
+  sensorless contact gate** — `IN PROGRESS, SOFTWARE`. `SIM_CONTACT_GATE=1`
+  (`PositionVelocityEstimator.cpp`) has existed since 2026-09-04 with its
+  label-scored numbers (the schedule calls a foot planted while it is in the
+  air 12.8 % of the time; requiring foot speed < 0.15 m/s cuts that to
+  5.8 % at the same overall accuracy) and was never run against a verdict.
+  Done = interleaved A/B, gate off vs on, both arms with `SIM_ESTERR=1` so
+  the estimator's forward/lateral velocity error against truth is the
+  measured quantity (`item5_score.py`), on hp_gap20 at 1.9 (N = 8), the
+  100 m dash at 3.0 (N = 6) and wkc_finals at 1.9 (N = 6); the gate's own
+  `vetoed X of Y` line proves the arm fired. Ship on only if the error
+  falls and no course regresses; otherwise record which way it moved and
+  leave it off. Campaigns `item5_contactgate*`.
+
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
-  `OPEN, SOFTWARE`. Measured 2026-09-10 from the bridge dumps (sim joint
+  `IN PROGRESS, SOFTWARE`. Measured 2026-09-10 from the bridge dumps (sim joint
   angles at 100 Hz, URDF convention) of five clean-harness runs:
 
   | phase | calf range | below −151° (operational) | above −53° | abad at the ±49.5° stop |
@@ -63,8 +100,25 @@ passed on its own in-suite retry.
   touches a validated behaviour: (1) a controller-side soft clamp on the
   commanded joint targets to the operational set, with a counter so any
   binding is visible; (2) lie-down and boot-fold targets that keep the calf
-  above −151°; (3) `_maxLegLength` back at the kinematic reach. Filed, not
-  started — the rig is on the speed ladder and the fleet re-test.
+  above −151°; (3) `_maxLegLength` back at the kinematic reach.
+  **Status 12:40** — fix (1) is built (`fd45e08`): `LegController::
+  updateCommand` clamps every joint PD target into the operational set
+  less a 2° margin and adds a capped spring-damper soft stop (100 N·m/rad,
+  12 N·m cap) when the JOINT itself is past the range, both counted and
+  printed by the heartbeat (`[stm32mp1] joint limits: clamps=N stops=M`);
+  knobs `CTRL_JOINT_LIMITS{,_MARGIN_DEG,_K,_D,_TAU}` documented in
+  `ctrl_tuning.yaml` (which, it turned out, had never been tracked —
+  `host-run/` is ignored; force-added). Note from the dumps: during the boot
+  fold the COMMAND never goes below −151° (0.00 %) while the joint sits on
+  the −161.5° stop 17 % of the time — the leg folds past its target under
+  gravity at kp 8, so it is the soft stop, not the clamp, that acts there.
+  Deploys through `deploy_host.sh` the moment the rig is idle after the
+  fleet re-test, then `open31_jointlimits` (hp_gap20, N = 8, dumps on) and
+  `open31_jointlimits_wkc` (N = 6), arms `CTRL_JOINT_LIMITS=0/1`
+  interleaved. Done = no verdict regression, the counters non-zero where
+  the dumps showed the stop, and the calf's time outside −151..−53° in the
+  jl1 arm near zero by `open31_score.py`; then the yaml line goes live.
+  Fixes (2) and (3) stay filed behind it.
 
 - **OPEN-29 · MPPI on the Mac GPU — Stage 1 answered, and it is not
   encouraging** — `CLOSED 2026-09-10, NOT PURSUED`. Stage 1 was the

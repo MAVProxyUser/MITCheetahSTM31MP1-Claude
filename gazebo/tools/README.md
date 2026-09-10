@@ -77,6 +77,15 @@ pose. The rest are the hypotheses that were tested and killed on the way —
 | `open28_yawtruth.py` / `open28_footcontact.py` / `open28_mechanism_check.py` | contact-truth and yaw-truth scorers for the campaigns that carried the contact feed |
 | `open28_support.py` / `open28_entry.py` | **withdrawn** — both read `foot_fz` as a force; their `fz` columns are sums of foot SPEEDS. Left in place until the campaign that might still call them ends, then fixed |
 
+## OPEN-31, item 5, item 6 — the 2026-09-10 afternoon chain
+
+| script | what it does |
+|---|---|
+| `campaign_chain_20260910.sh` | the chain that ran after the speed ladder and the fleet re-test: waits for the ladder harness to EXIT before patching the harness (a running bash script is never edited), waits for the fleet marker and an idle conductor, deploys the OPEN-31 binary through `deploy_host.sh` (backup, restore on failure), then runs the interleaved A/Bs back to back. A file rather than an inline `bash -c` so the sequence behind the numbers is in git |
+| `open28_subcourse.sh` (extended) | per-arm `TERRAIN=<kind>` token (consumed like `SPEED=`, sets that run's `--terrain`), and a `COURSES` entry with a colon is passed as a raw slot spec (`dash:100`, `star:10.514:5`) instead of `course:<name>` |
+| `open31_score.py` | joint-limit A/B: verdicts, the heartbeat's own `clamps=/stops=` counters summed per run from the archived ctrl log, and from the bridge dump the calf's time outside Unitree's operational range (−151..−53°) and on the mechanical stops, by phase (stand-up / locomotion / finish) |
+| `item5_score.py` | contact-gate A/B: verdicts, `[ESTERR]` forward/lateral velocity error over cruise (mean, p90) per arm, and the gate's own `vetoed X of Y` line so an arm that claims to gate is shown to have fired |
+
 ## Data handling
 
 | script | what it does |
