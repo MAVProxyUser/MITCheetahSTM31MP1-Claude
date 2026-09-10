@@ -388,3 +388,4 @@ Grouped by what it would actually take to close it.
       Unitree measures `walk_x`/`walk_yaw`/`run_x`/`run_y`/`run_yaw` trim per
       physical unit rather than eliminating it; this port has no equivalent
       measurement to compare its own ~1.3 cm/s in-place crawl drift against.
+- Campaign snapshots are dumped twice per fall: the reaper's automatic `_FALL.json` on the `[FALL]` line and the campaign's verdict-named twin 1–3 s later (128 pairs, 3.4 GB, pruned 2026-09-10). `dump_with_retry` in `open28_subcourse.sh` should RENAME an existing same-run `_FALL.json` instead of re-dumping. Not done while a campaign was using the script.
