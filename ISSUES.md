@@ -106,6 +106,32 @@ passed on its own in-suite retry.
   `vetoed X of Y` line proves the arm fired. Ship on only if the error
   falls and no course regresses; otherwise record which way it moved and
   leave it off. Campaigns `item5_contactgate*`.
+  **hp_gap20 result (14:09, 8 reps, interleaved, `item5_score.py`)** — a
+  NULL on the quantity it exists to improve:
+
+  | arm | PASS | \|dvx\| mean / p90 (m/s) | \|dvy\| | \|dvz\| | vetoes |
+  |---|---|---|---|---|---|
+  | gate off | 7/8 | 0.041 / 0.044 | 0.026 | 0.170 | — |
+  | gate on | 8/8 | 0.041 / 0.043 | 0.024 | 0.170 | **18.3 %** of scheduled-stance samples |
+
+  The gate fired on nearly a fifth of the schedule's stance samples and the
+  estimator's velocity error against truth did not move to three decimals,
+  in any axis. The reading that fits: the KF's own trust ramp already
+  discounts a foot at the ends of stance, which is exactly where a
+  scheduled-stance foot is still moving faster than 0.15 m/s — the gate
+  vetoes samples the filter was already ignoring. The 2026-09-04 label
+  score (false stance 12.8 % → 5.8 %) measured schedule against contact
+  truth, not against the filter's effective weight, which is why it
+  promised more than this delivers. Verdicts 7/8 vs 8/8 (the one fall is
+  the off arm's rep 6 at the first corner, loop clean). Peak pitch at the
+  reversal exit is +1.9° with the gate on (higher in 6 of 7 passing pairs,
+  one pair −2.0°; not significant at N = 7) — if anything the wrong
+  direction. Also measured, both arms alike: the vertical velocity estimate
+  is off by **0.17 m/s** on average during a 1.9 m/s trot while forward
+  is off by 0.04 — a fact about the LinearKF worth its own look (the MPC
+  reads vz, weight 0.1; the height governor reads dz/dt). The dash (3.0)
+  and wkc_finals arms are running in the same chain; unless they invert
+  this, the gate stays OFF and this closes as measured-null.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
