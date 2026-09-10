@@ -991,6 +991,23 @@ portable to get there:
   and the hardware backends;
 - the MPC worker's `cpu_set_t` affinity + `SCHED_FIFO` is now `#ifdef __linux__`.
 
+### Two facts about the trace that each cost a day (OPEN-28)
+
+**The `[nav]` lines run ~18 s BEHIND the numeric records and the
+`[stm32mp1]` heartbeat.** `mit_sim_main`'s `elapsed()` starts when nav takes
+over; the controller's clock started at boot. Measured per run at 17.4–18.0 s.
+A window keyed on a `[nav]` timestamp lands on the wrong 18 seconds. The
+records, the `[FALL]` line and the heartbeat share one clock; align nav to it
+by cross-correlating the yaw-rate profile, never by assuming a shared origin.
+(This was found in OPEN-27, then wrongly "corrected" away, then found again.)
+
+**`track_err[0..3]` are not per-leg errors.** Since 2026-09-04 they carry, in
+order: the commanded kinematic height (m), the mean joint tracking error
+(rad), the worst leg's joint error (rad), and the mean `|tauFeedForward|`
+(N·m) — see the `_te4` block in `RobotRunner.cpp`. The field kept its name for
+layout compatibility. Slot 3 read as "leg 3 in 17/17 falls" for an hour before
+the writer was read. Read the writer, not the name.
+
 ### THE trap: `PeriodicTask` free-runs on non-Linux
 
 `common/src/Utilities/PeriodicTask.cpp` uses a **timerfd**, and upstream MIT
