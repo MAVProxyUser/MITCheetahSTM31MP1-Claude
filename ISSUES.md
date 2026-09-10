@@ -64,9 +64,23 @@ passed on its own in-suite retry.
   static ground as its own island), or a world-build difference in the
   3-slot `fleet.sdf`. Two discriminating experiments, both manual: the same
   three dogs in three SEPARATE engines (`sim_up_n.sh`), and one active dog
-  beside two idle spawned dogs in one engine. Not run today — the rig is on
-  OPEN-31/32/33. Until then, confirm any dash result single-dog (the rule
-  the old CLAUDE.md note already carries).
+  beside two idle spawned dogs in one engine.
+  **14:12 — the premise is in doubt.** The first four SOLO `dash:100` runs
+  at 3.0 on the freshly deployed OPEN-31 binary (chain A's
+  `item5_contactgate_dash`) failed 4/4 with the identical signature (pitch
+  trip 30–34° about 5 s after reaching cruise, 17–19 m out) — and the
+  heartbeat's clamp counters go from 0 to 600–900/s the moment cruise is
+  reached. So either the operational joint clamp breaks the sprint (the
+  swing legs at 3.3 m/s ask for a straighter calf than −53° and the clamp
+  cuts the reach), or the solo sprint already failed on this lineage and
+  the "one passes, three fail" reading was built on a table that was never
+  re-run on the current build. Chain A was stopped at that campaign; chain
+  B (`campaign_chain_20260910b.sh`) runs, in order: the sprint with the
+  clamp off vs on (interleaved, N = 6), the PREVIOUS binary on the same
+  sprint if both arms fail, the item 6 A/Bs with whichever clamp setting
+  ships, and a bracket of the OPEN-28 cruise knobs (table lead, transport)
+  if the clamp is not the cause. Until it reports, this item's claim is
+  only "3 dogs failed 17/18 with every instrument clean".
 
 - **OPEN-33 · Sim-fidelity gaps that were never A/B'd: foot friction and a
   noise-free orientation** — `IN PROGRESS, SOFTWARE`. Filed 2026-09-10 from
