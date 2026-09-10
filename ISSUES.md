@@ -649,6 +649,12 @@ passed on its own in-suite retry.
   is defeated — which is why doubled torque rescued the intermediate cases
   (a stronger catch) and no planner-side lever moved the initiation.
 
+  **Pre-registered before the campaign reports** (per the impossible-ordering
+  rule): the story "the free-fall window is what the escalations exploit"
+  predicts crossings and sinks ordered lead 0 ≤ 1 ≤ 2. It FORBIDS lead 2
+  being the best arm. If lead 2 wins, the window is not the lever and the
+  story is wrong, whatever the p-value.
+
   Next: (1) the dose-response tells whether 44 vs 66 vs 88 ms of free fall
   moves crossings and sinks; (2) a build that fixes the aliasing and prints
   the table per solve, probed at knob 0 and −1 until the cut sits at the
