@@ -114,9 +114,20 @@ passed on its own in-suite retry.
   down instead of standing at zero under it; (2) `settleOnFeet` bails on a
   worsening trend — entry + 3°, floored at the old 8°, capped at 20° —
   instead of the entry angle (`WP_SETTLE_TREND`, default on), so a body that
-  comes in at 10° gets its 1.5 s of BALANCE_STAND. Test: interleaved A/B on
-  `hp_gap20`, both halves off vs on, endpoint = tips per finish and the
-  attitude at lie-down entry.
+  comes in at 10° gets its 1.5 s of BALANCE_STAND.
+
+  **First 12 runs of the A/B (`open30_finish2_partial12.csv`, 07:04–07:23,
+  stopped early — see below):** of the runs that reached the finish,
+  fin_new **3/3 PASS** — `[stop] seed raised from the stick's 0.00 to the
+  body's 1.9–2.0 m/s`, a 40-step ramp, the wait COMPLETES (speed < 0.15,
+  no attitude bail), settle in 0.23 s at worst 3.2°, laydown roll 0.9–7.2°
+  — against fin_old **1/3**, the two failures tipping to 40.5° from a
+  0.03 s settle bail exactly as anatomised above. The body arrives at the
+  final waypoint at CRUISE speed (2.0 m/s at 1.5 m out — the planner's
+  end brake never slowed it, only the stick), so the measured seed is
+  doing all of the deceleration. n = 3 vs 3; the campaign was stopped
+  because both arms were collapsing mid-course at 3/6 (below) and the
+  finish cannot be measured on a course that is not reached.
 
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall
@@ -790,6 +801,21 @@ passed on its own in-suite retry.
   dose-response (cut −44 ms crossed 10/20 against −66's 7/20). The
   "free-fall window" is real and it is not the lever; MIT's own alignment
   is the worst of the three here.
+
+  **Then an anomaly, not yet explained (07:04–07:23):** on the corrected
+  build (knob 2 = physical 3, cliff verified at −66 ms, unsupported 30 ms,
+  unix transport, control loops clean at 3–5 ms), `hp_gap20` collapsed
+  mid-course **6/12** — where the 2×2's unix_old arm (alias path, knob 1,
+  the same physical lead) collapsed 0/15 two hours earlier. Five of the six
+  are ROLL falls (25–35°, pitch 4–9°) on the wp00→wp01 leg, a different
+  signature from the pitch-led crossings. The two lead paths are equal at
+  the solver input and at the knee-torque cliff, so either they differ in
+  something not yet measured, or the host changed. Running now
+  (`open28_leadpath`, 10 reps each, interleaved): the exact 2×2 control
+  (alias 1, knob 1) beside the fixed path at knob 2 and knob 1. If the
+  control reproduces its 0/15 the fixed path is not equivalent and the
+  default reverts to the alias path until the difference is located; if the
+  control also collapses, the rig changed.
 
   **And a mistake of my own, caught six runs in.** I set the default
   `CTRL_MPC_SCHED_LEAD` to 3 on the reasoning "knob = physical lead with
