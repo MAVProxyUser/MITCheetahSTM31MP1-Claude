@@ -712,8 +712,29 @@ passed on its own in-suite retry.
   being the best arm. If lead 2 wins, the window is not the lever and the
   story is wrong, whatever the p-value.
 
-  Next: (1) the dose-response tells whether 44 vs 66 vs 88 ms of free fall
-  moves crossings and sinks; (2) a build that fixes the aliasing and prints
+  **The dose-response reported (60 runs, 20 per arm, interleaved):**
+
+  | knob | cut (ms before the flip) | unsupported / exchange | sink rate | crossed | receive gaps ≥ 30 ms per s | crossing given a lethal-window gap | crossing per no-gap exchange |
+  |---|---|---|---|---|---|---|---|
+  | 0 | −44 | 14 ms | 0.9 % | **10/20** | 0.098 | 12.9 % (4/31) | 0.16 % |
+  | 1 (shipped) | −66 | 32 ms | 0.6 % | **7/20** | 0.106 | 15.6 % (5/32) | 0.05 % |
+  | 2 | −88 | 80 ms | 0.7 % | **13/20** (+2 zombie E-stops) | 0.091 | 0.0 % (0/18) | 0.10 % |
+
+  The pre-registered forbidden ordering did not occur — lead 2 is the worst
+  arm, decisively. But the monotone half of the prediction fails: 44 ms of
+  free fall crossed no less often than 66 (10 vs 7, p ≈ 0.5), and the
+  lethality of a receive gap is the same at both (13 % vs 16 %). So the
+  free-fall window is NOT what makes a frozen command lethal — a swing
+  command held through the stance switch skates the feet whatever the body
+  is doing — and the table lead only matters once it is long enough to
+  break ordinary exchanges (88 ms: sinks no more frequent, but the
+  crossings come from no-gap exchanges and the arm collapses 18/20). The
+  bridge fix is the primary fix; the lead fix is a robot-side defect in its
+  own right (66 ms of every 110 ms stance unsupported, on hardware too) but
+  it is not the lever on OPEN-28's crossings. The gap rate is equal across
+  arms, as it must be for a bridge defect.
+
+  Next: (1) done — above; (2) a build that fixes the aliasing and prints
   the table per solve, probed at knob 0 and −1 until the cut sits at the
   flip; (3) that configuration A/B'd interleaved against the default on
   `hp_gap20` and `wkc_finals`.
