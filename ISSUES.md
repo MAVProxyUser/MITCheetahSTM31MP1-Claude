@@ -37,7 +37,10 @@ passed on its own in-suite retry.
 ### In progress
 
 - **OPEN-29 · MPPI on the Mac GPU — Stage 1 answered, and it is not
-  encouraging** — `STUDIED, STAGE 1 DONE`. Operator asked whether an M4's GPU
+  encouraging** — `CLOSED 2026-09-10, NOT PURSUED`. Stage 1 was the
+  decisive cheap test and it said no (0/4096 feasible cold-start samples;
+  warm start collapses to reusing the previous QP solution; the GPU buys
+  nothing a convex QP does not already have). Stage 2 is not scheduled. Operator asked whether an M4's GPU
   could prove an MPPI controller works with this codebase, up through the
   Westminster course. Stage 1 was the cheap decisive test: can *sampling*
   solve the problem `SolverMPC.cpp` already assembles, on real captured
@@ -714,6 +717,21 @@ passed on its own in-suite retry.
   measured, not yet located; a per-solve print of `_iteration` against
   `table[0..3]` settles it and is queued behind the campaign.
 
+  **The third step, explained (2026-09-10, from the data already taken):**
+  the per-solve print shows the QP receives `table[seg + knob]` exactly, so
+  the extra segment is not in the code path — it is the OPTIMISER. At
+  knob 0 the departing pair's knee torque does not cut, it tapers
+  (17 → 15 → 12 → 10 → 8 → 6.6 N·m over the last 60 ms, then the swing),
+  where every table-driven cut is a cliff. The QP sees the pair leave at
+  step 1 and unloads it during step 0 because MIT's weights make that
+  nearly free: the vertical-velocity weight is 0.1 against 50 on height,
+  and one step of free fall costs 2.4 mm of height (50 × 0.0024² ≈ 3e-4)
+  and 0.22 m/s of vz (0.1 × 0.22² ≈ 5e-3) against a force cost of
+  4e-5 × 60² ≈ 0.14 saved. So "physical lead = knob + 1" is the solver
+  anticipating the schedule by one step, and the shipped behaviour is
+  table lead 2 plus that anticipation. Not a defect to fix; recorded so
+  the knob's semantics stop being a mystery.
+
   This retires "the contact table is behind the feet": it is AHEAD of them,
   by 66 ms, and the body is unsupported for roughly the second half of every
   stance. OPEN-28's crossings are the cases where the early-touchdown catch
@@ -1369,7 +1387,17 @@ being re-run.
 
 
 - **OPEN-26 · This port fails by FOLDING, not tipping — 2:1, and it has
-  never been characterised** — `SOFTWARE, CHARACTERISATION`. Classifying
+  never been characterised** — `CLOSED 2026-09-10`. The "level collapse"
+  mode was a classification made at the END of the trace: the body was
+  flat because `SafetyChecker::checkSafeOrientation()` had tripped at
+  28.65° of pitch 0.4 s earlier and the zeroed legs let it settle (the
+  09-04 finding recorded further down, and the memory "classify at the
+  event, not the end"). The trigger of that pitch excursion during cruise
+  was found under OPEN-28: a 40 ms freeze of the command stream by the
+  sim's loopback UDP path, landing on a stance exchange — not a property
+  of the robot. What survives from this entry is the measurement method
+  and the estimator-vs-truth numbers; the characterisation question is
+  answered by OPEN-28's closure. Classifying
   every `[FALL]` in the archives by attitude: **68% are "level collapse"**
   (|roll| < 10°, |pitch| < 15°, body height 0.035–0.09 m — belly on the
   deck, body level), 24% are tip-overs, 8% mixed. Not new and not a
