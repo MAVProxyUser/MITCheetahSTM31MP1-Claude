@@ -68,6 +68,14 @@ pose. The rest are the hypotheses that were tested and killed on the way —
 | `open28_duration.sh` | duration vs features, with `wkc_finals` as the positive control |
 | `design_course.py` | generates a `.course` file plus the judge's map from a `turn,leg` list. Every sub-course here was cut from `wkc_finals`' own list |
 | `wkc_sweep.sh` | the course speed ladder |
+| `open28_clip.sh` / `open28_sched.sh` | `open28_subcourse.sh` with the bridge dump on (`BRIDGE_DUMP=$DIR/bridge_{RUN}.csv`): the torque-clip A/B and the `CTRL_MPC_SCHED_LEAD` dose-response |
+| `open28_handoff.py` | **the per-exchange scorer, v2.** Every scheduled flip (`c` rising) against FK foot height, body vz/z and the bridge's per-joint `tau_ff`: early touchdown, when the old pair's MPC force is cut, unsupported time, body drop, crossings. v1 read `foot_fz` as a force — it is foot SPEED — and is withdrawn |
+| `open28_mpcin.py` | reads `[MPCIN2]` lines (`STM32MP1_MPC_IN=2`, every inline solve) and reports the contact table's lead over the gait's own segment at the solver's input |
+| `open28_torque.py` | per-joint commanded torque against the SDF limits from the bridge dump; the torque-clip anatomy |
+| `open28_exitroll.py` | peak roll in the 2.5 s after a reversal apex (the `WP_VSLEW` endpoint) |
+| `open28_tail.py` | the Gumbel tail test that showed a second mode in the `hp_gap` family |
+| `open28_yawtruth.py` / `open28_footcontact.py` / `open28_mechanism_check.py` | contact-truth and yaw-truth scorers for the campaigns that carried the contact feed |
+| `open28_support.py` / `open28_entry.py` | **withdrawn** — both read `foot_fz` as a force; their `fz` columns are sums of foot SPEEDS. Left in place until the campaign that might still call them ends, then fixed |
 
 ## Data handling
 
