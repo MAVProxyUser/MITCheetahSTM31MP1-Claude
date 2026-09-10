@@ -1572,7 +1572,45 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     }
 
     const float vscale = std::min(1.f, (elapsed() - restart_t) / std::max(0.1f, vx_ramp_s));
-    bridge->driverCommand().leftStickAnalog[1]  = nv * vscale;
+    float v_apply = nv * vscale;
+    /*
+     * ACCELERATION SLEW ON THE LIVE COMMAND (OPEN-28).
+     *
+     * The planner's a_lon shapes the PROFILE - the per-waypoint speeds - but
+     * nothing rate-limits the command the follower actually emits. follow()'s
+     * turn-first branch scales v down by heading error and lets it snap
+     * straight back to the next leg's cruise the instant the error closes.
+     * Measured on 388 hp_gap20 runs: the exit from the 180 deg reversal
+     * accelerates at a MEAN 2.30 m/s^2 against WP_ALON=0.4, in every run, and
+     * every run is pushed to ~14 deg of roll by it (14.06 crossers vs 14.08
+     * non-crossers - identical). 23% then go on to SafetyChecker's 28.65 and
+     * 77% recover, split by nothing measurable beforehand: a marginally
+     * stable exit decided below the resolution of the trace.
+     *
+     * That is a margin problem, and this is the margin. Limit how fast the
+     * commanded speed may RISE, per tick, at the last point before it becomes
+     * a stick. Deceleration is left free - braking must never be slewed, and
+     * decelerateAndConfirmStopped owns the stops. Tracks the APPLIED command
+     * so the restart ramp and any standstill are handled without a reset.
+     *
+     * $WP_VSLEW in m/s^2; 0 (default) is off, so this is an A/B arm.
+     */
+    {
+      static const float vslew = getenv("WP_VSLEW") ? (float)atof(getenv("WP_VSLEW")) : 0.f;
+      static float v_prev = 0.f;
+      static int   slew_hits = 0;
+      if (vslew > 0.f) {
+        const float v_max = v_prev + vslew * 0.02f;     // this loop runs at 50 Hz
+        if (v_apply > v_max) {
+          if ((slew_hits++ % 25) == 0)
+            shmtrace::logf(elapsed(), "[VSLEW] %.2f m/s^2 binding: wanted %.2f, allowed %.2f",
+                   (double)vslew, (double)v_apply, (double)v_max);
+          v_apply = v_max;
+        }
+      }
+      v_prev = v_apply;
+    }
+    bridge->driverCommand().leftStickAnalog[1]  = v_apply;
     bridge->driverCommand().rightStickAnalog[0] = yaw_sign * nw;
 
     static int navlog = 0;
