@@ -1017,6 +1017,15 @@ joint is in the bridge dump (`BRIDGE_DUMP`, `f[61:73]`), and the schedule is
 `c0..c3`. Grep the writer for every field a script reads, when the script is
 written.
 
+**The bridge's `stalls>5ms` counter covers its main loop only.** It read 0
+every second while the command-receive thread froze for 33–45 ms about once
+per second (2026-09-10, 86 runs: a 40 ms gap in the command dump, then a
+burst of queued packets). A freeze that starts within 25 ms of a stance
+exchange holds the swing command through the flip and crosses 14 % of the
+time against 0.05 % — the initiator of most OPEN-28 collapses. The receive
+path is now drained from the main loop (`BRIDGE_RX_THREAD=1` restores the
+thread for A/B) and the stats line carries `rx_backlog_max`.
+
 ### THE trap: `PeriodicTask` free-runs on non-Linux
 
 `common/src/Utilities/PeriodicTask.cpp` uses a **timerfd**, and upstream MIT

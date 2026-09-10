@@ -20,16 +20,21 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 . gazebo/tools/paths.sh
 . gazebo/tools/campaign_lib.sh
-NAME=open28_subcourse
+NAME="${CAMPAIGN_NAME:-open28_subcourse}"     # CAMPAIGN_NAME=x gives a campaign its own CSV and dir
 N="${1:-8}"; V="${2:-1.9}"
 COURSES="${COURSES:-wkc_weave wkc_box wkc_hairpin}"
 # ARMS lets one course be run under several env settings, interleaved every rep -
 # for a dose-response on a knob rather than a comparison of shapes. Format is
 # NAME:ENV, e.g. ARMS="yaw08:WP_MAX_YAWRATE=0.8 yaw12:WP_MAX_YAWRATE=1.2".
+# Several variables in one arm are comma-separated: "old:BRIDGE_RX_THREAD=1,CTRL_MPC_TABLE_ALIAS=1".
+# The arm NAME is the label in the CSV.
 ARMS="${ARMS:-}"
+# DUMP=1 records the bridge's per-joint command stream (100 Hz) for every run,
+# which the per-exchange scorers read; the path lands in a bridge_dump column.
+DUMP="${DUMP:-0}"
 campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,snapshot" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -46,7 +51,9 @@ print(shm_reaper.dump_snapshot(0,'$tag', expect_run_id=(w or None)) or 'NONE')" 
   echo NONE; return 1
 }
 
-one(){ local crs="$1" rep="$2" env="${3:-}"
+one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
+  env="${env//,/ }"
+  [ "$DUMP" = 1 ] && env="${env:+$env }BRIDGE_DUMP=$DIR/bridge_{RUN}.csv"
   timeout 300 python3 gazebo/conductor/mission_runner.py --terrain flat \
     --slot "course:$crs" --gait trotting --speed "$V" --dash 0 \
     --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
@@ -73,9 +80,11 @@ try:
 except Exception: print("")
 PY
 )"
-  local LBL="$crs"; [ -n "${env:-}" ] && LBL=$(echo "$env" | tr -d ' =' )
+  local LBL="$crs"
+  if [ -n "${arm:-}" ]; then LBL="$arm"; elif [ -n "${env:-}" ]; then LBL=$(echo "$env" | tr -d ' =' ); fi
+  local BD=""; [ "$DUMP" = 1 ] && BD="$DIR/bridge_${RID}.csv"
   echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID"
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$SNAP" >> "$OUT"
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
@@ -85,7 +94,7 @@ PY
 
 for r in $(seq 1 "$N"); do
   if [ -n "$ARMS" ]; then
-    for a in $ARMS; do one "$COURSES" "$r" "${a#*:}" ; done
+    for a in $ARMS; do one "$COURSES" "$r" "${a#*:}" "${a%%:*}"; done
   else
     for c in $COURSES; do one "$c" "$r"; done
   fi
@@ -99,6 +108,6 @@ for c in $COURSES; do
 done
 # stale-snapshot guard: a repeated run id means the run never started and the
 # ring still held the previous one (see campaign_run_id).
-dup=$(awk -F, 'NR>1{print $9}' "$OUT" | sort | uniq -d | wc -l | tr -d ' ')
+dup=$(awk -F, 'NR>1{print $11}' "$OUT" | sort | uniq -d | wc -l | tr -d ' ')
 [ "$dup" -gt 0 ] && echo "  WARNING: $dup repeated run id(s) - those rows are stale, drop them"
 campaign_done "$NAME" "sub-course sweep done"
