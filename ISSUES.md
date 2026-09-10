@@ -608,8 +608,12 @@ passed on its own in-suite retry.
   The lever already exists. `OffsetDurationGait::getMpcTable` shifts the table
   by `CTRL_MPC_SCHED_LEAD` MPC steps — MIT +1, Unitree 0 — and the port's own
   comment says it was made switchable "because on this port the latency is
-  much larger than on either of theirs." One step is **45 ms** (`dtMPC`),
-  the same magnitude as every number at the exchange.
+  much larger than on either of theirs." One step is **22 ms** on this
+  course (`dtMPC`; 11 control ticks — measured from the trace: c0 rising
+  edges every 0.2200 s, ten segments, 50 % duty. An earlier draft of this
+  entry said 45 ms from the constructor default; the schedule sets 22 at
+  boot and never changes it in these runs). The escalation hole was
+  **+25 ms — one MPC step.**
 
   **Baseline at lead = 1** (the 60 A/B runs, all at the default): **78,000
   exchanges**, hole rate **0.74 % / 0.69 %**, old-pair torque 6.2, loading
@@ -619,10 +623,9 @@ passed on its own in-suite retry.
   0.3-point change in hole rate is detectable, power the fall counts never
   had. Running: lead 0 / 1 / 2, 20 reps each.
 
-  If the lead moves it, the integer knob may not land on the right value —
-  the physical early-touchdown is 14–24 ms and a step is 45 — so the fix is
-  likely a tick-resolution lead on the table's phase rather than a step count.
-  Prepared only if the direction shows.
+  The integer knob's resolution (22 ms) matches the phenomenon (a 25 ms
+  hole), so if the direction shows, a step count is probably the right
+  unit and no finer knob is needed.
 
   ### Two of my own claims corrected
 
