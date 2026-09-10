@@ -199,8 +199,9 @@ crossed once at 31.7 s then failed three times.
 > - **foot friction is μ=2.0** in these worlds (set earlier to stop feet
 >   skating); the URDF says **0.6**. At 4–5 m/s traction is doing enormous work.
 > - **no actuator dynamics**: commanded torque is applied directly, with no
->   motor current limit, no thermal derating, no RS485 latency and unbounded
->   joint velocity.
+>   motor current limit, no thermal derating and no RS485 latency (joint
+>   velocity IS bounded, 30.1 rad/s per joint in the world file - an earlier
+>   "unbounded" here was a record error, corrected 2026-09-10).
 >
 > The defensible claim is narrower and still large: **the controller is no
 > longer what limits this port.** None of these figures are hardware-validated.
