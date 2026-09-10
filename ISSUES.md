@@ -516,11 +516,30 @@ passed on its own in-suite retry.
   escalation drops 15 % → 4 % (not yet separable at 86 events; the 60-run
   campaign is still collecting).
 
-  So the mechanism is **recovery margin, not a trigger**: the initiating
-  perturbation is common and small, and the collapse is the subset whose
-  recovery exceeds a torque limit the controller does not know it has. That
-  is why fifteen precursor hypotheses died — there is no rare precursor, only
-  a routine one that occasionally outruns the budget.
+  **Correction, one hour later — they are not the same event.** Measured in
+  the *first moments* rather than over 0.3 s:
+
+  | | escalated (8) | recovered (80) | p |
+  |---|---|---|---|
+  | descent rate, first 50 ms | **0.45 m/s** | −0.04 m/s | < 0.0001 |
+  | depth at 50 ms | 4.2 cm | 2.5 cm | < 0.0001 |
+  | attitude by 150 ms | **23.3°** | 8.6° | < 0.0001 |
+
+  A recovered sink is a 2 cm dip that has already stopped descending. An
+  escalating one is **falling at 0.45 m/s within 50 ms** and is at 23° — a
+  fifth of a degree from the E-stop — by 150 ms. The 1.73× demand is the
+  controller's proportionate *response* to a body already going down, not a
+  cause; the ×2 arm's own two escalations had their 1.71–1.74× demand **met**
+  and fell anyway. So the torque clip does not initiate, and doubling torque
+  rescues only the intermediate cases (base's 1.19× / 5.9 cm one, say). The
+  recovery-margin story is real but secondary.
+
+  What is primary: **roughly 1 sink in 11 is a sudden loss of support** on
+  flat ground at steady cruise — support removed in under 50 ms, no precursor
+  in any channel, both diagonal pairs equally, deterministic per seed. Nothing
+  with any torque budget catches something that fast. The question is now
+  exactly what removes the support. The trace cannot see a foot slide; Gazebo's
+  contact truth can, and that campaign is queued behind the A/B.
 
   ### Two of my own claims corrected
 
