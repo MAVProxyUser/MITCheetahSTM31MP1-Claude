@@ -477,11 +477,10 @@ passed on its own in-suite retry.
   the real motors do not scale); `open28_torque.py` reads the dump back;
   `open28_clip.sh` runs base vs ×2 interleaved with the dump on both.
 
-  **Queued behind the running campaign:** conductor restart (the forwarding
-  needs it), one-run proof of each instrument, then the A/B. If ×2 removes the
-  moving crossings *and* the base arm's dump shows `|tau_ff|` crossing the
-  limit before the sink, this closes — with the fix on the controller side:
-  bound the QP to what the motors have, with margin.
+  **The A/B closed: 11/30 vs 6/30 moving crossings, p = 0.25.** Not
+  separable, and consistent with what the per-exchange analysis then found —
+  doubling torque rescues intermediate cases, because it only acts on the
+  *recovery*; it does not touch the support hole that initiates the fall.
 
   ### Through the instrument at n=33 runs, 86 sink events — the picture inverts once more
 
