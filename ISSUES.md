@@ -577,6 +577,41 @@ passed on its own in-suite retry.
   random 18.9; **0 events under 3 cm in any group.** No leg touches another
   leg. Whatever pushes the swing hip off its command is not a leg.
 
+  ### The handoff: where the escalations actually come from
+
+  Every prior anatomy was measured at the *sink* — the 2 cm threshold — which
+  turned out to be a mixture. Splitting it: the **recovered** sinks are a foot
+  landing ~24 ms before the clock says stance (random: 14 ms) onto swing gains
+  (`kp = 8`), a soft leg taking load, a gentle 2 cm dip — routine. The
+  **escalations** are preceded not by an early touchdown but by a *normal*
+  diagonal exchange 48 ms earlier. Measured at that exchange, against 313
+  ordinary exchanges:
+
+  | at the stance exchange (t = 0: new foot reaches the ground) | escalated | random |
+  |---|---|---|
+  | old pair fully off the ground | 0 ms | 0 ms |
+  | **new pair loaded (Σfz ≥ 4)** | **+25 ms** | **0 ms** |
+  | **support hole** (new loaded *after* old off) | **6/11** | **4/313** |
+  | MPC knee torque still commanded on the OLD pair, first 60 ms | **11.4** | 6.4 |
+  | body drop within 90 ms | 3.9 cm | 0.8 cm |
+
+  A support hole at the exchange in 55 % of escalations and 1.3 % of normal
+  steps (p ≈ 10⁻⁷). The old pair has left the ground and the MPC is still
+  pushing on it at nearly twice the normal torque while the new pair — on the
+  ground — is not yet loaded. **The contact table is behind the feet.** For
+  ~25 ms nothing supports a 12 kg body; it reaches 0.45 m/s, and by the time
+  the new pair is pushing it is falling faster than a nominal stance force
+  arrests — which is why doubled torque rescues some and not the worst.
+
+  Killed on the way: a flight-phase landing (escalations in flight **0/12**;
+  gait 9 is 50 % duty, no flight by design).
+
+  The lever already exists. `OffsetDurationGait::getMpcTable` shifts the table
+  by `CTRL_MPC_SCHED_LEAD` MPC steps — MIT +1, Unitree 0 — and the port's own
+  comment says it was made switchable "because on this port the latency is
+  much larger than on either of theirs." Dose-response on 0 / 1 / 2 queued,
+  scored per exchange (`open28_handoff.py`, hundreds of exchanges per run).
+
   ### Two of my own claims corrected
 
   The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
