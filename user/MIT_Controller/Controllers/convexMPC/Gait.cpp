@@ -138,12 +138,21 @@ int* OffsetDurationGait::getMpcTable()
   //printf("MPC table:\n");
   for(int i = 0; i < _nIterations; i++)
   {
-    // MIT shifts the contact schedule one MPC step into the future (+1);
-    // Unitree's build of this same function (0xf7758) does NOT. Plausibly MIT
-    // compensating for solve latency. Made switchable rather than assumed,
-    // because on this port the latency is much larger than on either of theirs.
+    // MIT's +1 here is not a lead: upstream calls setIterations BEFORE the
+    // tick's iterationCounter++, so _iteration is one segment stale at the
+    // solve tick and the +1 makes step 0 the segment now starting (lead 0).
+    // This port restores _iteration from the post-increment counter (the
+    // async prefetch's restore) so the same +1 IS a lead here, and until
+    // 2026-09-10 a pointer alias on the prefetched table added one more:
+    // the shipped behaviour was an effective lead of 3 - the stance pair's
+    // MPC force cut 66 ms before its scheduled swing. Measured on hp_gap20
+    // (ISSUES.md OPEN-28, 60 + 60 interleaved runs): shorter leads collapse
+    // MORE (lead 0, MIT's own alignment, 4/15 mid-course; lead 1, 5/15;
+    // lead 3, 0/15 on the same transport). So the default is 3 - bit-for-bit
+    // what every result in this tree was measured at - with the alias fixed
+    // so the knob means what it says. Unitree's build has no +1 at all.
     static const int sched_lead =
-        ctrl_tuning::integer("CTRL_MPC_SCHED_LEAD", 1);
+        ctrl_tuning::integer("CTRL_MPC_SCHED_LEAD", 3);
     int iter = (i + _iteration + sched_lead) % _nIterations;
     Array4i progress = iter - _offsets;
     for(int j = 0; j < 4; j++)

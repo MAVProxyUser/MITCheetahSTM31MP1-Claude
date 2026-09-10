@@ -730,9 +730,50 @@ passed on its own in-suite retry.
   its own when the catching feet skate instead of gripping; the campaign's
   no-gap crossing rate (0.05 % of exchanges, 3 of 12 gap-free runs) is what
   the transport fix converges to, and the table lead (k0: the body is not
-  falling when the feet arrive) is the lever on the residual. Running now:
-  `open28_fix2x2` — udp_old / unix_old / unix_k1 / unix_k0, 15 reps each,
-  interleaved, on `hp_gap20`.
+  falling when the feet arrive) is the lever on the residual.
+
+  ### `open28_fix2x2` — transport × lead, 60 runs interleaved on `hp_gap20` (2026-09-10 04:09–05:54)
+
+  | arm | transport | effective lead (cut before the flip) | receive gaps ≥ 30 ms /s | mid-course collapses | reversal-exit collapses (low speed) | finish tips (5/5 wp, then over) | PASS |
+  |---|---|---|---|---|---|---|---|
+  | udp_old | UDP | +3 (−66 ms) — the shipped behaviour | **0.253** | **9** | 1 | 1 | 4 |
+  | unix_old | unix | +3 (−66 ms) | 0.005 | **0** | 2 | 4 | 9 |
+  | unix_k1 | unix | +1 (−22 ms) | 0.018 | 5 | 0 | 1 | 9 |
+  | unix_k0 | unix | 0 (MIT's own alignment) | 0.020 | 4 | 1 | 3 | 7 |
+
+  Per exchange: a receive gap starting within 25 ms of a flip crossed 5.3 %
+  of the time on UDP (3/57); the unix arms had 16 such gaps between them
+  and crossed on none. Trace crossings at speed: udp_old **10/15**,
+  unix_old **1/15** (Fisher p ≈ 0.001), unix_k1 4/15, unix_k0 4/15.
+
+  **Three things this settles.**
+
+  1. **The mid-cruise collapse is the transport.** Same binary, same lead,
+  same course: 9 mid-course collapses on loopback UDP, 0 on unix datagrams.
+  OPEN-28's headline mode — "≥ 6 s of nominal trot, then z −3 cm in 0.3 s
+  and the attitude jumps 25° in 0.2 s, no precursor in any channel" — was
+  a 40 ms freeze of the command stream landing on a stance exchange. No
+  precursor existed because the trigger was outside the robot.
+
+  2. **A shorter table lead does not help, and probably hurts.** Both
+  shortened leads collapsed more (5 and 4 mid-course against 0) at
+  n = 15 (pooled 9/30 vs 0/15, p ≈ 0.05), in the same direction as the
+  dose-response (cut −44 ms crossed 10/20 against −66's 7/20). The
+  "free-fall window" is real and it is not the lever; MIT's own alignment
+  (lead 0) is the worst of the three here. The alias fix stays in the code
+  and the default `CTRL_MPC_SCHED_LEAD` becomes **3**, which is
+  bit-for-bit the behaviour every result in this file was measured at.
+
+  3. **What is left on `hp_gap20` is not OPEN-28.** On the clean transport
+  the failures are finish-line tips (OPEN-30: the dog reaches all five
+  waypoints, stops, and goes over at 33–45° roll during the lie-down —
+  4 of 13 finishes at the shipped lead, 9 of 38 across the unix arms) and
+  two low-speed collapses at the reversal apex/exit (v 0.7 m/s). Neither is
+  a cruise collapse. OPEN-30 is now the dominant failure on this course
+  and is next.
+
+  Transfer to the course the issue is about: `open28_wkc_transport`,
+  udp_old vs unix_old on `wkc_finals`, 15 reps each, running.
 
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
