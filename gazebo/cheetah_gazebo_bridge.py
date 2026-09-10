@@ -343,12 +343,47 @@ else:
     sock.setblocking(False)
     print("[bridge] command receive: drained from the main loop", flush=True)
 
+# ORIENTATION NOISE ($BRIDGE_ORI_NOISE_DEG, default 0 = the exact pose). The
+# sim's IMU orientation is a noise-free pass-through of the link pose, so the
+# VectorNav path has never been exercised against a realistic error (the
+# sim-fidelity list in CLAUDE.md). This perturbs the quaternion the
+# controller receives by a slowly wandering bias (random walk, time constant
+# ~5 s) plus white noise, each with the given RMS in degrees, about a random
+# axis - the shape of an AHRS's error, not a scaled truth.
+import math as _m, random as _r
+_ORI_NOISE = float(os.environ.get("BRIDGE_ORI_NOISE_DEG") or 0.0) * _m.pi / 180.0
+_ori_bias = [0.0, 0.0, 0.0]
+
+def _qmul(a, b):   # x,y,z,w
+    ax, ay, az, aw = a; bx, by, bz, bw = b
+    return [aw*bx + ax*bw + ay*bz - az*by,
+            aw*by - ax*bz + ay*bw + az*bx,
+            aw*bz + ax*by - ay*bx + az*bw,
+            aw*bw - ax*bx - ay*by - az*bz]
+
+def _perturb(q):
+    if _ORI_NOISE <= 0.0:
+        return q
+    # bias random walk with tau ~ 5 s at 500 Hz, stationary RMS = _ORI_NOISE
+    a = 1.0 - 0.002 / 5.0
+    for i in range(3):
+        _ori_bias[i] = a * _ori_bias[i] + _m.sqrt(1.0 - a * a) * _r.gauss(0.0, _ORI_NOISE)
+    e = [_ori_bias[i] + _r.gauss(0.0, _ORI_NOISE * 0.3) for i in range(3)]   # bias + white
+    ang = _m.sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2])
+    if ang < 1e-9:
+        return q
+    s_ = _m.sin(ang / 2.0) / ang
+    dq = [e[0]*s_, e[1]*s_, e[2]*s_, _m.cos(ang / 2.0)]
+    r_ = _qmul(dq, q)
+    n = _m.sqrt(sum(v*v for v in r_)) or 1.0
+    return [v / n for v in r_]
+
 def send_sensor():
     with lock:
         # Go1 -> Cheetah frame
         qc  = [SIGN[i]*qj[i]  + OFFSET[i] for i in range(12)]
         qdc = [SIGN[i]*qdj[i]             for i in range(12)]
-        a, g, quat = imu["accel"], imu["gyro"], imu["quat"]
+        a, g, quat = imu["accel"], imu["gyro"], _perturb(imu["quat"])
         ba, bp = baro["alt"], baro["pressure"]
         glat, glon, galt, gvel = gps["lat"], gps["lon"], gps["alt"], gps["vel"]
         tpos, tquat, tvw = list(truth["pos"]), list(truth["quat"]), list(truth["vworld"])
@@ -453,6 +488,8 @@ def main():
     print(f"[bridge] model={MODEL} world={WORLD}")
     print(f"[bridge] subscribed {IMU_TOPIC} {BARO_TOPIC} {GPS_TOPIC} {JOINT_TOPIC}; {len(JOINTS)} force pubs")
     print(f"[bridge] UDP: recv cmd :{CMD_PORT}, send sensors :{SENSOR_PORT} -> {peer_ip[0] or '(learn)'}")
+    if _ORI_NOISE > 0.0:
+        print(f"[bridge] orientation noise ON: {_ORI_NOISE*180/_m.pi:.2f} deg RMS bias random walk + 30% white", flush=True)
     period = 1.0/500.0    # 500 Hz
     last = time.time()
     hb = time.time()

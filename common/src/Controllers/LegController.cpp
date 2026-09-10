@@ -128,10 +128,53 @@ void LegController<T>::updateData(const TiBoardData* tiBoardData) {
  * Update the "leg command" for the SPIne board message
  */
 template <typename T>
+// OPERATIONAL JOINT LIMITS (OPEN-31). Unitree's firmware enforces a joint
+// range narrower than the URDF's mechanical stops - abad +-55 deg, thigh
+// -33..165, calf -151..-53 (go1_const.h / the binary's second limit set) -
+// and this port enforced nothing: measured 2026-09-10, the calf sits on its
+// -161.5 deg mechanical stop for 20-30 % of the boot fold and the lie-down
+// and reaches full extension (-50.9) a few times per run in locomotion.
+// This is the MIT abstract leg frame (Go1: hip = -thigh, knee = -calf), so
+// the set becomes abad +-55, hip -165..33, knee 53..151 deg. Two actions,
+// both counted so a binding is never silent: the joint PD target is clamped
+// into the range less a margin, and a soft stop (spring-damper, capped)
+// is added to the feed-forward when the JOINT itself is past the range.
+// $CTRL_JOINT_LIMITS=0 disables for A/B; margin/stiffness are knobs.
+#include "Utilities/CtrlTuning.h"
+#include <atomic>
+std::atomic<long> g_jointLimitClamps{0}, g_jointLimitStops{0};
+namespace {
+constexpr float kJLo[3] = {-55.f * 0.0174533f, -165.f * 0.0174533f,  53.f * 0.0174533f};
+constexpr float kJHi[3] = { 55.f * 0.0174533f,   33.f * 0.0174533f, 151.f * 0.0174533f};
+}
+
+template <typename T>
 void LegController<T>::updateCommand(SpiCommand* spiCommand) {
+  static const bool  jl_on   = ctrl_tuning::flag("CTRL_JOINT_LIMITS", true);
+  static const float jl_marg = ctrl_tuning::num("CTRL_JOINT_LIMITS_MARGIN_DEG", 2.f) * 0.0174533f;
+  static const float jl_k    = ctrl_tuning::num("CTRL_JOINT_LIMITS_K", 100.f);   // N*m/rad beyond the range
+  static const float jl_d    = ctrl_tuning::num("CTRL_JOINT_LIMITS_D", 1.f);     // N*m*s/rad
+  static const float jl_cap  = ctrl_tuning::num("CTRL_JOINT_LIMITS_TAU", 12.f);  // N*m, the most a soft stop adds
   for (int leg = 0; leg < 4; leg++) {
     // tauFF
     Vec3<T> legTorque = commands[leg].tauFeedForward;
+    if (jl_on) {
+      for (int j = 0; j < 3; ++j) {
+        const T lo = (T)(kJLo[j] + jl_marg), hi = (T)(kJHi[j] - jl_marg);
+        T& qd = commands[leg].qDes(j);
+        if (qd < lo) { qd = lo; ++g_jointLimitClamps; }
+        else if (qd > hi) { qd = hi; ++g_jointLimitClamps; }
+        const T q = datas[leg].q(j), v = datas[leg].qd(j);
+        T stop = 0;
+        if (q < (T)kJLo[j])      stop = jl_k * ((T)kJLo[j] - q) - jl_d * v;
+        else if (q > (T)kJHi[j]) stop = jl_k * ((T)kJHi[j] - q) - jl_d * v;
+        if (stop != 0) {
+          if (stop >  (T)jl_cap) stop =  (T)jl_cap;
+          if (stop < -(T)jl_cap) stop = -(T)jl_cap;
+          legTorque(j) += stop; ++g_jointLimitStops;
+        }
+      }
+    }
 
     // forceFF
     Vec3<T> footForce = commands[leg].forceFeedForward;

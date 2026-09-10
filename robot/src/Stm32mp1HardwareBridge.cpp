@@ -4,6 +4,7 @@
  */
 // portable: BSD sockets + pthreads (Linux-only pieces are guarded inline)
 
+#include "Controllers/LegController.h"
 #include "Stm32mp1HardwareBridge.h"
 
 #ifdef __linux__
@@ -605,6 +606,10 @@ void Stm32mp1HardwareBridge::run() {
       shmtrace::logf(_healthElapsed, "[stm32mp1] motor task: maxRuntime=%.2f ms  maxPeriod=%.2f ms",
              motorTask.getMaxRuntime() * 1000.f, motorTask.getMaxPeriod() * 1000.f);
       motorTask.clearMax();
+      // OPEN-31: how often the operational joint range bound this second
+      // (joint-PD targets clamped / soft stops applied, summed over 12 joints)
+      shmtrace::logf(_healthElapsed, "[stm32mp1] joint limits: clamps=%ld stops=%ld",
+             g_jointLimitClamps.exchange(0), g_jointLimitStops.exchange(0));
     }
   }
 }

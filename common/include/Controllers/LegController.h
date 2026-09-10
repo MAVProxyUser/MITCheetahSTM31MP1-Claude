@@ -88,3 +88,7 @@ void computeLegJacobianAndPosition(Quadruped<T>& quad, Vec3<T>& q, Mat3<T>* J,
                                    Vec3<T>* p, int leg);
 
 #endif  // PROJECT_LEGCONTROLLER_H
+
+// OPEN-31 counters: joint-PD targets clamped into Unitree's operational range and soft stops applied (see LegController.cpp)
+#include <atomic>
+extern std::atomic<long> g_jointLimitClamps, g_jointLimitStops;

@@ -971,6 +971,14 @@ passed on its own in-suite retry.
   exchange still fails more often above 2.0 m/s on a quiet host is what
   the final 30 answers from their dumps; the cap has bound only during
   accelerations so far (`[VCAP] body 0.98 over stick 0.93`).
+  Harness note for the speed ladder that followed (`open28_wkc_ladder`):
+  from 12:04 to 12:12 a mis-keyed launcher started the 3-dog fleet re-test
+  while the ladder was still running (the two runners alternated launches
+  and the conductor capped the fleet at 2 after a 3/3 fleet fall); the
+  ladder rows stamped after 12:04 and the two fleet reps are void and set
+  aside. The ladder's separation (1.9 and 2.0 pass, 2.2 and 2.4 fail) was
+  already established in the 17 rows before it.
+
   Host-state change mid-campaign, for the record: at 10:18 (after row
   ~22) the operator authorised killing the other simulators and the
   firmware simulator that had held a full core for 6.6 days was stopped;
