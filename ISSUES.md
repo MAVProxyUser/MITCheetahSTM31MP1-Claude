@@ -483,6 +483,33 @@ passed on its own in-suite retry.
   limit before the sink, this closes — with the fix on the controller side:
   bound the QP to what the motors have, with margin.
 
+  ### First look through the instrument (one crossing run, before the A/B)
+
+  `BRIDGE_DUMP` reached the bridge (4316 rows × 73 columns, 43 s) on a probe
+  run that happened to cross. Commanded joint torque, as a fraction of the
+  motor limit the simulator enforces:
+
+  | joint | cruise p99 | last 0.6 s before the crossing |
+  |---|---|---|
+  | FL-hip | 0.75 | **1.75** |
+  | FR-hip | 0.76 | **1.22** |
+  | RR-hip | 0.76 | **1.02** |
+  | FR-knee | 0.95 | **1.09** |
+  | FL-knee | **1.00** | **1.04** |
+  | RL-knee | **1.05** | **1.09** |
+
+  Two things. **The knees run at the limit in ordinary cruise** — p99 of
+  1.00–1.05 on two of them, 0.80–0.95 on the others. Footfall impulse of
+  ~2× bodyweight on a ~0.14 m lever is ~35 N·m, which *is* the knee's
+  35.55 N·m: at 1.9 m/s trot under this tuning there is no headroom. And at
+  the crossing the **hips** demand up to 1.75× what the motors have. The
+  controller is asking for torque the simulated Go1 cannot deliver, in
+  cruise routinely and at the collapse by a wide margin.
+
+  n = 1, no passing-run comparison yet, and "first exceedance" is meaningless
+  when a joint sits at 1.0 all the time. The A/B (base vs ×2 limits, both
+  with the dump) is what decides it.
+
   ### Two of my own claims corrected
 
   The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
