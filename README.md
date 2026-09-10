@@ -196,8 +196,11 @@ crossed once at 31.7 s then failed three times.
 > stochastic band above it reached 5.29 m/s. A controller in SITL matching or
 > beating the manufacturer's flat-out figure says more about the simulation than
 > the controller. Two specific reasons:
-> - **foot friction is μ=2.0** in these worlds (set earlier to stop feet
->   skating); the URDF says **0.6**. At 4–5 m/s traction is doing enormous work.
+> - **foot friction is the URDF's own μ=0.6** in every world in the tree
+>   (re-checked 2026-09-10; an earlier "μ=2.0 here" was stale) against a
+>   ground plane with no friction element (engine default), so the grip the
+>   sim grants is set by the engine's combine rule; the `concrete` surface
+>   kind pins both sides to 0.90. At 4–5 m/s traction is doing enormous work.
 > - **no actuator dynamics**: commanded torque is applied directly, with no
 >   motor current limit, no thermal derating and no RS485 latency (joint
 >   velocity IS bounded, 30.1 rad/s per joint in the world file - an earlier
