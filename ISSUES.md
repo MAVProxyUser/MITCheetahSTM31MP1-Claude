@@ -894,6 +894,19 @@ passed on its own in-suite retry.
   already singled out as "exposure, not a location". The speed there is
   the next thing to test.
 
+  **Interim, 09:35 (`open28_wkc_vcap`, 10 of 30):** with the host's
+  stragglers swept (the 12-day `gz topic -e` at 52 % CPU and two orphaned
+  feeds, see the hp_gap20 anomaly above) and Spotlight kept off the
+  snapshot archive, `wkc_finals` at 1.9 is **10/10 PASS, 16/16 waypoints,
+  in BOTH arms** — the plain unix configuration that went 3/15 at 05:56 and
+  the speed-capped one alike — through single loop stalls of 45–197 ms.
+  So the 05:56 residual (7/15 crossings at 2.0–2.1 m/s, "no freeze
+  involved") was measured under sustained host contention as well, and
+  the speed-dependence table above was taken in that state. Whether an
+  exchange still fails more often above 2.0 m/s on a quiet host is what
+  the final 30 answers from their dumps; the cap has bound only during
+  accelerations so far (`[VCAP] body 0.98 over stick 0.93`).
+
   **Pre-registered before the campaign reports** (per the impossible-ordering
   rule): the story "the free-fall window is what the escalations exploit"
   predicts crossings and sinks ordered lead 0 ≤ 1 ≤ 2. It FORBIDS lead 2
