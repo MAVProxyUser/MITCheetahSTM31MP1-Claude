@@ -395,9 +395,49 @@ passed on its own in-suite retry.
 
   Position is a **10×** change and by far the largest.
 
-  **Running:** `q0` / `q1` / `q3` / `q4` / `q5`, 26 reps each = 130 runs,
-  interleaved. `q1` replicates the effect and the other three say which group
-  carries it.
+  **Did not replicate.** `q1` 4/30 vs 11/30 became 7/22 vs 4/23 — the opposite
+  direction — pooled p = 0.499. The control arm's own rate swung 0.37 → 0.17
+  between campaigns; the base rate moved more than the effect. Every isolated
+  group flat. The cost vector is not the lever.
+
+  ### Two of my own claims corrected
+
+  The **"29/29 yaw precursor" was the hairpin itself.** Peak |wz| ≥ 1.0 rad/s
+  occurs in **100 % of `hp_gap20` runs**, crossers and non-crossers alike
+  (medians 1.92 vs 1.89). My control was random cruise windows, which never
+  contain the reversal — a matched-control failure. The yaw precedes the
+  attitude because the reversal precedes everything after it, not because it
+  predicts anything.
+
+  An apex detector then silently kept crossers and dropped passes (a passing
+  run's global speed minimum is its *final stop*, which never regains 1.5 m/s)
+  and produced a 27-vs-1 split. Bounded strictly between first and last
+  cruise: **89 crossed, 299 did not.**
+
+  ### What the reversal exit actually shows
+
+  Nothing at it discriminates. Apex speed, exit duration, exit acceleration,
+  yaw carried out, roll during and after, gait phase at the apex and at peak
+  yaw — all identical, p 0.07–0.93. **Peak roll in the second after exit:
+  14.06° vs 14.08°.** Crossers leave 10° at apex + 1.14 s (p10 0.97, p90 2.06).
+
+  So every run is pushed to ~14° by the exit; 23 % keep going to 28.65° and
+  77 % recover, split by nothing measurable beforehand. Same course, same
+  commands, same body state, deterministic per seed. **A marginally stable
+  exit decided below the trace's resolution.** The answer to marginal
+  stability is margin, not a trigger.
+
+  The margin is in plain sight: **the exit accelerates at a mean 2.30 m/s²
+  against `WP_ALON = 0.4`, in every run.** `follow()`'s turn-first branch
+  scales `v` down by heading error and snaps it back to the next leg's cruise
+  the instant the error closes; the planner's `a_lon` shapes the *profile*,
+  and nothing between `follow()` and the stick rate-limits the live command.
+
+  **`WP_VSLEW`** caps how fast the applied speed may rise per tick, at the last
+  point before it becomes a stick; deceleration left free; `[VSLEW]` logs when
+  it binds. Dose-response queued on `hp_gap20` with **peak post-exit roll** as
+  the endpoint — continuous, on every run, the quantity the exit produces —
+  scored by `open28_exitroll.py`.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
