@@ -151,7 +151,24 @@ passed on its own in-suite retry.
   fix had not reached.
 
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
-  OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall
+  OPEN-26's mechanism** — `CLOSED 2026-09-10`. **What limited the course
+  was the simulation harness, in two layers, not the robot:** (1) macOS
+  holds loopback UDP datagrams for 20–45 ms about once a second, and a
+  freeze landing on a stance exchange held the swing command through the
+  flip — the "no precursor in any channel" collapse; fixed by moving the
+  controller↔bridge link to Unix-domain datagrams (9 → 0 mid-course
+  collapses on hp_gap20, same binary); (2) sustained host contention from
+  non-mission stragglers (a `gz topic -e` spinning for 12 days at 52 %
+  CPU, two orphaned feeds) turned pass rates 100 % → 35 % while every
+  process check said the rig was clear; swept, and the gate now sweeps.
+  With both gone: `wkc_finals` at 1.9 **24/24 PASS, 16/16 waypoints, 0
+  crossings, 0 sinks** (`open28_wkc_vcap`, both arms, interleaved; ended
+  at 24 only because a Time Machine backup began and the launch gate
+  refused, correctly). The robot-side finding that survives is the MPC
+  contact table's physical lead of 3 segments — measured, documented, and
+  left as it is because every shorter lead collapsed more. The speed
+  ladder above 1.9 is the next campaign; the sixteen dead hypotheses below
+  were all tested against a harness that was the cause. With the finish-line fall
   closed (was OPEN-27), the remaining failures are mid-course: 32 of 162 runs
   across four rounds, 18 of them while navigating to wp7. That concentration
   is **exposure, not a location** — "wp7" is the longest sustained-cruise leg
