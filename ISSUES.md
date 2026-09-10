@@ -36,6 +36,36 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
+  its mechanical stop by the boot fold and the lie-down, and to full
+  extension in locomotion; nothing enforces Unitree's operational range** —
+  `OPEN, SOFTWARE`. Measured 2026-09-10 from the bridge dumps (sim joint
+  angles at 100 Hz, URDF convention) of five clean-harness runs:
+
+  | phase | calf range | below −151° (operational) | above −53° | abad at the ±49.5° stop |
+  |---|---|---|---|---|
+  | stand-up (first 14 s) | −161.5 .. −90.7 | **20.6 %** of leg-samples | 0 | 6.8 % |
+  | locomotion (wkc 1.9) | −144 .. −50.9 | 0.00 % | 0.06–0.09 % | 0.00 % |
+  | locomotion (hp_gap20 1.9) | −157 .. −50.9 | 0.01 % | 0.22–0.36 % | 0.01 % |
+  | finish (last 12 s) | −161.6 .. −51 | **3.7–30.5 %** | 0–0.3 % | 0.6–14 % |
+
+  −161.5° IS the world's mechanical calf limit and −50.9° its other end:
+  the boot fold and the lie-down park the calves against the stop for
+  seconds at a time (kp = 8 driving a target the joint cannot reach — on
+  hardware that is a stalled motor), and in locomotion the leg reaches
+  full extension a few times per run (the swing/stance kinematics are
+  allowed `_maxLegLength = 0.430`, Unitree's number, while the knee limit
+  makes 0.385 the real reach — so the planner can ask for footholds only a
+  straight leg reaches). Unitree's operational clamp (abad ±55°, thigh
+  −33..165°, calf −151..−53°) is enforced nowhere in this port (known,
+  see the joint-limit table in CLAUDE.md); abad and thigh stay inside it,
+  the calf does not. Three fixes, each needing its own A/B because each
+  touches a validated behaviour: (1) a controller-side soft clamp on the
+  commanded joint targets to the operational set, with a counter so any
+  binding is visible; (2) lie-down and boot-fold targets that keep the calf
+  above −151°; (3) `_maxLegLength` back at the kinematic reach. Filed, not
+  started — the rig is on the speed ladder and the fleet re-test.
+
 - **OPEN-29 · MPPI on the Mac GPU — Stage 1 answered, and it is not
   encouraging** — `CLOSED 2026-09-10, NOT PURSUED`. Stage 1 was the
   decisive cheap test and it said no (0/4096 feasible cold-start samples;
