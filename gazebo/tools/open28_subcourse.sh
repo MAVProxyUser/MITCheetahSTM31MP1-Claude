@@ -57,12 +57,18 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   # speed ladder can be run INTERLEAVED (one rung per rep) rather than as
   # blocks - blocks are not a comparison on this rig. The token is consumed
   # here and not passed to the controller.
-  local v="$V" tok rest=""
-  for tok in $env; do case "$tok" in SPEED=*) v="${tok#SPEED=}";; *) rest="${rest:+$rest }$tok";; esac; done
+  local v="$V" terr="${TERRAIN:-flat}" tok rest=""
+  # TERRAIN=<kind> inside an arm's env sets that arm's surface kind (flat,
+  # concrete, grass, ...) so a friction A/B interleaves like a speed ladder.
+  # Consumed here, not passed to the controller.
+  for tok in $env; do case "$tok" in SPEED=*) v="${tok#SPEED=}";; TERRAIN=*) terr="${tok#TERRAIN=}";; *) rest="${rest:+$rest }$tok";; esac; done
   env="$rest"
   [ "$DUMP" = 1 ] && env="${env:+$env }BRIDGE_DUMP=$DIR/bridge_{RUN}.csv"
-  timeout 300 python3 gazebo/conductor/mission_runner.py --terrain flat \
-    --slot "course:$crs" --gait trotting --speed "$v" --dash 0 \
+  # a COURSES entry with a colon is a raw slot spec (dash:100, star:10.514:5);
+  # a bare name is a course file under gazebo/courses/.
+  local slot="course:$crs"; case "$crs" in *:*) slot="$crs";; esac
+  timeout 300 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
+    --slot "$slot" --gait trotting --speed "$v" --dash 0 \
     --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
@@ -70,7 +76,7 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   F=$(grep -oE '\[FALL\] [a-z]+' "$L" 2>/dev/null | tail -1 | awk '{print $2}')
   RID=$(campaign_run_id)
   local YS; YS=$( { grep -c 'YAWSAT' "$L" 2>/dev/null || echo 0; } | head -1 )
-  SNAP=$(dump_with_retry "${crs}r${rep}_${NAME}_${V_:-NONE}" "$(campaign_launched_run_id "$DIR/run.log")")
+  SNAP=$(dump_with_retry "${crs//:/_}r${rep}_${NAME}_${V_:-NONE}" "$(campaign_launched_run_id "$DIR/run.log")")
   local PP PR
   read -r PP PR WZ <<< "$(python3 - "$SNAP" <<'PY'
 import sys,json,math
