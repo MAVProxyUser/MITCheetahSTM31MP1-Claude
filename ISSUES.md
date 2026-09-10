@@ -168,9 +168,10 @@ passed on its own in-suite retry.
   straighter than −53°, i.e. a foothold only a straight leg reaches, and
   the reversal exit is where the swing legs reach farthest. Side effect
   recorded: 0–5 yaw-saturation events in 4 of 8 limits-on runs, none with
-  them off. Host column: `loop_max` median 8.6 ms (max 39) in the OFF
-  runs against 3.5 ms in the ON runs — host noise that happened to land on
-  one arm; no verdict depended on it. **Fix (1) ships ON**
+  them off. Host column: `loop_max` 7.5–39 ms on the first nine runs of
+  BOTH arms (13:04–13:21, while Spotlight's indexer sat at 86 % CPU at
+  campaign start) and ~3 ms on the last seven — time-clustered host noise,
+  not an arm effect; no verdict depended on it. **Fix (1) ships ON**
   (`CTRL_JOINT_LIMITS: 1` live in `ctrl_tuning.yaml`). The wkc_finals
   repeat (`open31_jointlimits_wkc`, N = 6) is queued in the same chain as a
   second course. Fixes (2) (boot-fold / lie-down targets that keep the calf
