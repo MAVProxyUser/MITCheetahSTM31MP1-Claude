@@ -608,8 +608,21 @@ passed on its own in-suite retry.
   The lever already exists. `OffsetDurationGait::getMpcTable` shifts the table
   by `CTRL_MPC_SCHED_LEAD` MPC steps — MIT +1, Unitree 0 — and the port's own
   comment says it was made switchable "because on this port the latency is
-  much larger than on either of theirs." Dose-response on 0 / 1 / 2 queued,
-  scored per exchange (`open28_handoff.py`, hundreds of exchanges per run).
+  much larger than on either of theirs." One step is **45 ms** (`dtMPC`),
+  the same magnitude as every number at the exchange.
+
+  **Baseline at lead = 1** (the 60 A/B runs, all at the default): **78,000
+  exchanges**, hole rate **0.74 % / 0.69 %**, old-pair torque 6.2, loading
+  delay p90 0 ms — against **55 % and 11.4** at the eleven escalations. That
+  is the contrast the dose-response has to move. `open28_handoff.py` scores
+  every exchange, ~1,100 per run, so a 20-rep arm carries ~20,000 — a
+  0.3-point change in hole rate is detectable, power the fall counts never
+  had. Running: lead 0 / 1 / 2, 20 reps each.
+
+  If the lead moves it, the integer knob may not land on the right value —
+  the physical early-touchdown is 14–24 ms and a step is 45 — so the fix is
+  likely a tick-resolution lead on the table's phase rather than a step count.
+  Prepared only if the direction shows.
 
   ### Two of my own claims corrected
 
