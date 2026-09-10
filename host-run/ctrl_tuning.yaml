@@ -1,0 +1,106 @@
+# ctrl_tuning.yaml - the controller's tuning values, in one readable place.
+#
+# OPEN-13. Every number below used to exist ONLY as an environment variable
+# read at its use site with a literal default. That is a configuration that
+# lives nowhere you can read it: the shipped yaml described a robot nobody
+# ran, and the real robot was whatever incantation the last harness
+# exported. An operator who forgot one got a different machine with no
+# indication anything had changed - and this project has lost results to
+# exactly that (a sweep hardcoding SIM_CHEATER in its own env block; a panel
+# recipe whose label described a configuration it was not launching).
+#
+#   precedence:  environment variable  >  this file  >  the code default
+#
+# The env override is kept on purpose: every sweep harness here drives
+# configuration that way, and removing it would break the tooling that
+# produced every measurement on record. What changed is that the DEFAULT is
+# now written down instead of being spread across eight source files.
+#
+# Values commented out are AT their code default; uncomment to pin one.
+# Anything set here applies to every launch that does not override it, so
+# treat an uncommented line as a decision about the shipped robot.
+
+# ---- MPC ------------------------------------------------------------------
+# CTRL_MPC_MS: 22            # segment ms. SPEED- AND GAIT-DEPENDENT: 22 for
+                             # trot at 3.0+, 26 below and for trotRunning.
+                             # A hidden default of 26 silently capped trot at
+                             # 67 m once. Scheduled per run by the conductor.
+# CTRL_MPC_HORIZON: 10       # 10 is MIT's, and the weights are tuned for it -
+                             # 6 under-supports (76 N under a 128 N robot)
+# CTRL_MPC_ASYNC: 0          # inline; the contact-reduced solve fits the
+                             # segment on the Mac. The BOARD needs 1.
+# CTRL_MPC_ALPHA:            # MIT's 4e-5, verified against Unitree's binary
+# CTRL_MPC_Q:                # MIT's Q, verified byte-identical in .rodata
+# CTRL_MPC_NWSR:             # qpOASES working-set recalculations
+# CTRL_MPC_WARM: 1           # warm start
+# CTRL_MPC_PRIO:             # solver thread priority (async path only)
+# CTRL_MPC_SCHED_LEAD: 2     # the MPC contact table's index offset at the
+                             # solver input; the PHYSICAL lead (segments the
+                             # stance pair is de-loaded before its swing) is
+                             # this + 1. 2 = physical 3 = the behaviour every
+                             # result here was measured at. Measured on
+                             # hp_gap20 (2026-09-10): physical 1 -> 4/15
+                             # mid-course collapses, 2 -> 5/15, 3 -> 0/15,
+                             # 4 -> 18/20 and 6/6. Do not set 3.
+# CTRL_MPC_TABLE_ALIAS: 0    # 1 restores a bug for A/B: run() held a pointer
+                             # INTO the gait's table, the async prefetch block
+                             # overwrote that table one segment ahead, and the
+                             # inline solve read it through the alias - so the
+                             # effective schedule lead was SCHED_LEAD + 2 and
+                             # the stance pair's MPC force was cut 66 ms before
+                             # its swing, the body free-falling ~50 ms of every
+                             # 110 ms half-cycle (OPEN-28, 2026-09-10). Default
+                             # 0 = the table the solve was meant to see.
+# CTRL_F_MAX: 175            # per-foot force cap, N. 120 was mini-cheetah's
+                             # and was still hardcoded at one of four call
+                             # sites, silently starving any gait switch.
+
+# ---- body / gait ----------------------------------------------------------
+# CTRL_BODY_H: 0.30
+# CTRL_SWING_H: 0.09         # the single biggest distance lever measured
+# CTRL_KP_STANCE: 0          # MIT's design: stance support is MPC force
+# CTRL_WBC_DECIM: 2          # WBIC every Nth tick, outputs CACHED between
+# CTRL_GAIT_WAIT_MS: 600     # hold the standing gait this long at entry
+# CTRL_ZEROVEL_HOLD: 1
+# CTRL_CMD_FILTER:
+
+# ---- joint-limit hygiene (OPEN-31, 2026-09-10) -----------------------------
+# Unitree's OPERATIONAL joint range (abad +-55, thigh -33..165, calf -151..-53
+# deg; the binary's second limit set / go1_const.h) is narrower than the
+# URDF's mechanical stops, and this port enforced nothing: the calf sat on
+# its -161.5 deg stop for 20-30 % of the boot fold and the lie-down. Two
+# actions in LegController::updateCommand, both COUNTED in the heartbeat
+# ("[stm32mp1] joint limits: clamps=N stops=M") so a binding is never silent:
+# the joint PD target is clamped into the range less a margin, and a soft
+# stop (spring-damper, capped) is added to the feed-forward when the JOINT
+# itself is past the range. The A/B against the previous behaviour is the
+# open31_jointlimits campaign; until it reports, the code default (ON) is
+# what ships and these lines stay commented.
+# CTRL_JOINT_LIMITS: 1
+# CTRL_JOINT_LIMITS_MARGIN_DEG: 2
+# CTRL_JOINT_LIMITS_K: 100      # N*m/rad of the soft stop
+# CTRL_JOINT_LIMITS_D: 1        # N*m*s/rad
+# CTRL_JOINT_LIMITS_TAU: 12     # cap on the soft-stop torque, N*m
+
+# ---- the fixes that must never quietly turn off ---------------------------
+CTRL_XDRAG_CLAMP: 1.0        # bounds x_comp_integral. UNBOUNDED, this term
+                             # wound up until the MPC commanded ~1x bodyweight
+                             # BACKWARD and the robot walked in reverse; every
+                             # gait failed its 100 m dash. MIT clamps the
+                             # sibling rpy_int to +-0.25 in the same function
+                             # and simply missed this one. A NEGATIVE value
+                             # restores stock MIT for A/B.
+# CTRL_YAW_RATE_KP: 1.5      # heading feedback into the RATE channel. Stock
+                             # MIT has NO heading regulation at all; this took
+                             # walking from 9.3 m to 93.6 m.
+# CTRL_YAW_ERR_MAX: 0.40
+# CTRL_ORIENT_HOLD_MS: 60    # debounce on MIT's zero-debounce 28.6 deg ESTOP.
+                             # Measured saves at 49.8 deg / 36 ms.
+# CTRL_MAX_POS_ERR:
+
+# ---- measured and REJECTED - left here so nobody re-derives them ----------
+# CTRL_BANK: 0               # bank into the turn. 5/8 vs 8/11 baseline: NULL.
+                             # Retracted after being claimed from 3 runs.
+# CTRL_CORNER_CROUCH: 0      # 0/2, drives min height to 0.187 - HARMFUL. The
+                             # robot is already too low in a corner; the lean
+                             # is what pays, the crouch is what it suffers.
