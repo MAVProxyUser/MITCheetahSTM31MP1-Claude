@@ -84,6 +84,18 @@ passed on its own in-suite retry.
   `CTRL_USE_JCQP` to override the yaml so the board's solver can be studied
   on this host (the Mac ships `use_jcqp: 0`, the board ships `1`).
 
+- **OPEN-30 · The lie-down tips onto its side at the finish, and it is not
+  OPEN-28** — `OPEN`. On `hp_gap20`, of 51 runs that reached the end without
+  an E-stop, **12 roll past 28.65° during the stop/lie-down and 10 fail the
+  judge** (`laydown: z=0.078 roll=40.5 → BAD`). Present in every `WP_VSLEW`
+  arm (4/2/4/2), so not the slew. The roll comes to rest at **40.5° in four
+  separate runs to the decimal** — a deterministic stop against geometry, not
+  a dynamic fall — at z ≈ 0.06–0.08, below the `setStandUpHeight(0.15)`
+  target. This is the OPEN-27 lie-down chain (PASSIVE hop → STAND_UP at 0.15 →
+  edamp) going over sideways on this course; `wkc_finals` did not show it
+  (FIX 9/14 PASS). Excluded from every OPEN-28 count as "lie-down tips".
+  Untouched so far; separate mechanism, separate fix.
+
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `OPEN, MECHANISM KNOWN`. With the finish-line fall
   closed (was OPEN-27), the remaining failures are mid-course: 32 of 162 runs
