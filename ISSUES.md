@@ -1610,9 +1610,13 @@ passed on its own in-suite retry.
   sprint fix that costs more hairpin roll and the galloping scale; the two
   together are destructive (0/10); the 3-dog framing this item opened with
   was a control-arm error, and the fleet's own behaviour at speed has not
-  been re-measured on the scheduled lead. Chain I's solver-input probe of
-  the old alias path is a bookkeeping check on the "bit-for-bit" claim
-  and is recorded under OPEN-28's lead note when it lands.
+  been re-measured on the scheduled lead. Chain I's solver-input probe (04:45,
+  `STM32MP1_MPC_IN=2`, two runs each at wkc 2.2): the lead of the solver's
+  step-0 table over the gait's own segment has the SAME distribution on
+  the old alias path (60 / 20 / 20 % at lead 0 / 1 / 2 over 8,444 solves)
+  as on the fixed knob 2 (60 / 20 / 20 % over 5,711) — "knob 2 fixed =
+  knob 1 + alias" holds at the solver input, and the hour-to-hour swings at
+  2.2 were the course's coin flip, not the implementation.
 
 - **CLOSED (was OPEN-32) · The estimator trusts the schedule, not the foot: A/B the
   sensorless contact gate** — closed 2026-09-11 00:35, measured null. `SIM_CONTACT_GATE=1`
