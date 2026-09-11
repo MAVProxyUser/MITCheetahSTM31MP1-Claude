@@ -1727,6 +1727,16 @@ passed on its own in-suite retry.
   more roll. Not tuned away here — recorded. The right follow-ups are a
   reversal speed ladder ON concrete and a yaw-rate cap that the body
   actually obeys on a grippy surface.
+  **Concrete ladder (2026-09-11 06:45, hp_gap20 on μ 0.9, 5 reps × 3
+  speeds interleaved, on the scheduled-lead binary):** 1.7 → **5/5**
+  (roll median 18.0°), 1.9 → **5/5** (roll 23.8°, max 24.6°), 2.1 →
+  **3/5** — the two falls are at the FIRST 90° corner (wp1), one by roll
+  (33.5°) and one by pitch (30.5°), and the passes carry 25.6–26.6° of
+  pitch. So on a real surface the hairpin course's envelope is 1.9 with
+  ~5° of roll margin and nothing to spare at 2.1, against 2.0 on the
+  shipped μ 0.6. Note what the speed does: at 2.1 the failure moves from
+  the reversal to the first corner and splits between roll and pitch,
+  which is what a course with no margin anywhere looks like.
   **Orientation-noise result (22:17, hp_gap20 at 1.9, 6 pairs)**: 0.5° RMS
   bias random walk + 30 % white on the IMU quaternion (the bridge announces
   it; the control arm has no such line): **6/6 vs 6/6**, peak roll
