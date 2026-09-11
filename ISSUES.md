@@ -1822,8 +1822,17 @@ passed on its own in-suite retry.
   against the schedule: box 2.6 5/5 vs 10/22, wkc_finals 2.4 5/5 vs 2/5,
   wkc 2.2 5/5 vs 5/5 (pitch 14.7° vs 18.4°), hp_gap20 1.9 and 2.3 5/5 vs
   5/5, the 3.0 sprint 10/10 (already lead 1 under the schedule). Chain X
-  runs the fast suite on the new default; chain Y probes the envelope it
-  opens: wkc_finals at 2.6 and 2.8, hp_gap20 at 2.5 and 2.7.
+  runs the fast suite on the new default (13/13, 15:42); chain Y probes the
+  envelope it opens. **Chain Y (16:15, 5 reps per rung interleaved, all
+  falls genuine):** `wkc_finals` 2.6 → **0/5** (three on the leg into wp2,
+  the first 75° turn off the 18 m opening straight; two on the wp8→wp9 leg
+  into the reversal), 2.8 → 0/5 (all at wp7); `hp_gap20` 2.5 → **5/5**
+  (pitch 21–25°, roll 12–13°; was 3/5 on the schedule at 12:03), 2.7 →
+  **2/5** (was 0/5). So the shipped default's envelope table: wkc_finals
+  2.4 (5/5), the box sub-course 2.6 (5/5), the hairpin 2.5 (5/5) with 2.7
+  marginal, the sprint 3.0 (10/10). The full course at 2.6 is now bounded
+  by two features the lead does not touch — the fast 75° entry and the
+  reversal approach — the mission's corner budget, not the gait.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
