@@ -1335,7 +1335,10 @@ load (`stalls>5ms=1/worst=…ms rx_backlog_max=64..124` in its own log) and
 each stall at cruise was a fall that looked, from the robot's channels, like
 OPEN-28's "level collapse". It now runs its main loop and IMU/joint callbacks
 on the mach time-constraint band (`BRIDGE_RT=1`, no root; log line
-`[bridge] scheduling: … kr=0`). Classify every fall with
+`[bridge] scheduling: … kr=0`), and since 14:26 the controller's periodic tasks
+do too (`PeriodicTask.cpp` on `__APPLE__`, `CTRL_RT=0` disables; log lines
+`[PeriodicTask] robot-control on the mach time-constraint band … kr=0`). With
+both on the band: 0 stalls ≥ 20 ms in 64 runs against 24 in 305 before. Classify every fall with
 `gazebo/tools/campaign_freeze_report.py NAME` before believing a verdict
 count; `state_freeze_scan.py` is the per-snapshot form (identical state under
 motion, loop period intact, jump on return). Host tells: `mdutil -a -s` (the
