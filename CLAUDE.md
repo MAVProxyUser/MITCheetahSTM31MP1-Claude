@@ -1322,8 +1322,10 @@ adopted at a cycle wrap. Measured in ISSUES.md OPEN-34: the longer lead
 holds the reversal's pitch and roll margins at 1.9-2.2, the shorter one is
 what keeps the 3.0 sprint upright (6/6 vs 0/6 on the same binary). Setting
 the knob pins the lead and disables the schedule.)*
-*Since 2026-09-11 15:22 the shipped yaml PINS lead 1 (`CTRL_MPC_SCHED_LEAD: 1`,
-physical 2) everywhere: interleaved on the slew recipe, lead 1 carried the 2.6
+*2026-09-11 15:22–17:05 the shipped yaml pinned lead 1 (`CTRL_MPC_SCHED_LEAD: 1`,
+physical 2) everywhere — REVERTED after the full tier failed 3/20 on it (the knob
+pins EVERY gait's table; walking recipes and spiro broke, ISSUES OPEN-37). The
+trotting evidence stands: interleaved on the slew recipe, lead 1 carried the 2.6
 box 5/5 against the schedule's 10/22 and wkc_finals 2.4 5/5 against 2/5, and
 cost nothing on wkc 2.2 or the hairpin at 1.9/2.3 (ISSUES OPEN-28, chains T/V/W).
 The schedule code stays; comment the yaml line out to get it back.*

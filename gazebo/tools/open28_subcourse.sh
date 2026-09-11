@@ -81,8 +81,14 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
     tmw=$((tmw+1)); sleep 30
   done
   [ "$tmw" -gt 0 ] && echo "  [gate] Time Machine finished after ~$((tmw*30)) s - launching"
-  timeout 300 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
-    --slot "$slot" --gait trotting --speed "$v" --dash 0 \
+  # RECIPE_GAIT=1: run the slot on its recipe's own gait and speed (the suite's
+  # full-tier cases - walking recipes, spiro - are defined that way; forcing
+  # --gait trotting --speed V would turn them into something else). $v then
+  # only labels the CSV.
+  local gaitargs=(--gait trotting --speed "$v")
+  [ "${RECIPE_GAIT:-0}" = 1 ] && gaitargs=()
+  timeout 900 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
+    --slot "$slot" "${gaitargs[@]}" --dash 0 \
     --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')

@@ -42,6 +42,31 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-37 · Lead 1 pinned failed the full tier 3/20 — the knob pins EVERY
+  gait's contact table and only trotting was measured** — `CONTROLLER`.
+  Opened 2026-09-11 17:05. Shipped 15:22 on chains T/V/W (all trotting,
+  `CTRL_MPC_SCHED_LEAD=1` as an env arm); the fast tier passed 13/13 at
+  15:42; the full tier (chain Z, 16:15–17:1x) failed `expsquare_recipe`
+  (walking, gait 20, 1.5 m/s: `Unsafe locomotion: leg 3 is moving too
+  quickly (9.207 m/s)` at wp5), `lissajous_11_9` (walking, 1.5: `leg 0 …
+  9.434 m/s` at wp329 of 606) and `spiro_recipe` (trotting 1.8 with
+  continuous curvature: `leg 3's y-position is bad (0.247 m, max 0.240)`),
+  each trip followed by the LOCOMOTION ↔ RecoveryStand ping-pong and the
+  collapse. The same three cases were 20/20 at 06:13 and every earlier run
+  in the history ring, with ZERO `Unsafe locomotion` events in the morning's
+  suite logs; no freeze over 18 ms in any of the three. The knob is read in
+  `Gait::getMpcTable` for every `OffsetDurationGait`, so pinning it moved
+  walking's table lead too, and the trot at 1.8 in a sustained turn placed a
+  foot 7 mm past the FSM's lateral bar. **Reverted 17:05** to the speed
+  schedule (yaml line commented; the 06:13 configuration). Two things are
+  confounded with the lead in those runs and must be separated before the
+  trot gains are re-shipped: the controller's real-time band (deployed
+  14:26, after the morning suite) and the walking gait's own response to
+  lead 1. **Chain AB** runs the three cases on their recipe gaits, lead 1 vs
+  lead 2 by env arm, 3 reps interleaved, on the deployed binary. **Done
+  means**: a per-gait lead (trot on lead 1 where it was measured, every
+  other gait on the lead it was validated at) and 20/20 on the full tier —
+  or the trot gain given back.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
@@ -1823,7 +1848,10 @@ passed on its own in-suite retry.
   schedule left in the code, off.** Today's interleaved ledger for lead 1
   against the schedule: box 2.6 5/5 vs 10/22, wkc_finals 2.4 5/5 vs 2/5,
   wkc 2.2 5/5 vs 5/5 (pitch 14.7° vs 18.4°), hp_gap20 1.9 and 2.3 5/5 vs
-  5/5, the 3.0 sprint 10/10 (already lead 1 under the schedule). Chain X
+  5/5, the 3.0 sprint 10/10 (already lead 1 under the schedule). **REVERTED
+  17:05 — the full tier failed 3/20 on the pin (walking recipes and spiro,
+  OPEN-37); the knob was pinning every gait, and only trotting had been
+  measured.** Chain X
   runs the fast suite on the new default (13/13, 15:42); chain Y probes the
   envelope it opens. **Chain Y (16:15, 5 reps per rung interleaved, all
   falls genuine):** `wkc_finals` 2.6 → **0/5** (three on the leg into wp2,
