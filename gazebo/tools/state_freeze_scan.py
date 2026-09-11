@@ -69,6 +69,38 @@ def first_excursion(records, deg=30.0, z_low=0.18, z_up=0.24):
     return None
 
 
+def estop_second(text_log):
+    """Controller-second of the first safety E-stop, from the text log: the
+    `Orientation safety check failed` entry carries t=0, but the `[stm32mp1]
+    ctrl loop` heartbeat just before it carries the controller's whole second.
+    Returns (lo, hi) bounding the E-stop, or None. A run that E-stops at 33 s,
+    recovers and tips again at 67 s otherwise reports the SECOND event."""
+    hb = None
+    for e in text_log or []:
+        m = str(e.get("msg", "")) if isinstance(e, dict) else str(e)
+        t = e.get("t", 0.0) if isinstance(e, dict) else 0.0
+        if "ctrl loop:" in m and t and t > 0:
+            hb = float(t)
+        elif "Orientation safety check failed" in m and hb is not None:
+            return hb, hb + 1.0
+    return None
+
+
+def event_window(R, text_log):
+    """(event_t, lo, hi): the earliest of the first 30 deg excursion / height
+    collapse and the first E-stop's bounding second."""
+    exc = first_excursion(R)
+    es = estop_second(text_log)
+    cands = []
+    if exc is not None:
+        cands.append((exc, exc - 1.0, exc))
+    if es is not None:
+        cands.append((es[0], es[0] - 1.0, es[1]))
+    if not cands:
+        return None, None, None
+    return min(cands, key=lambda c: c[0])
+
+
 def scan(path, min_ticks, detail_ms):
     d = load_json(path)
     R = d["records"]
@@ -77,8 +109,8 @@ def scan(path, min_ticks, detail_ms):
     span = d.get("span_s") or (R[-1]["t"] - R[0]["t"] if R else 0)
     tot = sum(f["ms"] for f in fz)
     mx = max((f["ms"] for f in fz), default=0.0)
-    exc = first_excursion(R)
-    pre = [f for f in fz if exc is not None and f["t0"] <= exc and f["t1"] >= exc - 1.0]   # overlaps the second before the event (the collapse can begin inside the freeze)
+    exc, lo, hi = event_window(R, d.get("text_log"))
+    pre = [f for f in fz if exc is not None and f["t0"] <= hi and f["t1"] >= lo]   # overlaps the window before the event (the collapse can begin inside the freeze)
     name = os.path.basename(path)
     print("%-90s span %6.1fs moving-freezes>=%dt: %3d  total %6.1f ms  max %6.1f ms  30deg@ %s  freeze<=1s before: %s"
           % (name[:90], span, min_ticks, len(fz), tot, mx,

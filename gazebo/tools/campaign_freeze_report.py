@@ -10,7 +10,7 @@ counts can be read with the harness's own falls taken out.
 import argparse, csv, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from snapio import load_json
-from state_freeze_scan import freezes, first_excursion, T_SETTLE
+from state_freeze_scan import freezes, event_window, T_SETTLE
 
 
 def main():
@@ -37,16 +37,17 @@ def main():
             print("  %s rep %s %s run %s: no snapshot" % (arm, r.get("rep"), r.get("verdict"), r.get("run_id")))
             continue
         try:
-            R = [x for x in load_json(snap)["records"] if isinstance(x, dict) and "t" in x and "roll" in x and x["t"] >= T_SETTLE]
+            dd = load_json(snap)
+            R = [x for x in dd["records"] if isinstance(x, dict) and "t" in x and "roll" in x and x["t"] >= T_SETTLE]
         except Exception as e:  # noqa
             print("  %s rep %s run %s: unreadable snapshot (%s)" % (arm, r.get("rep"), r.get("run_id"), e))
             continue
-        exc = first_excursion(R)
-        fz = [f for f in freezes(R, 3) if exc is not None and f["t0"] <= exc and f["t1"] >= exc - 1.0 and f["ms"] >= a.min_ms]
+        exc, lo, hi = event_window(R, dd.get("text_log"))
+        fz = [f for f in freezes(R, 3) if exc is not None and f["t0"] <= hi and f["t1"] >= lo and f["ms"] >= a.min_ms]
         tag = "HARNESS (freeze %.0f ms at t=%.2f, loop period max %.2f ms)" % (fz[0]["ms"], fz[0]["t0"], fz[0]["period_max"]) if fz else "genuine"
         if fz:
             d["harness"] += 1
-        print("  %s rep %s %s run %s: 30deg at %s -> %s" % (arm, r.get("rep"), r.get("verdict"), r.get("run_id"),
+        print("  %s rep %s %s run %s: event at %s -> %s" % (arm, r.get("rep"), r.get("verdict"), r.get("run_id"),
                                                           ("%.2f" % exc) if exc is not None else "-", tag))
     print("== %s: per arm PASS/runs, then PASS/(runs - harness falls)" % a.campaign)
     for arm, d in per.items():

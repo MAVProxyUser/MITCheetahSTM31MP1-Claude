@@ -126,8 +126,8 @@ passed on its own in-suite retry.
   **Done means**: over the
   next 300 runs on the RT band, zero mid-run bridge stalls over 100 ms and
   `campaign_freeze_report.py` showing zero harness falls; today's baseline
-  is 5 and 2. First reading (12:04, 24 runs since the band went live under
-  a Spotlight mdworker storm): 1 stall ≥ 20 ms, 0 ≥ 100 ms.
+  is 5 and 2. First reading (12:04, the 10 runs since the band went live at
+  11:50, under a Spotlight mdworker storm): 0 stalls ≥ 20 ms.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
