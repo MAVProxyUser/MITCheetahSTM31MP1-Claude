@@ -58,20 +58,25 @@ def main():
         dv = None
         if est:
             k = max(range(len(est)), key=lambda i: est[i][0]); dv = est[k][1] - est[k][0]
-        d = per.setdefault(arm, dict(n=0, p=0, pitch=[], vt=[], ve=[], dv=[], sw=[]))
+        d = per.setdefault(arm, dict(n=0, p=0, done=0, pitch=[], vt=[], ve=[], dv=[], sw=[]))
         d["n"] += 1; d["p"] += (v == "PASS")
+        # course complete = every waypoint reached and no fall; a FAIL with
+        # both is the lie-down judge (OPEN-30), not the course
+        try: done = int(r.get("waypoints") or 0) >= 6 and (r.get("fall") in ("none", "", None))
+        except Exception: done = False
+        d["done"] += done
         try: d["pitch"].append(float(r["peak_pitch"]))
         except Exception: pass
         if vt is not None: d["vt"].append(vt); d["ve"].append(ve); d["dv"].append(dv)
         d["sw"].append(len(sw))
         f = lambda x: ("%.2f" % x) if x is not None else "  -  "
-        print("  %-7s %3s %-7s %5s  %s  %s  %s  %s  %-18s %s" % (
+        print("  %-7s %3s %-7s %5s  %s  %s  %s  %s  %-18s %s  wp=%s fall=%s" % (
             arm, rep, v, rid, ("%d-%d" % (s, e)) if s is not None else "  -   ", f(vt), f(ve), ("%+.2f" % dv) if dv is not None else "  -  ",
-            " ".join("%d>%d@%.2f" % x for x in sw) or "none", r.get("peak_pitch", "")))
-    print("== per arm: PASS/n | peak pitch median | leg vT_max median | vE_max median | (vE-vT)@max median | lead switches/run")
+            " ".join("%d>%d@%.2f" % x for x in sw) or "none", r.get("peak_pitch", ""), r.get("waypoints", ""), r.get("fall", "")))
+    print("== per arm: PASS/n | course complete (6 wp, no fall)/n | peak pitch median | leg vT_max median | vE_max median | (vE-vT)@max median | lead switches/run")
     med = lambda xs: ("%.2f" % st.median(xs)) if xs else "-"
     for arm, d in per.items():
-        print("  %-7s %d/%d | %s | %s | %s | %s | %s" % (arm, d["p"], d["n"], med(d["pitch"]), med(d["vt"]), med(d["ve"]), med(d["dv"]),
+        print("  %-7s %d/%d | %d/%d | %s | %s | %s | %s | %s" % (arm, d["p"], d["n"], d["done"], d["n"], med(d["pitch"]), med(d["vt"]), med(d["ve"]), med(d["dv"]),
                                                     med(d["sw"]) if d["sw"] else "-"))
 
 
