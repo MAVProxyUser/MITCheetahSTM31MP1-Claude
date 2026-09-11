@@ -1598,8 +1598,8 @@ passed on its own in-suite retry.
   course. On the concrete hairpin at 2.1 (08:58, 5
   pairs): control 4/5 with roll peaks 23–29° (one 29.4° pass under the
   debounce, one first-corner fall), **slew 1.0 → 5/5 with roll 11.3–12.2°**
-  — the slew takes 12.7° off the reversal-apex roll in 5/5 pairs on the
-  grippy surface and puts pitch at 16–22°. That is the OPEN-33 friction
+  — the slew takes 11.8–17.2° (mean 13.7°) off the reversal-apex roll in
+  5/5 pairs on the grippy surface and puts pitch at 16–22°. That is the OPEN-33 friction
   finding answered: the roll that grip adds at the reversal is a
   rise-of-command effect, and the slew removes it. **`WP_VSLEW=1.0` ships
   in the `course:` recipe** (`458be53`); chain O restarts the conductor to
