@@ -13,6 +13,34 @@
 #include <thread>
 
 #include "Utilities/PeriodicTask.h"
+#ifdef __APPLE__
+// The mach time-constraint (real-time) scheduling band - any process may ask
+// for it, no root. ISSUES OPEN-35 (2026-09-11): the sim bridge on the host's
+// default band stalled 100-250 ms under Spotlight load and the controller
+// then ran on frozen state; the bridge moved to this band first (0 bridge-
+// alone stalls in the next 37 runs), and a 78 ms machine-wide stall in which
+// the controller ALSO stopped sending (run 5122) is what this closes. Linux
+// takes the SCHED_FIFO path in the hardware bridge instead.
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
+#include <cstdlib>
+static void macos_time_constraint_band(const char* name, float period_s) {
+  if (getenv("CTRL_RT") && atoi(getenv("CTRL_RT")) == 0) return;
+  mach_timebase_info_data_t tb; mach_timebase_info(&tb);
+  const double ns_to_abs = (double)tb.denom / (double)tb.numer;
+  const double period_ns = (double)period_s * 1e9;
+  thread_time_constraint_policy_data_t pol;
+  pol.period      = (uint32_t)(period_ns * ns_to_abs);
+  pol.computation = (uint32_t)(period_ns * 0.5 * ns_to_abs);   // the 2 ms control tick runs 0.5-1.2 ms
+  pol.constraint  = (uint32_t)(period_ns * ns_to_abs);
+  pol.preemptible = 1;
+  kern_return_t kr = thread_policy_set(mach_thread_self(), THREAD_TIME_CONSTRAINT_POLICY,
+                                       (thread_policy_t)&pol, THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+  printf("[PeriodicTask] %s on the mach time-constraint band (period %.1f ms, computation %.2f ms) -> kr=%d (CTRL_RT=0 disables)\n",
+         name, period_ns / 1e6, period_ns * 0.5 / 1e6, (int)kr);
+}
+#endif
 #include "Utilities/Timer.h"
 #include "Utilities/Utilities_print.h"
 
@@ -124,6 +152,9 @@ void PeriodicTask::loopFunction() {
 
   printf("[PeriodicTask] Start %s (%d s, %d ns)\n", _name.c_str(), seconds,
          nanoseconds);
+#ifdef __APPLE__
+  macos_time_constraint_band(_name.c_str(), _period);
+#endif
   while (_running) {
     _lastPeriodTime = (float)t.getSeconds();
     t.start();

@@ -17,7 +17,8 @@ archive), this file is the index of where we've been and what's left. Rules:
   turn was found is worth as much as the fix.
 
 Last validation: **20/20 FULL-suite PASS** (2026-09-11 06:13) and
-**13/13 fast-tier PASS** (05:12), both on the shipping binary: operational
+**13/13 fast-tier PASS** (12:43, on the fall judge's four criteria and the
+bridge on the real-time band; 05:12 before them), both on the shipping binary: operational
 joint limits ON, speed-scheduled contact-table lead, contact gate OFF;
 includes the new `dash_trotting_30` sprint case (70.5 s) and, the same
 morning, the 3-dog `dash:100` at 3.0 at 18/18. Previous: 19/19 fast-suite PASS (2026-08-28 ~23:20 + two
@@ -141,8 +142,12 @@ passed on its own in-suite retry.
   **Done means**: over the
   next 300 runs on the RT band, zero mid-run bridge stalls over 100 ms and
   `campaign_freeze_report.py` showing zero harness falls; today's baseline
-  is 5 and 2. First reading (12:04, the 10 runs since the band went live at
-  11:50, under a Spotlight mdworker storm): 0 stalls ≥ 20 ms.
+  is 5 and 2. Readings: 12:04, 10 runs on the band — 0 stalls ≥ 20 ms;
+  12:45, 37 runs — 0 bridge-alone stalls, ONE machine-wide 78 ms stall
+  (run 5122, backlog 2: the controller stopped sending too; survived). That
+  class is the controller's own scheduling, so its periodic tasks go on the
+  same band next (`PeriodicTask.cpp`, `CTRL_RT=0` disables; built 12:50,
+  deploys in the gap after chain V's first campaign).
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
