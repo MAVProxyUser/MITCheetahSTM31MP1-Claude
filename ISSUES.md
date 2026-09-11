@@ -145,9 +145,10 @@ passed on its own in-suite retry.
   is 5 and 2. Readings: 12:04, 10 runs on the band — 0 stalls ≥ 20 ms;
   12:45, 37 runs — 0 bridge-alone stalls, ONE machine-wide 78 ms stall
   (run 5122, backlog 2: the controller stopped sending too; survived). That
-  class is the controller's own scheduling, so its periodic tasks go on the
-  same band next (`PeriodicTask.cpp`, `CTRL_RT=0` disables; built 12:50,
-  deploys in the gap after chain V's first campaign).
+  class is the controller's own scheduling, so its periodic tasks went on
+  the same band (`PeriodicTask.cpp`, `CTRL_RT=0` disables; deployed 14:26:45
+  in the gap after chain V's first campaign, `kr=0` for `robot-control` and
+  `unitree-rs485`, a thread at priority 97 beside the process's 31).
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
@@ -1796,6 +1797,12 @@ passed on its own in-suite retry.
   the slew recipe — the reversal it was charged to is the feature the
   slew removed. Remaining cell before lead 1 becomes the default: the
   hairpin apex at 1.9 and 2.3 (chain W).
+  **Chain V, the 2.6 box on the 0.4 budget (14:39, 5 pairs, first runs
+  with the controller's periodic tasks on the real-time band too, harness
+  falls: none):** shipped schedule **3/5** (two wp4-leg falls, one ended by
+  the new `down` judge), early switch **5/5** (pitch 22–29°, no lie-down
+  failure this time). Pooled for the shipped schedule on this cell today:
+  10/22; lead 1 pinned 5/5; early switch 5/5; threshold 2.5 3/5.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
