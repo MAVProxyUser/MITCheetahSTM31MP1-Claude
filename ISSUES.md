@@ -1864,6 +1864,12 @@ passed on its own in-suite retry.
   marginal, the sprint 3.0 (10/10). The full course at 2.6 is now bounded
   by two features the lead does not touch — the fast 75° entry and the
   reversal approach — the mission's corner budget, not the gait.
+  **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
+  `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
+  gave the box 10/10 does nothing for the full course; the falls sit at
+  wp7 (the box's third corner, 11 of 15), wp9 (the reversal approach) and
+  wp2/wp3 (the first turns). 2.6 on the full course is closed on this
+  recipe and gait; the sub-course at 2.6 is the ceiling.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
