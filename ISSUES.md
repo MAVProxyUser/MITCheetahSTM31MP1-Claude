@@ -36,235 +36,6 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-34 · Three dogs on the 100 m dash at 3.0 fail where one or two
-  pass — and every harness instrument is clean** — `OPEN, UNEXPLAINED`.
-  Re-measured 2026-09-10 13:00 (`fleet_dash_retest.log`, six 3-dog reps of
-  `dash:100` trotting 3.0 on the unix-socket transport, fleet cap held at
-  3): **1 of 18 dog-runs passed**; the accidental 2-dog rep earlier that
-  day passed 2/2 and the solo dash at this speed is table-grade (3/3 at
-  3.1 commanded). Every failure is the same event: the orientation ESTOP,
-  pitch 29–38.5° with roll under 22°, at 2.9–3.1 m/s, and on each dog's
-  OWN clock it is the same event every time: the ramp starts at 19.4 /
-  24.4 / 29.4 s (the conductor's 5 s per-slot mission delay), cruise
-  (> 2.9 m/s) is reached 5.5 s later, and the ESTOP follows **2.7–3.2 s
-  after reaching cruise, 17–19 m from the start, on all six dog-runs of
-  reps 5–6** — deterministic, not a coin flip. Measured during the
-  reps, all clean: sim real-time factor mean 1.000 / p5 0.997 / p50 1.000
-  (`/stats`, 20 s windows); command path 500/s with backlog ≤ 2; IMU path
-  499–501/s with a worst gap ≤ 4 ms in cruise (the new bridge `imu_rx` /
-  `imu_gap_max` fields — the one ~100 ms gap per run is in the first second,
-  before the controller connects); control loop ≤ 3.4 ms on reps 4–6. Reps
-  1–3 carried 10–12 ms loop hiccups on every dog, which were **my own RTF
-  sampler** (`gz topic -e -t /stats` prints at 1 kHz) — killed before rep 4,
-  and the failure rate did not change (0/9 after), so those hiccups are
-  exonerated as the cause and recorded as an instrument load a campaign
-  must not carry. With RTF, transport, sensor freshness and loop timing all
-  measured clean, what remains is something that scales with three dogs in
-  ONE engine: shared physics (though DART solves a dog touching only the
-  static ground as its own island), or a world-build difference in the
-  3-slot `fleet.sdf`. Two discriminating experiments, both manual: the same
-  three dogs in three SEPARATE engines (`sim_up_n.sh`), and one active dog
-  beside two idle spawned dogs in one engine.
-  **14:12 — the premise is in doubt.** The first four SOLO `dash:100` runs
-  at 3.0 on the freshly deployed OPEN-31 binary (chain A's
-  `item5_contactgate_dash`) failed 4/4 with the identical signature (pitch
-  trip 30–34° about 5 s after reaching cruise, 17–19 m out) — and the
-  heartbeat's clamp counters go from 0 to 600–900/s the moment cruise is
-  reached. So either the operational joint clamp breaks the sprint (the
-  swing legs at 3.3 m/s ask for a straighter calf than −53° and the clamp
-  cuts the reach), or the solo sprint already failed on this lineage and
-  the "one passes, three fail" reading was built on a table that was never
-  re-run on the current build. Chain A was stopped at that campaign; chain
-  B (`campaign_chain_20260910b.sh`) runs, in order: the sprint with the
-  clamp off vs on (interleaved, N = 6), the PREVIOUS binary on the same
-  sprint if both arms fail, the item 6 A/Bs with whichever clamp setting
-  ships, and a bracket of the OPEN-28 cruise knobs (table lead, transport)
-  if the clamp is not the cause.
-  **14:35 — the premise is gone; this is a solo-sprint regression.**
-  `dash30_jointlimits` (solo, interleaved, N = 6 each): clamp OFF 1/6,
-  clamp ON 1/6 — same signature, the clamp is exonerated. The 07:04 binary
-  (the one the 2-dog reps passed on) redeployed for `dash30_oldbin`: 2/6,
-  its two passes peaking at 24–25° of pitch, a few degrees under the
-  28.65° limit. The one clean pass of the day (run 4695) cruised at a
-  genuine 3.0–3.3 m/s by GPS with a 6° peak, so the course is achievable;
-  the sprint is simply marginal now, solo, on both binaries (4/18 solo
-  dog-runs vs 1/18 in fleets — not distinguishable at these N). Against
-  the late-August table (trotting 3.1 commanded crossed 3/3, the wall at
-  3.2) that is a regression, and no solo trotting dash above 1.9 had been
-  run on any build since — the "one passes, three fail" reading was built
-  on a table nobody re-ran (CLAUDE.md rule 3, again). Audit of every
-  default that changed since that table (commit a3f4aa2): the world
-  gained only four foot-contact LABEL sensors; the bridge's PD/torque path
-  is unchanged; the mission side gained finish/boot knobs only
-  (`WP_ADEC`, `WP_SETTLE_*`, `WP_STOP_ATT_DEG`, `WP_VCAP_*` at 0); the
-  controller/bridge ship three behaviour changes ON — the contact-table
-  lead implementation (`CTRL_MPC_TABLE_ALIAS` off, knob 2), the unix-socket
-  transport with the bridge draining commands from its main loop, and the
-  joint clamp (exonerated). Chain B brackets lead 1 / lead 3 / UDP; chain C
-  (`campaign_chain_20260910c.sh`) adds the exact shipped lead (knob 1 +
-  alias), the bridge receive thread, and velocity aiding off. The table's
-  own provenance widens the window: its rows are dated 2026-08-22
-  (`git blame`), so the x_comp_integral clamp (default 1.0 since 08-27; the
-  table ran stock's unbounded integrator) and velocity aiding (default ON
-  since 08-28) are inside it too — chain C carries aiding-off, chain E
-  (`campaign_chain_20260910e.sh`) carries the clamp at stock and a run
-  with the four foot-contact label sensors stripped from the proto. 
-  **22:35 — FOUND: it is the contact-table lead.** `dash30_bisect` (solo
-  `dash:100` trotting 3.0, four arms interleaved, 5 reps each, clamp off
-  in all):
-
-  | arm | table lead | PASS | peak pitch of the passes |
-  |---|---|---|---|
-  | base (today's default) | knob 2 = physical 3 | 2/5 | 7.1°, 24.4° |
-  | **lead1** | **knob 1 = physical 2** | **5/5** | **8.0–10.7°, roll 3–11°** |
-  | lead3 | knob 3 = physical 4 | 0/5 | — |
-  | udp (loopback UDP transport) | knob 2 | 1/5 | 19.9° |
-
-  Pooling every knob-2 sprint of the day (base, both clamp arms, the 07:04
-  binary): **6/23 at physical lead 3 against 5/5 at physical lead 2**
-  (Fisher p ≈ 0.002), and the lead-2 passes are clean where the lead-3
-  passes are marginal. The transport is not it (UDP sits at the base
-  rate). So the regression is the lead default this morning's OPEN-28
-  rework shipped (`98202f9`, 07:05: alias removed, knob 2 "= the shipped
-  physical 3") — chosen on hp_gap20 at 1.9 where the record says the
-  shorter physical leads collapsed more, never run at sprint speed. Two
-  things still to settle before the default moves: chain C's `ship` arm
-  (knob 1 + the old alias, bit-for-bit the 08-22 behaviour) says whether
-  the "shipped = physical 3" accounting was ever right in this regime,
-  and chain F (`campaign_chain_20260910f.sh`) runs knob 1 vs 2 on hp_gap20
-  at 1.9 (the cost) and on wkc_finals at 2.2 (the course limit that died on
-  the reversal's pitch trip 7/8 this morning). If knob 1 costs the
-  hairpin, the lead becomes speed-scheduled like the MPC segment.
-  **23:45 — chain C: a SECOND independent fix, and the timeline
-  resolves.** `dash30_bisect2` (solo 3.0, 5 reps, interleaved, clamp off):
-
-  | arm | PASS | peak pitch of the passes |
-  |---|---|---|
-  | base (default lead 2, aiding on) | 2/5 (one "NONE" was a 38.5° ROLL trip that sat ESTOPped under the 50° fall detector until the runner timed out) | 5.8°, 21.2° |
-  | ship (knob 1 + the old alias) | 3/5 | 7.5°, 16.6°, 20.5° |
-  | rxthread (bridge receive thread) | 1/5 | 8.6° |
-  | **noaid (velocity aiding OFF)** | **4/5** | **4.5–5.0°** |
-
-  So velocity aiding — default ON since 08-28, AFTER the 08-22 table — is
-  the other lever: with it off the sprint passes 4/5 with the cleanest
-  attitude of the day, at the default lead. The table's configuration was
-  exactly "old lead, no aiding", and that arm reproduces it (4/5 against
-  3/3). Read together with chain B: two independent knobs each rescue the
-  sprint (lead 1 at 5/5 with aiding on; aiding off at 4/5 with lead 2), the
-  bridge receive path and the old alias do not. Mechanism candidate, not
-  established: at 3+ m/s the GPS Doppler correction (K ≈ 0.7 at 20 Hz) steps
-  the velocity the MPC tracks, and a longer table lead anticipates into that
-  noise. Chain F was replaced by F2 (`campaign_chain_20260910f2.sh`): four
-  arms (default, lead 1, aiding off, both) on hp_gap20 at 1.9, wkc_finals
-  at 2.2, and the 3.0 sprint — the cost of each knob where the defaults were
-  chosen, and the confirmation. The shipping decision waits for it.
-  **00:50 — chain E rules out the last two candidates.** `dash30_xdrag`
-  (interleaved, 5 reps): the clamp default (1.0) 4/5 vs stock's unbounded
-  integrator 2/5 — the clamp is not the regressor, if anything it helps.
-  `dash30_nosensors` (proto's four foot-contact label sensors stripped,
-  6 runs, proto restored from git afterwards): 4/6 with clean peaks, the
-  same hour base ran 4/5 — the labels are innocent. Note the default's own
-  rate wandered from 2/5 (chains B, C) to 4/5 (chain E) with the host no
-  quieter (WindowServer 40 %, BambuStudio 17 %, one pass carrying a 25 ms
-  loop hiccup): the sprint at the default is a coin flip with wide
-  between-campaign scatter, which is exactly why every decision arm in F2
-  runs interleaved against the default in the same hour.
-  **01:41 — F2 on hp_gap20 at 1.9 (the lead default's home, 6 pairs ×
-  4 arms): no verdict cost, a measurable roll cost.** All four arms 6/6.
-  Peak roll at the reversal apex, median (max): default 14.6° (15.4),
-  lead 1 **17.9° (18.4)**, aiding off **20.0° (23.5)**, both 20.8° (22.3);
-  per pair against the default, lead 1 +3.4° (6/6), aiding off +5.9°
-  (6/6), both +6.1° (6/6). Peak pitch moves the other way (12.0 vs 14.1).
-  So the longer physical lead the hairpin was tuned on really does buy
-  roll margin there, and each sprint fix spends some of it — remembering
-  that on concrete the default already peaks at 24.4° (27.0) at this same
-  apex, lead 1 on a grippy hairpin would sit within a couple of degrees of
-  the 28.65° trip. Yaw-saturation counts are also higher with both knobs
-  moved (up to 37 per run). The decision therefore turns on wkc_finals at
-  2.2 (does either knob move the course's pitch-trip limit) and the 3.0
-  confirmation, both running; a speed-scheduled lead (2 below ~2.5 m/s,
-  1 above, switched only at a cycle wrap the way gait changes are) is the
-  candidate if the sprint needs lead 1 and the hairpin keeps lead 2.
-  **02:39 — wkc_finals at 2.2 (5 reps × 4 arms, interleaved) settles the
-  shape of the fix, and overturns this morning's ladder:**
-
-  | arm | PASS | where it fails | peak pitch median | peak roll median |
-  |---|---|---|---|---|
-  | default (lead 2, aiding on) | **5/5** | — | 23.9° | 10.1° |
-  | lead 1 | 2/5 | wp9, the reversal, pitch 30–33° | 30.5° | 19.0° |
-  | aiding off | 4/5 | wp9 once | 24.5° | 11.4° |
-  | both | **0/5** | wp7 ×3 by ROLL (34–41°), wp9 ×2 | 24.9° | **34.5°** |
-
-  Lead 1 costs the course its 2.2 (2/5 against 5/5) through exactly the
-  reversal pitch trip the ladder documented, and the two knobs together
-  are destructive (roll trips at the box corners). So the sprint fix
-  cannot be a global lead of 1: **it has to be speed-scheduled** — the
-  longer lead below ~2.5 m/s where every course lives, the shorter one at
-  sprint speed — adopted only at a cycle wrap, trotting only (the other
-  gaits were never measured at lead 1). And the default's 5/5 at 2.2
-  contradicts the ladder's 1/8 at the same speed on the same course this
-  morning: that ladder ran the OLD alias path (`CTRL_MPC_TABLE_ALIAS=1`
-  with knob 1, "bit-for-bit the shipped physical 3") under an 86 %
-  Spotlight load; tonight's default is knob 2 on the fixed path on a quiet
-  host. Either the alias path is not the same lead after all (chain C's
-  ship arm also sat between base and lead 1 at 3.0), or the morning's
-  limit was host load. `wkc22_ship` (chain G) runs ship vs default at 2.2
-  interleaved to say which; the ladder's "limit between 2.0 and 2.2" is
-  suspended until it does.
-  **02:58 — the sprint confirmation (`dash30_final`, 5 reps × 4 arms) and
-  the night's pooled 3.0 tally.** Confirmation: default 1/5, lead 1 **5/5**
-  (peaks 8.8–12.1°), aiding off **5/5** (peaks 3.5–5.5°), both **0/5**.
-  Every solo 3.0 sprint since 14:00, by configuration:
-
-  | configuration | PASS |
-  |---|---|
-  | lead 1, aiding on | **10/10** |
-  | lead 2, aiding OFF | 9/10 |
-  | lead 2, aiding on — today's default, every plain arm pooled | **10/28 (36 %)** |
-  | lead 2, aiding on, 07:04 binary | 2/6 |
-  | lead 1 + the old alias, aiding on | 3/5 |
-  | lead 3, aiding on | 0/5 |
-  | lead 1, aiding OFF (both knobs) | 0/5 |
-  | lead 2, aiding on: UDP / rx thread / clamp on / x_drag stock / no label sensors / gate on | 1/5, 1/5, 1/6, 2/5, 4/6, 0/2 — all at the base rate |
-
-  Two independent, non-additive fixes; the pair is destructive. With
-  wkc_finals at 2.2 (lead 1 costs the course, aiding off does not, both
-  fail by roll) and hp_gap20 at 1.9 (each costs roll margin at the apex),
-  the shipping choice is the **speed-scheduled lead** — the longer lead
-  everywhere the courses live, the shorter one only in the sprint band,
-  adopted at a cycle wrap, trotting only, aiding left ON (it is the
-  galloping scale fix and it is not what broke). Built and committed
-  (`745c5b6`); chain H deploys it after chain G and verifies it against the
-  pinned default on the sprint, wkc 2.2 and hp_gap20 1.9. Aiding-off is
-  recorded as the equally effective alternative that costs more hairpin
-  roll (+5.9° vs +3.4°) and forfeits the galloping fix.
-  **03:31 — chain G, ship vs default at wkc 2.2 (5 reps interleaved):
-  default 2/5, old alias path 4/5** (Fisher p = 0.52 — nothing), against
-  the default's 5/5 an hour earlier and the alias path's 1/8 this morning.
-  Pooled, 2.2 on wkc_finals is a coin flip for BOTH lead implementations
-  (12/23 across three campaigns, every failure the reversal's pitch trip
-  at 29–32° against passes peaking 22–27°), with hour-to-hour swings that
-  the bridge and loop instruments do not explain (identical stall,
-  backlog and IMU-gap columns in passing and failing runs; the conductor
-  at 7 threads / 122 MB after 23 h). So the ladder's morning reading holds
-  in its honest form — **2.0 is the last reliable rung, 2.2 is ~50 %** —
-  and the alias-vs-fixed question does not decide anything at 2.2. Chain I
-  still measures the alias path's table at the solver input, because "the
-  two are bit-for-bit the same lead" was a claim, and a cheap one to
-  check.
-  **03:31 — the speed-scheduled lead is DEPLOYED** (`deploy_host.sh`,
-  loads and starts; previous binary kept as `mit_ctrl_sim.pre_sched_lead`)
-  and proven to fire on its first sprint: `[SCHED] table lead 2 -> 1
-  adopted at a cycle wrap (v=2.71, band sprint)` as the ramp crossed the
-  threshold, run 4882 PASS with an 8.2° peak. Chain H verifies it against
-  the pinned default on the sprint (N = 6), wkc 2.2 (N = 5) and hp_gap20
-  1.9 (N = 5); the suite gains `dash_trotting_30` (fast tier) so a default
-  cannot regress the sprint silently again.
-  **03:42 — sprint verification: scheduled 6/6 (peaks 8.2–11.1°, roll
-  under 5°), pinned default 0/6** (Fisher p = 0.001), interleaved on the
-  same binary. wkc 2.2 and hp_gap20 1.9 follow — there the schedule must
-  reproduce the pinned default, since it never leaves the slow band.
-
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
@@ -1591,6 +1362,257 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+- **CLOSED (was OPEN-34) · The 100 m dash at 3.0 regressed to a coin flip — filed as a 3-dog
+  failure, found to be the contact-table lead default, fixed with a speed-scheduled lead** — closed 2026-09-11 04:40.
+  Re-measured 2026-09-10 13:00 (`fleet_dash_retest.log`, six 3-dog reps of
+  `dash:100` trotting 3.0 on the unix-socket transport, fleet cap held at
+  3): **1 of 18 dog-runs passed**; the accidental 2-dog rep earlier that
+  day passed 2/2 and the solo dash at this speed is table-grade (3/3 at
+  3.1 commanded). Every failure is the same event: the orientation ESTOP,
+  pitch 29–38.5° with roll under 22°, at 2.9–3.1 m/s, and on each dog's
+  OWN clock it is the same event every time: the ramp starts at 19.4 /
+  24.4 / 29.4 s (the conductor's 5 s per-slot mission delay), cruise
+  (> 2.9 m/s) is reached 5.5 s later, and the ESTOP follows **2.7–3.2 s
+  after reaching cruise, 17–19 m from the start, on all six dog-runs of
+  reps 5–6** — deterministic, not a coin flip. Measured during the
+  reps, all clean: sim real-time factor mean 1.000 / p5 0.997 / p50 1.000
+  (`/stats`, 20 s windows); command path 500/s with backlog ≤ 2; IMU path
+  499–501/s with a worst gap ≤ 4 ms in cruise (the new bridge `imu_rx` /
+  `imu_gap_max` fields — the one ~100 ms gap per run is in the first second,
+  before the controller connects); control loop ≤ 3.4 ms on reps 4–6. Reps
+  1–3 carried 10–12 ms loop hiccups on every dog, which were **my own RTF
+  sampler** (`gz topic -e -t /stats` prints at 1 kHz) — killed before rep 4,
+  and the failure rate did not change (0/9 after), so those hiccups are
+  exonerated as the cause and recorded as an instrument load a campaign
+  must not carry. With RTF, transport, sensor freshness and loop timing all
+  measured clean, what remains is something that scales with three dogs in
+  ONE engine: shared physics (though DART solves a dog touching only the
+  static ground as its own island), or a world-build difference in the
+  3-slot `fleet.sdf`. Two discriminating experiments, both manual: the same
+  three dogs in three SEPARATE engines (`sim_up_n.sh`), and one active dog
+  beside two idle spawned dogs in one engine.
+  **14:12 — the premise is in doubt.** The first four SOLO `dash:100` runs
+  at 3.0 on the freshly deployed OPEN-31 binary (chain A's
+  `item5_contactgate_dash`) failed 4/4 with the identical signature (pitch
+  trip 30–34° about 5 s after reaching cruise, 17–19 m out) — and the
+  heartbeat's clamp counters go from 0 to 600–900/s the moment cruise is
+  reached. So either the operational joint clamp breaks the sprint (the
+  swing legs at 3.3 m/s ask for a straighter calf than −53° and the clamp
+  cuts the reach), or the solo sprint already failed on this lineage and
+  the "one passes, three fail" reading was built on a table that was never
+  re-run on the current build. Chain A was stopped at that campaign; chain
+  B (`campaign_chain_20260910b.sh`) runs, in order: the sprint with the
+  clamp off vs on (interleaved, N = 6), the PREVIOUS binary on the same
+  sprint if both arms fail, the item 6 A/Bs with whichever clamp setting
+  ships, and a bracket of the OPEN-28 cruise knobs (table lead, transport)
+  if the clamp is not the cause.
+  **14:35 — the premise is gone; this is a solo-sprint regression.**
+  `dash30_jointlimits` (solo, interleaved, N = 6 each): clamp OFF 1/6,
+  clamp ON 1/6 — same signature, the clamp is exonerated. The 07:04 binary
+  (the one the 2-dog reps passed on) redeployed for `dash30_oldbin`: 2/6,
+  its two passes peaking at 24–25° of pitch, a few degrees under the
+  28.65° limit. The one clean pass of the day (run 4695) cruised at a
+  genuine 3.0–3.3 m/s by GPS with a 6° peak, so the course is achievable;
+  the sprint is simply marginal now, solo, on both binaries (4/18 solo
+  dog-runs vs 1/18 in fleets — not distinguishable at these N). Against
+  the late-August table (trotting 3.1 commanded crossed 3/3, the wall at
+  3.2) that is a regression, and no solo trotting dash above 1.9 had been
+  run on any build since — the "one passes, three fail" reading was built
+  on a table nobody re-ran (CLAUDE.md rule 3, again). Audit of every
+  default that changed since that table (commit a3f4aa2): the world
+  gained only four foot-contact LABEL sensors; the bridge's PD/torque path
+  is unchanged; the mission side gained finish/boot knobs only
+  (`WP_ADEC`, `WP_SETTLE_*`, `WP_STOP_ATT_DEG`, `WP_VCAP_*` at 0); the
+  controller/bridge ship three behaviour changes ON — the contact-table
+  lead implementation (`CTRL_MPC_TABLE_ALIAS` off, knob 2), the unix-socket
+  transport with the bridge draining commands from its main loop, and the
+  joint clamp (exonerated). Chain B brackets lead 1 / lead 3 / UDP; chain C
+  (`campaign_chain_20260910c.sh`) adds the exact shipped lead (knob 1 +
+  alias), the bridge receive thread, and velocity aiding off. The table's
+  own provenance widens the window: its rows are dated 2026-08-22
+  (`git blame`), so the x_comp_integral clamp (default 1.0 since 08-27; the
+  table ran stock's unbounded integrator) and velocity aiding (default ON
+  since 08-28) are inside it too — chain C carries aiding-off, chain E
+  (`campaign_chain_20260910e.sh`) carries the clamp at stock and a run
+  with the four foot-contact label sensors stripped from the proto. 
+  **22:35 — FOUND: it is the contact-table lead.** `dash30_bisect` (solo
+  `dash:100` trotting 3.0, four arms interleaved, 5 reps each, clamp off
+  in all):
+
+  | arm | table lead | PASS | peak pitch of the passes |
+  |---|---|---|---|
+  | base (today's default) | knob 2 = physical 3 | 2/5 | 7.1°, 24.4° |
+  | **lead1** | **knob 1 = physical 2** | **5/5** | **8.0–10.7°, roll 3–11°** |
+  | lead3 | knob 3 = physical 4 | 0/5 | — |
+  | udp (loopback UDP transport) | knob 2 | 1/5 | 19.9° |
+
+  Pooling every knob-2 sprint of the day (base, both clamp arms, the 07:04
+  binary): **6/23 at physical lead 3 against 5/5 at physical lead 2**
+  (Fisher p ≈ 0.002), and the lead-2 passes are clean where the lead-3
+  passes are marginal. The transport is not it (UDP sits at the base
+  rate). So the regression is the lead default this morning's OPEN-28
+  rework shipped (`98202f9`, 07:05: alias removed, knob 2 "= the shipped
+  physical 3") — chosen on hp_gap20 at 1.9 where the record says the
+  shorter physical leads collapsed more, never run at sprint speed. Two
+  things still to settle before the default moves: chain C's `ship` arm
+  (knob 1 + the old alias, bit-for-bit the 08-22 behaviour) says whether
+  the "shipped = physical 3" accounting was ever right in this regime,
+  and chain F (`campaign_chain_20260910f.sh`) runs knob 1 vs 2 on hp_gap20
+  at 1.9 (the cost) and on wkc_finals at 2.2 (the course limit that died on
+  the reversal's pitch trip 7/8 this morning). If knob 1 costs the
+  hairpin, the lead becomes speed-scheduled like the MPC segment.
+  **23:45 — chain C: a SECOND independent fix, and the timeline
+  resolves.** `dash30_bisect2` (solo 3.0, 5 reps, interleaved, clamp off):
+
+  | arm | PASS | peak pitch of the passes |
+  |---|---|---|
+  | base (default lead 2, aiding on) | 2/5 (one "NONE" was a 38.5° ROLL trip that sat ESTOPped under the 50° fall detector until the runner timed out) | 5.8°, 21.2° |
+  | ship (knob 1 + the old alias) | 3/5 | 7.5°, 16.6°, 20.5° |
+  | rxthread (bridge receive thread) | 1/5 | 8.6° |
+  | **noaid (velocity aiding OFF)** | **4/5** | **4.5–5.0°** |
+
+  So velocity aiding — default ON since 08-28, AFTER the 08-22 table — is
+  the other lever: with it off the sprint passes 4/5 with the cleanest
+  attitude of the day, at the default lead. The table's configuration was
+  exactly "old lead, no aiding", and that arm reproduces it (4/5 against
+  3/3). Read together with chain B: two independent knobs each rescue the
+  sprint (lead 1 at 5/5 with aiding on; aiding off at 4/5 with lead 2), the
+  bridge receive path and the old alias do not. Mechanism candidate, not
+  established: at 3+ m/s the GPS Doppler correction (K ≈ 0.7 at 20 Hz) steps
+  the velocity the MPC tracks, and a longer table lead anticipates into that
+  noise. Chain F was replaced by F2 (`campaign_chain_20260910f2.sh`): four
+  arms (default, lead 1, aiding off, both) on hp_gap20 at 1.9, wkc_finals
+  at 2.2, and the 3.0 sprint — the cost of each knob where the defaults were
+  chosen, and the confirmation. The shipping decision waits for it.
+  **00:50 — chain E rules out the last two candidates.** `dash30_xdrag`
+  (interleaved, 5 reps): the clamp default (1.0) 4/5 vs stock's unbounded
+  integrator 2/5 — the clamp is not the regressor, if anything it helps.
+  `dash30_nosensors` (proto's four foot-contact label sensors stripped,
+  6 runs, proto restored from git afterwards): 4/6 with clean peaks, the
+  same hour base ran 4/5 — the labels are innocent. Note the default's own
+  rate wandered from 2/5 (chains B, C) to 4/5 (chain E) with the host no
+  quieter (WindowServer 40 %, BambuStudio 17 %, one pass carrying a 25 ms
+  loop hiccup): the sprint at the default is a coin flip with wide
+  between-campaign scatter, which is exactly why every decision arm in F2
+  runs interleaved against the default in the same hour.
+  **01:41 — F2 on hp_gap20 at 1.9 (the lead default's home, 6 pairs ×
+  4 arms): no verdict cost, a measurable roll cost.** All four arms 6/6.
+  Peak roll at the reversal apex, median (max): default 14.6° (15.4),
+  lead 1 **17.9° (18.4)**, aiding off **20.0° (23.5)**, both 20.8° (22.3);
+  per pair against the default, lead 1 +3.4° (6/6), aiding off +5.9°
+  (6/6), both +6.1° (6/6). Peak pitch moves the other way (12.0 vs 14.1).
+  So the longer physical lead the hairpin was tuned on really does buy
+  roll margin there, and each sprint fix spends some of it — remembering
+  that on concrete the default already peaks at 24.4° (27.0) at this same
+  apex, lead 1 on a grippy hairpin would sit within a couple of degrees of
+  the 28.65° trip. Yaw-saturation counts are also higher with both knobs
+  moved (up to 37 per run). The decision therefore turns on wkc_finals at
+  2.2 (does either knob move the course's pitch-trip limit) and the 3.0
+  confirmation, both running; a speed-scheduled lead (2 below ~2.5 m/s,
+  1 above, switched only at a cycle wrap the way gait changes are) is the
+  candidate if the sprint needs lead 1 and the hairpin keeps lead 2.
+  **02:39 — wkc_finals at 2.2 (5 reps × 4 arms, interleaved) settles the
+  shape of the fix, and overturns this morning's ladder:**
+
+  | arm | PASS | where it fails | peak pitch median | peak roll median |
+  |---|---|---|---|---|
+  | default (lead 2, aiding on) | **5/5** | — | 23.9° | 10.1° |
+  | lead 1 | 2/5 | wp9, the reversal, pitch 30–33° | 30.5° | 19.0° |
+  | aiding off | 4/5 | wp9 once | 24.5° | 11.4° |
+  | both | **0/5** | wp7 ×3 by ROLL (34–41°), wp9 ×2 | 24.9° | **34.5°** |
+
+  Lead 1 costs the course its 2.2 (2/5 against 5/5) through exactly the
+  reversal pitch trip the ladder documented, and the two knobs together
+  are destructive (roll trips at the box corners). So the sprint fix
+  cannot be a global lead of 1: **it has to be speed-scheduled** — the
+  longer lead below ~2.5 m/s where every course lives, the shorter one at
+  sprint speed — adopted only at a cycle wrap, trotting only (the other
+  gaits were never measured at lead 1). And the default's 5/5 at 2.2
+  contradicts the ladder's 1/8 at the same speed on the same course this
+  morning: that ladder ran the OLD alias path (`CTRL_MPC_TABLE_ALIAS=1`
+  with knob 1, "bit-for-bit the shipped physical 3") under an 86 %
+  Spotlight load; tonight's default is knob 2 on the fixed path on a quiet
+  host. Either the alias path is not the same lead after all (chain C's
+  ship arm also sat between base and lead 1 at 3.0), or the morning's
+  limit was host load. `wkc22_ship` (chain G) runs ship vs default at 2.2
+  interleaved to say which; the ladder's "limit between 2.0 and 2.2" is
+  suspended until it does.
+  **02:58 — the sprint confirmation (`dash30_final`, 5 reps × 4 arms) and
+  the night's pooled 3.0 tally.** Confirmation: default 1/5, lead 1 **5/5**
+  (peaks 8.8–12.1°), aiding off **5/5** (peaks 3.5–5.5°), both **0/5**.
+  Every solo 3.0 sprint since 14:00, by configuration:
+
+  | configuration | PASS |
+  |---|---|
+  | lead 1, aiding on | **10/10** |
+  | lead 2, aiding OFF | 9/10 |
+  | lead 2, aiding on — today's default, every plain arm pooled | **10/28 (36 %)** |
+  | lead 2, aiding on, 07:04 binary | 2/6 |
+  | lead 1 + the old alias, aiding on | 3/5 |
+  | lead 3, aiding on | 0/5 |
+  | lead 1, aiding OFF (both knobs) | 0/5 |
+  | lead 2, aiding on: UDP / rx thread / clamp on / x_drag stock / no label sensors / gate on | 1/5, 1/5, 1/6, 2/5, 4/6, 0/2 — all at the base rate |
+
+  Two independent, non-additive fixes; the pair is destructive. With
+  wkc_finals at 2.2 (lead 1 costs the course, aiding off does not, both
+  fail by roll) and hp_gap20 at 1.9 (each costs roll margin at the apex),
+  the shipping choice is the **speed-scheduled lead** — the longer lead
+  everywhere the courses live, the shorter one only in the sprint band,
+  adopted at a cycle wrap, trotting only, aiding left ON (it is the
+  galloping scale fix and it is not what broke). Built and committed
+  (`745c5b6`); chain H deploys it after chain G and verifies it against the
+  pinned default on the sprint, wkc 2.2 and hp_gap20 1.9. Aiding-off is
+  recorded as the equally effective alternative that costs more hairpin
+  roll (+5.9° vs +3.4°) and forfeits the galloping fix.
+  **03:31 — chain G, ship vs default at wkc 2.2 (5 reps interleaved):
+  default 2/5, old alias path 4/5** (Fisher p = 0.52 — nothing), against
+  the default's 5/5 an hour earlier and the alias path's 1/8 this morning.
+  Pooled, 2.2 on wkc_finals is a coin flip for BOTH lead implementations
+  (12/23 across three campaigns, every failure the reversal's pitch trip
+  at 29–32° against passes peaking 22–27°), with hour-to-hour swings that
+  the bridge and loop instruments do not explain (identical stall,
+  backlog and IMU-gap columns in passing and failing runs; the conductor
+  at 7 threads / 122 MB after 23 h). So the ladder's morning reading holds
+  in its honest form — **2.0 is the last reliable rung, 2.2 is ~50 %** —
+  and the alias-vs-fixed question does not decide anything at 2.2. Chain I
+  still measures the alias path's table at the solver input, because "the
+  two are bit-for-bit the same lead" was a claim, and a cheap one to
+  check.
+  **03:31 — the speed-scheduled lead is DEPLOYED** (`deploy_host.sh`,
+  loads and starts; previous binary kept as `mit_ctrl_sim.pre_sched_lead`)
+  and proven to fire on its first sprint: `[SCHED] table lead 2 -> 1
+  adopted at a cycle wrap (v=2.71, band sprint)` as the ramp crossed the
+  threshold, run 4882 PASS with an 8.2° peak. Chain H verifies it against
+  the pinned default on the sprint (N = 6), wkc 2.2 (N = 5) and hp_gap20
+  1.9 (N = 5); the suite gains `dash_trotting_30` (fast tier) so a default
+  cannot regress the sprint silently again.
+  **03:42 — sprint verification: scheduled 6/6 (peaks 8.2–11.1°, roll
+  under 5°), pinned default 0/6** (Fisher p = 0.001), interleaved on the
+  same binary. wkc 2.2 and hp_gap20 1.9 follow — there the schedule must
+  reproduce the pinned default, since it never leaves the slow band.
+  **04:37 — verified on all three cells, same binary, interleaved:**
+
+  | cell | scheduled lead | pinned default (knob 2) | switch lines in the scheduled arm |
+  |---|---|---|---|
+  | `dash:100` at 3.0 | **6/6**, pitch median 9.1°, roll 3.0° | **0/6**, pitch 34.2° | one per run, at v = 2.71 |
+  | `wkc_finals` at 2.2 | 3/5 | 4/5 | 0 |
+  | `hp_gap20` at 1.9 | 5/5, roll 15.0° | 5/5, roll 15.3° | 0 |
+
+  In the slow band the schedule IS the default (no switch fires, and the
+  peaks match to a degree); in the sprint band it is the fix. **CLOSED**:
+  the regression was the contact-table lead default introduced with the
+  09-10 rework, exposed by two defaults that were each tuned on a slow
+  cell and never probed at the top of the envelope (velocity aiding since
+  08-28, the lead since 09-10); the fix is the speed-scheduled lead, shipped
+  03:31, and the suite now carries `dash_trotting_30` in its fast tier.
+  Left in the record, not in the code: aiding-off is an equally effective
+  sprint fix that costs more hairpin roll and the galloping scale; the two
+  together are destructive (0/10); the 3-dog framing this item opened with
+  was a control-arm error, and the fleet's own behaviour at speed has not
+  been re-measured on the scheduled lead. Chain I's solver-input probe of
+  the old alias path is a bookkeeping check on the "bit-for-bit" claim
+  and is recorded under OPEN-28's lead note when it lands.
 
 - **CLOSED (was OPEN-32) · The estimator trusts the schedule, not the foot: A/B the
   sensorless contact gate** — closed 2026-09-11 00:35, measured null. `SIM_CONTACT_GATE=1`
