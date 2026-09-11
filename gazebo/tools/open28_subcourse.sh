@@ -33,6 +33,10 @@ ARMS="${ARMS:-}"
 # which the per-exchange scorers read; the path lands in a bridge_dump column.
 DUMP="${DUMP:-0}"
 campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
+# Pack snapshots older than 24 h while this campaign runs (background QoS,
+# bounded, one at a time): the archive has no retention and the disk sat at
+# 96 % on 2026-09-11 (ISSUES OPEN-35). Readers resolve .json/.json.zst alike.
+pgrep -f "^bash gazebo/tools/archive_compact.sh" >/dev/null || ( nohup bash gazebo/tools/archive_compact.sh >/dev/null 2>&1 & )
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 [ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed" > "$OUT"
 FAILS=0
@@ -137,4 +141,9 @@ done
 # ring still held the previous one (see campaign_run_id).
 dup=$(awk -F, 'NR>1{print $11}' "$OUT" | sort | uniq -d | wc -l | tr -d ' ')
 [ "$dup" -gt 0 ] && echo "  WARNING: $dup repeated run id(s) - those rows are stale, drop them"
+# A fall preceded by a sensor freeze (the bridge stalled under a running
+# controller) is the host's, not the robot's (OPEN-35): split the verdicts
+# per arm before anyone reads the counts above as the robot's.
+echo "  --- harness-fall check (state freeze in the second before the event) ---"
+python3 gazebo/tools/campaign_freeze_report.py "$NAME" 2>/dev/null | sed 's/^/  /' | tail -n 8
 campaign_done "$NAME" "sub-course sweep done"

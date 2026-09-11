@@ -1338,7 +1338,8 @@ external volumes stay indexed after `/` is turned off), `ps -r` for
 `mds_stores`/`corespotlightd`. The snapshot archive has NO retention and
 grows ~21 GB/day; `archive_compact.sh` packs snapshots older than 24 h to
 `.json.zst` and every reader resolves `.json`/`.json.zst` through
-`gazebo/tools/snapio.py` — new readers must too.
+`gazebo/tools/snapio.py` — new readers must too. `open28_subcourse.sh` starts a compaction at
+every campaign start and prints the per-arm harness-fall split at the end.
 A Time Machine backup creates an APFS local snapshot (`tmutil
 listlocalsnapshots /System/Volumes/Data`) that pins every file deleted after
 it, so compaction frees nothing until that snapshot is thinned — the disk
