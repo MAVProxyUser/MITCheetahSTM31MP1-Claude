@@ -1595,7 +1595,15 @@ passed on its own in-suite retry.
   course's usable cruise a full rung, from a 2.2 coin flip to a
   4-in-5 2.4, and the 2.4 peaks (22–26°) are about where the unslewed
   2.2 sat — the margin it buys is worth roughly 0.2 m/s of cruise on this
-  course. The concrete hairpin at 2.1 is running next. Chain I
+  course. On the concrete hairpin at 2.1 (08:58, 5
+  pairs): control 4/5 with roll peaks 23–29° (one 29.4° pass under the
+  debounce, one first-corner fall), **slew 1.0 → 5/5 with roll 11.3–12.2°**
+  — the slew takes 12.7° off the reversal-apex roll in 5/5 pairs on the
+  grippy surface and puts pitch at 16–22°. That is the OPEN-33 friction
+  finding answered: the roll that grip adds at the reversal is a
+  rise-of-command effect, and the slew removes it. **`WP_VSLEW=1.0` ships
+  in the `course:` recipe** (`458be53`); chain O restarts the conductor to
+  load it and proves the recipe carries it. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
