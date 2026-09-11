@@ -16,7 +16,10 @@ archive), this file is the index of where we've been and what's left. Rules:
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
 
-Last validation: **19/19 fast-suite PASS** (2026-08-28 ~23:20 + two
+Last validation: **13/13 fast-tier PASS** (2026-09-11 05:12, on the
+shipping binary: operational joint limits ON, speed-scheduled contact-table
+lead, contact gate OFF; includes the new `dash_trotting_30` sprint case
+at 70.5 s). Previous: 19/19 fast-suite PASS (2026-08-28 ~23:20 + two
 re-runs ~23:55, on the build carrying the OPEN-6 boot fix, the terrain
 planner caps and the GPS-arbitrated instruments). NOT yet re-run on the
 2026-08-29 conductor changes (launch-abort, orphan watchdog, single-server
