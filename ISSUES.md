@@ -185,6 +185,32 @@ passed on its own in-suite retry.
   confirmation, both running; a speed-scheduled lead (2 below ~2.5 m/s,
   1 above, switched only at a cycle wrap the way gait changes are) is the
   candidate if the sprint needs lead 1 and the hairpin keeps lead 2.
+  **02:39 — wkc_finals at 2.2 (5 reps × 4 arms, interleaved) settles the
+  shape of the fix, and overturns this morning's ladder:**
+
+  | arm | PASS | where it fails | peak pitch median | peak roll median |
+  |---|---|---|---|---|
+  | default (lead 2, aiding on) | **5/5** | — | 23.9° | 10.1° |
+  | lead 1 | 2/5 | wp9, the reversal, pitch 30–33° | 30.5° | 19.0° |
+  | aiding off | 4/5 | wp9 once | 24.5° | 11.4° |
+  | both | **0/5** | wp7 ×3 by ROLL (34–41°), wp9 ×2 | 24.9° | **34.5°** |
+
+  Lead 1 costs the course its 2.2 (2/5 against 5/5) through exactly the
+  reversal pitch trip the ladder documented, and the two knobs together
+  are destructive (roll trips at the box corners). So the sprint fix
+  cannot be a global lead of 1: **it has to be speed-scheduled** — the
+  longer lead below ~2.5 m/s where every course lives, the shorter one at
+  sprint speed — adopted only at a cycle wrap, trotting only (the other
+  gaits were never measured at lead 1). And the default's 5/5 at 2.2
+  contradicts the ladder's 1/8 at the same speed on the same course this
+  morning: that ladder ran the OLD alias path (`CTRL_MPC_TABLE_ALIAS=1`
+  with knob 1, "bit-for-bit the shipped physical 3") under an 86 %
+  Spotlight load; tonight's default is knob 2 on the fixed path on a quiet
+  host. Either the alias path is not the same lead after all (chain C's
+  ship arm also sat between base and lead 1 at 3.0), or the morning's
+  limit was host load. `wkc22_ship` (chain G) runs ship vs default at 2.2
+  interleaved to say which; the ladder's "limit between 2.0 and 2.2" is
+  suspended until it does.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
