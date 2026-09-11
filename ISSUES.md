@@ -97,6 +97,17 @@ passed on its own in-suite retry.
   lead's. Chain AF re-pins lead 1 and runs the full tier with every run's
   worst IMU gap printed beside its verdict (`stream_gap_report.sh`); of the
   81 runs since 16:00, 32 carried a gap over 15 ms — the evening's host.**
+  **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
+  — and the lead-1 fall (run 5290) is the harness again, a different way:
+  IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
+  on the real-time band (`stalls>5ms=1/worst=126.5ms`), 122 ms of frozen
+  state, a −34° roll jump on return. The one blocking call in that loop is
+  the 1 Hz stats print to a log file on a disk Spotlight was hammering;
+  the write now goes through a writer thread (the loop only enqueues).
+  Shipping decision changed to the per-gait form OPEN-37 asked for:
+  `CTRL_MPC_LEAD_SLOW: 1` — trotting on lead 1 in both bands through the
+  schedule path that already exists, walking and every other gait untouched
+  at knob 2. Chain AF applies it and runs the full tier with the gap report.**
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened

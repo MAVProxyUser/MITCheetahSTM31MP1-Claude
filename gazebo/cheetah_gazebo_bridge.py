@@ -185,6 +185,25 @@ _EXTRAP_MIN = 0.004     # s: one 500 Hz tick of silence before we start predicti
 _INJ_MS = float(os.environ.get("BRIDGE_GAP_INJECT_MS", "0"))
 _INJ_PERIOD = float(os.environ.get("BRIDGE_GAP_INJECT_PERIOD_S", "1.0"))
 _joint_last = [0.0]     # wall time of the last joint-state message
+
+# LOG WRITES OFF THE LOOP (OPEN-35, 2026-09-11 19:45): run 5290's bridge loop
+# stalled 111-126 ms while ON the real-time band and with the IMU stream
+# clean; the only blocking call in that loop is the 1 Hz stats print to a
+# log file on a disk Spotlight was hammering. A daemon thread does the write;
+# the loop only enqueues.
+import queue as _queue
+_log_q = _queue.Queue()
+def _log_writer():
+    while True:
+        line = _log_q.get()
+        try:
+            sys.stdout.write(line + "\n"); sys.stdout.flush()
+        except Exception:
+            pass
+threading.Thread(target=_log_writer, daemon=True).start()
+def logline(line):
+    """print() for the real-time loop: never blocks on the file."""
+    _log_q.put(line)
 _gap_stat = [0, 0]      # [ticks extrapolated this second, samples dropped this second]
 
 def _inject_hold(now):
@@ -663,7 +682,7 @@ def main():
                 q0 = round(qj[0], 3); t0 = round(last_tau[0], 2); t2 = round(last_tau[2], 2)
                 bp = round(baro["pressure"], 0); ba = round(baro["alt"], 2)
                 la = round(gps["lat"], 5); lo = round(gps["lon"], 5)
-            print(f"[bridge] cmd_rx={cmd_rx[0]}/s peer={peer_ip[0]} imu_az={round(imu['accel'][2],2)} "
+            logline(f"[bridge] cmd_rx={cmd_rx[0]}/s peer={peer_ip[0]} imu_az={round(imu['accel'][2],2)} "
                   f"q_FR_hip={q0} tau=[{t0},{t2}] stalls>{5}ms={stalls[0]}/worst={round(stalls[1]*1000,1)}ms "
                   f"baro={bp}Pa/{ba}m gps=({la},{lo}) rx_backlog_max={_backlog[0]} "
                   f"imu_rx={_imu_stat[0]}/s imu_gap_max={round(_imu_stat[2]*1000,1)}ms"
@@ -671,7 +690,7 @@ def main():
                   + (f" extrap={_gap_stat[0]}/s" if _EXTRAP else "")
                   + (f" dropped={_gap_stat[1]}/s" if _INJ_MS > 0 else "")
                   + (f" tau_ff_guard={tau_ff_guard[0]}/worst_scale={round(tau_ff_guard[1],2)}"
-                     if tau_ff_guard[0] else ""), flush=True)
+                     if tau_ff_guard[0] else ""))
             cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0; _backlog[0] = 0
             _imu_stat[0] = 0; _imu_stat[2] = 0.0
             _gap_stat[0] = 0; _gap_stat[1] = 0
