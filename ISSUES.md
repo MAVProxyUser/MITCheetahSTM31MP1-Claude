@@ -1602,8 +1602,12 @@ passed on its own in-suite retry.
   5/5 pairs on the grippy surface and puts pitch at 16–22°. That is the OPEN-33 friction
   finding answered: the roll that grip adds at the reversal is a
   rise-of-command effect, and the slew removes it. **`WP_VSLEW=1.0` ships
-  in the `course:` recipe** (`458be53`); chain O restarts the conductor to
-  load it and proves the recipe carries it. Chain I
+  in the `course:` recipe** (`458be53`). Chain O (09:45) restarted the
+  conductor the safe way, confirmed the served recipe carries the slew,
+  and verified it against an explicit `WP_VSLEW=0` with no other change:
+  wkc 2.2 recipe 4/4 (pitch median 16.1°) vs off 4/4 (23.6°); hp_gap20
+  1.9 recipe 4/4 (roll median 9.8°) vs off 4/4 (15.1°). The recipe arm's
+  own ctrl log shows the slew binding on the reversal's rise. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
