@@ -1778,6 +1778,24 @@ passed on its own in-suite retry.
   lead 1 from the bottom of the ramp, and keeps lead 2 at the corners and
   the reversal. Chain V measures it on the full `wkc_finals` at 2.2 and
   2.4 and on the box at 2.6 against the shipped schedule and pinned lead 1.
+  **Chain V, `wkc_finals` full course (14:27, 5 reps × 6 arms interleaved,
+  harness falls: none):**
+
+  | arm | 2.2 | 2.4 |
+  |---|---|---|
+  | shipped schedule (lead 2 on every leg) | 5/5, pitch median 18.4° | **2/5**, three falls on the leg after wp8 (pitch 30–34°) |
+  | early switch (2.0 / 1.8) | 5/5, 17.0° | 3/5 PASS, 4/5 course-complete (one wp8-leg fall, one clean course failed by the lie-down judge right after the switch back to lead 2 in the arrival) |
+  | lead 1 pinned | 5/5, **14.7°** | **5/5**, 23.8° |
+
+  Lead 1 pinned is now 10/10 on the full course and 5/5 on the 2.6 box
+  against the shipped schedule's 7/10 and 2/5, with the lowest pitch at
+  2.2. The early switch fixes most of the 2.4 leg but its switch-back
+  during the arrival has failed the lie-down judge twice today (2 of 6
+  course-completes across chains T and V, against 0 of 19 for the other
+  policies). The 09-10 F2 cost of lead 1 on wkc 2.2 does not reproduce on
+  the slew recipe — the reversal it was charged to is the feature the
+  slew removed. Remaining cell before lead 1 becomes the default: the
+  hairpin apex at 1.9 and 2.3 (chain W).
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
