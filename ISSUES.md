@@ -229,6 +229,16 @@ passed on its own in-suite retry.
   freezes (run 5272). Throttled the same way as corespotlightd (user-owned:
   nice 20 + background policy). `campaign_freeze_report.py` now counts runs
   with a gap over 15 ms per arm.
+  The throttle did not cut it (180 % of a core at 18:15, the process is
+  multi-threaded and nice does not cap CPU) and the gaps stayed at 31–54 ms.
+  **Mitigation candidate (18:25, `BRIDGE_EXTRAP`, default OFF until
+  measured):** the bridge dead-reckons across a gap — orientation propagated
+  with the last body rate, joints with their last velocities, up to 80 ms —
+  instead of re-sending a frozen sample and letting the controller eat the
+  jump. Measured on a quiet host with a synthetic hold
+  (`BRIDGE_GAP_INJECT_MS=30` once a second, the class's own shape): chain
+  AE, expsquare and spiro, clean / gap30 / gap30+extrapolation, 3 reps
+  interleaved. A rescue there ships as the default after a suite run.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —

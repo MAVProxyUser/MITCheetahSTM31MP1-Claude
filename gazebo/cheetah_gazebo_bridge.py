@@ -165,6 +165,53 @@ def _rt_band(period_ms=2.0, comp_ms=0.5, cons_ms=2.0):
 _rt_threads = [0, 0]   # [callback threads elevated, callback threads refused]
 _rt_done = set()       # native thread ids already elevated
 
+# GAPS IN THE SENSOR STREAM (OPEN-35's third class, 2026-09-11). Under host
+# load gz-transport's loopback holds the IMU/joint topics for 20-55 ms; the
+# bridge kept re-sending the last sample, the controller consumed a frozen
+# state and then a jump, and the walking gait flicked a leg at 10 m/s. Two
+# knobs:
+#   BRIDGE_EXTRAP=1        dead-reckon across a gap: propagate the last
+#                          orientation with the last body rate and the joint
+#                          positions with the last joint velocities, for up
+#                          to BRIDGE_EXTRAP_MAX_MS (80) after the last sample.
+#   BRIDGE_GAP_INJECT_MS=N test only - drop every incoming IMU/joint sample
+#                          during an N ms window once per
+#                          BRIDGE_GAP_INJECT_PERIOD_S (1.0), i.e. a synthetic
+#                          transport hold, so the two can be A/B'd on a quiet
+#                          host. The 1 Hz line reports extrap=/s and dropped=/s.
+_EXTRAP = os.environ.get("BRIDGE_EXTRAP", "0") == "1"
+_EXTRAP_MAX = float(os.environ.get("BRIDGE_EXTRAP_MAX_MS", "80")) / 1000.0
+_EXTRAP_MIN = 0.004     # s: one 500 Hz tick of silence before we start predicting
+_INJ_MS = float(os.environ.get("BRIDGE_GAP_INJECT_MS", "0"))
+_INJ_PERIOD = float(os.environ.get("BRIDGE_GAP_INJECT_PERIOD_S", "1.0"))
+_joint_last = [0.0]     # wall time of the last joint-state message
+_gap_stat = [0, 0]      # [ticks extrapolated this second, samples dropped this second]
+
+def _inject_hold(now):
+    """True while a synthetic transport hold is in effect (test only)."""
+    return _INJ_MS > 0.0 and (now % _INJ_PERIOD) < _INJ_MS / 1000.0
+
+def _q_mul(a, b):
+    """quaternion product, [x, y, z, w] layout."""
+    ax, ay, az, aw = a; bx, by, bz, bw = b
+    return [aw*bx + ax*bw + ay*bz - az*by,
+            aw*by - ax*bz + ay*bw + az*bx,
+            aw*bz + ax*by - ay*bx + az*bw,
+            aw*bw - ax*bx - ay*by - az*bz]
+
+def _q_propagate(q_bw, gyro, dt):
+    """Advance a body->world quaternion by a body-frame rate over dt."""
+    wx, wy, wz = gyro
+    n = (wx*wx + wy*wy + wz*wz) ** 0.5
+    if n < 1e-9 or dt <= 0.0:
+        return list(q_bw)
+    h = 0.5 * n * dt
+    sh = _m.sin(h) / n
+    dq = [wx*sh, wy*sh, wz*sh, _m.cos(h)]
+    r = _q_mul(q_bw, dq)
+    k = (r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + r[3]*r[3]) ** 0.5
+    return [c / k for c in r]
+
 def _rt_here():
     """Elevate the current (gz-transport callback) thread once. Keyed on the
     OS thread id, not threading.local(): gz-transport's C++ threads acquire and
@@ -183,6 +230,9 @@ def _rt_here():
 def on_imu(msg: IMU):
     _rt_here()
     now = time.time()
+    if _inject_hold(now):
+        _gap_stat[1] += 1
+        return
     if _imu_stat[1] > 0.0 and now - _imu_stat[1] > _imu_stat[2]:
         _imu_stat[2] = now - _imu_stat[1]
     _imu_stat[1] = now
@@ -236,8 +286,13 @@ def on_pose(msg):
 
 def on_joint(msg: Model):
     _rt_here()
+    now = time.time()
+    if _inject_hold(now):
+        _gap_stat[1] += 1
+        return
     idx = {jn: i for i, jn in enumerate(JOINTS)}
     with lock:
+        _joint_last[0] = now
         for j in msg.joint:
             i = idx.get(j.name)
             if i is None:
@@ -445,10 +500,27 @@ def _perturb(q):
 
 def send_sensor():
     with lock:
+        qj_use = qj
+        q_use = imu["quat"]
+        if _EXTRAP:
+            now = time.time()
+            dt_i = now - _imu_stat[1] if _imu_stat[1] > 0.0 else 0.0
+            dt_j = now - _joint_last[0] if _joint_last[0] > 0.0 else 0.0
+            did = False
+            if _EXTRAP_MIN < dt_i <= _EXTRAP_MAX:
+                q_raw = [-q_use[0], -q_use[1], -q_use[2], q_use[3]] if QUAT_CONJ else q_use
+                q_raw = _q_propagate(q_raw, imu["gyro"], dt_i)
+                q_use = [-q_raw[0], -q_raw[1], -q_raw[2], q_raw[3]] if QUAT_CONJ else q_raw
+                did = True
+            if _EXTRAP_MIN < dt_j <= _EXTRAP_MAX:
+                qj_use = [qj[i] + qdj[i] * dt_j for i in range(12)]
+                did = True
+            if did:
+                _gap_stat[0] += 1
         # Go1 -> Cheetah frame
-        qc  = [SIGN[i]*qj[i]  + OFFSET[i] for i in range(12)]
-        qdc = [SIGN[i]*qdj[i]             for i in range(12)]
-        a, g, quat = imu["accel"], imu["gyro"], _perturb(imu["quat"])
+        qc  = [SIGN[i]*qj_use[i] + OFFSET[i] for i in range(12)]
+        qdc = [SIGN[i]*qdj[i]                for i in range(12)]
+        a, g, quat = imu["accel"], imu["gyro"], _perturb(q_use)
         ba, bp = baro["alt"], baro["pressure"]
         glat, glon, galt, gvel = gps["lat"], gps["lon"], gps["alt"], gps["vel"]
         tpos, tquat, tvw = list(truth["pos"]), list(truth["quat"]), list(truth["vworld"])
@@ -562,6 +634,10 @@ def main():
               f"IMU/joint callback threads elevate on first entry (BRIDGE_RT=0 disables)", flush=True)
     else:
         print("[bridge] scheduling: default QoS (BRIDGE_RT=0)", flush=True)
+    if _EXTRAP:
+        print(f"[bridge] gap handling: dead-reckoning across sensor gaps up to {_EXTRAP_MAX*1000:.0f} ms (BRIDGE_EXTRAP=1)", flush=True)
+    if _INJ_MS > 0:
+        print(f"[bridge] TEST: injecting a {_INJ_MS:.0f} ms sensor hold every {_INJ_PERIOD:.2f} s (BRIDGE_GAP_INJECT_MS)", flush=True)
     period = 1.0/500.0    # 500 Hz
     last = time.time()
     hb = time.time()
@@ -592,10 +668,13 @@ def main():
                   f"baro={bp}Pa/{ba}m gps=({la},{lo}) rx_backlog_max={_backlog[0]} "
                   f"imu_rx={_imu_stat[0]}/s imu_gap_max={round(_imu_stat[2]*1000,1)}ms"
                   + (f" rt_threads={_rt_threads[0]}/{_rt_threads[1]}" if _RT else "")
+                  + (f" extrap={_gap_stat[0]}/s" if _EXTRAP else "")
+                  + (f" dropped={_gap_stat[1]}/s" if _INJ_MS > 0 else "")
                   + (f" tau_ff_guard={tau_ff_guard[0]}/worst_scale={round(tau_ff_guard[1],2)}"
                      if tau_ff_guard[0] else ""), flush=True)
             cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0; _backlog[0] = 0
             _imu_stat[0] = 0; _imu_stat[2] = 0.0
+            _gap_stat[0] = 0; _gap_stat[1] = 0
             tau_ff_guard[0] = 0; tau_ff_guard[1] = 1.0
         last += period
         dt = last - now
