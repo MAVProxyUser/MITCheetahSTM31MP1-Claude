@@ -16,10 +16,11 @@ archive), this file is the index of where we've been and what's left. Rules:
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
 
-Last validation: **20/20 FULL-suite PASS** (2026-09-11 06:13) and
-**13/13 fast-tier PASS** (15:42, on the shipped lead-1 default with the
-controller and the bridge on the real-time band and the fall judge's four
-criteria; 12:43 and 05:12 before them), both on the shipping binary: operational
+Last validation: **20/20 FULL-suite PASS** (2026-09-11 06:13, on the speed
+schedule — the configuration restored at 17:05) and **13/13 fast-tier PASS**
+(15:42, controller and bridge on the real-time band, four-criteria judge). The
+17:00 full tier on the lead-1 pin was **17/20** (OPEN-37: walking recipes and
+spiro), which is why the pin was reverted. Both on the shipping binary: operational
 joint limits ON, speed-scheduled contact-table lead, contact gate OFF;
 includes the new `dash_trotting_30` sprint case (70.5 s) and, the same
 morning, the 3-dog `dash:100` at 3.0 at 18/18. Previous: 19/19 fast-suite PASS (2026-08-28 ~23:20 + two
