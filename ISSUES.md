@@ -126,7 +126,8 @@ passed on its own in-suite retry.
   **Done means**: over the
   next 300 runs on the RT band, zero mid-run bridge stalls over 100 ms and
   `campaign_freeze_report.py` showing zero harness falls; today's baseline
-  is 5 and 2.
+  is 5 and 2. First reading (12:04, 24 runs since the band went live under
+  a Spotlight mdworker storm): 1 stall ≥ 20 ms, 0 ≥ 100 ms.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
@@ -1751,7 +1752,16 @@ passed on its own in-suite retry.
   approach and one 10 ms freeze that came with a 14 ms loop period. So
   on μ 0.6 the hairpin course runs 5/5 at 2.3 with less roll (13.4°) than
   the unslewed recipe carried at 1.9 (15.1°): the slew moved this
-  course's envelope from 2.0 to at least 2.3. Host at the time:
+  course's envelope from 2.0 to at least 2.3. **Top of that envelope
+  (chain S, 12:03, 5 reps per rung interleaved, first runs on the RT-band
+  bridge and the down-judge binary): 2.5 → 3/5 (pass pitch median 23.6°,
+  roll 10.9°), 2.7 → 0/5.** All seven falls genuine by the freeze scan,
+  all on the leg to wp1 — the 2.7 runs by the pitch E-stop (29–38°) as the
+  dog accelerates out of the first corner, the 2.5 runs at cruise on that
+  leg — the same regime as the box at 2.6 (cruise above ~2.5 on lead 2),
+  so the hairpin course's table on this recipe reads 2.3 reliable, 2.5
+  three-in-five, 2.7 dead, and chain T's lead-policy answer applies here
+  too. Host at the time:
   `corespotlightd` at 60 % of a core (7.7 h old) plus `mds` and a fresh
   set of `mdworker`s — Spotlight is off for `/` (`mdutil -s`) but its
   CoreSpotlight side is still hot, 2 cores of the machine. Chain I
