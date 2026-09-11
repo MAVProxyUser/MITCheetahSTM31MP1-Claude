@@ -1607,7 +1607,14 @@ passed on its own in-suite retry.
   and verified it against an explicit `WP_VSLEW=0` with no other change:
   wkc 2.2 recipe 4/4 (pitch median 16.1°) vs off 4/4 (23.6°); hp_gap20
   1.9 recipe 4/4 (roll median 9.8°) vs off 4/4 (15.1°). The recipe arm's
-  own ctrl log shows the slew binding on the reversal's rise. Chain I
+  own ctrl log shows the slew binding on the reversal's rise.
+  **The course's envelope on the shipped recipe (chain P, 10:18, 5 reps
+  per rung interleaved): 2.4 → 4/5, 2.6 → 0/5, 2.8 → 0/5.** Both dead
+  rungs fail at wp7 — the third 90° corner of the box — by pitch (30–38°),
+  not at the reversal any more: the slew fixed the feature that bounded
+  the course at 2.2 and the next feature takes over 0.2 m/s later. So
+  wkc_finals on this build runs reliably to 2.0, at 4-in-5 at 2.4, and
+  the box corners are the next lever if anyone wants 2.6. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
