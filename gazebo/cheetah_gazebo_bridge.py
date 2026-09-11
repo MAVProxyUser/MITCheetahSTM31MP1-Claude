@@ -163,12 +163,20 @@ def _rt_band(period_ms=2.0, comp_ms=0.5, cons_ms=2.0):
         return "err:%s" % e
 
 _rt_threads = [0, 0]   # [callback threads elevated, callback threads refused]
+_rt_done = set()       # native thread ids already elevated
 
 def _rt_here():
-    """Elevate the current (gz-transport callback) thread once."""
-    if not _RT or getattr(_rt_local, "done", False):
+    """Elevate the current (gz-transport callback) thread once. Keyed on the
+    OS thread id, not threading.local(): gz-transport's C++ threads acquire and
+    release a Python thread state around every callback, so thread-local
+    storage is fresh each call (the first cut re-elevated ~1500 times/s and
+    the counter read 8574/0). The mach policy itself sticks to the OS thread."""
+    if not _RT:
         return
-    _rt_local.done = True
+    tid = threading.get_native_id()
+    if tid in _rt_done:
+        return
+    _rt_done.add(tid)
     kr = _rt_band()
     _rt_threads[0 if kr == 0 else 1] += 1
 

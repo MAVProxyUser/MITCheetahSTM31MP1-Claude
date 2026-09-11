@@ -108,7 +108,12 @@ passed on its own in-suite retry.
   root); a 3 s probe on the loaded host took the worst `sleep(2 ms)`
   overshoot from 1.05 ms to 0.02 ms. The bridge names it in its log
   (`[bridge] scheduling: ... kr=0`) and the stats line carries
-  `rt_threads=elevated/refused`. Host actions taken: `corespotlightd`
+  `rt_threads=elevated/refused`. **Verified 11:50 on the first run after
+  the backup**: `kr=0`, the bridge's main thread at priority 97 against the
+  controller's 31 (`ps -o pri`); the first cut re-elevated the callback
+  threads on every call (gz-transport recreates the Python thread state per
+  callback, so `threading.local` was fresh each time — 8574 calls in 6 s),
+  fixed by keying on the native thread id. Host actions taken: `corespotlightd`
   (user-owned) reniced to 20 with the background task policy (authorized:
   "you can stop spotlight"); `mds`/`mds_stores` are root's — the durable
   fix is the user's `sudo mdutil -a -i off`. Also found on the way: the
