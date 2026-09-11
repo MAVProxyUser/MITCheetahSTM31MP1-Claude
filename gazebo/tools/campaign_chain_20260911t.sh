@@ -26,5 +26,8 @@ run(){ local n="$1" r="$2" v="$3"
 }
 while kill -0 8297 2>/dev/null && ps -p 8297 -o command= | grep -q "campaign_chain_20260911s.sh"; do sleep 20; done
 wait_idle; sleep 30; wait_idle; say "chain T pid $$: rig idle (phase $(phase))"
-COURSES=wkc_box ARMS="ctrl:WP_ALON=0.4 vhi25:WP_ALON=0.4,CTRL_MPC_LEAD_V_HI=2.5 pin1:WP_ALON=0.4,CTRL_MPC_SCHED_LEAD=1" run box26_lead 5 2.6
+# SIM_ESTERR=1 on every arm: ground-truth-vs-estimate lines ([ESTERR], instrumentation only,
+# nothing reaches the control loop) so the 2.65-2.85 m/s the estimate reports on the wp4 leg
+# under a 2.60 command can be read against truth - is the body over-speed, or the estimate?
+COURSES=wkc_box ARMS="ctrl:WP_ALON=0.4,SIM_ESTERR=1 vhi25:WP_ALON=0.4,CTRL_MPC_LEAD_V_HI=2.5,SIM_ESTERR=1 pin1:WP_ALON=0.4,CTRL_MPC_SCHED_LEAD=1,SIM_ESTERR=1" run box26_lead 5 2.6
 say "chain T done"
