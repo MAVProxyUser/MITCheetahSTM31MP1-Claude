@@ -77,6 +77,11 @@ passed on its own in-suite retry.
   was checked on gait 20. Chain AC takes the rig after AB's expsquare
   campaign: the three cases, lead 2, bands ON vs OFF (`CTRL_RT=0
   BRIDGE_RT=0`), interleaved.**
+  **17:52 — expsquare A/B complete (3 pairs, recipe gait): lead 1 2/3,
+  lead 2 2/3 — each arm's one fall was its first run, then two clean
+  passes each (lead 2's passes at pitch 9° / roll 5°). The lead does not
+  separate the arms; the case has gone from always-pass to two-in-three on
+  both. Chain AC (bands on vs off) is the next split.**
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
