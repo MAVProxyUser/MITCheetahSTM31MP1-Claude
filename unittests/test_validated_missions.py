@@ -158,6 +158,25 @@ CASES = [
         ),
     ),
     Case(
+        name="dash_trotting_30",
+        slots=["dash:100"], gaits=["trotting"], speeds=[3.0],
+        extras=[""],
+        min_s=25, max_s=120,
+        why=(
+            "ISSUES.md OPEN-34 (2026-09-10/11). THIS CASE EXISTS BECAUSE TWO "
+            "DEFAULTS BROKE THE SPRINT WITHOUT ANY SUITE CASE NOTICING: velocity "
+            "aiding went default-on (08-28) and the contact-table lead default "
+            "was reset (09-10), each measured on a slow cell and neither at the "
+            "top of the envelope, and together they took the solo 100 m dash at "
+            "3.0 from a table-grade 3/3 to 10/28. The fix that ships is the "
+            "speed-scheduled lead (knob 1 in the sprint band, adopted at a "
+            "cycle wrap; 10/10 in the bisects). Run it at the fastest validated "
+            "trotting cell so a default cannot regress the sprint silently "
+            "again; a fall here is a regression, not noise (the fixed lead "
+            "went 10/10)."
+        ),
+    ),
+    Case(
         name="dash_long_duration",
         slots=["dash:100"], gaits=["trotRunning"], speeds=[0.6],
         extras=["CTRL_XDRAG_CLAMP=1.0"],

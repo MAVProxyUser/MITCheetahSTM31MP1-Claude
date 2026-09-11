@@ -252,6 +252,14 @@ passed on its own in-suite retry.
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
+  **03:31 — the speed-scheduled lead is DEPLOYED** (`deploy_host.sh`,
+  loads and starts; previous binary kept as `mit_ctrl_sim.pre_sched_lead`)
+  and proven to fire on its first sprint: `[SCHED] table lead 2 -> 1
+  adopted at a cycle wrap (v=2.71, band sprint)` as the ramp crossed the
+  threshold, run 4882 PASS with an 8.2° peak. Chain H verifies it against
+  the pinned default on the sprint (N = 6), wkc 2.2 (N = 5) and hp_gap20
+  1.9 (N = 5); the suite gains `dash_trotting_30` (fast tier) so a default
+  cannot regress the sprint silently again.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
