@@ -1316,6 +1316,12 @@ MIT shifts the contact schedule one MPC step into the future
 function (0xf7758) does **not**. Plausibly MIT compensating for solve latency,
 and this port's latency is larger than either of theirs - so it is exposed as
 `SIM_MPC_SCHED_LEAD` (default 1 = MIT) rather than silently changed.
+*(2026-09-11: the knob is now `CTRL_MPC_SCHED_LEAD` and, for trotting, the
+lead is SPEED-SCHEDULED - knob 2 below the sprint band, knob 1 above it,
+adopted at a cycle wrap. Measured in ISSUES.md OPEN-34: the longer lead
+holds the reversal's pitch and roll margins at 1.9-2.2, the shorter one is
+what keeps the 3.0 sprint upright (6/6 vs 0/6 on the same binary). Setting
+the knob pins the lead and disables the schedule.)*
 
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
