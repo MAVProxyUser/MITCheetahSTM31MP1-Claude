@@ -169,6 +169,22 @@ passed on its own in-suite retry.
   loop hiccup): the sprint at the default is a coin flip with wide
   between-campaign scatter, which is exactly why every decision arm in F2
   runs interleaved against the default in the same hour.
+  **01:41 — F2 on hp_gap20 at 1.9 (the lead default's home, 6 pairs ×
+  4 arms): no verdict cost, a measurable roll cost.** All four arms 6/6.
+  Peak roll at the reversal apex, median (max): default 14.6° (15.4),
+  lead 1 **17.9° (18.4)**, aiding off **20.0° (23.5)**, both 20.8° (22.3);
+  per pair against the default, lead 1 +3.4° (6/6), aiding off +5.9°
+  (6/6), both +6.1° (6/6). Peak pitch moves the other way (12.0 vs 14.1).
+  So the longer physical lead the hairpin was tuned on really does buy
+  roll margin there, and each sprint fix spends some of it — remembering
+  that on concrete the default already peaks at 24.4° (27.0) at this same
+  apex, lead 1 on a grippy hairpin would sit within a couple of degrees of
+  the 28.65° trip. Yaw-saturation counts are also higher with both knobs
+  moved (up to 37 per run). The decision therefore turns on wkc_finals at
+  2.2 (does either knob move the course's pitch-trip limit) and the 3.0
+  confirmation, both running; a speed-scheduled lead (2 below ~2.5 m/s,
+  1 above, switched only at a cycle wrap the way gait changes are) is the
+  candidate if the sprint needs lead 1 and the hairpin keeps lead 2.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
