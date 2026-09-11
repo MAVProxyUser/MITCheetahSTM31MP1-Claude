@@ -68,6 +68,15 @@ passed on its own in-suite retry.
   means**: a per-gait lead (trot on lead 1 where it was measured, every
   other gait on the lead it was validated at) and 20/20 on the full tier —
   or the trot gain given back.
+  **17:41 — chain AB's first pair: expsquare fails on lead 2 as well (l1
+  0/1 pitch 40° at wp6; l2 0/1 `leg 3 moving too quickly 10.3 m/s` at
+  wp8), on the walking gait, no lead-switch lines, loop period intact,
+  MPC inline. The lead is not the walking recipes' cause. What else changed
+  for a walking recipe since the 05:49 pass: the bridge's real-time band
+  (11:50) and the controller's (14:26) — no fast-tier case walks, so neither
+  was checked on gait 20. Chain AC takes the rig after AB's expsquare
+  campaign: the three cases, lead 2, bands ON vs OFF (`CTRL_RT=0
+  BRIDGE_RT=0`), interleaved.**
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
