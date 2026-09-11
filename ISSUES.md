@@ -1591,7 +1591,7 @@ passed on its own in-suite retry.
   RISE out of the reversal (wanted 0.25 → allowed 0.02, 0.62 → 0.57). A
   slew of 2.0 never binds hard enough to matter. Chain N (08:38, wkc 2.4, 5 pairs): control **0/5** (pitch median
   31.7°, every fall the reversal), **slew 1.0 → 4/5** (pitch median 24.7°,
-  one reversal trip at 29.9°), mission ~165 s. So the slew moves the
+  one reversal trip at 29.9°), mission 171 s against 180 s at 2.2. So the slew moves the
   course's usable cruise a full rung, from a 2.2 coin flip to a
   4-in-5 2.4, and the 2.4 peaks (22–26°) are about where the unslewed
   2.2 sat — the margin it buys is worth roughly 0.2 m/s of cruise on this
