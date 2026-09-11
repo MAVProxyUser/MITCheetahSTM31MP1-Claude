@@ -90,6 +90,13 @@ passed on its own in-suite retry.
   AD runs spiro and lissajous lead 1 vs 2 on a clean stream. If they hold,
   the pin goes back in and the full tier is re-run with the IMU-gap
   column watching the stream.**
+  **19:10 — spiro lead A/B (chain AD, recipe gait, 3 pairs): lead 1 3/3,
+  lead 2 3/3, pitch 6–11°, one run with a 25 ms gap and it passed anyway.
+  The 16:57 spiro failure was the stream. With expsquare 2/3 vs 2/3 under
+  gaps and 3/3 vs 3/3 clean, nothing in the full tier's failures is the
+  lead's. Chain AF re-pins lead 1 and runs the full tier with every run's
+  worst IMU gap printed beside its verdict (`stream_gap_report.sh`); of the
+  81 runs since 16:00, 32 carried a gap over 15 ms — the evening's host.**
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
