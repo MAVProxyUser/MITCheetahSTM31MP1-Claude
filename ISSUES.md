@@ -51,7 +51,11 @@ passed on its own in-suite retry.
   = 128 ms of the controller sending into a bridge that was not running);
   on return the state jumped −8.9° roll / −6.7° yaw and the safety E-stop
   fired 60 ms later. Run 5058 (wkc_box at 2.6, 10:30): 247.5 ms, backlog
-  124, the "level collapse" of chain Q. Today's 305 per-run bridge logs
+  124, the "level collapse" of chain Q — and what a level collapse IS: on
+  the return the locomotion safety check tripped and the FSM ping-ponged
+  LOCOMOTION ↔ RecoveryStand (`[FSM LOCOMOTION] On Enter` / `[Recovery
+  Balance] ... Folding legs`, alternating every few ms) until the body was
+  on the ground at 0° roll and pitch. Today's 305 per-run bridge logs
   carry 24 mid-run stalls over 20 ms and five over 100 ms (01:22, 02:14,
   10:30, 10:31, 10:49); a stall over 100 ms at cruise is a coin-flip fall.
   Two classes by the backlog: backlog ≈ stall × 500 Hz means the bridge

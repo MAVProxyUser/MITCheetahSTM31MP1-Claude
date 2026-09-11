@@ -78,7 +78,7 @@ def scan(path, min_ticks, detail_ms):
     tot = sum(f["ms"] for f in fz)
     mx = max((f["ms"] for f in fz), default=0.0)
     exc = first_excursion(R)
-    pre = [f for f in fz if exc is not None and exc - 1.0 <= f["t1"] <= exc]
+    pre = [f for f in fz if exc is not None and f["t0"] <= exc and f["t1"] >= exc - 1.0]   # overlaps the second before the event (the collapse can begin inside the freeze)
     name = os.path.basename(path)
     print("%-90s span %6.1fs moving-freezes>=%dt: %3d  total %6.1f ms  max %6.1f ms  30deg@ %s  freeze<=1s before: %s"
           % (name[:90], span, min_ticks, len(fz), tot, mx,

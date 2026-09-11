@@ -39,7 +39,7 @@ def main():
             print("  %s rep %s run %s: unreadable snapshot (%s)" % (arm, r.get("rep"), r.get("run_id"), e))
             continue
         exc = first_excursion(R)
-        fz = [f for f in freezes(R, 3) if exc is not None and exc - 1.0 <= f["t1"] <= exc and f["ms"] >= a.min_ms]
+        fz = [f for f in freezes(R, 3) if exc is not None and f["t0"] <= exc and f["t1"] >= exc - 1.0 and f["ms"] >= a.min_ms]
         tag = "HARNESS (freeze %.0f ms at t=%.2f, loop period max %.2f ms)" % (fz[0]["ms"], fz[0]["t0"], fz[0]["period_max"]) if fz else "genuine"
         if fz:
             d["harness"] += 1
