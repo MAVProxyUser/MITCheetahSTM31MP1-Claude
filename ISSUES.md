@@ -239,6 +239,13 @@ passed on its own in-suite retry.
   (`BRIDGE_GAP_INJECT_MS=30` once a second, the class's own shape): chain
   AE, expsquare and spiro, clean / gap30 / gap30+extrapolation, 3 reps
   interleaved. A rescue there ships as the default after a suite run.
+  **Chain AC result (18:35, bands on vs off, lead 2, recipe gaits):**
+  expsquare 3/3 vs 3/3 (stream clean, 4–6 ms); spiro 2/3 vs 3/3 with the
+  one fall on a 31 ms gap; lissajous 1/2 vs 0/2 with every one of the four
+  runs carrying a 22–56 ms gap (the media-analysis storm). The bands are
+  innocent: arms are identical when the stream is clean and both fail when
+  it is not. Walking for six minutes (lissajous) is the most exposed case
+  on the rig; the stream, not the controller, decides it.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
