@@ -1356,6 +1356,11 @@ it, so compaction frees nothing until that snapshot is thinned — the disk
 reads WORSE during and after a backup (27 → 21 GB free on 2026-09-11 while
 800 originals were packed). `bridge_stall_report.sh DATE [MIN_MS]` is
 OPEN-35's yardstick.
+The third stall class is the SIM's sensor stream (gz-transport TCP loopback
+holding the IMU 20–45 ms under host load, bridge loop intact): every campaign
+CSV carries `imu_gap_max_ms` per run from the bridge's 1 Hz line; a run over
+~15 ms is not the robot's evidence, and walking (gait 20) is the most
+sensitive gait to it.
 
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)

@@ -82,6 +82,14 @@ passed on its own in-suite retry.
   passes each (lead 2's passes at pitch 9° / roll 5°). The lead does not
   separate the arms; the case has gone from always-pass to two-in-three on
   both. Chain AC (bands on vs off) is the next split.**
+  **18:05 — chain AC: expsquare bands on 2/2, off 2/2 so far, identical
+  peaks (9° / 5°), and the three afternoon falls all sit in a window of
+  21–45 ms IMU-stream gaps that ended at 17:44 (OPEN-35's third class).
+  The lead is cleared for walking by this; spiro's `y-position` trip
+  (trot 1.8, continuous curvature) is the one lead question left — chain
+  AD runs spiro and lissajous lead 1 vs 2 on a clean stream. If they hold,
+  the pin goes back in and the full tier is re-run with the IMU-gap
+  column watching the stream.**
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
@@ -199,6 +207,22 @@ passed on its own in-suite retry.
   disk load. Left as the next lever if the class persists.
   16:17 reading: since the controller joined the band (14:27), **64 runs,
   0 stalls ≥ 20 ms** (the day's baseline before either band: 24 in 305).
+  **18:05 — the third class, and it is the SIM's stream, not the bridge's
+  loop.** The walking-recipe falls of the afternoon (runs 5235, 5260, 5261)
+  carry `worst bridge-loop stall = 0.0 ms` (the band holds) but
+  `imu_gap_max` of 21–45 ms in 3–6 seconds of each run — the IMU stream
+  from gz over gz-transport's TCP loopback held for tens of ms, the
+  controller consumed frozen state (5–13 freezes of 10–16 ms per run) and
+  the walking gait flicked a leg (`moving too quickly 9–10 m/s`) or
+  pitched to 40°. Every walking run since 17:44 (seven, both leads, bands
+  on and off) shows `imu_gap_max` 4–6 ms and 0 freezes, and all pass with
+  identical peaks. So OPEN-37's full-tier failures were this class during
+  the corespotlightd/mds storm (98 % at 17:33), not the lead. The harness
+  now writes `imu_gap_max_ms` per run into every campaign CSV and the
+  per-run line; a run over ~15 ms is not the robot's evidence. The sim's
+  process cannot be put on the band from outside without root; the levers
+  are the host (Spotlight off — the user's), and, on the robot side, a
+  bridge that dead-reckons the IMU across a gap instead of freezing it.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —

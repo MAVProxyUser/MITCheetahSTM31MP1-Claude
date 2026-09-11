@@ -38,7 +38,7 @@ campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 # 96 % on 2026-09-11 (ISSUES OPEN-35). Readers resolve .json/.json.zst alike.
 pgrep -f "^bash gazebo/tools/archive_compact.sh" >/dev/null || ( nohup bash gazebo/tools/archive_compact.sh >/dev/null 2>&1 & )
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -116,12 +116,19 @@ PY
   local LBL="$crs"
   if [ -n "${arm:-}" ]; then LBL="$arm"; elif [ -n "${env:-}" ]; then LBL=$(echo "$env" | tr -d ' =' ); fi
   local BD=""; [ "$DUMP" = 1 ] && BD="$DIR/bridge_${RID}.csv"
-  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID"
+  local IG0; IG0=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
+  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms"
   # the control loop's worst period in this run (ms) - a host-stall column,
   # so a run that survived a 469 ms freeze and one that ran clean are not
   # the same row (2026-09-10: three of six control runs carried 44-469 ms)
   local LM; LM=$(grep 'ctrl loop' "$L" 2>/dev/null | grep -oE 'maxPeriod=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v" >> "$OUT"
+  # the sim's sensor stream, from the bridge's own 1 Hz line: the worst gap
+  # between two IMU messages in this run (OPEN-35's third class - gz-transport
+  # loopback holds under host load; 21-45 ms in the walking runs that fell on
+  # 2026-09-11, 4-6 ms in the ones that passed). A run with a gap over ~15 ms
+  # is not the robot's evidence.
+  local IG; IG=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-}" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
