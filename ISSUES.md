@@ -1706,6 +1706,25 @@ passed on its own in-suite retry.
   folding — the harness class of OPEN-35, found only when the scanner was
   written an hour later. Read with that fall removed, chain Q's 0.2 arm is
   4/4. Not shipped; N = 5.
+  **Box at 2.6, N = 8 (chain R, 11:03–11:41, interleaved, harness falls
+  checked with `campaign_freeze_report.py`: none):** `WP_ALON` 0.2 →
+  **6/6** (pitch 10.3–16.1°, roll 6.9–7.7°); 0.4 → **3/7** with the
+  seventh a fall the judge missed (run 5090, OPEN-36) and one of the
+  three passes a 43° pitch / 31° roll near-miss (run 5088); the last two
+  reps were lost to a Time Machine backup (OPEN-36). With chain Q: 0.2 is
+  **10/10**, 0.4 is **5/12** (Fisher p = 0.003). WHERE the 0.4 arm dies is
+  the finding: every fall (5056, 5062, 5082, 5084, 5086, 5090) is on the
+  21 m leg to wp4, 3–5 s after the corner, at cruise — the estimate reads
+  2.65–2.85 m/s under the 2.60 command, pitch builds stride over stride
+  from 10° to 30° over ~0.7 s with the height sagging 0.27 → 0.19 m, and
+  the E-stop takes it. That is the lead-2 trot above ~2.7 m/s — the sprint
+  regression's regime (OPEN-34) — reached below the lead schedule's 2.7
+  COMMANDED threshold, and 0.2 "fixes" it by never letting the leg get
+  there (the ramp from the corner takes 6.5 s of an 8 s leg). Not a
+  corner lever, a cruise one. Chain T runs the box at 0.4 under three lead
+  policies (shipped 2.7 threshold / threshold 2.5 / lead 1 pinned) to
+  separate "lead 1 rescues 2.6" from "the switch itself hurts"; the
+  recipe's `WP_ALON` stays 0.4 until that is in.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
