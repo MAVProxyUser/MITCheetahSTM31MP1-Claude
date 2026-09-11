@@ -135,6 +135,29 @@ passed on its own in-suite retry.
   at 1.9 (the cost) and on wkc_finals at 2.2 (the course limit that died on
   the reversal's pitch trip 7/8 this morning). If knob 1 costs the
   hairpin, the lead becomes speed-scheduled like the MPC segment.
+  **23:45 — chain C: a SECOND independent fix, and the timeline
+  resolves.** `dash30_bisect2` (solo 3.0, 5 reps, interleaved, clamp off):
+
+  | arm | PASS | peak pitch of the passes |
+  |---|---|---|
+  | base (default lead 2, aiding on) | 2/5 (one "NONE" was a 38.5° ROLL trip that sat ESTOPped under the 50° fall detector until the runner timed out) | 5.8°, 21.2° |
+  | ship (knob 1 + the old alias) | 3/5 | 7.5°, 16.6°, 20.5° |
+  | rxthread (bridge receive thread) | 1/5 | 8.6° |
+  | **noaid (velocity aiding OFF)** | **4/5** | **4.5–5.0°** |
+
+  So velocity aiding — default ON since 08-28, AFTER the 08-22 table — is
+  the other lever: with it off the sprint passes 4/5 with the cleanest
+  attitude of the day, at the default lead. The table's configuration was
+  exactly "old lead, no aiding", and that arm reproduces it (4/5 against
+  3/3). Read together with chain B: two independent knobs each rescue the
+  sprint (lead 1 at 5/5 with aiding on; aiding off at 4/5 with lead 2), the
+  bridge receive path and the old alias do not. Mechanism candidate, not
+  established: at 3+ m/s the GPS Doppler correction (K ≈ 0.7 at 20 Hz) steps
+  the velocity the MPC tracks, and a longer table lead anticipates into that
+  noise. Chain F was replaced by F2 (`campaign_chain_20260910f2.sh`): four
+  arms (default, lead 1, aiding off, both) on hp_gap20 at 1.9, wkc_finals
+  at 2.2, and the 3.0 sprint — the cost of each knob where the defaults were
+  chosen, and the confirmation. The shipping decision waits for it.
 
 - **OPEN-32 · The estimator trusts the schedule, not the foot: A/B the
   sensorless contact gate** — `IN PROGRESS, SOFTWARE`. `SIM_CONTACT_GATE=1`
