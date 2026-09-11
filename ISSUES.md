@@ -211,6 +211,33 @@ passed on its own in-suite retry.
   limit was host load. `wkc22_ship` (chain G) runs ship vs default at 2.2
   interleaved to say which; the ladder's "limit between 2.0 and 2.2" is
   suspended until it does.
+  **02:58 — the sprint confirmation (`dash30_final`, 5 reps × 4 arms) and
+  the night's pooled 3.0 tally.** Confirmation: default 1/5, lead 1 **5/5**
+  (peaks 8.8–12.1°), aiding off **5/5** (peaks 3.5–5.5°), both **0/5**.
+  Every solo 3.0 sprint since 14:00, by configuration:
+
+  | configuration | PASS |
+  |---|---|
+  | lead 1, aiding on | **10/10** |
+  | lead 2, aiding OFF | 9/10 |
+  | lead 2, aiding on — today's default, every plain arm pooled | **10/28 (36 %)** |
+  | lead 2, aiding on, 07:04 binary | 2/6 |
+  | lead 1 + the old alias, aiding on | 3/5 |
+  | lead 3, aiding on | 0/5 |
+  | lead 1, aiding OFF (both knobs) | 0/5 |
+  | lead 2, aiding on: UDP / rx thread / clamp on / x_drag stock / no label sensors / gate on | 1/5, 1/5, 1/6, 2/5, 4/6, 0/2 — all at the base rate |
+
+  Two independent, non-additive fixes; the pair is destructive. With
+  wkc_finals at 2.2 (lead 1 costs the course, aiding off does not, both
+  fail by roll) and hp_gap20 at 1.9 (each costs roll margin at the apex),
+  the shipping choice is the **speed-scheduled lead** — the longer lead
+  everywhere the courses live, the shorter one only in the sprint band,
+  adopted at a cycle wrap, trotting only, aiding left ON (it is the
+  galloping scale fix and it is not what broke). Built and committed
+  (`745c5b6`); chain H deploys it after chain G and verifies it against the
+  pinned default on the sprint, wkc 2.2 and hp_gap20 1.9. Aiding-off is
+  recorded as the equally effective alternative that costs more hairpin
+  roll (+5.9° vs +3.4°) and forfeits the galloping fix.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
