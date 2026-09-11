@@ -238,6 +238,20 @@ passed on its own in-suite retry.
   pinned default on the sprint, wkc 2.2 and hp_gap20 1.9. Aiding-off is
   recorded as the equally effective alternative that costs more hairpin
   roll (+5.9° vs +3.4°) and forfeits the galloping fix.
+  **03:31 — chain G, ship vs default at wkc 2.2 (5 reps interleaved):
+  default 2/5, old alias path 4/5** (Fisher p = 0.52 — nothing), against
+  the default's 5/5 an hour earlier and the alias path's 1/8 this morning.
+  Pooled, 2.2 on wkc_finals is a coin flip for BOTH lead implementations
+  (12/23 across three campaigns, every failure the reversal's pitch trip
+  at 29–32° against passes peaking 22–27°), with hour-to-hour swings that
+  the bridge and loop instruments do not explain (identical stall,
+  backlog and IMU-gap columns in passing and failing runs; the conductor
+  at 7 threads / 122 MB after 23 h). So the ladder's morning reading holds
+  in its honest form — **2.0 is the last reliable rung, 2.2 is ~50 %** —
+  and the alias-vs-fixed question does not decide anything at 2.2. Chain I
+  still measures the alias path's table at the solver input, because "the
+  two are bit-for-bit the same lead" was a claim, and a cheap one to
+  check.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
