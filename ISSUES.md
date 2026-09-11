@@ -159,48 +159,6 @@ passed on its own in-suite retry.
   at 2.2, and the 3.0 sprint — the cost of each knob where the defaults were
   chosen, and the confirmation. The shipping decision waits for it.
 
-- **OPEN-32 · The estimator trusts the schedule, not the foot: A/B the
-  sensorless contact gate** — `IN PROGRESS, SOFTWARE`. `SIM_CONTACT_GATE=1`
-  (`PositionVelocityEstimator.cpp`) has existed since 2026-09-04 with its
-  label-scored numbers (the schedule calls a foot planted while it is in the
-  air 12.8 % of the time; requiring foot speed < 0.15 m/s cuts that to
-  5.8 % at the same overall accuracy) and was never run against a verdict.
-  Done = interleaved A/B, gate off vs on, both arms with `SIM_ESTERR=1` so
-  the estimator's forward/lateral velocity error against truth is the
-  measured quantity (`item5_score.py`), on hp_gap20 at 1.9 (N = 8), the
-  100 m dash at 3.0 (N = 6) and wkc_finals at 1.9 (N = 6); the gate's own
-  `vetoed X of Y` line proves the arm fired. Ship on only if the error
-  falls and no course regresses; otherwise record which way it moved and
-  leave it off. Campaigns `item5_contactgate*`.
-  **hp_gap20 result (14:09, 8 reps, interleaved, `item5_score.py`)** — a
-  NULL on the quantity it exists to improve:
-
-  | arm | PASS | \|dvx\| mean / p90 (m/s) | \|dvy\| | \|dvz\| | vetoes |
-  |---|---|---|---|---|---|
-  | gate off | 7/8 | 0.041 / 0.044 | 0.026 | 0.170 | — |
-  | gate on | 8/8 | 0.041 / 0.043 | 0.024 | 0.170 | **18.3 %** of scheduled-stance samples |
-
-  The gate fired on nearly a fifth of the schedule's stance samples and the
-  estimator's velocity error against truth did not move to three decimals,
-  in any axis. The reading that fits: the KF's own trust ramp already
-  discounts a foot at the ends of stance, which is exactly where a
-  scheduled-stance foot is still moving faster than 0.15 m/s — the gate
-  vetoes samples the filter was already ignoring. The 2026-09-04 label
-  score (false stance 12.8 % → 5.8 %) measured schedule against contact
-  truth, not against the filter's effective weight, which is why it
-  promised more than this delivers. Verdicts 7/8 vs 8/8 (the one fall is
-  the off arm's rep 6 at the first corner, loop clean). Peak pitch at the
-  reversal exit is +1.9° with the gate on (higher in 6 of 7 passing pairs,
-  one pair −2.0°; not significant at N = 7) — if anything the wrong
-  direction. Also measured, both arms alike: the vertical velocity estimate
-  is off by **0.17 m/s** on average during a 1.9 m/s trot while forward
-  is off by 0.04 — a fact about the LinearKF worth its own look (the MPC
-  reads vz, weight 0.1; the height governor reads dz/dt). The dash (3.0)
-  arm was stopped at 0/4 (both arms) because the sprint itself is marginal
-  on this build (OPEN-34) — it carries no information about the gate; the
-  wkc_finals arm runs in chain D (`campaign_chain_20260910d.sh`). Unless
-  wkc inverts this, the gate stays OFF and this closes as measured-null.
-
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
@@ -1527,6 +1485,58 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+- **CLOSED (was OPEN-32) · The estimator trusts the schedule, not the foot: A/B the
+  sensorless contact gate** — closed 2026-09-11 00:35, measured null. `SIM_CONTACT_GATE=1`
+  (`PositionVelocityEstimator.cpp`) has existed since 2026-09-04 with its
+  label-scored numbers (the schedule calls a foot planted while it is in the
+  air 12.8 % of the time; requiring foot speed < 0.15 m/s cuts that to
+  5.8 % at the same overall accuracy) and was never run against a verdict.
+  Done = interleaved A/B, gate off vs on, both arms with `SIM_ESTERR=1` so
+  the estimator's forward/lateral velocity error against truth is the
+  measured quantity (`item5_score.py`), on hp_gap20 at 1.9 (N = 8), the
+  100 m dash at 3.0 (N = 6) and wkc_finals at 1.9 (N = 6); the gate's own
+  `vetoed X of Y` line proves the arm fired. Ship on only if the error
+  falls and no course regresses; otherwise record which way it moved and
+  leave it off. Campaigns `item5_contactgate*`.
+  **hp_gap20 result (14:09, 8 reps, interleaved, `item5_score.py`)** — a
+  NULL on the quantity it exists to improve:
+
+  | arm | PASS | \|dvx\| mean / p90 (m/s) | \|dvy\| | \|dvz\| | vetoes |
+  |---|---|---|---|---|---|
+  | gate off | 7/8 | 0.041 / 0.044 | 0.026 | 0.170 | — |
+  | gate on | 8/8 | 0.041 / 0.043 | 0.024 | 0.170 | **18.3 %** of scheduled-stance samples |
+
+  The gate fired on nearly a fifth of the schedule's stance samples and the
+  estimator's velocity error against truth did not move to three decimals,
+  in any axis. The reading that fits: the KF's own trust ramp already
+  discounts a foot at the ends of stance, which is exactly where a
+  scheduled-stance foot is still moving faster than 0.15 m/s — the gate
+  vetoes samples the filter was already ignoring. The 2026-09-04 label
+  score (false stance 12.8 % → 5.8 %) measured schedule against contact
+  truth, not against the filter's effective weight, which is why it
+  promised more than this delivers. Verdicts 7/8 vs 8/8 (the one fall is
+  the off arm's rep 6 at the first corner, loop clean). Peak pitch at the
+  reversal exit is +1.9° with the gate on (higher in 6 of 7 passing pairs,
+  one pair −2.0°; not significant at N = 7) — if anything the wrong
+  direction. Also measured, both arms alike: the vertical velocity estimate
+  is off by **0.17 m/s** on average during a 1.9 m/s trot while forward
+  is off by 0.04 — a fact about the LinearKF worth its own look (the MPC
+  reads vz, weight 0.1; the height governor reads dz/dt). The dash (3.0)
+  arm was stopped at 0/4 (both arms) because the sprint itself is marginal
+  on this build (OPEN-34) — it carries no information about the gate; the
+  wkc_finals arm (chain D, 00:33, 6 pairs) says the same: 6/6 vs 6/6,
+  |dvx| 0.040 vs 0.040, |dvy| 0.025 vs 0.024, |dvz| 0.174 vs 0.171,
+  20.4 % of scheduled-stance samples vetoed, peak pitch +1.2° (4/6, not
+  significant). **Closed as measured-null**: the gate demonstrably fires
+  and the estimator's error against truth does not move on either course;
+  the KF's own trust ramp already discounts the samples the gate removes.
+  `SIM_CONTACT_GATE` stays OFF and stays in the tree as the arm that
+  answered the question. What the campaign did establish is the LinearKF's
+  vertical-velocity error itself: 0.17 m/s mean, zero bias, twice the
+  spread of the truth and only weakly correlated with it (r = 0.22) — a
+  noisy vz, not a wrong one, worth its own item if the height governor or
+  the MPC's vz row ever needs it.
 
 - **CLOSED (was OPEN-33) · Sim-fidelity gaps that were never A/B'd: foot friction and a
   noise-free orientation** — closed 2026-09-10 22:20, measured. Filed 2026-09-10 from
