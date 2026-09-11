@@ -51,7 +51,15 @@
 #                            # after cruise (6/23) and knob 1 passes 5/5; at
 #                            # 2.2 on wkc_finals knob 1 costs the course
 #                            # (2/5 vs 5/5) and +3.4 deg of hairpin roll.
-CTRL_MPC_SCHED_LEAD: 1       # SHIPPED 2026-09-11 15:22 (ISSUES OPEN-28 / OPEN-34):
+# CTRL_MPC_SCHED_LEAD: 1     # REVERTED 2026-09-11 17:05 (ISSUES OPEN-37): the full
+                             # suite tier failed 3/20 on it - expsquare and
+                             # lissajous 11:9 (gait 20) by 'leg moving too
+                             # quickly', spiro (trot 1.8, sustained curvature) by
+                             # 'leg y-position bad' - cases that were 20/20 on
+                             # the schedule at 06:13. The knob pins EVERY gait's
+                             # table, and only trotting was measured. Chain AB
+                             # A/Bs those three cases lead 1 vs 2, recipe gaits.
+                             # Was shipped 15:22 on this evidence (OPEN-28/34):
                              # lead 1 (physical 2) EVERYWHERE, schedule off. The
                              # "knob 1 costs wkc 2.2 and hairpin roll" charge was
                              # measured on the pre-slew recipe; with WP_VSLEW=1.0
