@@ -1870,6 +1870,13 @@ passed on its own in-suite retry.
   wp7 (the box's third corner, 11 of 15), wp9 (the reversal approach) and
   wp2/wp3 (the first turns). 2.6 on the full course is closed on this
   recipe and gait; the sub-course at 2.6 is the ceiling.
+  **3-dog fleet dash:100 at 3.0 (chain AA, 17:31, restored schedule, both
+  processes on the RT band): 8/9 dog-runs, 2 of 3 reps all-pass.** The one
+  failure (rep 3, dog2) is not the sprint: 100 m completed, then the
+  arrival settle read `z=-0.023 roll=12.8` with the FSM's `leg 0 is above
+  hip` trips — an arrival-class failure (OPEN-30's family) on a 3-dog
+  stop. The fleet milestone (18/18 at 05:40) is not contradicted by one
+  arrival in nine.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
