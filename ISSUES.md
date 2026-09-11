@@ -1622,7 +1622,29 @@ passed on its own in-suite retry.
   direction but the third corner is still a coin flip at 2.6 and one 0.2
   run collapsed LEVEL (5° peak pitch, a height collapse at wp4, the OPEN-28
   signature) — so the box at 2.6 is where the next real investigation
-  would start, and it is not a one-knob fix. Not shipped; N = 5. Chain I
+  would start, and it is not a one-knob fix. Not shipped; N = 5.
+  **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
+  interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
+  (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
+  course: the state the controller consumed — orientation, foot
+  kinematics, kin_z — was bit-identical for 63 consecutive ticks (124 ms,
+  t = 73.27–73.40 s) at 2.17 m/s mid-leg, 5 s after the reversal, while
+  the control loop kept its 2 ms period (max 2.43 ms); the estimate
+  decayed to 0.81 m/s on the frozen kinematics, and when the state came
+  back it jumped −8.9° roll / −6.7° yaw in one tick, the safety E-stop
+  fired 60 ms later. That is the harness-stall class (a sensor path stalled
+  under a running controller, the thing the loop's own period counter
+  cannot see). New instrument: `gazebo/tools/state_freeze_scan.py` finds
+  these in any snapshot (identical state under motion, loop period
+  intact, jump on return); the other nine runs of the ladder carry no
+  freeze over 10 ms except one 34 ms freeze at 0.7 m/s on the final
+  approach and one 10 ms freeze that came with a 14 ms loop period. So
+  on μ 0.6 the hairpin course runs 5/5 at 2.3 with less roll (13.4°) than
+  the unslewed recipe carried at 1.9 (15.1°): the slew moved this
+  course's envelope from 2.0 to at least 2.3. Host at the time:
+  `corespotlightd` at 60 % of a core (7.7 h old) plus `mds` and a fresh
+  set of `mdworker`s — Spotlight is off for `/` (`mdutil -s`) but its
+  CoreSpotlight side is still hot, 2 cores of the machine. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
