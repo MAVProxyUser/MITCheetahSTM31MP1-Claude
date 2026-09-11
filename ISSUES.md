@@ -223,6 +223,12 @@ passed on its own in-suite retry.
   process cannot be put on the band from outside without root; the levers
   are the host (Spotlight off — the user's), and, on the robot side, a
   bridge that dead-reckons the IMU across a gap instead of freezing it.
+  18:10: the gaps are back with a new tenant — `mediaanalysisd` (Photos'
+  media analysis, with its VT decoder/encoder helpers) at 145 % of a core —
+  and the first spiro run under it fell with `imu_gap=31.0ms` and 20
+  freezes (run 5272). Throttled the same way as corespotlightd (user-owned:
+  nice 20 + background policy). `campaign_freeze_report.py` now counts runs
+  with a gap over 15 ms per arm.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
