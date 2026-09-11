@@ -108,9 +108,33 @@ passed on its own in-suite retry.
   table ran stock's unbounded integrator) and velocity aiding (default ON
   since 08-28) are inside it too — chain C carries aiding-off, chain E
   (`campaign_chain_20260910e.sh`) carries the clamp at stock and a run
-  with the four foot-contact label sensors stripped from the proto. If
-  every arm is null the regression is in something no knob restores and
-  the next step is a build bisect against the 08-22 tree.
+  with the four foot-contact label sensors stripped from the proto. 
+  **22:35 — FOUND: it is the contact-table lead.** `dash30_bisect` (solo
+  `dash:100` trotting 3.0, four arms interleaved, 5 reps each, clamp off
+  in all):
+
+  | arm | table lead | PASS | peak pitch of the passes |
+  |---|---|---|---|
+  | base (today's default) | knob 2 = physical 3 | 2/5 | 7.1°, 24.4° |
+  | **lead1** | **knob 1 = physical 2** | **5/5** | **8.0–10.7°, roll 3–11°** |
+  | lead3 | knob 3 = physical 4 | 0/5 | — |
+  | udp (loopback UDP transport) | knob 2 | 1/5 | 19.9° |
+
+  Pooling every knob-2 sprint of the day (base, both clamp arms, the 07:04
+  binary): **6/23 at physical lead 3 against 5/5 at physical lead 2**
+  (Fisher p ≈ 0.002), and the lead-2 passes are clean where the lead-3
+  passes are marginal. The transport is not it (UDP sits at the base
+  rate). So the regression is the lead default this morning's OPEN-28
+  rework shipped (`98202f9`, 07:05: alias removed, knob 2 "= the shipped
+  physical 3") — chosen on hp_gap20 at 1.9 where the record says the
+  shorter physical leads collapsed more, never run at sprint speed. Two
+  things still to settle before the default moves: chain C's `ship` arm
+  (knob 1 + the old alias, bit-for-bit the 08-22 behaviour) says whether
+  the "shipped = physical 3" accounting was ever right in this regime,
+  and chain F (`campaign_chain_20260910f.sh`) runs knob 1 vs 2 on hp_gap20
+  at 1.9 (the cost) and on wkc_finals at 2.2 (the course limit that died on
+  the reversal's pitch trip 7/8 this morning). If knob 1 costs the
+  hairpin, the lead becomes speed-scheduled like the MPC segment.
 
 - **OPEN-32 · The estimator trusts the schedule, not the foot: A/B the
   sensorless contact gate** — `IN PROGRESS, SOFTWARE`. `SIM_CONTACT_GATE=1`
