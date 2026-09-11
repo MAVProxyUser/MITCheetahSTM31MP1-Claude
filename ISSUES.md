@@ -1734,6 +1734,12 @@ passed on its own in-suite retry.
   policies (shipped 2.7 threshold / threshold 2.5 / lead 1 pinned) to
   separate "lead 1 rescues 2.6" from "the switch itself hurts"; the
   recipe's `WP_ALON` stays 0.4 until that is in.
+  **Truth check (chain T's control arm, run 5101, `SIM_ESTERR=1`, 12:06):
+  on the wp4 leg the ground-truth forward speed reaches 2.83 m/s under
+  the 2.60 command and the estimate reads 2.78 — within 0.05 of truth the
+  whole leg (`box_lead_score.py`). The over-speed is the body's, not the
+  estimator's: the MPC's velocity tracking overshoots the command by
+  0.2 m/s at this speed and the trot is then run at 2.7–2.85 on lead 2.**
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
