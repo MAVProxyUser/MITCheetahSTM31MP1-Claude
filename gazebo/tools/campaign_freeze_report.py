@@ -23,11 +23,20 @@ def main():
     per = {}
     for r in rows:
         arm = r.get("course") or r.get("arm") or "?"
-        d = per.setdefault(arm, dict(runs=0, passes=0, falls=0, harness=0))
+        d = per.setdefault(arm, dict(runs=0, passes=0, falls=0, harness=0, gappy=0))
         if r.get("verdict") == "NONE":      # no run happened (launch refused, timeout): not a fall, not a rep
             d["none"] = d.get("none", 0) + 1
             continue
         d["runs"] += 1
+        # the sim's stream (OPEN-35's third class): the harness records the run's
+        # worst IMU gap from the bridge's own line; over ~15 ms the run is not
+        # the robot's evidence whether it passed or fell
+        try:
+            gap = float(r.get("imu_gap_max_ms") or 0)
+        except Exception:
+            gap = 0.0
+        if gap > 15.0:
+            d["gappy"] += 1
         if r.get("verdict") == "PASS":
             d["passes"] += 1
             continue
@@ -52,8 +61,9 @@ def main():
     print("== %s: per arm PASS/runs, then PASS/(runs - harness falls)" % a.campaign)
     for arm, d in per.items():
         clean = d["runs"] - d["harness"]
-        print("  %-10s %d/%d  ->  %d/%d with %d harness fall(s) removed%s" % (arm, d["passes"], d["runs"], d["passes"], clean, d["harness"],
-              ("  (+%d NONE row(s): no run)" % d["none"]) if d.get("none") else ""))
+        print("  %-10s %d/%d  ->  %d/%d with %d harness fall(s) removed%s%s" % (arm, d["passes"], d["runs"], d["passes"], clean, d["harness"],
+              ("  (+%d NONE row(s): no run)" % d["none"]) if d.get("none") else "",
+              ("  [%d run(s) with an IMU-stream gap > 15 ms]" % d["gappy"]) if d.get("gappy") else ""))
 
 
 if __name__ == "__main__":
