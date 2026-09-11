@@ -1614,7 +1614,15 @@ passed on its own in-suite retry.
   not at the reversal any more: the slew fixed the feature that bounded
   the course at 2.2 and the next feature takes over 0.2 m/s later. So
   wkc_finals on this build runs reliably to 2.0, at 4-in-5 at 2.4, and
-  the box corners are the next lever if anyone wants 2.6. Chain I
+  the box corners are the next lever if anyone wants 2.6. First probe of
+  that lever (chain Q, 10:42, the `wkc_box` sub-course at 2.6, 5 reps ×
+  `WP_ALON` 0.4 / 0.3 / 0.2): 2/5, 3/5, **4/5**, with the 0.2 arm's passes
+  the only clean ones (pitch 10–21°; 0.4's passes sit at 23–25°, 0.3's at
+  29–37°). A gentler longitudinal budget helps the box in the expected
+  direction but the third corner is still a coin flip at 2.6 and one 0.2
+  run collapsed LEVEL (5° peak pitch, a height collapse at wp4, the OPEN-28
+  signature) — so the box at 2.6 is where the next real investigation
+  would start, and it is not a one-knob fix. Not shipped; N = 5. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
