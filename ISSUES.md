@@ -158,6 +158,17 @@ passed on its own in-suite retry.
   arms (default, lead 1, aiding off, both) on hp_gap20 at 1.9, wkc_finals
   at 2.2, and the 3.0 sprint — the cost of each knob where the defaults were
   chosen, and the confirmation. The shipping decision waits for it.
+  **00:50 — chain E rules out the last two candidates.** `dash30_xdrag`
+  (interleaved, 5 reps): the clamp default (1.0) 4/5 vs stock's unbounded
+  integrator 2/5 — the clamp is not the regressor, if anything it helps.
+  `dash30_nosensors` (proto's four foot-contact label sensors stripped,
+  6 runs, proto restored from git afterwards): 4/6 with clean peaks, the
+  same hour base ran 4/5 — the labels are innocent. Note the default's own
+  rate wandered from 2/5 (chains B, C) to 4/5 (chain E) with the host no
+  quieter (WindowServer 40 %, BambuStudio 17 %, one pass carrying a 25 ms
+  loop hiccup): the sprint at the default is a coin flip with wide
+  between-campaign scatter, which is exactly why every decision arm in F2
+  runs interleaved against the default in the same hour.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
