@@ -559,8 +559,18 @@ RECIPES = {
                     #    course is, end to end.
                     #  WP_ALAT=2.5 - the lateral budget the analyzer plans
                     #    the corner speeds against.
+                    #  WP_VSLEW=1.0 - THE REVERSAL LESSON (2026-09-11). A
+                    #    course's speed limit is its 180 deg reversal: the
+                    #    body pitches on the command's RISE out of it. A
+                    #    1.0 m/s^2 slew on that rise took 11 deg off the
+                    #    reversal-exit pitch in 5/5 pairs at wkc 2.2 (5/5
+                    #    vs 4/5, max 17.4 vs 32.3 deg) and turned wkc 2.4
+                    #    from 0/5 into 4/5, for ~1 s of mission time. 2.0
+                    #    m/s^2 never binds hard enough to matter. Braking
+                    #    is never slewed. ISSUES.md OPEN-28 (closed) notes.
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
-                          "WP_ALAT=2.5 WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0",
+                          "WP_ALAT=2.5 WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0 "
+                          "WP_VSLEW=1.0",
                     note="designed agility course (file-defined geometry)"),
     "corner": dict(gait=20, speed=1.5,
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
