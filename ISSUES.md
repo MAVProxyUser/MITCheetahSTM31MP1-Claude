@@ -1589,9 +1589,13 @@ passed on its own in-suite retry.
   about one second of mission time (180.5 vs 179.4 s). The `[VSLEW]`
   lines show it binding exactly where the story says: on the command's
   RISE out of the reversal (wanted 0.25 → allowed 0.02, 0.62 → 0.57). A
-  slew of 2.0 never binds hard enough to matter. Chain N asks whether the
-  same slew moves the rung above (2.4, 0/8 on the ladder) and whether it
-  restores the concrete hairpin's 2.1. Chain I
+  slew of 2.0 never binds hard enough to matter. Chain N (08:38, wkc 2.4, 5 pairs): control **0/5** (pitch median
+  31.7°, every fall the reversal), **slew 1.0 → 4/5** (pitch median 24.7°,
+  one reversal trip at 29.9°), mission ~165 s. So the slew moves the
+  course's usable cruise a full rung, from a 2.2 coin flip to a
+  4-in-5 2.4, and the 2.4 peaks (22–26°) are about where the unslewed
+  2.2 sat — the margin it buys is worth roughly 0.2 m/s of cruise on this
+  course. The concrete hairpin at 2.1 is running next. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
