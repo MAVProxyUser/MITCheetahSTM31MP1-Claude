@@ -62,7 +62,19 @@ passed on its own in-suite retry.
   `SIM_FALL_HOLD_S` 0.5 s — logs `[FALL] down at an angle:` and ends the run
   like the other two. A lie-down is level, a walking dip is level, and the
   mission's own recovery waits for a settled orientation, so neither is
-  touched. **Also found here**: a Time Machine backup (11:23, to the newly
+  touched. **12:15 — not enough (run 5105, box at 2.6, threshold-2.5 arm):
+  pitch went 15° → 40.1° inside one stride, the FSM's own "Unsafe
+  locomotion" bar (40°, instantaneous) beat the 28.65°/60 ms safety check
+  to it, and the body sat at 40–43° of pitch on its folded rear legs at
+  kin_z 0.17 — above the 0.15 m bar — ping-ponging 346 times for ~20 s
+  before it tipped past the E-stop. Fourth criterion: tilted past 30° for
+  `SIM_FALL_TILT_HOLD_S` (2.0 s) at ANY height (`[FALL] tilted for
+  seconds:`); locomotion never holds 30° for two seconds, a lie-down is
+  level, the mission's recovery waits for a settled orientation. Built
+  12:17; deployed in the gap after chain T (the controller unlinks its
+  socket path on bind, so the deploy's 3 s proof run must never overlap a
+  live run; previous binary kept as `mit_ctrl_sim.pre_tiltjudge`).**
+  **Also found here**: a Time Machine backup (11:23, to the newly
   mounted `/Volumes/Backups2026`) makes the conductor refuse launches; the
   runner waited inside its own 300 s deadline, so the harness booked NONE
   rows for runs that never existed and hit its 2-NONE fleet clear. The
