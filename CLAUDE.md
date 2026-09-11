@@ -1361,6 +1361,13 @@ holding the IMU 20–45 ms under host load, bridge loop intact): every campaign
 CSV carries `imu_gap_max_ms` per run from the bridge's 1 Hz line; a run over
 ~15 ms is not the robot's evidence, and walking (gait 20) is the most
 sensitive gait to it.
+Bridge knobs for that class: `BRIDGE_EXTRAP=1` dead-reckons orientation (last
+body rate) and joints (last velocities) across a gap up to `BRIDGE_EXTRAP_MAX_MS`
+(80) instead of re-sending a frozen sample; `BRIDGE_GAP_INJECT_MS=N` (test only)
+drops every sample for N ms once per `BRIDGE_GAP_INJECT_PERIOD_S` (1.0) to
+reproduce the hold on a quiet host. The 1 Hz line then carries `extrap=/s` and
+`dropped=/s`. `stream_gap_report.sh DATE [MIN_MS]` gives the worst gap per
+archived run for runs that did not go through the harness (the suite).
 
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
