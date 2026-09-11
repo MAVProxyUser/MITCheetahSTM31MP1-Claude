@@ -112,54 +112,6 @@ passed on its own in-suite retry.
   every arm is null the regression is in something no knob restores and
   the next step is a build bisect against the 08-22 tree.
 
-- **OPEN-33 · Sim-fidelity gaps that were never A/B'd: foot friction and a
-  noise-free orientation** — `IN PROGRESS, SOFTWARE`. Filed 2026-09-10 from
-  CLAUDE.md's "known places the sim is more generous than reality" table.
-  Corrected on filing: that table's **joint velocity "unbounded" row was a
-  record error** — every joint in `go1_speedway.sdf` carries
-  `<velocity>30.1</velocity>` (12 of 12, re-checked) and the hip reaches it in
-  fast swings; what the sim still lacks is the torque-speed (back-EMF)
-  derating, which is the actuator-dynamics row. What is left to measure:
-  (1) **foot friction** — the proto ships feet at μ 0.6 against a ground
-  plane with no friction element (default 1.0), and DART combines a pair by
-  the MINIMUM (`ContactSurface.cpp` v6.13.2, read from source), so the
-  shipped pair is exactly the URDF's 0.6 - not a flattering number; the
-  `concrete` surface kind sets
-  BOTH sides to 0.90 (`apply_terrain` + `apply_surface_feet`), which is the
-  rubber-on-concrete figure. Arm `flat` vs `concrete`, interleaved on
-  hp_gap20 at 1.9. (2) **orientation noise** — `VectorNavOrientationEstimator`
-  forwards the sim's exact pose; the bridge now perturbs the quaternion with
-  a 0.5° RMS bias random walk (τ ≈ 5 s) plus 30 % white noise
-  (`BRIDGE_ORI_NOISE_DEG`, applied in `send_sensor`, printed on startup).
-  Arm 0 vs 0.5°, interleaved. Done = both A/Bs run at N ≥ 6 per arm with
-  the verdicts, peak attitude and loop-max columns compared; an effect
-  either way is recorded as an envelope fact (not tuned away), a null is
-  recorded as a null. Campaigns `item6_friction`, `item6_orinoise`
-  (chain B, `campaign_chain_20260910b.sh`, after chain A was stopped).
-  **Friction result (14:54, hp_gap20 at 1.9, 6 pairs interleaved) — NOT a
-  null, and in the uncomfortable direction:**
-
-  | surface | pair μ | PASS | peak roll, median (max) | peak pitch, median | body yaw rate at the reversal apex |
-  |---|---|---|---|---|---|
-  | shipped `flat` | 0.6 | 6/6 | 14.8° (16.4) | 13.8° | −1.2 rad/s |
-  | `concrete` | 0.9 | 6/6 | **24.4° (27.0)** | 17.3° | −1.5 to −1.7 rad/s |
-
-  Concrete's peak roll is higher in 6 of 6 pairs (+4.4 to +13.4°, mean
-  +9.6°; sign test p = 0.016) and its worst run sat **1.6° under the
-  28.65° orientation ESTOP**. Every peak is the same event, the apex of
-  the 180° reversal at t ≈ 40.6 s, and the trace says why: with grip the
-  feet do not skate, the body actually turns at the rate the follower
-  asks (−1.5 to −1.7 rad/s against −1.2 on the shipped surface), and the
-  lateral load that comes with it rolls the body. The shipped surface has
-  been making the hairpin SAFER by slipping. Consequence for the envelope:
-  every hp_gap / wkc reversal number in this tracker was measured at
-  μ 0.6; on the real rubber-on-concrete figure the 1.9 hairpin has almost
-  no roll margin, and the pre-planner's lateral budget (`a_lat_max` 2.5,
-  friction-capped only below μ 0.28) does not know that more grip means
-  more roll. Not tuned away here — recorded. The right follow-ups are a
-  reversal speed ladder ON concrete and a yaw-rate cap that the body
-  actually obeys on a grippy surface.
-
 - **OPEN-32 · The estimator trusts the schedule, not the foot: A/B the
   sensorless contact gate** — `IN PROGRESS, SOFTWARE`. `SIM_CONTACT_GATE=1`
   (`PositionVelocityEstimator.cpp`) has existed since 2026-09-04 with its
@@ -1523,6 +1475,65 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+- **CLOSED (was OPEN-33) · Sim-fidelity gaps that were never A/B'd: foot friction and a
+  noise-free orientation** — closed 2026-09-10 22:20, measured. Filed 2026-09-10 from
+  CLAUDE.md's "known places the sim is more generous than reality" table.
+  Corrected on filing: that table's **joint velocity "unbounded" row was a
+  record error** — every joint in `go1_speedway.sdf` carries
+  `<velocity>30.1</velocity>` (12 of 12, re-checked) and the hip reaches it in
+  fast swings; what the sim still lacks is the torque-speed (back-EMF)
+  derating, which is the actuator-dynamics row. What is left to measure:
+  (1) **foot friction** — the proto ships feet at μ 0.6 against a ground
+  plane with no friction element (default 1.0), and DART combines a pair by
+  the MINIMUM (`ContactSurface.cpp` v6.13.2, read from source), so the
+  shipped pair is exactly the URDF's 0.6 - not a flattering number; the
+  `concrete` surface kind sets
+  BOTH sides to 0.90 (`apply_terrain` + `apply_surface_feet`), which is the
+  rubber-on-concrete figure. Arm `flat` vs `concrete`, interleaved on
+  hp_gap20 at 1.9. (2) **orientation noise** — `VectorNavOrientationEstimator`
+  forwards the sim's exact pose; the bridge now perturbs the quaternion with
+  a 0.5° RMS bias random walk (τ ≈ 5 s) plus 30 % white noise
+  (`BRIDGE_ORI_NOISE_DEG`, applied in `send_sensor`, printed on startup).
+  Arm 0 vs 0.5°, interleaved. Done = both A/Bs run at N ≥ 6 per arm with
+  the verdicts, peak attitude and loop-max columns compared; an effect
+  either way is recorded as an envelope fact (not tuned away), a null is
+  recorded as a null. Campaigns `item6_friction`, `item6_orinoise`
+  (chain B, `campaign_chain_20260910b.sh`, after chain A was stopped).
+  **Friction result (14:54, hp_gap20 at 1.9, 6 pairs interleaved) — NOT a
+  null, and in the uncomfortable direction:**
+
+  | surface | pair μ | PASS | peak roll, median (max) | peak pitch, median | body yaw rate at the reversal apex |
+  |---|---|---|---|---|---|
+  | shipped `flat` | 0.6 | 6/6 | 14.8° (16.4) | 13.8° | −1.2 rad/s |
+  | `concrete` | 0.9 | 6/6 | **24.4° (27.0)** | 17.3° | −1.5 to −1.7 rad/s |
+
+  Concrete's peak roll is higher in 6 of 6 pairs (+4.4 to +13.4°, mean
+  +9.6°; sign test p = 0.016) and its worst run sat **1.6° under the
+  28.65° orientation ESTOP**. Every peak is the same event, the apex of
+  the 180° reversal at t ≈ 40.6 s, and the trace says why: with grip the
+  feet do not skate, the body actually turns at the rate the follower
+  asks (−1.5 to −1.7 rad/s against −1.2 on the shipped surface), and the
+  lateral load that comes with it rolls the body. The shipped surface has
+  been making the hairpin SAFER by slipping. Consequence for the envelope:
+  every hp_gap / wkc reversal number in this tracker was measured at
+  μ 0.6; on the real rubber-on-concrete figure the 1.9 hairpin has almost
+  no roll margin, and the pre-planner's lateral budget (`a_lat_max` 2.5,
+  friction-capped only below μ 0.28) does not know that more grip means
+  more roll. Not tuned away here — recorded. The right follow-ups are a
+  reversal speed ladder ON concrete and a yaw-rate cap that the body
+  actually obeys on a grippy surface.
+  **Orientation-noise result (22:17, hp_gap20 at 1.9, 6 pairs)**: 0.5° RMS
+  bias random walk + 30 % white on the IMU quaternion (the bridge announces
+  it; the control arm has no such line): **6/6 vs 6/6**, peak roll
+  18.7° vs 15.5° median (+2.5° mean, higher in 5 of 6 pairs, sign test
+  p = 0.22 — suggestive, not significant), pitch and yaw rate null,
+  loop-max equal. So a VectorNav-class error budget costs the hairpin a
+  couple of degrees of roll margin at most; the Madgwick-on-DroneCAN
+  path the real machine will run is a larger dose (1.5–3°), which is the
+  next rung if this is revisited. **Closed as measured**: friction is an
+  envelope fact (recorded, not tuned away), orientation noise a null at
+  0.5°, and the joint-velocity row was a record error, corrected.
 
 ### CLOSED (was OPEN-27) · The finish-line fall was zero-velocity locomotion, not the brake and not the settle
 
