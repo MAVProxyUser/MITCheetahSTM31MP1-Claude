@@ -158,8 +158,17 @@ int* OffsetDurationGait::getMpcTable()
     // every result in this tree was measured at. Setting this to 3 on
     // 2026-09-10 gave physical 4 and 6 collapses in 6 runs. Unitree's build
     // has no +1 at all.
-    static const int sched_lead =
+    static const int knob_lead =
         ctrl_tuning::integer("CTRL_MPC_SCHED_LEAD", 2);
+    // OPEN-34 (2026-09-11): the lead is SPEED-SCHEDULED for trotting - see
+    // ConvexMPCLocomotion::applySchedule. Measured: physical lead 3 (knob 2)
+    // passes wkc_finals at 2.2 5/5 and hp_gap20 at 1.9 6/6 but the 100 m
+    // sprint at 3.0 only ~40 %; physical lead 2 (knob 1) passes the sprint
+    // 5/5 with clean attitude but costs wkc 2.2 (2/5, reversal pitch trips)
+    // and +3.4 deg of roll at the hairpin apex. A scheduled request is
+    // adopted in setIterations at the segment-0 wrap; an explicit
+    // CTRL_MPC_SCHED_LEAD (env or yaml) pins it for A/B.
+    const int sched_lead = (_schedLead >= 0) ? _schedLead : knob_lead;
     int iter = (i + _iteration + sched_lead) % _nIterations;
     Array4i progress = iter - _offsets;
     for(int j = 0; j < 4; j++)
@@ -203,6 +212,9 @@ void OffsetDurationGait::setIterations(int iterationsPerMPC, int currentIteratio
 {
   _iteration = (currentIteration / iterationsPerMPC) % _nIterations;
   _phase = (float)(currentIteration % (iterationsPerMPC * _nIterations)) / (float) (iterationsPerMPC * _nIterations);
+  // adopt a requested lead only at the cycle wrap (OPEN-34)
+  if (_iteration == 0 && _schedLeadPending >= 0 && _schedLeadPending != _schedLead)
+    _schedLead = _schedLeadPending;
 }
 
 void MixedFrequncyGait::setIterations(int iterationsBetweenMPC, int currentIteration) {

@@ -19,6 +19,12 @@ public:
   virtual float getCurrentSwingTime(float dtMPC, int leg) = 0;
   virtual int getCurrentGaitPhase() = 0;
   virtual void debugPrint() { }
+  // SPEED-SCHEDULED CONTACT-TABLE LEAD (OPEN-34, 2026-09-11). A request is
+  // adopted only when the segment index wraps to 0 - the one phase every
+  // table is defined against - so a lead change is never a mid-cycle
+  // discontinuity. -1 = the CTRL_MPC_SCHED_LEAD knob's value.
+  virtual void requestSchedLead(int) { }
+  virtual int schedLead() const { return -1; }
 
 protected:
   std::string _name;
@@ -35,6 +41,8 @@ public:
   Vec4<float> getSwingState();
   int* getMpcTable();
   void setIterations(int iterationsBetweenMPC, int currentIteration);
+  void requestSchedLead(int lead) override { _schedLeadPending = lead; }
+  int schedLead() const override { return _schedLead; }
   float getCurrentStanceTime(float dtMPC, int leg);
   float getCurrentSwingTime(float dtMPC, int leg);
   int getCurrentGaitPhase();
@@ -63,6 +71,8 @@ private:
   int _iteration;
   int _nIterations;
   float _phase;
+  int _schedLead = -1;          // lead in use (-1 = the knob)
+  int _schedLeadPending = -1;   // adopted at the next segment-0 wrap
 };
 
 

@@ -42,6 +42,19 @@
                              # hp_gap20 (2026-09-10): physical 1 -> 4/15
                              # mid-course collapses, 2 -> 5/15, 3 -> 0/15,
                              # 4 -> 18/20 and 6/6. Do not set 3.
+#                            # SINCE 2026-09-11 the lead is SPEED-SCHEDULED for
+#                            # trotting (OPEN-34): knob 2 below the sprint band,
+#                            # knob 1 above it, adopted at a cycle wrap. Setting
+#                            # CTRL_MPC_SCHED_LEAD here or in the env PINS the
+#                            # lead and disables the schedule (for A/B). Why:
+#                            # at 3.0 the longer lead diverges in pitch 3 s
+#                            # after cruise (6/23) and knob 1 passes 5/5; at
+#                            # 2.2 on wkc_finals knob 1 costs the course
+#                            # (2/5 vs 5/5) and +3.4 deg of hairpin roll.
+# CTRL_MPC_LEAD_V_HI: 2.7    # commanded speed at which the sprint band starts
+# CTRL_MPC_LEAD_V_LO: 2.4    # ... and ends (hysteresis)
+# CTRL_MPC_LEAD_FAST: 1      # knob in the sprint band
+# CTRL_MPC_LEAD_SLOW: 2      # knob below it
 # CTRL_MPC_TABLE_ALIAS: 0    # 1 restores a bug for A/B: run() held a pointer
                              # INTO the gait's table, the async prefetch block
                              # overwrote that table one segment ahead, and the

@@ -1484,6 +1484,35 @@ void ConvexMPCLocomotion::applySchedule(int gaitNumber, float speedCmd, Gait* ac
     lastGaitSeen = gaitNumber;
     gaitChangedMs = nowms;
   }
+  // SPEED-SCHEDULED CONTACT-TABLE LEAD (OPEN-34, 2026-09-11), trotting only:
+  // the longer physical lead (knob 2 = 3 segments) below the sprint regime -
+  // it is what every course was validated at and what holds the reversal's
+  // pitch and roll margins - and the shorter one (knob 1 = 2 segments) once
+  // the commanded speed is in the sprint band, where the longer lead
+  // diverges in pitch ~3 s after reaching cruise (6/23 pooled vs 5/5).
+  // Hysteresis so a cruise near the threshold cannot flip it every segment;
+  // the gait adopts the request only at its segment-0 wrap. Other gaits were
+  // never measured at lead 1 and keep the knob. An explicit
+  // CTRL_MPC_SCHED_LEAD (env or yaml) disables the schedule for A/B.
+  if (activeGait && gaitNumber == 9 && !ctrl_tuning::raw("CTRL_MPC_SCHED_LEAD")) {
+    static const float vhi = ctrl_tuning::num("CTRL_MPC_LEAD_V_HI", 2.7f);
+    static const float vlo = ctrl_tuning::num("CTRL_MPC_LEAD_V_LO", 2.4f);
+    static const int leadFast = ctrl_tuning::integer("CTRL_MPC_LEAD_FAST", 1);
+    static const int leadSlow = ctrl_tuning::integer("CTRL_MPC_LEAD_SLOW", 2);
+    static int regime = 0;                       // 0 = slow band, 1 = sprint band
+    const float vabs = std::fabs(_x_vel_des);
+    if (regime == 0 && vabs >= vhi) regime = 1;
+    else if (regime == 1 && vabs <= vlo) regime = 0;
+    activeGait->requestSchedLead(regime ? leadFast : leadSlow);
+    static int leadSeen = -1;
+    const int leadNow = activeGait->schedLead();
+    if (leadNow != leadSeen) {
+      if (leadSeen >= 0)
+        shmtrace::logf(0.0, "[SCHED] table lead %d -> %d adopted at a cycle wrap (v=%.2f, band %s)",
+               leadSeen, leadNow, vabs, regime ? "sprint" : "slow");
+      leadSeen = leadNow;
+    }
+  }
   const bool settling = (nowms - gaitChangedMs) < 500;   // ~2 gait cycles
 
   const int wantIters = std::max(1, (int)std::lround(p.segMs / (1000.f * dt)));
