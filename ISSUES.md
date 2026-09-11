@@ -115,7 +115,10 @@ passed on its own in-suite retry.
   disk at 96 % with 18 GB free and a 64 GB snapshot archive growing 21
   GB/day with no retention → `archive_compact.sh` packs snapshots older
   than 24 h to `.json.zst` (8.7×, reversible) at background QoS and every
-  reader resolves either name through `snapio.py`. **Done means**: over the
+  reader resolves either name through `snapio.py` (note: the backup's own
+  APFS local snapshot pins the deleted originals, so the disk reads worse
+  until it is thinned; `bridge_stall_report.sh` is the yardstick below).
+  **Done means**: over the
   next 300 runs on the RT band, zero mid-run bridge stalls over 100 ms and
   `campaign_freeze_report.py` showing zero harness falls; today's baseline
   is 5 and 2.

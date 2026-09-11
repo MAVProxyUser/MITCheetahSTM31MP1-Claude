@@ -1339,6 +1339,12 @@ external volumes stay indexed after `/` is turned off), `ps -r` for
 grows ~21 GB/day; `archive_compact.sh` packs snapshots older than 24 h to
 `.json.zst` and every reader resolves `.json`/`.json.zst` through
 `gazebo/tools/snapio.py` — new readers must too.
+A Time Machine backup creates an APFS local snapshot (`tmutil
+listlocalsnapshots /System/Volumes/Data`) that pins every file deleted after
+it, so compaction frees nothing until that snapshot is thinned — the disk
+reads WORSE during and after a backup (27 → 21 GB free on 2026-09-11 while
+800 originals were packed). `bridge_stall_report.sh DATE [MIN_MS]` is
+OPEN-35's yardstick.
 
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
