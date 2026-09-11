@@ -260,6 +260,10 @@ passed on its own in-suite retry.
   the pinned default on the sprint (N = 6), wkc 2.2 (N = 5) and hp_gap20
   1.9 (N = 5); the suite gains `dash_trotting_30` (fast tier) so a default
   cannot regress the sprint silently again.
+  **03:42 — sprint verification: scheduled 6/6 (peaks 8.2–11.1°, roll
+  under 5°), pinned default 0/6** (Fisher p = 0.001), interleaved on the
+  same binary. wkc 2.2 and hp_gap20 1.9 follow — there the schedule must
+  reproduce the pinned default, since it never leaves the slow band.
 
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
