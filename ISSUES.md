@@ -1810,6 +1810,19 @@ passed on its own in-suite retry.
   the new `down` judge), early switch **5/5** (pitch 22–29°, no lie-down
   failure this time). Pooled for the shipped schedule on this cell today:
   10/22; lead 1 pinned 5/5; early switch 5/5; threshold 2.5 3/5.
+  **Chain W, the hairpin (15:21, 5 reps × 4 arms interleaved, harness
+  falls: none): hp_gap20 1.9 — shipped schedule 5/5 (pitch median 10.9°,
+  roll 10.2°) vs lead 1 pinned 5/5 (8.3°, 10.7°); 2.3 — 5/5 (18.6°, 11.2°)
+  vs 5/5 (18.8°, 13.2°).** The 09-10 charge against lead 1 on the hairpin
+  apex (+3.4° roll) is 0.5–2° here, inside run-to-run spread, with less
+  pitch at 1.9. **SHIPPED 15:22: `CTRL_MPC_SCHED_LEAD: 1` in
+  `host-run/ctrl_tuning.yaml` — lead 1 (physical 2) everywhere, the speed
+  schedule left in the code, off.** Today's interleaved ledger for lead 1
+  against the schedule: box 2.6 5/5 vs 10/22, wkc_finals 2.4 5/5 vs 2/5,
+  wkc 2.2 5/5 vs 5/5 (pitch 14.7° vs 18.4°), hp_gap20 1.9 and 2.3 5/5 vs
+  5/5, the 3.0 sprint 10/10 (already lead 1 under the schedule). Chain X
+  runs the fast suite on the new default; chain Y probes the envelope it
+  opens: wkc_finals at 2.6 and 2.8, hp_gap20 at 2.5 and 2.7.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
@@ -1871,6 +1884,9 @@ passed on its own in-suite retry.
   cell and never probed at the top of the envelope (velocity aiding since
   08-28, the lead since 09-10); the fix is the speed-scheduled lead, shipped
   03:31, and the suite now carries `dash_trotting_30` in its fast tier.
+  *(Superseded 2026-09-11 15:22: lead 1 is pinned everywhere — see the
+  OPEN-28 notes for chains T, V and W; the schedule was the right answer
+  for one afternoon on the pre-slew recipe.)*
   Left in the record, not in the code: aiding-off is an equally effective
   sprint fix that costs more hairpin roll and the galloping scale; the two
   together are destructive (0/10); the 3-dog framing this item opened with
