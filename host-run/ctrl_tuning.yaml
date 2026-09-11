@@ -51,6 +51,17 @@
 #                            # after cruise (6/23) and knob 1 passes 5/5; at
 #                            # 2.2 on wkc_finals knob 1 costs the course
 #                            # (2/5 vs 5/5) and +3.4 deg of hairpin roll.
+CTRL_MPC_SCHED_LEAD: 1       # SHIPPED 2026-09-11 15:22 (ISSUES OPEN-28 / OPEN-34):
+                             # lead 1 (physical 2) EVERYWHERE, schedule off. The
+                             # "knob 1 costs wkc 2.2 and hairpin roll" charge was
+                             # measured on the pre-slew recipe; with WP_VSLEW=1.0
+                             # in the course recipe, interleaved on one binary:
+                             # box 2.6: 5/5 vs the schedule's 10/22; wkc_finals
+                             # 2.4: 5/5 vs 2/5; wkc 2.2: 5/5 vs 5/5 with lower
+                             # pitch (14.7 vs 18.4 deg); hp_gap20 1.9 and 2.3:
+                             # 5/5 vs 5/5 (roll within 2 deg); the 3.0 sprint
+                             # was already lead 1 (10/10). Comment out to
+                             # restore the speed schedule below.
 # CTRL_MPC_LEAD_V_HI: 2.7    # commanded speed at which the sprint band starts
 # CTRL_MPC_LEAD_V_LO: 2.4    # ... and ends (hysteresis)
 # CTRL_MPC_LEAD_FAST: 1      # knob in the sprint band
