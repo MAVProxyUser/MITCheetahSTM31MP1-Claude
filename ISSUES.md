@@ -244,8 +244,13 @@ passed on its own in-suite retry.
   campaign start) and ~3 ms on the last seven — time-clustered host noise,
   not an arm effect; no verdict depended on it. **Fix (1) ships ON**
   (`CTRL_JOINT_LIMITS: 1` live in `ctrl_tuning.yaml`). The wkc_finals
-  repeat (`open31_jointlimits_wkc`, N = 6) is queued in the same chain as a
-  second course. Fixes (2) (boot-fold / lie-down targets that keep the calf
+  repeat (`open31_jointlimits_wkc`, 23:23, N = 6 interleaved) says the same
+  on the second course: 6/6 vs 6/6, calf on the stop 17.4 % → 0.00 % of
+  the boot fold and 8.4 % → 0.00 % of the finish, active locomotion
+  commands outside the range 1.87 % → 0.00 %, and peak pitch **lower with
+  the limits on in 6 of 6 pairs** (2.8–6.2°, mean 4.8°). Fourteen of
+  fourteen pairs across two courses now; the effect is real and it is a
+  side benefit, not the purpose. Fixes (2) (boot-fold / lie-down targets that keep the calf
   above −151°) and (3) (`_maxLegLength` at the kinematic reach) stay filed:
   (2) is now cosmetic on the sim (the soft stop holds the joint off the
   stop) but on hardware a fold target the joint cannot reach is still a
