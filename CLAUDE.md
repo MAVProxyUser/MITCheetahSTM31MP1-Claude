@@ -2764,7 +2764,7 @@ command exists - matches both operator practice and Unitree's own transition
 request)
 
 **E. Test-harness safety that is WRONG on hardware as written** -
-`SIM_FALL_EXIT` `SIM_FALL_DEG` `SIM_FALL_Z` `SIM_FALL_HOLD_S`.
+`SIM_FALL_EXIT` `SIM_FALL_DEG` `SIM_FALL_Z` `SIM_FALL_HOLD_S`. Third criterion since 2026-09-11 (ISSUES OPEN-36): `SIM_FALL_DOWN_Z` (0.15 m) with `SIM_FALL_DOWN_DEG` (30°) — low AND tilted, held `SIM_FALL_HOLD_S`, logs `[FALL] down at an angle:`; it closes the gap where a body propped on folded legs at 40.5° / 0.11 m sat for 250 s as neither tipped nor collapsed.
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
 the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it

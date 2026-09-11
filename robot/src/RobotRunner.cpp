@@ -588,7 +588,23 @@ void RobotRunner::run() {
       if (useZ > 0.25f) stood = true;
       const bool collapsed = (g_fallZEnable.load() &&
                               stood && std::isfinite(useZ) && useZ < fall_z);
-      if (tipped || collapsed)
+      // DOWN AT AN ANGLE (2026-09-11, runs 5053 and 5090): a body that fell
+      // on the box course came to rest propped on its folded legs at 40.5
+      // deg of roll and 0.11 m - under the 50 deg "tipped" bar and above the
+      // 0.10 m "collapsed" bar - while the FSM bounced LOCOMOTION <->
+      // RecoveryStand ("Unsafe locomotion: roll is 40.5 degrees") for the
+      // remaining 250 s of the run, no E-stop (RecoveryStand exempts the
+      // orientation check), no [FALL], a 5-minute timeout and a NONE
+      // verdict for what was a fall. Low AND tilted, held, is down: a
+      // lie-down is level, a walking dip is level, and the mission's own
+      // recovery waits for a settled orientation, which this is not.
+      static const float down_z =
+          getenv("SIM_FALL_DOWN_Z") ? atof(getenv("SIM_FALL_DOWN_Z")) : 0.15f;
+      static const float down_rad =
+          (getenv("SIM_FALL_DOWN_DEG") ? atof(getenv("SIM_FALL_DOWN_DEG")) : 30.f) * float(M_PI) / 180.f;
+      const bool down = (g_fallZEnable.load() && stood && std::isfinite(useZ) &&
+                         useZ < down_z && (roll > down_rad || pitch > down_rad));
+      if (tipped || collapsed || down)
         fallen_for += controlParameters->controller_dt;
       else
         fallen_for = 0.f;
@@ -596,7 +612,7 @@ void RobotRunner::run() {
         shmtrace::logf(_shmElapsed,
                "[FALL] %s: roll=%.0f deg pitch=%.0f deg z=%.3f m held %.2f s - "
                "robot is down, stopping (legs go limp via the bridge watchdog)",
-               tipped ? "tipped over" : "collapsed",
+               tipped ? "tipped over" : (collapsed ? "collapsed" : "down at an angle"),
                _stateEstimate.rpy[0] * 57.2958f, _stateEstimate.rpy[1] * 57.2958f,
                useZ, fallen_for);
         // Tag the ring buffer with the confirmed-crash marker BEFORE the

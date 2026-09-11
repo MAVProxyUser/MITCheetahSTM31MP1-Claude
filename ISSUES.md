@@ -40,6 +40,37 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
+  neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
+  rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
+  2026-09-11 11:40 (runs 5053 and 5090, both `wkc_box` at 2.6, both the
+  0.4-budget arm, both on the wp4 leg where that arm's other falls are).
+  Symptom: `alon04 rep7 NONE wp=4 nofall peak pitch=0.0 roll=40.5 wz=0.00`
+  after a 300 s timeout. What happened: the dog fell at t ≈ 22 s, the body
+  came to rest on its folded legs at 40.5–40.7° of roll and kin_z 0.11 m,
+  and for 250 s the controller printed `Unsafe locomotion: roll is 40.500
+  degrees (max 40.000)` / `[Recovery Balance] ... Folding legs` / `[FSM
+  LOCOMOTION] On Enter` in a loop (61 615 times) while the mission kept
+  commanding wp4 at 2.60 m/s. No E-stop — RecoveryStand exempts the
+  orientation check — and no `[FALL]`: the judge's "tipped" bar is
+  `SIM_FALL_DEG` 50° and its "collapsed" bar is kin_z < `SIM_FALL_Z` 0.10 m;
+  this rest sits between them. Cost: five minutes of rig per event and a
+  fall filed as no-run (and, in chain Q, the 0.4 arm's rep 1). **Fix
+  (built 11:45, deployed when the rig is between runs)**: a third criterion
+  in `RobotRunner.cpp` — low AND tilted, `kin_z < SIM_FALL_DOWN_Z (0.15)`
+  with roll or pitch past `SIM_FALL_DOWN_DEG (30°)`, held the same
+  `SIM_FALL_HOLD_S` 0.5 s — logs `[FALL] down at an angle:` and ends the run
+  like the other two. A lie-down is level, a walking dip is level, and the
+  mission's own recovery waits for a settled orientation, so neither is
+  touched. **Also found here**: a Time Machine backup (11:23, to the newly
+  mounted `/Volumes/Backups2026`) makes the conductor refuse launches; the
+  runner waited inside its own 300 s deadline, so the harness booked NONE
+  rows for runs that never existed and hit its 2-NONE fleet clear. The
+  harness now waits out the backup BEFORE starting the deadline
+  (`open28_subcourse.sh`, installed by rename so the running campaign kept
+  its inode). **Done means**: a fall at rest at any angle above 30° ends the
+  run inside a second with a `[FALL]` line; no NONE row is ever a fall or a
+  backup.
 - **OPEN-35 · The bridge process stalls for 100–250 ms under host load and the
   controller runs on frozen state — two falls today were the harness, not
   the robot** — `SIM HARNESS`. Opened 2026-09-11 11:20. Symptom: a fall at
