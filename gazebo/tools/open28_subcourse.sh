@@ -67,6 +67,16 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   # a COURSES entry with a colon is a raw slot spec (dash:100, star:10.514:5);
   # a bare name is a course file under gazebo/courses/.
   local slot="course:$crs"; case "$crs" in *:*) slot="$crs";; esac
+  # A Time Machine backup makes the conductor REFUSE the launch; the runner
+  # then waits inside its own 300 s deadline and the harness books a NONE for
+  # a run that never existed (2026-09-11 11:24: two NONEs and a fleet clear
+  # for a 20-minute backup). Wait it out HERE, before the deadline starts.
+  local tmw=0
+  while tmutil status 2>/dev/null | grep -q "Running = 1"; do
+    [ "$tmw" -eq 0 ] && echo "  [gate] Time Machine backup in progress - waiting before launching (not a run)"
+    tmw=$((tmw+1)); sleep 30
+  done
+  [ "$tmw" -gt 0 ] && echo "  [gate] Time Machine finished after ~$((tmw*30)) s - launching"
   timeout 300 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
     --slot "$slot" --gait trotting --speed "$v" --dash 0 \
     --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1

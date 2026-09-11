@@ -24,6 +24,9 @@ def main():
     for r in rows:
         arm = r.get("course") or r.get("arm") or "?"
         d = per.setdefault(arm, dict(runs=0, passes=0, falls=0, harness=0))
+        if r.get("verdict") == "NONE":      # no run happened (launch refused, timeout): not a fall, not a rep
+            d["none"] = d.get("none", 0) + 1
+            continue
         d["runs"] += 1
         if r.get("verdict") == "PASS":
             d["passes"] += 1
@@ -48,7 +51,8 @@ def main():
     print("== %s: per arm PASS/runs, then PASS/(runs - harness falls)" % a.campaign)
     for arm, d in per.items():
         clean = d["runs"] - d["harness"]
-        print("  %-10s %d/%d  ->  %d/%d with %d harness fall(s) removed" % (arm, d["passes"], d["runs"], d["passes"], clean, d["harness"]))
+        print("  %-10s %d/%d  ->  %d/%d with %d harness fall(s) removed%s" % (arm, d["passes"], d["runs"], d["passes"], clean, d["harness"],
+              ("  (+%d NONE row(s): no run)" % d["none"]) if d.get("none") else ""))
 
 
 if __name__ == "__main__":
