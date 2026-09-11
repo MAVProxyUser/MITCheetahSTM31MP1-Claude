@@ -1612,8 +1612,14 @@ passed on its own in-suite retry.
   Left in the record, not in the code: aiding-off is an equally effective
   sprint fix that costs more hairpin roll and the galloping scale; the two
   together are destructive (0/10); the 3-dog framing this item opened with
-  was a control-arm error, and the fleet's own behaviour at speed has not
-  been re-measured on the scheduled lead. Chain I's solver-input probe (04:45,
+  was a control-arm error. **05:40 — the fleet re-measured on the
+  scheduled lead: 6 reps of the 3-dog `dash:100` at 3.0, cap held at 3,
+  18/18 dog-runs PASS** against 1/18 on the previous default the day
+  before, on the same host with the same instruments. That also closes
+  the CLAUDE.md line from the August campaign ("trotting 3.0, 100 m dash,
+  3 in parallel 0/6 - CAUSE NOT ISOLATED"): the parallel dash was never a
+  fleet effect, it was the sprint sitting on the wrong side of the
+  contact-table lead, and the fleet just sampled it three times per rep. Chain I's solver-input probe (04:45,
   `STM32MP1_MPC_IN=2`, two runs each at wkc 2.2): the lead of the solver's
   step-0 table over the gait's own segment has the SAME distribution on
   the old alias path (60 / 20 / 20 % at lead 0 / 1 / 2 over 8,444 solves)

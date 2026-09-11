@@ -2156,6 +2156,10 @@ every instance, so it is neither scheduler starvation nor desynchronisation.
 trotRunning and walking dashes are FINE in parallel; the star, atom and oval
 missions all reproduce single-dog to within 0.1-0.3 s. CAUSE NOT ISOLATED.
 Until it is, confirm any dash result single-dog.
+*(2026-09-11: ISOLATED, and it was never a fleet effect. The trotting sprint
+at 3.0 was marginal SOLO on the contact-table lead the courses were tuned
+on; the fleet merely sampled that coin three times per rep. With the
+speed-scheduled lead (ISSUES.md OPEN-34) the 3-dog dash went 18/18.)*
 
 ## THE MISSION ANALYZER: decide once, up front, with the whole route in view
 
