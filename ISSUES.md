@@ -1745,7 +1745,17 @@ passed on its own in-suite retry.
   loop-max equal. So a VectorNav-class error budget costs the hairpin a
   couple of degrees of roll margin at most; the Madgwick-on-DroneCAN
   path the real machine will run is a larger dose (1.5–3°), which is the
-  next rung if this is revisited. **Closed as measured**: friction is an
+  next rung if this is revisited.
+  **Dose run 2026-09-11 07:15 (hp_gap20 at 1.9, 5 reps × 0 / 1.5 / 3.0°
+  RMS, interleaved):** 0° → 5/5 (pitch median 13.9°); **1.5° → 5/5** but
+  two passes peaked at 25.3° and 26.6° of pitch and yaw saturation counts
+  climb (0–24 per run); **3.0° → 3/5**, both falls at the FIRST corner
+  (pitch 40.0° / roll 30.9°). So the envelope on orientation error is
+  roughly: 0.5° free, 1.5° eats most of the pitch margin, 3° fails a
+  fifth-to-half of runs on the hairpin course at 1.9. A DroneCAN/Madgwick
+  orientation on the real machine needs to be measured against that
+  before any 1.9 course result is believed on hardware; a VectorNav-class
+  unit is inside the free band. **Closed as measured**: friction is an
   envelope fact (recorded, not tuned away), orientation noise a null at
   0.5°, and the joint-velocity row was a record error, corrected.
 
