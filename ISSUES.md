@@ -73,7 +73,10 @@ passed on its own in-suite retry.
   level, the mission's recovery waits for a settled orientation. Built
   12:17; deployed in the gap after chain T (the controller unlinks its
   socket path on bind, so the deploy's 3 s proof run must never overlap a
-  live run; previous binary kept as `mit_ctrl_sim.pre_tiltjudge`).**
+  live run; a waiter deployed it at 12:22:32, one second after the campaign's
+  marker; previous binary kept as `mit_ctrl_sim.pre_tiltjudge`). The 11:32
+  criterion already ended the shipped arm's rep-5 fall as `down` instead of
+  a 5-minute NONE.**
   **Also found here**: a Time Machine backup (11:23, to the newly
   mounted `/Volumes/Backups2026`) makes the conductor refuse launches; the
   runner waited inside its own 300 s deadline, so the harness booked NONE
@@ -1752,6 +1755,24 @@ passed on its own in-suite retry.
   whole leg (`box_lead_score.py`). The over-speed is the body's, not the
   estimator's: the MPC's velocity tracking overshoots the command by
   0.2 m/s at this speed and the trot is then run at 2.7–2.85 on lead 2.**
+  **Chain T result (12:22, box at 2.6 on the 0.4 budget, 5 reps × 3 lead
+  policies interleaved, truth logging on, harness falls: none):** shipped
+  schedule (threshold 2.7, lead 2 on every leg) **2/5**, fall pitch 35–46°;
+  threshold 2.5 (`CTRL_MPC_LEAD_V_HI=2.5`, lead 1 adopted at 2.50–2.57 on
+  each leg's ramp, back to 2 at the corners) **3/5 course-complete** (2
+  PASS + 1 clean course failed by the lie-down judge at 21° roll, OPEN-30's
+  mode; the 2 falls on the wp4 leg at 2.7 truth, on lead 1, 40 s after
+  the switch); lead 1 pinned everywhere (`CTRL_MPC_SCHED_LEAD=1`) **5/5**,
+  peak pitch 19.5–25.6° (median 20.5°) against the shipped arm's 35°
+  median, at the same 2.72–2.77 m/s truth on the leg. So the shorter lead
+  carries the 2.6 box; adopting it mid-ramp at 2.5 carries it less well
+  than having it from the corner. Lead 1 everywhere is not free — the
+  09-10 F2 sweep found it costs `wkc_finals` at 2.2 — so the candidate is
+  an EARLY switch: threshold 2.0 (hysteresis 1.8), which leaves hp_gap20
+  1.9 on lead 2 untouched, puts wkc's 2.2 legs and the box's 2.6 legs on
+  lead 1 from the bottom of the ramp, and keeps lead 2 at the corners and
+  the reversal. Chain V measures it on the full `wkc_finals` at 2.2 and
+  2.4 and on the box at 2.6 against the shipped schedule and pinned lead 1.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the
