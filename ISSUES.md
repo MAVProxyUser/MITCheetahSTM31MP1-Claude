@@ -149,6 +149,13 @@ passed on its own in-suite retry.
   the same band (`PeriodicTask.cpp`, `CTRL_RT=0` disables; deployed 14:26:45
   in the gap after chain V's first campaign, `kr=0` for `robot-control` and
   `unitree-rs485`, a thread at priority 97 beside the process's 31).
+  Afternoon reading (14:45, 70 runs on the RT bridge, 11 of them with the
+  controller on the band too): 2 stalls ≥ 20 ms, 0 ≥ 100 ms — the 78 ms
+  machine-wide one above and a 56 ms bridge-side one (run 5157, backlog 28,
+  at second 180 of a pass, i.e. during the lie-down). A bridge-side stall on
+  the real-time band is not scheduling; the remaining suspect is the loop's
+  own 1 Hz stats `print(..., flush=True)` blocking on the log file under
+  disk load. Left as the next lever if the class persists.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
