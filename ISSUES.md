@@ -1579,7 +1579,19 @@ passed on its own in-suite retry.
   backlog and IMU-gap columns in passing and failing runs; the conductor
   at 7 threads / 122 MB after 23 h). So the ladder's morning reading holds
   in its honest form — **2.0 is the last reliable rung, 2.2 is ~50 %** —
-  and the alias-vs-fixed question does not decide anything at 2.2. Chain I
+  and the alias-vs-fixed question does not decide anything at 2.2.
+  **08:08 — and the margin knob buys the rung.** `wkc22_vslew` (5 reps ×
+  3 arms interleaved, scheduled-lead binary): `WP_VSLEW` off → 4/5, pitch
+  median 26.0° (max 32.3, the one fall at the reversal); **1.0 m/s² →
+  5/5, pitch median 16.5° (max 17.4), roll 8.1°, zero yaw saturations**;
+  2.0 m/s² → 4/5, 24.0° (indistinguishable from off). Per pair the 1.0
+  slew takes 8.7–15.8° off the reversal-exit peak (mean 11.1°, 5/5), for
+  about one second of mission time (180.5 vs 179.4 s). The `[VSLEW]`
+  lines show it binding exactly where the story says: on the command's
+  RISE out of the reversal (wanted 0.25 → allowed 0.02, 0.62 → 0.57). A
+  slew of 2.0 never binds hard enough to matter. Chain N asks whether the
+  same slew moves the rung above (2.4, 0/8 on the ladder) and whether it
+  restores the concrete hairpin's 2.1. Chain I
   still measures the alias path's table at the solver input, because "the
   two are bit-for-bit the same lead" was a claim, and a cheap one to
   check.
