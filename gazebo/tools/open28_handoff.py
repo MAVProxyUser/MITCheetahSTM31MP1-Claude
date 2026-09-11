@@ -31,6 +31,8 @@ each one, relative to that flip:
 
 Usage: open28_handoff.py --csv .../open28_sched.csv [--limit 28.65]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import csv, json, os, math, argparse, statistics as st, bisect, collections
 
 R2D = 57.2958
@@ -169,7 +171,7 @@ for r in rows:
         if len(f) >= 73:
             try: D.append((float(f[0]), [float(v) for v in f[61:73]]))
             except ValueError: pass
-    d = json.load(open(sp_)); ALL = [x for x in d["records"] if x.get("t") is not None]
+    d = load_json(sp_); ALL = [x for x in d["records"] if x.get("t") is not None]
     R = [x for x in ALL if x.get("vx") is not None and x.get("roll") is not None and x.get("z") is not None
          and x.get("foot_z0") is not None and x.get("c0") is not None and x["t"] > 6.0]
     if len(R) < 800 or len(D) < 500:

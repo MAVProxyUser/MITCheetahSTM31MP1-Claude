@@ -7,12 +7,14 @@ the attitude at the trip from the archived shm trace.
 
 Usage: fleet_retest_score.py [<fleet log>]   (default: $CAMPAIGN_DIR/fleet_dash_retest.log)
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import glob, json, os, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from paths import RUN_DIR, CAMPAIGN_DIR  # noqa: E402
 
 def trip(path):
-    R = [x for x in json.load(open(path))["records"] if x.get("pitch") is not None]
+    R = [x for x in load_json(path)["records"] if x.get("pitch") is not None]
     k = next((i for i in range(1, len(R)) if R[i]["op_mode"] == 2 and R[i - 1]["op_mode"] != 2), None)
     if k is None:
         return None

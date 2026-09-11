@@ -16,6 +16,8 @@ version of this) to apex + 2.5 s, which covers the p90 of when crossers leave
 
 Usage: open28_exitroll.py --csv .../open28_subcourse.csv
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import csv, json, os, math, argparse, statistics as st, collections
 
 R2D = 57.2958
@@ -37,7 +39,7 @@ for r in csv.DictReader(open(a.csv)):
 
 def score(path):
     try:
-        d = json.load(open(path))
+        d = load_json(path)
     except Exception:
         return None
     R = [x for x in d.get("records", []) if x.get("vx") is not None

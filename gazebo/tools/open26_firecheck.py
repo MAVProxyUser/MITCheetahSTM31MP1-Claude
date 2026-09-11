@@ -12,6 +12,8 @@ correctly declared if the body is genuinely near the deck at that second time.
 
 Usage: open26_firecheck.py CSV [CSV...]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,sys,statistics as st
 def plateau(v): return st.median(sorted(v)[len(v)//2:])
 FALL_Z=0.10; HOLD=0.5
@@ -24,7 +26,7 @@ AT=[];AFTER=[];BAD=0;N=0
 print("  run                   | true body z when kin_z hits 0.10 | ...and 0.5s later")
 for r in rows:
     if r.get("verdict")=="PASS" or r.get("snapshot","NONE") in ("NONE",""): continue
-    try: d=json.load(open(r["snapshot"]))
+    try: d=load_json(r["snapshot"])
     except Exception: continue
     R=[x for x in d["records"] if x.get("kin_z") is not None]
     if len(R)<300: continue

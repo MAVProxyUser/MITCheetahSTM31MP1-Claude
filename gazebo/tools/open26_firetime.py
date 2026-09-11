@@ -7,6 +7,8 @@ the crossing of the SAME PHYSICAL HEIGHT in gz truth (matched by each
 series' own plateau, since gz's model origin sits ~0.02 m above the
 estimator's reference), then subtracts the 0.5 s hold.
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,statistics as st
 FALL_Z=0.10; HOLD=0.5
 rows=list(csv.DictReader(open("/tmp/c27.csv")))
@@ -22,7 +24,7 @@ def cross(ts,zs,thr,after):
 out=[]
 for r in rows:
     if r["verdict"]=="PASS" or r["snapshot"] in ("NONE",""): continue
-    R=[x for x in json.load(open(r["snapshot"]))["records"] if x.get("kin_z") is not None]
+    R=[x for x in load_json(r["snapshot"])["records"] if x.get("kin_z") is not None]
     if len(R)<200: continue
     ts=[x["t"] for x in R]; kz=[x["kin_z"] for x in R]
     tts=[];tzs=[]

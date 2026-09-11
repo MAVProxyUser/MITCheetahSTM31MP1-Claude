@@ -16,6 +16,8 @@ and yaw is the direction most sensitive to a mis-trusted foot.
 If the estimate drifts, the MPC will command a large, entirely correct yaw
 moment to fix an error that is not there, and the real body will spin while the
 follower believes it is going straight. From outside that is indistinguishable
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 from a disturbance - which is why it survived eleven tests aimed downstream.
 
 gz pose truth carries yaw, so the estimate can be checked against it directly:
@@ -80,7 +82,7 @@ for r in rows:
     if not truth or not os.path.exists(truth):
         continue
     try:
-        d = json.load(open(snap))
+        d = load_json(snap)
     except Exception:
         continue
     R = [x for x in d.get("records", []) if x.get("wz") is not None

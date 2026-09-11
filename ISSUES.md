@@ -40,6 +40,50 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-35 · The bridge process stalls for 100–250 ms under host load and the
+  controller runs on frozen state — two falls today were the harness, not
+  the robot** — `SIM HARNESS`. Opened 2026-09-11 11:20. Symptom: a fall at
+  cruise with no precursor in any robot channel. Evidence: run 5070
+  (hp_gap20 at 2.1, 10:48) — the state the controller consumed (orientation,
+  foot kinematics, kin_z) bit-identical for 63 ticks (124 ms) while the
+  control loop kept its 2 ms period; the bridge's own line for that second
+  reads `stalls>5ms=1/worst=128.7ms rx_backlog_max=64` (64 commands queued
+  = 128 ms of the controller sending into a bridge that was not running);
+  on return the state jumped −8.9° roll / −6.7° yaw and the safety E-stop
+  fired 60 ms later. Run 5058 (wkc_box at 2.6, 10:30): 247.5 ms, backlog
+  124, the "level collapse" of chain Q. Today's 305 per-run bridge logs
+  carry 24 mid-run stalls over 20 ms and five over 100 ms (01:22, 02:14,
+  10:30, 10:31, 10:49); a stall over 100 ms at cruise is a coin-flip fall.
+  Two classes by the backlog: backlog ≈ stall × 500 Hz means the bridge
+  alone stopped (5058, 5059, 5070, 01:22); backlog ≈ 2 with a 140 ms stall
+  (02:14) means the controller stopped sending too — a machine-wide stall.
+  The bridge is a 36 MB Python process (no GC pause explains 250 ms); it
+  sleeps 2 ms per cycle at default QoS on a desktop that was running
+  Spotlight at two cores (`mds_stores` 136 %, `corespotlightd` 60 %, `mds`
+  95 % — indexing is off for `/` but ON for `/Volumes/Backups2026` and
+  `/Volumes/ExternalLife`, `mdutil -a -s`), a window server at 30 %, Photos
+  analysis and the sim itself, load average 15–17 on 14 cores.
+  **Instruments (shipped)**: `gazebo/tools/state_freeze_scan.py` finds the
+  class in any snapshot — identical state under motion with the loop period
+  intact, the jump on return — and `campaign_freeze_report.py NAME` splits a
+  campaign's falls into genuine and harness per arm. **Mitigation (shipped
+  11:25, `BRIDGE_RT`, default on)**: the bridge's main loop and its IMU /
+  joint-state callback threads ask macOS for the mach time-constraint band
+  (period 2 ms, computation 0.5 ms, constraint 2 ms; any process may, no
+  root); a 3 s probe on the loaded host took the worst `sleep(2 ms)`
+  overshoot from 1.05 ms to 0.02 ms. The bridge names it in its log
+  (`[bridge] scheduling: ... kr=0`) and the stats line carries
+  `rt_threads=elevated/refused`. Host actions taken: `corespotlightd`
+  (user-owned) reniced to 20 with the background task policy (authorized:
+  "you can stop spotlight"); `mds`/`mds_stores` are root's — the durable
+  fix is the user's `sudo mdutil -a -i off`. Also found on the way: the
+  disk at 96 % with 18 GB free and a 64 GB snapshot archive growing 21
+  GB/day with no retention → `archive_compact.sh` packs snapshots older
+  than 24 h to `.json.zst` (8.7×, reversible) at background QoS and every
+  reader resolves either name through `snapio.py`. **Done means**: over the
+  next 300 runs on the RT band, zero mid-run bridge stalls over 100 ms and
+  `campaign_freeze_report.py` showing zero harness falls; today's baseline
+  is 5 and 2.
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
@@ -1619,10 +1663,14 @@ passed on its own in-suite retry.
   `WP_ALON` 0.4 / 0.3 / 0.2): 2/5, 3/5, **4/5**, with the 0.2 arm's passes
   the only clean ones (pitch 10–21°; 0.4's passes sit at 23–25°, 0.3's at
   29–37°). A gentler longitudinal budget helps the box in the expected
-  direction but the third corner is still a coin flip at 2.6 and one 0.2
-  run collapsed LEVEL (5° peak pitch, a height collapse at wp4, the OPEN-28
-  signature) — so the box at 2.6 is where the next real investigation
-  would start, and it is not a one-knob fix. Not shipped; N = 5.
+  direction but the third corner is still a coin flip at 2.6. The one 0.2
+  run that "collapsed LEVEL" (run 5058, 5° peak pitch, a height collapse at
+  wp4) was NOT the box: the bridge stalled for 247 ms with 124 commands
+  queued (`stalls>5ms=1/worst=247.5ms rx_backlog_max=124`), the state the
+  controller consumed froze for 244 ms at 1.99 m/s, and the body came back
+  folding — the harness class of OPEN-35, found only when the scanner was
+  written an hour later. Read with that fall removed, chain Q's 0.2 arm is
+  4/4. Not shipped; N = 5.
   **hp_gap20 on the shipped recipe (chain R, 11:03, 5 reps per rung
   interleaved): 2.1 → 4/5 (pitch median 18.1°, roll 10.5°), 2.3 → 5/5
   (pitch 22.4°, roll 13.4°).** The one 2.1 fall (run 5070) is not the

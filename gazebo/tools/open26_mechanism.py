@@ -14,6 +14,8 @@ the descent, on the same samples, in the same units.
 
 Usage: open26_mechanism.py CSV [CSV...]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,sys,statistics as st
 
 def truth_series(path):
@@ -45,7 +47,7 @@ EK=[];ET=[];N=0
 print("  run                    | RMS |est - kin_z| | RMS |est - truth| | ratio")
 for r in rows:
     if r.get("verdict")=="PASS" or r.get("snapshot","NONE") in ("NONE",""): continue
-    try: d=json.load(open(r["snapshot"]))
+    try: d=load_json(r["snapshot"])
     except Exception: continue
     R=[x for x in d["records"] if x.get("kin_z") is not None]
     if len(R)<300: continue

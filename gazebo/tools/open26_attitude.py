@@ -18,6 +18,8 @@ Needs truth files carrying roll/pitch (pose_feed >= 2026-09-04, 6 fields).
 
 Usage: open26_attitude.py CSV [CSV...]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,sys,math,statistics as st
 
 def truth_series(path):
@@ -48,7 +50,7 @@ print("  run                  | attitude ERROR at bottom (deg) | height gap | pr
 print("                       |   d_roll      d_pitch          |  est-truth |  d*sin(tilt)")
 for r in rows:
     if r.get("verdict")=="PASS" or r.get("snapshot","NONE") in ("NONE",""): continue
-    try: d=json.load(open(r["snapshot"]))
+    try: d=load_json(r["snapshot"])
     except Exception: continue
     R=[x for x in d["records"] if x.get("kin_z") is not None]
     if len(R)<300: continue

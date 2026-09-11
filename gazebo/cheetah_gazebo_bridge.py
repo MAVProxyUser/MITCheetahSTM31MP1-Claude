@@ -129,7 +129,51 @@ if QUAT_CONJ:
 # failure as a bridge holding a stale command (OPEN-28), from the other side.
 _imu_stat = [0, 0.0, 0.0]   # [count this second, last arrival, worst gap s]
 
+# SCHEDULING. The bridge is a 500 Hz Python loop on a desktop macOS host that
+# also runs Spotlight, Photos analysis, a window server and the sim itself.
+# 2026-09-11: with the loop's own period intact, the state the controller
+# consumed froze for 124 / 244 ms twice in twenty minutes (runs 5070, 5058:
+# `stalls>5ms=1/worst=128.7ms rx_backlog_max=64`) and both were falls at
+# cruise; the day's bridge logs carry 24 stalls over 20 ms in 305 runs, five
+# of them over 100 ms. A default-QoS thread waits its turn behind whatever the
+# host is doing; the mach time-constraint band does not, and any process may
+# ask for it (no root). A 3 s probe on the loaded host: worst sleep(2 ms)
+# overshoot 1.05 ms -> 0.02 ms. BRIDGE_RT=0 turns it off.
+_RT = os.environ.get("BRIDGE_RT", "1") == "1"
+_rt_local = threading.local()
+
+def _rt_band(period_ms=2.0, comp_ms=0.5, cons_ms=2.0):
+    """Put the calling thread on macOS's time-constraint scheduling band.
+    Returns the kern_return (0 = took), or None where the call does not exist."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        import ctypes, ctypes.util
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        class TB(ctypes.Structure):
+            _fields_ = [("numer", ctypes.c_uint32), ("denom", ctypes.c_uint32)]
+        class POL(ctypes.Structure):
+            _fields_ = [("period", ctypes.c_uint32), ("computation", ctypes.c_uint32),
+                        ("constraint", ctypes.c_uint32), ("preemptible", ctypes.c_int)]
+        tb = TB(); libc.mach_timebase_info(ctypes.byref(tb)); k = tb.denom / tb.numer
+        pol = POL(int(period_ms*1e6*k), int(comp_ms*1e6*k), int(cons_ms*1e6*k), 1)
+        libc.mach_thread_self.restype = ctypes.c_uint32
+        return libc.thread_policy_set(libc.mach_thread_self(), 2, ctypes.byref(pol), 4)  # THREAD_TIME_CONSTRAINT_POLICY
+    except Exception as e:  # noqa
+        return "err:%s" % e
+
+_rt_threads = [0, 0]   # [callback threads elevated, callback threads refused]
+
+def _rt_here():
+    """Elevate the current (gz-transport callback) thread once."""
+    if not _RT or getattr(_rt_local, "done", False):
+        return
+    _rt_local.done = True
+    kr = _rt_band()
+    _rt_threads[0 if kr == 0 else 1] += 1
+
 def on_imu(msg: IMU):
+    _rt_here()
     now = time.time()
     if _imu_stat[1] > 0.0 and now - _imu_stat[1] > _imu_stat[2]:
         _imu_stat[2] = now - _imu_stat[1]
@@ -183,6 +227,7 @@ def on_pose(msg):
         return
 
 def on_joint(msg: Model):
+    _rt_here()
     idx = {jn: i for i, jn in enumerate(JOINTS)}
     with lock:
         for j in msg.joint:
@@ -502,6 +547,13 @@ def main():
     print(f"[bridge] UDP: recv cmd :{CMD_PORT}, send sensors :{SENSOR_PORT} -> {peer_ip[0] or '(learn)'}")
     if _ORI_NOISE > 0.0:
         print(f"[bridge] orientation noise ON: {_ORI_NOISE*180/_m.pi:.2f} deg RMS bias random walk + 30% white", flush=True)
+    if _RT:
+        kr = _rt_band()
+        print(f"[bridge] scheduling: main loop on the mach time-constraint band "
+              f"(period 2 ms, computation 0.5 ms, constraint 2 ms) -> kr={kr}; "
+              f"IMU/joint callback threads elevate on first entry (BRIDGE_RT=0 disables)", flush=True)
+    else:
+        print("[bridge] scheduling: default QoS (BRIDGE_RT=0)", flush=True)
     period = 1.0/500.0    # 500 Hz
     last = time.time()
     hb = time.time()
@@ -531,6 +583,7 @@ def main():
                   f"q_FR_hip={q0} tau=[{t0},{t2}] stalls>{5}ms={stalls[0]}/worst={round(stalls[1]*1000,1)}ms "
                   f"baro={bp}Pa/{ba}m gps=({la},{lo}) rx_backlog_max={_backlog[0]} "
                   f"imu_rx={_imu_stat[0]}/s imu_gap_max={round(_imu_stat[2]*1000,1)}ms"
+                  + (f" rt_threads={_rt_threads[0]}/{_rt_threads[1]}" if _RT else "")
                   + (f" tau_ff_guard={tau_ff_guard[0]}/worst_scale={round(tau_ff_guard[1],2)}"
                      if tau_ff_guard[0] else ""), flush=True)
             cmd_rx[0] = 0; hb = now; stalls[0] = 0; stalls[1] = 0.0; _backlog[0] = 0

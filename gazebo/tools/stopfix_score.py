@@ -22,6 +22,8 @@ EVERY run including the passes, rather than a rare binary.
 Usage: stopfix_score.py --csv .../stopfix_ab2.csv
        stopfix_score.py --glob '.../archive/shm_trace/*wkc_settle*.json'
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json, glob, os, sys, csv, math, argparse, statistics as st
 
 R2D = 57.2958
@@ -51,7 +53,7 @@ def speed(x):
 
 rows = []
 for arm, rep, verdict, path in jobs:
-    try: d = json.load(open(path))
+    try: d = load_json(path)
     except Exception: continue
     R = [x for x in (d.get("records") or [])
          if x.get("pitch") is not None and x.get("vx") is not None]

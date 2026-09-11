@@ -16,6 +16,8 @@ not only falls.
 
 Usage: open26_excursion.py [--archive DIR] [--limit 28.65]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json, glob, os, sys, argparse, statistics as st
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import paths
@@ -30,7 +32,7 @@ a=ap.parse_args()
 tot=rec=fatal=0
 peaks=[]; files=0
 for f in sorted(glob.glob(os.path.join(a.archive,"*.json"))):
-    try: d=json.load(open(f))
+    try: d=load_json(f)
     except Exception: continue
     R=[x for x in (d.get("records") or []) if x.get("z") is not None]
     if len(R)<500: continue

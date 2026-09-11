@@ -1,3 +1,5 @@
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,statistics as st
 rows=list(csv.DictReader(open("/tmp/c22.csv")))
 def plateau(zs): return st.median(sorted(zs)[len(zs)//2:])
@@ -13,7 +15,7 @@ print("rep verd  end_roll end_pitch  kind   | est_rate truth_rate  ratio | est_v
 F=[];T=[];VZ=[]
 for r in rows:
     if r["snapshot"] in ("NONE",""): continue
-    d=json.load(open(r["snapshot"])); R=[x for x in d["records"] if x.get("z") is not None]
+    d=load_json(r["snapshot"]); R=[x for x in d["records"] if x.get("z") is not None]
     ets=[x["t"] for x in R]; ezs=[x["z"] for x in R]
     ep=plateau(ezs); e=band(ets,ezs,ep)
     tts=[];tzs=[]

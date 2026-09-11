@@ -25,6 +25,8 @@ rely on has to be one the real robot can produce.
 --prune deletes a raw snapshot ONLY after its distilled record is written and
 read back successfully, and never touches one whose distillation failed.
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import argparse, json, os, sys, glob, statistics as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -36,7 +38,7 @@ def plateau(v):
     return st.median(sorted(v)[len(v) // 2:])
 
 def distill_one(path):
-    d = json.load(open(path))
+    d = load_json(path)
     R = [x for x in (d.get("records") or []) if x.get("z") is not None]
     if len(R) < 200:
         return None
@@ -143,7 +145,7 @@ def main():
         if a.prune:
             # read the distilled file back before deleting anything
             try:
-                json.load(open(outp))
+                load_json(outp)
             except Exception:
                 sys.stderr.write("distilled file unreadable, KEEPING raw: %s\n" % f)
                 continue

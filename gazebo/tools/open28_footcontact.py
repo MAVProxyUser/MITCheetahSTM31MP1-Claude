@@ -22,6 +22,8 @@ For every sink (escalated and recovered) and matched random instants:
 
 Usage: open28_footcontact.py --campaign open28_contact
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import csv, json, os, math, argparse, statistics as st, bisect, random, collections
 
 R2D = 57.2958
@@ -80,7 +82,7 @@ for r in rows:
     snap, con = r.get("snapshot", ""), r.get("contact", "")
     if not (snap and snap != "NONE" and os.path.exists(snap) and con and os.path.exists(con)):
         continue
-    d = json.load(open(snap))
+    d = load_json(snap)
     R = [x for x in d.get("records", []) if x.get("vx") is not None and x.get("roll") is not None and x.get("z") is not None and x["t"] > 6.0]
     F = load_contact(con)
     if len(R) < 800 or len(F) < 500:

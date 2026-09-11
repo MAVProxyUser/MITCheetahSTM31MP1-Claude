@@ -1,3 +1,5 @@
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,statistics as st
 def plateau(zs): return st.median(sorted(zs)[len(zs)//2:])
 def band(ts,zs,p,top=0.03,bot=0.15):
@@ -13,7 +15,7 @@ print("gait      rep verd  kind  |  est_rate  kin_rate  TRUE_rate |  est_lead  k
 E=[];K=[];T=[];LE=[];LK=[];G={}
 for r in rows:
     if r["snapshot"] in ("NONE",""): continue
-    d=json.load(open(r["snapshot"]))
+    d=load_json(r["snapshot"])
     R=[x for x in d["records"] if x.get("z") is not None and x.get("kin_z") is not None]
     if len(R)<200: continue
     ts=[x["t"] for x in R]

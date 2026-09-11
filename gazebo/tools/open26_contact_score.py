@@ -24,6 +24,8 @@ actually moving - the failure OPEN-26 is chasing.
 
 Usage: open26_contact_score.py CSV [CSV...]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json, csv, sys, statistics as st
 
 def load_contact(path):
@@ -55,7 +57,7 @@ AGG={}
 runs=0
 for r in rows:
     if r.get("snapshot","NONE") in ("NONE","") or not r.get("contact"): continue
-    try: d=json.load(open(r["snapshot"]))
+    try: d=load_json(r["snapshot"])
     except Exception: continue
     R=[x for x in d["records"] if x.get("foot_fz0") is not None]
     if len(R)<500: continue

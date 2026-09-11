@@ -31,6 +31,8 @@ the height start dropping, measured per fall rather than asserted from two.
 
 Usage: open28_support.py --csv .../open28_subcourse.csv
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import csv, json, os, math, argparse, statistics as st
 
 R2D = 57.2958
@@ -71,7 +73,7 @@ def profile(r):
     if not p or p == "NONE" or not os.path.exists(p):
         return None
     try:
-        d = json.load(open(p))
+        d = load_json(p)
     except Exception:
         return None
     R = [x for x in d.get("records", []) if x.get("z") is not None and x.get("vx") is not None]

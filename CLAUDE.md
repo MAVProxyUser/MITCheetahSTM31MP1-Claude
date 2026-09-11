@@ -1323,6 +1323,23 @@ holds the reversal's pitch and roll margins at 1.9-2.2, the shorter one is
 what keeps the 3.0 sprint upright (6/6 vs 0/6 on the same binary). Setting
 the knob pins the lead and disables the schedule.)*
 
+**Host scheduling, the sensor-freeze class, and the archive (2026-09-11,
+ISSUES OPEN-35).** The bridge is a 500 Hz Python loop on a desktop Mac; at
+default QoS it stalled for 124–247 ms twice in twenty minutes under Spotlight
+load (`stalls>5ms=1/worst=…ms rx_backlog_max=64..124` in its own log) and
+each stall at cruise was a fall that looked, from the robot's channels, like
+OPEN-28's "level collapse". It now runs its main loop and IMU/joint callbacks
+on the mach time-constraint band (`BRIDGE_RT=1`, no root; log line
+`[bridge] scheduling: … kr=0`). Classify every fall with
+`gazebo/tools/campaign_freeze_report.py NAME` before believing a verdict
+count; `state_freeze_scan.py` is the per-snapshot form (identical state under
+motion, loop period intact, jump on return). Host tells: `mdutil -a -s` (the
+external volumes stay indexed after `/` is turned off), `ps -r` for
+`mds_stores`/`corespotlightd`. The snapshot archive has NO retention and
+grows ~21 GB/day; `archive_compact.sh` packs snapshots older than 24 h to
+`.json.zst` and every reader resolves `.json`/`.json.zst` through
+`gazebo/tools/snapio.py` — new readers must too.
+
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
 

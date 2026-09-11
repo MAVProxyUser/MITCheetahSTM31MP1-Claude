@@ -17,6 +17,8 @@ that needs no reference to interpret.
 
 Usage: open26_divergence.py CSV [CSV...]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json,csv,sys,statistics as st
 def plateau(v): return st.median(sorted(v)[len(v)//2:])
 rows=[]
@@ -28,7 +30,7 @@ PE=[];PK=[];TN=[];NEG=0;N=0;NEGDEPTH=[]
 print("  run                   | peak est-truth | at    | peak kin-truth | est goes negative")
 for r in rows:
     if r.get("verdict")=="PASS" or r.get("snapshot","NONE") in ("NONE",""): continue
-    try: d=json.load(open(r["snapshot"]))
+    try: d=load_json(r["snapshot"])
     except Exception: continue
     R=[x for x in d["records"] if x.get("kin_z") is not None]
     if len(R)<300: continue

@@ -13,6 +13,8 @@ usage:
   state_freeze_scan.py --campaign NAME [--min-ms 20] all snapshots of $CHEETAH_DATA/campaigns/NAME.csv
   state_freeze_scan.py --dir DIR --since 'YYYYMMDD_HHMM' every snapshot in DIR newer than the stamp
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import argparse, csv, glob, json, math, os, sys
 
 DEG = 180.0 / math.pi
@@ -49,17 +51,26 @@ def freezes(records, min_ticks):
     return out
 
 
-def first_excursion(records, deg=30.0):
+def first_excursion(records, deg=30.0, z_low=0.18, z_up=0.24):
+    """t of the first departure from upright running: |roll| or |pitch| past
+    `deg`, or the body sinking below `z_low` after it had stood (z > `z_up`) -
+    the level collapse (run 5058) never crossed 30 deg."""
+    stood = False
     for r in records:
         if r["t"] < T_SETTLE or not r.get("finite", True):
             continue
+        z = r.get("z")
+        if z is not None and z > z_up:
+            stood = True
         if abs(r["roll"]) * DEG >= deg or abs(r["pitch"]) * DEG >= deg:
+            return r["t"]
+        if stood and z is not None and z < z_low:
             return r["t"]
     return None
 
 
 def scan(path, min_ticks, detail_ms):
-    d = json.load(open(path))
+    d = load_json(path)
     R = d["records"]
     R = [r for r in R if isinstance(r, dict) and "t" in r and "roll" in r and r["t"] >= T_SETTLE]
     fz = freezes(R, min_ticks)

@@ -12,6 +12,8 @@ enough to commit, so the analysis can be re-checked without the raw rings.
 
   python3 gazebo/tools/fall_index.py [out.csv]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json, glob, csv, sys, os
 
 AR = "/private/tmp/cheetah_conductor/archive/shm_trace"
@@ -25,7 +27,7 @@ def classify(r):
 
 rows = []
 for f in sorted(glob.glob(os.path.join(AR, "*.json"))):
-    try: d = json.load(open(f))
+    try: d = load_json(f)
     except Exception: continue
     R = [x for x in (d.get("records") or []) if x.get("z") is not None]
     if len(R) < 200: continue

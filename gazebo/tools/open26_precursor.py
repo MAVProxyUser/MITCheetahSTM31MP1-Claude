@@ -21,6 +21,8 @@ and two questions asked:
 
 Usage: open26_precursor.py CSV [CSV...]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json, csv, sys, os, statistics as st
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -60,7 +62,7 @@ print("  run                    verdict | inferred all-feet-off | true all-feet-
 print("                                 | relative to descent    | relative to descent")
 for r in rows:
     if r.get("snapshot","NONE") in ("NONE",""): continue
-    try: d=json.load(open(r["snapshot"]))
+    try: d=load_json(r["snapshot"])
     except Exception: continue
     R=[x for x in d["records"] if x.get("foot_fz0") is not None]
     if len(R)<500: continue

@@ -18,6 +18,8 @@ This asks the same question of every fall that has op_mode in its trace:
 
 Usage: open26_estop.py [--archive DIR]
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))  # noqa: E702
+from snapio import load_json  # archive snapshots may be compacted to .json.zst; this resolves either
 import json, glob, os, sys, argparse, statistics as st
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import paths
@@ -27,7 +29,7 @@ a = ap.parse_args()
 
 rows=[]
 for f in sorted(glob.glob(os.path.join(a.archive, "*.json"))):
-    try: d=json.load(open(f))
+    try: d=load_json(f)
     except Exception: continue
     R=[x for x in (d.get("records") or []) if x.get("op_mode") is not None and x.get("z") is not None]
     if len(R)<500: continue
