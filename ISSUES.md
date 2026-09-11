@@ -157,6 +157,8 @@ passed on its own in-suite retry.
   the real-time band is not scheduling; the remaining suspect is the loop's
   own 1 Hz stats `print(..., flush=True)` blocking on the log file under
   disk load. Left as the next lever if the class persists.
+  16:17 reading: since the controller joined the band (14:27), **64 runs,
+  0 stalls ≥ 20 ms** (the day's baseline before either band: 24 in 305).
 - **OPEN-31 · Joint-limit hygiene before hardware: the calf is driven into
   its mechanical stop by the boot fold and the lie-down, and to full
   extension in locomotion; nothing enforces Unitree's operational range** —
