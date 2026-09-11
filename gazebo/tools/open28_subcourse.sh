@@ -88,7 +88,7 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   local gaitargs=(--gait trotting --speed "$v")
   [ "${RECIPE_GAIT:-0}" = 1 ] && gaitargs=()
   timeout 900 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
-    --slot "$slot" "${gaitargs[@]}" --dash 0 \
+    --slot "$slot" ${gaitargs[@]+"${gaitargs[@]}"} --dash 0 \
     --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
