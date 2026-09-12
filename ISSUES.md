@@ -1633,7 +1633,9 @@ passed on its own in-suite retry.
   The 2.6 box (chain AI, 00:54, N=10): **10/10** (pitch median 22.6°, roll
   7.4°) against 2.4's 10/10 (8.8°, 7.1°) — the cell that read 10/22 on the
   schedule twelve hours earlier, now clean at ten with the lead. The second
-  full tier runs next.
+  full tier: **20/20** (01:46). `wkc_finals` at N=10 a second time (chain AJ,
+  02:58): 2.4 → **10/10** (pitch median 23.6°), 2.2 → 10/10 — pooled across
+  the two nights' blocks, 2.4 is 19/20 on the shipping configuration.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
