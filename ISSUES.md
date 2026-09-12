@@ -2047,6 +2047,22 @@ passed on its own in-suite retry.
   marginal, the sprint 3.0 (10/10). The full course at 2.6 is now bounded
   by two features the lead does not touch — the fast 75° entry and the
   reversal approach — the mission's corner budget, not the gait.
+  **Deep dive 2026-09-12 11:20 (every 2.6 course fall in chains Y and AA,
+  the hairpin's 2.5 falls; state at 1.0 / 0.5 / 0.2 / 0 s before the
+  E-stop, `gazebo/tools/corner_dive.py`):** one signature everywhere. Pitch
+  runs away over ~0.8 s — median +5° → +12° → +22° → +28.7° (the bar) —
+  with roll inside ±7° and yaw rate under 1.2 rad/s, at 2.4–2.8 m/s
+  estimated, while the mission is either re-accelerating to cruise after
+  a corner (`v=2.23 → 2.60`, `1.69 → 2.60`, `1.62 → 2.50`) or commanding
+  a turn at full cruise (`v=2.60 w=−0.98`, the 75° entry). It is not a
+  corner-geometry event and not roll: it is the trot's pitch stability
+  limit at speed, tipped by a transient. The braking budget could not
+  touch it (0/15 across `WP_ALON` 0.4/0.3/0.2) because braking is not the
+  trigger; the 2.4 passes carry the same runaway stopping at 22–29°. Next
+  levers, in order: the lateral budget on the turn-at-cruise trigger
+  (chain AQ, `WP_ALAT` 2.5/2.0/1.5); then the controller's pitch
+  authority at speed — the MPC's orientation/height weights and the
+  Raibert foothold gain — on the hairpin at 2.5 and the box at 2.6.
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at
