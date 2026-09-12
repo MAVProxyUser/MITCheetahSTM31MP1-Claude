@@ -1660,6 +1660,8 @@ passed on its own in-suite retry.
   every run carrying a 16–34 ms IMU-stream gap. The trot at 2.2 rides
   through gaps that would put the walking recipes down; the flags say
   which runs were tested that way.
+  `hp_gap20` at its recipe speed 1.9, N=20 (06:09): **20/20**, eighteen of
+  them under the same gap storm.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
