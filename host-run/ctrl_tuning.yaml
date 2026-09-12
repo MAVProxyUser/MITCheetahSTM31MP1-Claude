@@ -73,7 +73,7 @@
 # CTRL_MPC_LEAD_V_HI: 2.7    # commanded speed at which the sprint band starts
 # CTRL_MPC_LEAD_V_LO: 2.4    # ... and ends (hysteresis)
 # CTRL_MPC_LEAD_FAST: 1      # knob in the sprint band
-# CTRL_MPC_LEAD_SLOW: 2      # knob below it
+CTRL_MPC_LEAD_SLOW: 1        # SHIPPED 2026-09-11 (chain AF): trotting on lead 1 in BOTH bands - the trot gains of chains T/V/W (box 2.6 5/5 vs 10/22, wkc 2.4 5/5 vs 2/5) without touching walking (OPEN-37). Was: 2 (knob below the sprint band)
 # CTRL_MPC_TABLE_ALIAS: 0    # 1 restores a bug for A/B: run() held a pointer
                              # INTO the gait's table, the async prefetch block
                              # overwrote that table one segment ahead, and the
