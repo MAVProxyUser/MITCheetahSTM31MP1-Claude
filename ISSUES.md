@@ -2079,6 +2079,10 @@ passed on its own in-suite retry.
   course's largest re-acceleration (from near zero back to 2.6), pitch
   30–37° at the E-stop, roll 12–19°: the runaway trigger in its purest
   form, which is what the re-acceleration cap (chain AS) is built for.
+  The hairpin at 2.5 under the same ladder (13:45): 2.5 → 5/5, 2.0 → 5/5,
+  1.5 → 4/5 (roll rises 11 → 15° as the budget tightens, the one fall at
+  the first corner) — the lateral budget buys nothing there either and
+  the recipe's 2.5 stays. Lateral budget: closed as a lever.
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at
