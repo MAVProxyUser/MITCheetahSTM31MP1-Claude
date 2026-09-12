@@ -16,8 +16,8 @@ archive), this file is the index of where we've been and what's left. Rules:
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
 
-Last validation: **20/20 FULL-suite PASS** (2026-09-11 21:27, on the shipping
-configuration: lead 1 for trotting only via `CTRL_MPC_LEAD_SLOW: 1`, controller and
+Last validation: **20/20 FULL-suite PASS twice** (2026-09-11 21:27 and 2026-09-12
+01:46, on the shipping configuration: lead 1 for trotting only via `CTRL_MPC_LEAD_SLOW: 1`, controller and
 bridge on the real-time band, the fall judge's four criteria; the suite's runs
 carried IMU-stream gaps of at most 18 ms) and **13/13 fast-tier PASS** (15:42).
 Earlier today: 20/20 at 06:13 on the speed schedule; a 17/20 at 17:00 on a lead-1
