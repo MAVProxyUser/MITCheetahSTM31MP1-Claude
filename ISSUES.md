@@ -2073,6 +2073,12 @@ passed on its own in-suite retry.
   cruise on the straights, restraint where the runaway starts. Chain AS
   measures off / 2.3 / 2.2 on the full course at 2.6 and the hairpin at
   2.6 after chains AQ and AR.
+  **Chain AQ, wkc_finals 2.6 × lateral budget (13:20, 5 triplets, stream
+  clean): `WP_ALAT` 2.5 → 0/5, 2.0 → 1/5, 1.5 → 0/5 — not the lever. Every
+  one of the 14 falls is on the leg out of the −180° reversal (wp9), the
+  course's largest re-acceleration (from near zero back to 2.6), pitch
+  30–37° at the E-stop, roll 12–19°: the runaway trigger in its purest
+  form, which is what the re-acceleration cap (chain AS) is built for.
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at
