@@ -2063,6 +2063,14 @@ passed on its own in-suite retry.
   (chain AQ, `WP_ALAT` 2.5/2.0/1.5); then the controller's pitch
   authority at speed — the MPC's orientation/height weights and the
   Raibert foothold gain — on the hairpin at 2.5 and the box at 2.6.
+  **Planner-side rule, built 12:05 (`BodyPathPlanner.h`, `WP_REACCEL_VMAX` /
+  `WP_REACCEL_DIST`, off by default so every validated result is
+  bit-identical):** hold the profile at or under a cap for N metres after
+  every braking minimum (corner, stop, start), then climb to cruise. It is
+  the one thing the planner can express that the recipe speed cannot —
+  cruise on the straights, restraint where the runaway starts. Chain AS
+  measures off / 2.3 / 2.2 on the full course at 2.6 and the hairpin at
+  2.6 after chains AQ and AR.
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at

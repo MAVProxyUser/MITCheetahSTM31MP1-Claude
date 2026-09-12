@@ -127,6 +127,15 @@ struct BodyLimits {
    *  limit - the procedural rolling/rough heightmaps, where walking is
    *  measured INTERMITTENT and fails silently. -1 = no ceiling. */
   double v_terrain_max = -1.0;
+  /*! RE-ACCELERATION CAP (OPEN-28, 2026-09-12). The trot's falls above its
+   *  course envelope are a pitch-up runaway while the profile ramps back to
+   *  cruise after a braking feature (see v_cruise). With v_reaccel_max > 0
+   *  the forward pass may not exceed it for reaccel_dist metres after any
+   *  braking minimum (a corner, a stop, the start), then climbs to cruise
+   *  again. 0 = off (default, so every validated result is bit-identical).
+   *  $WP_REACCEL_VMAX / $WP_REACCEL_DIST. Not yet measured. */
+  double v_reaccel_max = 0.0;
+  double reaccel_dist  = 12.0;
   //! DEM RELIEF RESPONSE (OPEN-7). The conductor samples the heightmap along
   //! THIS mission's planned path and hands over a per-metre profile of the
   //! stride-scale height mismatch - how much the ground moves under one
@@ -1062,6 +1071,31 @@ class BodyPathPlanner {
       const double aacc = (_lim.a_accel_max > 1e-6) ? _lim.a_accel_max : _lim.a_lon_max;
       const double lim = std::sqrt(_path[i].v * _path[i].v + 2 * aacc * ds);
       _path[i+1].v = std::min(_path[i+1].v, lim);
+    }
+    // RE-ACCELERATION CAP (BodyLimits::v_reaccel_max): after every braking
+    // minimum of the profile - a point at least 0.3 m/s under cruise that is
+    // no faster than both neighbours, plus the start - hold the profile at
+    // or under the cap for reaccel_dist metres, then let the accel pass
+    // climb out again. Only ever LOWERS a speed, so nothing the backward
+    // pass guaranteed about braking is disturbed; the second accel pass
+    // keeps the climb out of the window feasible.
+    if (_lim.v_reaccel_max > 1e-6 && n >= 3) {
+      const double under = _lim.v_cruise - 0.3;
+      double s_end = _path[0].s + _lim.reaccel_dist;   // the start is a minimum
+      for (size_t i = 0; i < n; ++i) {
+        const bool minimum = (i > 0 && i + 1 < n && _path[i].v < under &&
+                              _path[i].v <= _path[i-1].v && _path[i].v <= _path[i+1].v);
+        if (minimum) s_end = std::max(s_end, _path[i].s + _lim.reaccel_dist);
+        if (_path[i].s <= s_end) _path[i].v = std::min(_path[i].v, _lim.v_reaccel_max);
+      }
+      for (size_t i = 0; i + 1 < n; ++i) {
+        const double ds = _path[i + 1].s - _path[i].s;
+        const double aacc = (_lim.a_accel_max > 1e-6) ? _lim.a_accel_max : _lim.a_lon_max;
+        const double lim = std::sqrt(_path[i].v * _path[i].v + 2 * aacc * ds);
+        _path[i+1].v = std::min(_path[i+1].v, lim);
+      }
+      printf("[plan] re-acceleration cap %.2f m/s for %.0f m after every braking minimum (WP_REACCEL_VMAX)\n",
+             _lim.v_reaccel_max, _lim.reaccel_dist);
     }
 
   }

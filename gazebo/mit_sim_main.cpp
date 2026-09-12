@@ -279,6 +279,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     lim.track_lag_s  = getenv("WP_LAG") ? atof(getenv("WP_LAG")) : 1.2;
     planner.setLimits(lim);
     if (getenv("WP_ALON")) planner.setAlonExplicit(atof(getenv("WP_ALON")));
+    // RE-ACCELERATION CAP (OPEN-28): hold the profile at or under this speed
+    // for WP_REACCEL_DIST metres after every braking minimum. Unset = off.
+    if (getenv("WP_REACCEL_VMAX")) { auto L=planner.limits(); L.v_reaccel_max=atof(getenv("WP_REACCEL_VMAX")); if (getenv("WP_REACCEL_DIST")) L.reaccel_dist=atof(getenv("WP_REACCEL_DIST")); planner.setLimits(L); }
     if (getenv("WP_AACC")) { auto L=planner.limits(); L.a_accel_max=atof(getenv("WP_AACC")); planner.setLimits(L); }
     if (getenv("WP_TURN_SOFT")) { auto L=planner.limits(); L.turn_soft=atof(getenv("WP_TURN_SOFT")); planner.setLimits(L); }
     if (getenv("WP_TURN_HARD")) { auto L=planner.limits(); L.turn_hard=atof(getenv("WP_TURN_HARD")); planner.setLimits(L); }
