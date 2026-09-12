@@ -1619,6 +1619,9 @@ passed on its own in-suite retry.
   **21:27 — SHIPPED, per gait: `CTRL_MPC_LEAD_SLOW: 1` (trotting on lead 1 in
   both bands, other gaits at knob 2), full tier 20/20 on it with the
   suite's runs at IMU gaps of 18 ms or less.**
+  **Shipped envelope at N=10 (chain AH, 22:52, interleaved, every run's
+  stream at 14 ms or better): `wkc_finals` 2.4 → 9/10 (pitch median 23.5°;
+  the one fall on the wp8→wp9 leg, genuine), 2.2 → 10/10 (13.5°).**
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
