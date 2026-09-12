@@ -257,6 +257,19 @@ passed on its own in-suite retry.
   (`BRIDGE_GAP_INJECT_MS=30` once a second, the class's own shape): chain
   AE, expsquare and spiro, clean / gap30 / gap30+extrapolation, 3 reps
   interleaved. A rescue there ships as the default after a suite run.
+  **Chain AE, expsquare at 30 ms holds (20:11, 3 triplets): clean 3/3
+  (pitch 8.8–9.0°, roll 4.7–4.9°), frozen 3/3 (10.5–15.5°, 9.0–13.8°),
+  dead-reckoned 3/3 (13.0–15.0°, 8.3–12.7°), extrapolation confirmed
+  active at 14 ticks/s.** The hold costs the walk ~5° of pitch and ~7° of
+  roll per event; dead-reckoning the orientation and joint positions does
+  NOT take that back — the disturbance is not the return jump of the
+  quantities extrapolated (the frozen joint velocities and accelerometer,
+  or the leg controller's damping on them, are the remaining suspects).
+  `BRIDGE_EXTRAP` stays OFF. Chain AG raises the dose to 50 ms on expsquare
+  and the six-minute lissajous walk to see whether either arm's PASS rate
+  moves; the durable fix for this class is the host being quiet, or the
+  bridge living inside the simulator as a system plugin (no transport
+  between the physics step and the sensor packet at all).
   **Chain AC result (18:35, bands on vs off, lead 2, recipe gaits):**
   expsquare 3/3 vs 3/3 (stream clean, 4–6 ms); spiro 2/3 vs 3/3 with the
   one fall on a 31 ms gap; lissajous 1/2 vs 0/2 with every one of the four
