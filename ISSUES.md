@@ -1674,6 +1674,11 @@ passed on its own in-suite retry.
   gap): 2.4 → 9/10 (the one FAIL a completed course whose lie-down tipped
   to 34° — OPEN-30's mode, not a fall), 2.2 → 10/10. Pooled on the shipping
   configuration, 2.4 is 28/30 with no fall in the last twenty.
+  `hp_gap20` second N=10 block (09:16, every run with a 15–19 ms gap): 2.5 →
+  **7/10** (three first-corner E-stops, 31–38° pitch), 2.3 → 10/10. Pooled
+  on the shipping configuration, 2.5 is 26/31 — a rung that holds nine-in-ten
+  on a clean stream and seven-in-ten under a 15–19 ms gap storm: the first
+  corner's margin at 2.5 is about what a gap eats.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
