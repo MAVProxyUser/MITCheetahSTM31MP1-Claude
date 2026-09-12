@@ -1650,6 +1650,11 @@ passed on its own in-suite retry.
   a slicer app the user left running): 2.8 → **0/5**, every fall on the
   wp4 leg, two of them on a clean stream — 2.8 is beyond the lead's reach;
   2.6 → 4/5, the one fall on a 20 ms gap (pooled tonight 14/15).
+  The hairpin between its rungs (chain AK, 03:55, N=5, clean stream): 2.6 →
+  **4/5** (pitch 22.6–26.4°; the fall a first-corner E-stop at 30.8°), 2.5 →
+  4/5 (its first-corner fall at 29.9°; pooled 23/26 tonight). So the hairpin
+  reads 2.5 nine-in-ten, 2.6 four-in-five, 2.7 two-in-ten: the first corner
+  at 30° of pitch is the wall, and it moves about 0.1 m/s per rung.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
