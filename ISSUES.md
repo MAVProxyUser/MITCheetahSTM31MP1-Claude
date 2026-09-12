@@ -155,6 +155,24 @@ passed on its own in-suite retry.
   parallel, expsquare, lissajous 1:2 / 5:7 / 11:9, spiro. The two planner
   fixes ship. Chains BC/BD (lateral budget, slew at 2.6 on the honest
   course) run next, then BB and BE.
+  **18:45 — the lateral budget IS the lever on the honest course (chain
+  BC, wkc_finals 2.6, 6 reps × 3 arms interleaved, binary `f2a1d2c5`):**
+
+  | `WP_ALAT` | PASS | peak pitch | mission |
+  |---|---|---|---|
+  | 2.5 (shipped) | 1/6 | 23.0° (the pass); falls 26–38° at wp03→wp04 ×4, wp2 ×1 | 97.4 s |
+  | **2.0** | **6/6** | 19.3–21.6° | **96.2–96.5 s** |
+  | 1.5 | 6/6 | 18.5–24.3° | 100.3–100.6 s |
+
+  Fisher 1/6 vs 6/6 p = 0.015, and the mechanism is the one the traces
+  named: at 2.0 the planner caps the R = 2.58 m fillets at 2.27 and the
+  follower's yaw ceiling drops to 0.77 rad/s, so the 75° corners are
+  entered braked and level and the peak stays where 2.4 sits — and it
+  costs no time (the yaw saturations go to zero). Chain AQ's 0/5 on every
+  arm was the legacy lap swallowing the effect. Not shipped yet: chain BE
+  is re-pointed to replicate 2.5 vs 2.0 at N=10, and BB to the top rungs
+  (wkc 2.6/2.8, hp 2.7) under both budgets, since the course recipe is
+  shared by every `course:` mission.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
