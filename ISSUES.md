@@ -243,6 +243,13 @@ passed on its own in-suite retry.
   ignored SIGTERM; SIGKILL removed it. The tell is the harness's own
   `[host] busiest:` line at campaign start — check it, do not assume a
   disabled service stays down.
+  15:50: back a third time within 15 min of the SIGKILL (160 % of a core,
+  load 5.2, during the fast suite on the new follower) — launchd or Photos
+  relaunches it on demand, so a one-off kill is worth about fifteen
+  minutes. A session watchdog now SIGKILLs it whenever it reappears (the
+  operator's standing instruction for this process) and logs each kill;
+  the durable fix is on the operator's side of the machine (Photos'
+  analysis, or the library it is chewing on).
   **Mitigation candidate (18:25, `BRIDGE_EXTRAP`, default OFF until
   measured):** the bridge dead-reckons across a gap — orientation propagated
   with the last body rate, joints with their last velocities, up to 80 ms —
