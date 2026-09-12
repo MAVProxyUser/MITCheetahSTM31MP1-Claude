@@ -1679,6 +1679,8 @@ passed on its own in-suite retry.
   on the shipping configuration, 2.5 is 26/31 — a rung that holds nine-in-ten
   on a clean stream and seven-in-ten under a 15–19 ms gap storm: the first
   corner's margin at 2.5 is about what a gap eats.
+  The 2.6 box, second N=10 block (chain AO, 09:43, gap storm): 9/10, 2.4
+  10/10 — pooled 23/25 at 2.6 on the shipping configuration.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
