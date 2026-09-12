@@ -1622,6 +1622,10 @@ passed on its own in-suite retry.
   **Shipped envelope at N=10 (chain AH, 22:52, interleaved, every run's
   stream at 14 ms or better): `wkc_finals` 2.4 → 9/10 (pitch median 23.5°;
   the one fall on the wp8→wp9 leg, genuine), 2.2 → 10/10 (13.5°).**
+  `hp_gap20` 2.5 → 9/10 (pitch median 20.1°, roll 12.6°; the one fall a
+  genuine first-corner pitch E-stop on a 3 ms stream), 2.3 → 10/10 (19.1°,
+  12.9°). The shipped table, at N=10: wkc_finals 2.4 / hairpin 2.5 at
+  nine-in-ten, the validated rungs below them ten-in-ten.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
