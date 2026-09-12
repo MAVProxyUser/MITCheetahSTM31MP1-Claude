@@ -178,6 +178,16 @@ passed on its own in-suite retry.
   falls from wp03→wp04 to the wp01 corner (wp2). The re-acceleration
   between the corner pair was the symptom; the corner speed the budget
   sets is the cause. Slew: closed as a lever on the honest course.
+  **19:25 — chain BB, wkc_finals top rungs under both budgets (5 reps × 4
+  arms interleaved):** 2.6 @2.5 → 1/5, **2.6 @2.0 → 5/5** (peak pitch
+  18.8–21.6°, 96.2–96.6 s), 2.8 @2.5 → 0/5 (wp2/wp4, the 75° corners),
+  2.8 @2.0 → 0/5 — every one at wp13, the +40° corner at wp12 into the
+  16 m leg, which the budget still lets the planner take at cruise. Pooled
+  with chain BC at 2.6: budget 2.5 **2/11**, budget 2.0 **11/11**, Fisher
+  p = 4×10⁻⁵. The honest ceiling under a 2.0 budget is 2.6, one rung above
+  the shipped 2.4, and 2.8 needs a rule the budget alone does not give
+  (a 40° corner at 2.8 is R = v²/a = 3.9 m of demand the fillet does not
+  have). The hairpin half of BB runs now, then BE replicates at N=10.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
