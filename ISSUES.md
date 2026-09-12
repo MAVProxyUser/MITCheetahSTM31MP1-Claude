@@ -1670,6 +1670,10 @@ passed on its own in-suite retry.
   which runs were tested that way.
   `hp_gap20` at its recipe speed 1.9, N=20 (06:09): **20/20**, eighteen of
   them under the same gap storm.
+  `wkc_finals` third N=10 block (chain AN, 08:40, every run with a 15+ ms
+  gap): 2.4 → 9/10 (the one FAIL a completed course whose lie-down tipped
+  to 34° — OPEN-30's mode, not a fall), 2.2 → 10/10. Pooled on the shipping
+  configuration, 2.4 is 28/30 with no fall in the last twenty.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
