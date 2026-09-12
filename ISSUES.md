@@ -270,6 +270,8 @@ passed on its own in-suite retry.
   moves; the durable fix for this class is the host being quiet, or the
   bridge living inside the simulator as a system plugin (no transport
   between the physics step and the sensor packet at all).
+  Spiro under the same holds (20:35, 3 triplets): clean 3/3 (pitch 6.3–6.5°),
+  frozen 3/3 (8.9–13.4°), dead-reckoned 3/3 (9.9–12.8°) — the same picture.
   **Chain AC result (18:35, bands on vs off, lead 2, recipe gaits):**
   expsquare 3/3 vs 3/3 (stream clean, 4–6 ms); spiro 2/3 vs 3/3 with the
   one fall on a 31 ms gap; lissajous 1/2 vs 0/2 with every one of the four
