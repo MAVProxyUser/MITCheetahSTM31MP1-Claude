@@ -70,6 +70,24 @@ struct PathPoint {
  */
 struct BodyLimits {
   //! Cruise speed the gait can hold on a straight (trotting 3.1, trotRunning 4.0).
+  //!
+  //! WHAT THE TROT CAN HOLD OFF A STRAIGHT (measured 2026-09-11/12 on the
+  //! shipping configuration - trot on contact-table lead 1, the reversal
+  //! slew in the course recipe, N = 10..40 per cell, ISSUES OPEN-28):
+  //!   straight dash          3.0   10/10
+  //!   wkc_box (90 deg legs)  2.6   23/25      2.8  0/5
+  //!   hp_gap20 (hairpin)     2.5   26/31      2.6  4/5     2.7  2/10
+  //!   wkc_finals (15 turns)  2.4   38/40      2.6  0/15
+  //! The limit off a straight is NOT a corner: every 2.6 fall on wkc_finals
+  //! and every 2.5-2.6 hairpin fall is a 0.8 s pitch-up runaway (+5 -> +12
+  //! -> +22 -> +28.7 deg, roll inside 7 deg, yaw rate under 1.2 rad/s) at
+  //! 2.4-2.8 m/s while the profile is re-accelerating to cruise after a
+  //! braking feature, or holding cruise into a turn command. So the planner
+  //! plans the trigger: a_lon_max did nothing at 2.6 (0/15 across 0.4/0.3/
+  //! 0.2). The lateral budget and the MPC's pitch weights are under test;
+  //! the planner-side rule that would express this is a cap on the speed
+  //! the forward pass re-accelerates to after a braking feature - not yet
+  //! implemented, because no rule has been confirmed on the rig.
   double v_cruise = 2.5;
   //! Minimum speed the planner will command rather than stopping dead. A hard
   //! v=0 pivot is fine on this robot (pirouettes are stable to 3 rad/s), but a
@@ -82,6 +100,10 @@ struct BodyLimits {
    * 52 deg and it failed; at 3.0 rad/s (7.5 m/s^2) roll hit 72 deg. The
    * SafetyChecker trips at 28.6 deg. So ~3.0 m/s^2 is the edge of what this
    * robot can turn at without tripping, and 2.5 leaves margin.
+   * (2026-09-12: that number was measured on trotRunning at 2.5; the
+   * trot's falls at 2.5-2.6 on the hairpin and wkc_finals are pitch, not
+   * roll, so this budget is not what bounds the trot there - see v_cruise.
+   * Chain AQ measures 2.0 and 1.5 anyway, for the turn-at-cruise trigger.)
    */
   double a_lat_max = 2.5;
   /*! TERRAIN AWARENESS (OPEN-7, 2026-08-28). Friction coefficient of the
