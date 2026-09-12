@@ -117,7 +117,14 @@ passed on its own in-suite retry.
   (`f2a1d2c5`); the probe's plan table now reads `[plan] vertex stop at
   wp08 -> path s=58.1 m (0.10 m from the vertex)` and the wp03 stretch
   `SUSTAINED 22.4–36.7 v_plan 2.04` (was 0.25), constraint loss 23.4 →
-  19.1 s.
+  19.1 s. Probe 2.4 ×2: PASS/PASS, single lap, mission 100.3 / 100.4 s,
+  wp03 passed at 2.40 with the box corners braked to their planned 1.32.
+  The course is honest now and a little harder: peak pitch 20.7 / 20.9°
+  (16–17° with the crawl), both at the wp03→wp04 stretch — the −75° corner
+  at cruise with the yaw rate on the lateral-budget cap (w = 2.5/2.4 =
+  1.04) and the 90° wp04 braking on top; second peak 17° at the wp01
+  corner. Those are the features that fell at 2.6 on the planner's own
+  lap (5/20 at wp2), and they are what the single-lap ladder measures.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
