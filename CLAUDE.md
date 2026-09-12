@@ -1339,7 +1339,9 @@ U-turned the dog 4 m before the vertex, the waypoint layer froze there, the plan
 drove the rest of the course home, and the legacy pure-pursuit nav then drove the
 second half AGAIN with no planner. Every 2.6 wkc_finals fall traced at "wp9" was in
 that legacy lap. `BodyPathPlanner::nearestIndex` now carries a 1 m continuity window;
-the envelope on the single lap is being re-measured (chain AW). Check a run's SHAPE
+and reversal stops resolve to their own vertex (the coordinate gate also braked wp03,
+one metre from wp07, so the box section never ran at cruise); the envelope on the single
+lap is being re-measured (chains AZ/BA/BB). Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
 
