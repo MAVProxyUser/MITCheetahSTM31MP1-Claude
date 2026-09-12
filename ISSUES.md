@@ -1646,6 +1646,10 @@ passed on its own in-suite retry.
   schedule ran lead 2; dog0's rep-3 fall is at t = 5.8 s, v = 2.24). Chain
   AM separates the two: fleet dash ×3 shipped vs ×3 with
   `CTRL_MPC_LEAD_SLOW=2` (the 05:40 configuration), interleaved.
+  The next rung up on the box (chain AK, 03:45, N=5, stream 3–42 ms under
+  a slicer app the user left running): 2.8 → **0/5**, every fall on the
+  wp4 leg, two of them on a clean stream — 2.8 is beyond the lead's reach;
+  2.6 → 4/5, the one fall on a 20 ms gap (pooled tonight 14/15).
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
