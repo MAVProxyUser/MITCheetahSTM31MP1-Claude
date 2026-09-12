@@ -208,6 +208,17 @@ passed on its own in-suite retry.
   between the physics step and the sensor packet at all).
   Spiro under the same holds (20:35, 3 triplets): clean 3/3 (pitch 6.3–6.5°),
   frozen 3/3 (8.9–13.4°), dead-reckoned 3/3 (9.9–12.8°) — the same picture.
+  **Chain AG, expsquare at 50 ms holds (21:52, 3 triplets): clean 3/3,
+  frozen 0/3, dead-reckoned 0/3 — every held run down by wp1–wp2 (pitch
+  18–34°, roll 27–36°).** So the walking gait's tolerance to a periodic
+  sensor hold sits between 30 ms (survived, 5–7° dearer) and 50 ms (fatal
+  within seconds), the host's real gaps this evening were 21–56 ms, and
+  dead-reckoning the orientation and joint positions changes nothing at
+  either dose — a measured negative; `BRIDGE_EXTRAP` stays off and is not
+  a lever. The controller's reaction to the return jump (the FSM's
+  leg-velocity and 40° bars, then the ping-pong) is where the sim-only
+  sensitivity lives; the durable answer remains a quiet host or a bridge
+  inside the simulator. Lissajous at the same dose follows for the record.
   **Chain AC result (18:35, bands on vs off, lead 2, recipe gaits):**
   expsquare 3/3 vs 3/3 (stream clean, 4–6 ms); spiro 2/3 vs 3/3 with the
   one fall on a 31 ms gap; lissajous 1/2 vs 0/2 with every one of the four
