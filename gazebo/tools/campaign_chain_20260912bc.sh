@@ -1,15 +1,20 @@
 #!/bin/bash
-# Chain BB (2026-09-12 16:05): the single-lap envelope, one rung higher and at
-# larger N, after chain BC (pid 51525). Chain AZ's ladders (wkc_finals
-# 2.2/2.4/2.6, hp_gap20 2.5/2.6/2.7 at N=6) are the first numbers on the
-# continuity-window follower (ISSUES OPEN-38); this block replicates the top
-# rungs and adds the next one in the same interleaved block, so the ceiling is
-# bracketed on the same host in the same hour rather than across blocks.
+# Chain BC (2026-09-12 16:15): the first lever on the HONEST course. On the
+# single lap with the vertex stop (ISSUES OPEN-38), wkc_finals 2.6 falls at the
+# wp03->wp04 stretch: the -75 deg corner taken at cruise with the yaw rate on
+# the lateral-budget cap (w = a_lat / v), then the 90 deg wp04 braking - the
+# feature that peaks 21 deg at 2.4 and 38 deg (E-stop) at 2.6. The planner
+# fillets those corners at R = 2.58 m and, at a_lat 2.5, caps them at 2.54 -
+# so it never brakes for them. Lowering the lateral budget is the planner-side
+# rule that makes it brake: v_cap = sqrt(a_lat R) = 2.27 at 2.0, 1.97 at 1.5.
+# Chain AQ measured this ladder on the double lap, where every run died in the
+# legacy second lap regardless; this is its first honest measurement.
+# Arms interleaved, wkc_finals at 2.6, 6 reps, after chain BA (pid 44099).
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 . gazebo/tools/paths.sh
-PREV="${PREV_CHAIN_PID:-51525}"
-LOG="$CAMPAIGN_DIR/open38_chainbb.log"
+PREV="${PREV_CHAIN_PID:-44099}"
+LOG="$CAMPAIGN_DIR/open38_chainbc.log"
 say(){ echo "$(date '+%H:%M:%S') $*" | tee -a "$LOG"; }
 phase(){ curl -s -m 5 http://127.0.0.1:8420/api/state | python3 -c 'import sys,json;print(json.load(sys.stdin).get("phase"))' 2>/dev/null; }
 wait_idle(){ local ph; while :; do ph=$(phase); if ! pgrep -f "gazebo/conductor/mission_[r]unner" >/dev/null && ! pgrep -f "gazebo/tools/open28_subcourse[.]sh" >/dev/null && ! pgrep -f "unittests/test_validated_[m]issions" >/dev/null && [ "$ph" != running ] && [ "$ph" != launching ]; then return 0; fi; sleep 15; done; }
@@ -21,9 +26,8 @@ run(){ local n="$1" r="$2" v="$3"
   awk -F, 'NR>1{k[$2]++; if($4=="PASS")p[$2]++} END{for(a in k) printf "    %s %d/%d PASS\n", a, p[a]+0, k[a]}' "$CAMPAIGN_DIR/$n.csv" | tee -a "$LOG"
   sleep 20; wait_idle
 }
-say "chain BB pid $$: waiting for chain BC (pid $PREV) to exit"
-while kill -0 "$PREV" 2>/dev/null && ps -p "$PREV" -o command= | grep -q "campaign_chain_20260912bc[.]sh"; do sleep 30; done
+say "chain BC pid $$: waiting for chain BA (pid $PREV) to exit"
+while kill -0 "$PREV" 2>/dev/null && ps -p "$PREV" -o command= | grep -q "campaign_chain_20260912ba[.]sh"; do sleep 30; done
 wait_idle; sleep 30; wait_idle; tm_wait; say "rig idle (phase $(phase)) - binary $(md5 -q host-run/mit_ctrl_sim | cut -c1-8)"
-COURSES=wkc_finals ARMS="v24:SPEED=2.4 v26:SPEED=2.6 v28:SPEED=2.8" run wkc_singlelap_top 6 2.6
-COURSES=hp_gap20 ARMS="v26:SPEED=2.6 v27:SPEED=2.7 v28:SPEED=2.8" run hp_singlelap_top 6 2.7
-say "chain BB done"
+COURSES=wkc_finals ARMS="alat25:WP_ALAT=2.5 alat20:WP_ALAT=2.0 alat15:WP_ALAT=1.5" run wkc26_singlelap_alat 6 2.6
+say "chain BC done"
