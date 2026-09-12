@@ -1642,6 +1642,16 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
      * so the restart ramp and any standstill are handled without a reset.
      *
      * $WP_VSLEW in m/s^2; 0 (default) is off, so this is an A/B arm.
+     *
+     * 2026-09-12 (ISSUES OPEN-38): the 2.30 m/s^2 exit measured above was
+     * not the plan's ramp being ignored - it was the follower's nearest
+     * index jumping onto the exit leg of the COLLINEAR reversal 4 m before
+     * the vertex, so vplan read ~2.0 the instant the pivot ended and the
+     * only thing pacing the rise was this slew. With the continuity window
+     * in BodyPathPlanner::nearestIndex the reversal is a stop-and-pivot at
+     * the vertex and the exit follows the planned 0.4 m/s^2 (measured 0.38
+     * on the single-lap probe). The slew stays: it is the margin against
+     * any runtime cut the plan did not make.
      */
     {
       static const float vslew = getenv("WP_VSLEW") ? (float)atof(getenv("WP_VSLEW")) : 0.f;
