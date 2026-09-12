@@ -188,6 +188,13 @@ passed on its own in-suite retry.
   the shipped 2.4, and 2.8 needs a rule the budget alone does not give
   (a 40° corner at 2.8 is R = v²/a = 3.9 m of demand the fillet does not
   have). The hairpin half of BB runs now, then BE replicates at N=10.
+  **19:45 — BB's hairpin half (hp_gap20, 5 reps × 3 arms):** 2.6 @2.0 →
+  **5/5** (peak 21.5–23.7°, 49.5 s — the same time as @2.5, which was 6/6
+  in AZ), 2.7 @2.5 → 3/5, 2.7 @2.0 → 5/5 (25.8–28.1°, riding the bar).
+  The 2.0 budget costs the hairpin nothing and helps it at 2.7 (with AZ's
+  2.7 @2.5 pooled: 8/11 vs 5/5, suggestive only). BE replicates wkc 2.6
+  at N=10 and checks the 2.4 rung next; BF does the hairpin at 2.6 and the
+  box at 2.6 under both budgets.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
