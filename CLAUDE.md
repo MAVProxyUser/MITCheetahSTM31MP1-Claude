@@ -1341,7 +1341,9 @@ second half AGAIN with no planner. Every 2.6 wkc_finals fall traced at "wp9" was
 that legacy lap. `BodyPathPlanner::nearestIndex` now carries a 1 m continuity window;
 and reversal stops resolve to their own vertex (the coordinate gate also braked wp03,
 one metre from wp07, so the box section never ran at cruise); the envelope on the single
-lap is being re-measured (chains AZ/BA/BB). Check a run's SHAPE
+lap: wkc_finals 2.2 6/6, 2.4 6/6 (peak pitch 19–21°), 2.6 2/6 — the honest limit is the
+wp02→wp03 pair of 75° corners six metres apart, entered nose-up off the slew (chains BC/BD
+measure the lateral budget and the slew there). Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
 

@@ -78,6 +78,7 @@ struct BodyLimits {
   //!   wkc_box (90 deg legs)  2.6   23/25      2.8  0/5
   //!   hp_gap20 (hairpin)     2.5   26/31      2.6  4/5     2.7  2/10   DOUBLE LAP
   //!   wkc_finals (15 turns)  2.4   38/40      2.6  0/15                DOUBLE LAP
+  //!   wkc_finals, HONEST     2.2   6/6        2.4  6/6     2.6  2/6   single lap, vertex stop (16:38)
   //! 2026-09-12, ISSUES OPEN-38: every hp_gap20 and wkc_finals row above was
   //! measured on a DOUBLE LAP. nearestIndex()'s tie-break on the collinear
   //! reversal U-turned the dog 4 m before the vertex, the waypoint layer

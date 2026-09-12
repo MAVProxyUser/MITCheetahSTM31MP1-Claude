@@ -125,6 +125,23 @@ passed on its own in-suite retry.
   1.04) and the 90° wp04 braking on top; second peak 17° at the wp01
   corner. Those are the features that fell at 2.6 on the planner's own
   lap (5/20 at wp2), and they are what the single-lap ladder measures.
+  **16:38 — the honest wkc_finals envelope (single lap, vertex stop, 6
+  reps per rung interleaved, all falls genuine by the freeze scan):**
+
+  | cruise | PASS | peak pitch | mission |
+  |---|---|---|---|
+  | 2.2 | **6/6** | 10.1–12.5° | 103.4 s |
+  | 2.4 | **6/6** | 18.7–21.5° | 100.4 s |
+  | 2.6 | 2/6 | 22.9–25.7° (passes); 3 falls at the wp03→wp04 stretch, 1 at wp2 | 96–98 s |
+
+  So the rung stands where the double lap put it — 2.4 — but for a
+  different reason and with a different margin: the honest course's
+  limiting feature is the wp02→wp03 pair of 75° corners six metres apart
+  (exit wp02 at 1.4, re-accelerate on the slew to 2.3–2.5 with the pitch
+  already at +13°, enter wp03 nose-up, roll joins: 31.8 / 27.2 / 38.1°),
+  not the legacy lap's wp08 exit. Chains BC (lateral budget 2.5/2.0/1.5)
+  and BD (slew 1.0/0.6/0.4) measure the two planner-side levers on that
+  feature at 2.6 tonight, after BA's suite tiers.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
