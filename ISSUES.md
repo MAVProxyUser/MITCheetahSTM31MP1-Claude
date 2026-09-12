@@ -1646,6 +1646,13 @@ passed on its own in-suite retry.
   schedule ran lead 2; dog0's rep-3 fall is at t = 5.8 s, v = 2.24). Chain
   AM separates the two: fleet dash ×3 shipped vs ×3 with
   `CTRL_MPC_LEAD_SLOW=2` (the 05:40 configuration), interleaved.
+  **Chain AM (06:36, 3 pairs): shipped 0/9 dog-runs, old schedule 1/9** —
+  the lead is not it. Every dog in every run carried a ~20 ms IMU-stream
+  gap (`mediaanalysisd` relaunched at 100–167 % of a core beside the
+  three-dog simulator) and the three dogs went down within a second of
+  each other each time: one synchronized stream hold takes the whole fleet
+  at 3.0. The fleet is the rig's most stream-sensitive configuration; its
+  18/18 stands for a quiet host, and it is not measurable under this one.
   The next rung up on the box (chain AK, 03:45, N=5, stream 3–42 ms under
   a slicer app the user left running): 2.8 → **0/5**, every fall on the
   wp4 leg, two of them on a clean stream — 2.8 is beyond the lead's reach;
