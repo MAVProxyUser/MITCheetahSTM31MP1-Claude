@@ -186,6 +186,12 @@ passed on its own in-suite retry.
   with a gap over 15 ms per arm.
   The throttle did not cut it (180 % of a core at 18:15, the process is
   multi-threaded and nice does not cap CPU) and the gaps stayed at 31–54 ms.
+  2026-09-12 15:07: it was back — `launchctl disable` had been applied
+  and it relaunched anyway (pid 67676, 3 h 43 m old, 138–163 % of a core
+  at the start of chain AS's first campaign, host load 4.7), and it
+  ignored SIGTERM; SIGKILL removed it. The tell is the harness's own
+  `[host] busiest:` line at campaign start — check it, do not assume a
+  disabled service stays down.
   **Mitigation candidate (18:25, `BRIDGE_EXTRAP`, default OFF until
   measured):** the bridge dead-reckons across a gap — orientation propagated
   with the last body rate, joints with their last velocities, up to 80 ms —
