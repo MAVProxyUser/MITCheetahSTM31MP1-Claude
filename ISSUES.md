@@ -184,7 +184,7 @@ passed on its own in-suite retry.
   2.8 @2.0 → 0/5 — every one at wp13, the +40° corner at wp12 into the
   16 m leg, which the budget still lets the planner take at cruise. Pooled
   with chain BC at 2.6: budget 2.5 **2/11**, budget 2.0 **11/11**, Fisher
-  p = 4×10⁻⁵. The honest ceiling under a 2.0 budget is 2.6, one rung above
+  p = 2×10⁻⁴. The honest ceiling under a 2.0 budget is 2.6, one rung above
   the shipped 2.4, and 2.8 needs a rule the budget alone does not give
   (a 40° corner at 2.8 is R = v²/a = 3.9 m of demand the fillet does not
   have). The hairpin half of BB runs now, then BE replicates at N=10.
