@@ -2102,6 +2102,36 @@ passed on its own in-suite retry.
   4/5 last night; the weights change nothing here either. Pitch weights:
   closed as a lever. Next: chain AS (the re-acceleration cap) and chain
   AT (velocity weight, body height, force cap).
+  **15:40 — the "braking feature" has a name, and the planner cannot see
+  it.** Tracing every 2.6 fall at wp9 (5789 cap off, 5790 cap 2.3, 5791
+  cap 2.2, 5749/5753 shipped) against two 2.4 passes (5653, 5655) and the
+  one 2.6 pass (5729) through the wp08 exit: wp08 is a +55° corner nine
+  metres after the reversal, and the planner fillets it at R = 5.8 m and
+  plans it at full cruise (`[mission] 73.8 16.2 SUSTAINED 5.79 2.60 2.60`).
+  The follower does not track that fillet. It reaches wp08 at 2.6–2.8
+  body speed, cuts the command to 1.69 with the yaw rate on its 1.20 cap
+  (`[nav] wp9/16 … v=1.69 w=1.20`), the body drops to 1.3–1.5, and the
+  command is back at 2.60 within 1.2 s — a rise `WP_VSLEW=1.0` paces at
+  1.0 m/s². The body follows it (1.49 → 1.81 → 2.11 → 2.41 in 0.75 s) and
+  pitches up as it passes 2.2–2.5: peak +19.5 / +22.9° in the 2.4 passes,
+  +19.2° in the 2.6 pass, +30–32° (E-stop) in every 2.6 fall. The same
+  transient in every run — at 2.4 the rise stops near 2.3 and the peak
+  sits 6–9° under the bar; at 2.6 it runs on through 2.4–2.5 and crosses.
+  Chain AS's re-acceleration cap acts on the planned profile's minima
+  (the reversal exit, which every run survives) and cannot act on a cut
+  the follower makes at run time: cap 2.3 and cap 2.2 both fell at the
+  same corner in rep 1, with the `[plan] re-acceleration cap` line
+  confirmed in their logs and zero harness freezes in the snapshots. The
+  lever that paces THIS rise is `WP_VSLEW` itself — accel-only by
+  construction ("braking must never be slewed"), and never measured below
+  1.0 at any rung (the 2.2 ladder was 0 / 1.0 / 2.0). Chain AV: 1.0 / 0.6 /
+  0.4 on wkc_finals at 2.6, 6 reps interleaved, ahead of chain AU (the 2.5
+  rung, shipped and with the cap). Also on the record: 5 of 52 runs at 2.6
+  and 0 of 20 at 2.2–2.4 carry a burst of `Unsafe locomotion: leg 2's
+  y-position is bad (-0.24..-0.25 m, max 0.240)` — `locomotionSafe()`
+  bouncing LOCOMOTION → RECOVERY_STAND → LOCOMOTION for ~1 s mid-corner at
+  wp2 — survived every time, so not the mechanism, but a second 2.6
+  hazard (the lateral foot limit) that the 2.4 rung never touches.
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at
