@@ -84,6 +84,17 @@ passed on its own in-suite retry.
   AS/AT/AV/AU (all levers against the legacy lap) were stopped. The tells
   were in every log all along: `MISSION COMPLETE t=171.7s` for 197 m at
   2.4, and 75 s of `wp7/16`.
+  **15:38 — deployed (`bcfb6bc5`, old binary kept as `.pre_trackwin`) and
+  the probe is a single lap: wkc_finals 2.4 ×2, PASS/PASS, `reached wp07`
+  at the vertex before any visit home, mission 103.0 / 102.9 s against
+  171.7 s (the harness now writes `mission_t_s` and `max_dwell_s`; the
+  32 s dwell that remains is the 68 m closing leg). At the reversal the
+  body now brakes to 0.11 m/s AT the vertex and pivots there (peak pitch
+  4.6°); the wp08 exit is the planner's own ramp — mean 0.38 m/s², the
+  0.4 it plans — with peak pitch 10.8 / 14.0° where the legacy lap's
+  1.0 m/s² rise gave 19.5 / 22.9° at the same cruise. Peak pitch over the
+  whole run 16.3 / 17.4° (double lap: 19–23°). The fast suite tier runs
+  next, then the single-lap ladders.**
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
