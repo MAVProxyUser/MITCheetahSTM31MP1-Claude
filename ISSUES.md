@@ -218,7 +218,10 @@ passed on its own in-suite retry.
   a lever. The controller's reaction to the return jump (the FSM's
   leg-velocity and 40° bars, then the ping-pong) is where the sim-only
   sensitivity lives; the durable answer remains a quiet host or a bridge
-  inside the simulator. Lissajous at the same dose follows for the record.
+  inside the simulator. Lissajous at the same dose (22:00, 2 pairs): clean
+  2/2, frozen 0/2, dead-reckoned 0/2 — the same. The gap experiment is
+  closed: the class is real, dose-dependent, gait-dependent, and not the
+  bridge's to fix.
   **Chain AC result (18:35, bands on vs off, lead 2, recipe gaits):**
   expsquare 3/3 vs 3/3 (stream clean, 4–6 ms); spiro 2/3 vs 3/3 with the
   one fall on a 31 ms gap; lissajous 1/2 vs 0/2 with every one of the four
