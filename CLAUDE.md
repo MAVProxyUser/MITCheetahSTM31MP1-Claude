@@ -1344,7 +1344,8 @@ one metre from wp07, so the box section never ran at cruise); the envelope on th
 lap: wkc_finals 2.2 6/6, 2.4 6/6 (peak pitch 19–21°), 2.6 2/6 — the honest limit is the
 wp02→wp03 pair of 75° corners six metres apart, entered nose-up off the slew (chains BC/BD
 measure the lateral budget and the slew there); hp_gap20 2.5 6/6, 2.6 6/6, 2.7 5/6 — a rung
-better than the double lap said. Check a run's SHAPE
+better than the double lap said. Both suite tiers 20/20 on the vertex-stop binary (17:56).
+Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
 

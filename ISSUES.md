@@ -149,6 +149,12 @@ passed on its own in-suite retry.
   2.5 26/31 · 2.6 4/5 · 2.7 2/10, and the reversal itself — now a planned
   stop-and-pivot at the vertex — is not the limiting feature until 2.7.
   Every hairpin number in OPEN-28 was the double lap's; this replaces it.
+  **17:56 — both suite tiers on the vertex-stop binary (`f2a1d2c5`):
+  20/20** — star, atom, oval, three dashes, octagon, smooth circle, corner
+  90°, corner/bounding/galloping octagon, oval real switch, sector,
+  parallel, expsquare, lissajous 1:2 / 5:7 / 11:9, spiro. The two planner
+  fixes ship. Chains BC/BD (lateral budget, slew at 2.6 on the honest
+  course) run next, then BB and BE.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
