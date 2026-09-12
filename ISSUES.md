@@ -45,6 +45,46 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
+  the follower U-turned 4 m before the collinear reversal, the waypoint layer
+  froze, and the legacy nav drove the second half of the course again** —
+  `OPEN 2026-09-12 15:40`, fix deployed by chain AW. Found by reading the
+  `[nav]` lines of a 2.6 fall end to end instead of the last two before the
+  event: after `reached wp06` the dog turned around at E≈15.7 (wp07 is at
+  E=11.56), the nav stayed on `wp7/16` for 75 s while the body went out to
+  wp14 and back to home (N≈0, E≈0), and only THEN `reached wp07 dist=3.4`
+  from home, followed by wp08…wp15 and home again — under `WaypointNav::
+  update()`'s own pure pursuit (turn-first floor 0.65 × cruise = 1.69 at
+  2.6, yaw at the 1.2 cap, `WP_VSLEW` on every rise), because `follow()`
+  bails out once its path is spent. Counted across the archive: 28/28 runs
+  at 1.9 (`open28_wkc_vcap`), 20/20 at 2.2, 20/20 at 2.4, 15/20 at 2.6 on
+  wkc_finals (the other 5 fell at wp2 before the reversal), 19/20 on
+  `hp26_pitchw`. Mechanism, in `BodyPathPlanner::nearestIndex`: the
+  forward scan runs until a candidate is 5 m further than the best, so
+  inside 5 m of a reversal vertex it reaches the EXIT leg, whose samples
+  lie on top of the entry leg's (wkc_finals wp06→wp07→wp08 and hp_gap20
+  wp00→wp01→wp02 go out and back along one line), and the first exit-leg
+  sample a millimetre nearer than the entry-leg sample beside the body
+  wins the strict `<`; the index jumps ~8 m of path, the lookahead lands
+  behind the nose, the pivot fires, and the dog U-turns 4.2–4.4 m early,
+  deterministically. Consequences for the record: every OPEN-28 number on
+  those two courses (the 24/24 at 1.9, the 2.2 and 2.4 rungs, the 388-run
+  hp_gap20 reversal-exit analysis, the yaw-cap and cost-vector ladders,
+  the deep dive's `wp9` falls) was measured on a mission twice the course
+  length, half of it driven without the planner — and every 2.6 wkc_finals
+  fall traced at `wp9` sits in the legacy lap (the wp08 exit re-accelerated
+  at the slew from the legacy nav's 1.69 cut). The planner-driven lap at
+  2.6 fell only at the 75° corners, 5/20. Fix: `nearestIndex()` advances at
+  most 1 m of path per tick (`kTrackWindow`; a body moves 0.05 m per tick,
+  and 1 m/tick still re-acquires at 50 m/s after an upset). Deployed and
+  measured by chain AW: probe wkc 2.4 ×2 (single lap = `reached wp07`
+  before any visit home, and a mission time near 110 s, not 171), the fast
+  suite tier (the follower touches every mission), then the single-lap
+  ladders wkc_finals 2.2/2.4/2.6 and hp_gap20 2.5/2.6/2.7 at N=6. Chains
+  AS/AT/AV/AU (all levers against the legacy lap) were stopped. The tells
+  were in every log all along: `MISSION COMPLETE t=171.7s` for 197 m at
+  2.4, and 75 s of `wp7/16`.
+
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
@@ -2132,6 +2172,12 @@ passed on its own in-suite retry.
   bouncing LOCOMOTION → RECOVERY_STAND → LOCOMOTION for ~1 s mid-corner at
   wp2 — survived every time, so not the mechanism, but a second 2.6
   hazard (the lateral foot limit) that the 2.4 rung never touches.
+  **15:50 — and the wp08 exit was not the planner's. The whole second half
+  of every wkc_finals run was a second lap driven by the legacy nav (OPEN-38):
+  the `v=1.69` at the vertex is `WaypointNav::update()`'s turn-first floor
+  (0.65 × 2.6), not a planned minimum, and `follow()` had already bailed out
+  at the path's end. Chains AS/AT/AV/AU stopped; the envelope is re-measured
+  on the single lap by chain AW before any lever is tried again.**
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at

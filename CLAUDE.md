@@ -1332,13 +1332,16 @@ box 5/5 against the schedule's 10/22 and wkc_finals 2.4 5/5 against 2/5, and
 cost nothing on wkc 2.2 or the hairpin at 1.9/2.3 (ISSUES OPEN-28, chains T/V/W).
 The schedule code stays; comment the yaml line out to get it back.*
 
-*The shipped trot envelope at N=10..40 (2026-09-12): straight 3.0, box 2.6, hairpin
-2.5, wkc_finals 2.4; above each rung a 0.8 s pitch-up runaway on re-acceleration
-after a braking feature, roll and yaw small — the trot's pitch limit at speed, not
-corner geometry (ISSUES OPEN-28 deep dive, `gazebo/tools/corner_dive.py`). The
-pre-planner (`BodyPathPlanner.h`) still plans by curvature and friction only; its
-limits comments carry this table, and a re-acceleration cap is the planner-side
-rule waiting on chains AQ/AR.*
+*The shipped trot envelope at N=10..40 (2026-09-12): straight 3.0, box 2.6 — and the
+hairpin 2.5 / wkc_finals 2.4 rows are DOUBLE-LAP numbers (ISSUES OPEN-38, found 15:40):
+on every course with a collinear reversal the follower's nearest-index tie-break
+U-turned the dog 4 m before the vertex, the waypoint layer froze there, the planner
+drove the rest of the course home, and the legacy pure-pursuit nav then drove the
+second half AGAIN with no planner. Every 2.6 wkc_finals fall traced at "wp9" was in
+that legacy lap. `BodyPathPlanner::nearestIndex` now carries a 1 m continuity window;
+the envelope on the single lap is being re-measured (chain AW). Check a run's SHAPE
+before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
+against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
 
 **Host scheduling, the sensor-freeze class, and the archive (2026-09-11,
 ISSUES OPEN-35).** The bridge is a 500 Hz Python loop on a desktop Mac; at

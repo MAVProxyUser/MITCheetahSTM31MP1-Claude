@@ -76,18 +76,28 @@ struct BodyLimits {
   //! slew in the course recipe, N = 10..40 per cell, ISSUES OPEN-28):
   //!   straight dash          3.0   10/10
   //!   wkc_box (90 deg legs)  2.6   23/25      2.8  0/5
-  //!   hp_gap20 (hairpin)     2.5   26/31      2.6  4/5     2.7  2/10
-  //!   wkc_finals (15 turns)  2.4   38/40      2.6  0/15
-  //! The limit off a straight is NOT a corner: every 2.6 fall on wkc_finals
-  //! and every 2.5-2.6 hairpin fall is a 0.8 s pitch-up runaway (+5 -> +12
-  //! -> +22 -> +28.7 deg, roll inside 7 deg, yaw rate under 1.2 rad/s) at
-  //! 2.4-2.8 m/s while the profile is re-accelerating to cruise after a
-  //! braking feature, or holding cruise into a turn command. So the planner
-  //! plans the trigger: a_lon_max did nothing at 2.6 (0/15 across 0.4/0.3/
-  //! 0.2). The lateral budget and the MPC's pitch weights are under test;
-  //! the planner-side rule that would express this is a cap on the speed
-  //! the forward pass re-accelerates to after a braking feature - not yet
-  //! implemented, because no rule has been confirmed on the rig.
+  //!   hp_gap20 (hairpin)     2.5   26/31      2.6  4/5     2.7  2/10   DOUBLE LAP
+  //!   wkc_finals (15 turns)  2.4   38/40      2.6  0/15                DOUBLE LAP
+  //! 2026-09-12, ISSUES OPEN-38: every hp_gap20 and wkc_finals row above was
+  //! measured on a DOUBLE LAP. nearestIndex()'s tie-break on the collinear
+  //! reversal U-turned the dog 4 m before the vertex, the waypoint layer
+  //! froze on that waypoint, this follower drove the rest of the course and
+  //! the closing leg home, and the legacy pure-pursuit nav then drove the
+  //! second half of the course AGAIN from home - no planner, turn-first
+  //! speed shaping, the WP_VSLEW rise out of every cut. Every 2.6 fall on
+  //! wkc_finals traced at "wp9" was in that legacy lap; the follower's own
+  //! lap at 2.6 fell only at the 75 deg corners (5/20). The box and dash
+  //! rows have no reversal and stand; the two marked rows are being
+  //! re-measured on the single lap (chain AW) now that nearestIndex()
+  //! carries a continuity window (see it, below).
+  //! What those double-lap falls were, and what the trot does on ANY
+  //! re-acceleration at 1.0 m/s^2 through 2.2-2.5 m/s: a 0.8 s pitch-up
+  //! runaway (+5 -> +12 -> +22 -> +28.7 deg, roll inside 7 deg, yaw rate
+  //! under 1.2 rad/s), peaking 19-23 deg when the rise stops at 2.3 and
+  //! crossing the 28.65 deg bar when it runs on to 2.5. a_lon_max did
+  //! nothing (0/15 across 0.4/0.3/0.2), nor the lateral budget, nor the
+  //! MPC's pitch weights, nor v_reaccel_max (below, 0/6) - all measured
+  //! on the legacy lap, whose re-acceleration the plan never shaped.
   double v_cruise = 2.5;
   //! Minimum speed the planner will command rather than stopping dead. A hard
   //! v=0 pivot is fine on this robot (pirouettes are stable to 3 rad/s), but a
@@ -1100,11 +1110,39 @@ class BodyPathPlanner {
 
   }
 
+  /*
+   * CONTINUITY WINDOW (2026-09-12, ISSUES OPEN-38). The tracked index may
+   * only advance `kTrackWindow` metres of PATH per call. Without that bound
+   * a course whose reversal legs are COLLINEAR (wkc_finals wp06->wp07->wp08,
+   * hp_gap20 wp00->wp01->wp02: out along a line, back along the same line)
+   * lost the whole mission to a tie-break: the scan below runs 5 m past the
+   * body, so inside 5 m of the vertex it reaches the EXIT leg, whose samples
+   * lie on top of the entry leg's, and the first exit-leg sample a
+   * millimetre nearer than the entry-leg sample beside the body won the
+   * strict `<`. The index jumped ~8 m of path in one tick, the lookahead
+   * landed behind the nose, the pivot fired, and the dog U-turned 4.2-4.4 m
+   * BEFORE the vertex in every run of both courses (28/28 at 1.9, 20/20 at
+   * 2.2, 20/20 at 2.4, 15/20 at 2.6 on wkc_finals; 19/20 on hp_gap20). The
+   * waypoint layer never saw the vertex reached, so its state froze at that
+   * waypoint while this follower drove the rest of the course and the
+   * closing leg home - and when the path ran out, the legacy pure-pursuit
+   * nav drove the dog from home back to the frozen waypoint and around the
+   * remaining course a SECOND time, with turn-first shaping and no planner.
+   * Every 2.6 fall traced at "wp9" (OPEN-28) was in that legacy second lap,
+   * and every wkc_finals / hp_gap20 verdict on record was a double lap.
+   * A body moves 0.05 m per tick at 2.6 m/s and 50 Hz; a window of 1 m
+   * still catches up at 50 m/s after any upset, and it makes an 8 m jump
+   * onto the far leg impossible. The pivot then fires where the lookahead
+   * genuinely crosses the vertex, as it was written to.
+   */
+  static constexpr double kTrackWindow = 1.0;   // metres of path per tick
   size_t nearestIndex(double x, double y) const {
     size_t best = _lastIdx; double bd = 1e18;
     // search forward from the last index so the path is not re-acquired backwards
     const size_t lo = _lastIdx;
+    const double s_lo = _path[lo].s;
     for (size_t i = lo; i < _path.size(); ++i) {
+      if (_path[i].s - s_lo > kTrackWindow) break;   // continuity window
       const double dx = _path[i].x - x, dy = _path[i].y - y;
       const double d = dx * dx + dy * dy;
       if (d < bd) { bd = d; best = i; }
