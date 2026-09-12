@@ -1,14 +1,13 @@
 #!/bin/bash
-# Chain BE (2026-09-12 17:10): the shipping rungs of the honest courses at N=10 -
-# wkc_finals 2.4 and hp_gap20 2.6 - after chain BB (pid 53408). Chain AZ's ladders (wkc_finals
-# 2.2/2.4/2.6, hp_gap20 2.5/2.6/2.7 at N=6) put both rungs at 6/6; a rung that
-# ships wants N=10 in one block (replicate before you believe), and these two
-# blocks are it. Single-arm campaigns, one course each.
-
+# Chain BE (rewritten 2026-09-12 18:50): replicate before believing - the
+# lateral budget 2.5 vs 2.0 at 2.6 on the honest wkc_finals at N=10 in one
+# interleaved block (chain BC: 1/6 vs 6/6, p = 0.015), then the shipping rung
+# 2.4 under both budgets (the recipe change must not cost 2.4 anything).
+# After chain BB (pid 5298).
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 . gazebo/tools/paths.sh
-PREV="${PREV_CHAIN_PID:-53408}"
+PREV="${PREV_CHAIN_PID:-5298}"
 LOG="$CAMPAIGN_DIR/open38_chainbe.log"
 say(){ echo "$(date '+%H:%M:%S') $*" | tee -a "$LOG"; }
 phase(){ curl -s -m 5 http://127.0.0.1:8420/api/state | python3 -c 'import sys,json;print(json.load(sys.stdin).get("phase"))' 2>/dev/null; }
@@ -24,6 +23,6 @@ run(){ local n="$1" r="$2" v="$3"
 say "chain BE pid $$: waiting for chain BB (pid $PREV) to exit"
 while kill -0 "$PREV" 2>/dev/null && ps -p "$PREV" -o command= | grep -q "campaign_chain_20260912bb[.]sh"; do sleep 30; done
 wait_idle; sleep 30; wait_idle; tm_wait; say "rig idle (phase $(phase)) - binary $(md5 -q host-run/mit_ctrl_sim | cut -c1-8)"
-COURSES=wkc_finals ARMS="v24:SPEED=2.4" run wkc24_singlelap_n10 10 2.4
-COURSES=hp_gap20 ARMS="v26:SPEED=2.6" run hp26_singlelap_n10 10 2.6
+COURSES=wkc_finals ARMS="alat25:WP_ALAT=2.5 alat20:WP_ALAT=2.0" run wkc26_alat_n10 10 2.6
+COURSES=wkc_finals ARMS="alat25:WP_ALAT=2.5 alat20:WP_ALAT=2.0" run wkc24_alat_n5 5 2.4
 say "chain BE done"
