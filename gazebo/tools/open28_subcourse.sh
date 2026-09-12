@@ -38,7 +38,7 @@ campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 # 96 % on 2026-09-11 (ISSUES OPEN-35). Readers resolve .json/.json.zst alike.
 pgrep -f "^bash gazebo/tools/archive_compact.sh" >/dev/null || ( nohup bash gazebo/tools/archive_compact.sh >/dev/null 2>&1 & )
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -117,7 +117,16 @@ PY
   if [ -n "${arm:-}" ]; then LBL="$arm"; elif [ -n "${env:-}" ]; then LBL=$(echo "$env" | tr -d ' =' ); fi
   local BD=""; [ "$DUMP" = 1 ] && BD="$DIR/bridge_${RID}.csv"
   local IG0; IG0=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
-  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms"
+  # THE RUN'S SHAPE (ISSUES OPEN-38): the mission time and the longest a
+  # single waypoint index stayed active while the [nav] lines kept coming.
+  # Every wkc_finals and hp_gap20 verdict before 2026-09-12 was a DOUBLE
+  # LAP - 171 s for a 197 m course at 2.4, and wp7 held for 75 s while the
+  # body swept the whole course - and no column said so. A mission time
+  # far over course length / cruise, or a dwell of tens of seconds on one
+  # index, is a mission-shape problem, not a robot result.
+  local MT DW; MT=$(grep -oE 'MISSION COMPLETE t=[0-9.]+' "$L" 2>/dev/null | tail -1 | cut -d= -f2)
+  DW=$(awk '/^\[nav\] wp[0-9]+\/[0-9]+ /{ idx=$2; t=$NF; sub(/^t=/,"",t); sub(/s$/,"",t); if (idx!=last){ if (last!="") { d=tl-t0; if (d>m) m=d }; last=idx; t0=t }; tl=t } END{ if (last!="") { d=tl-t0; if (d>m) m=d }; printf "%.1f", m+0 }' "$L" 2>/dev/null)
+  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms mission_t=${MT:-none}s dwell=${DW:-?}s"
   # the control loop's worst period in this run (ms) - a host-stall column,
   # so a run that survived a 469 ms freeze and one that ran clean are not
   # the same row (2026-09-10: three of six control runs carried 44-469 ms)
@@ -128,7 +137,7 @@ PY
   # 2026-09-11, 4-6 ms in the ones that passed). A run with a gap over ~15 ms
   # is not the robot's evidence.
   local IG; IG=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-}" >> "$OUT"
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-},${MT:-},${DW:-}" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
