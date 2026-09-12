@@ -111,8 +111,13 @@ passed on its own in-suite retry.
   log). Chain AZ deploys it in the next gap (old binary kept as
   `.pre_vertexstop`), probes 2.4 ×2, then runs the single-lap ladders;
   BA (both suite tiers) and BB (top rungs) follow. Chain AW's fast tier on
-  the follower alone went 5/5 (star, atom, oval, dash ×2) before it was
-  stopped for this.
+  the follower alone finished **13/13** (star, atom, oval, dash ×3,
+  octagon, smooth circle, corner 90°, corner/bounding/galloping octagon,
+  oval real switch) before the deploy. 15:58: vertex-stop planner deployed
+  (`f2a1d2c5`); the probe's plan table now reads `[plan] vertex stop at
+  wp08 -> path s=58.1 m (0.10 m from the vertex)` and the wp03 stretch
+  `SUSTAINED 22.4–36.7 v_plan 2.04` (was 0.25), constraint loss 23.4 →
+  19.1 s.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
