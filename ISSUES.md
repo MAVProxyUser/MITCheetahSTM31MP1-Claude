@@ -142,6 +142,13 @@ passed on its own in-suite retry.
   not the legacy lap's wp08 exit. Chains BC (lateral budget 2.5/2.0/1.5)
   and BD (slew 1.0/0.6/0.4) measure the two planner-side levers on that
   feature at 2.6 tonight, after BA's suite tiers.
+  **17:05 — the honest hp_gap20 envelope (single lap, 49.5 s against 77 s
+  on the double lap, 6 reps per rung interleaved):** 2.5 **6/6** (peak
+  pitch 17.7–19.5°), 2.6 **6/6** (20.0–24.3°), 2.7 5/6 (22.5–29.3°, one
+  30.4° fall at the reversal exit). A rung better than the double lap's
+  2.5 26/31 · 2.6 4/5 · 2.7 2/10, and the reversal itself — now a planned
+  stop-and-pivot at the vertex — is not the limiting feature until 2.7.
+  Every hairpin number in OPEN-28 was the double lap's; this replaces it.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
