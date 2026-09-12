@@ -2090,8 +2090,12 @@ passed on its own in-suite retry.
   no difference between arms. Doubling the pitch weight and quadrupling
   the pitch-rate weight change nothing: the MPC is not short of the will
   to hold pitch, it is short of the means at that speed. The hairpin at
-  2.6 under the same arms follows; then chain AS (the re-acceleration cap)
-  and chain AT (velocity weight, body height, force cap).
+  2.6 under the same arms (15:05, 5 quadruplets, stream clean): shipped
+  5/5, QP 1.0 5/5, QWY 0.4 4/5, both 5/5 — the hairpin at 2.6 ran 19/20
+  this afternoon on the shipped weights and every other arm, against
+  4/5 last night; the weights change nothing here either. Pitch weights:
+  closed as a lever. Next: chain AS (the re-acceleration cap) and chain
+  AT (velocity weight, body height, force cap).
   **Chain AA (17:35, wkc_finals at 2.6 on the restored schedule, 5 reps ×
   `WP_ALON` 0.4 / 0.3 / 0.2 interleaved): 0/15** — the braking budget that
   gave the box 10/10 does nothing for the full course; the falls sit at
