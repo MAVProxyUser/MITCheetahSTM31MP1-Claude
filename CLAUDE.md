@@ -1325,7 +1325,9 @@ the knob pins the lead and disables the schedule.)*
 *2026-09-11 15:22–17:05 the shipped yaml pinned lead 1 (`CTRL_MPC_SCHED_LEAD: 1`,
 physical 2) everywhere — REVERTED after the full tier failed 3/20 on it (the knob
 pins EVERY gait's table; walking recipes and spiro broke, ISSUES OPEN-37). The
-trotting evidence stands: interleaved on the slew recipe, lead 1 carried the 2.6
+trotting evidence stands, and since 21:27 it ships in the per-gait form
+`CTRL_MPC_LEAD_SLOW: 1` (trot on lead 1 in both bands, every other gait at knob 2;
+full tier 20/20 on it): interleaved on the slew recipe, lead 1 carried the 2.6
 box 5/5 against the schedule's 10/22 and wkc_finals 2.4 5/5 against 2/5, and
 cost nothing on wkc 2.2 or the hairpin at 1.9/2.3 (ISSUES OPEN-28, chains T/V/W).
 The schedule code stays; comment the yaml line out to get it back.*

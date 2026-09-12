@@ -16,11 +16,12 @@ archive), this file is the index of where we've been and what's left. Rules:
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
 
-Last validation: **20/20 FULL-suite PASS** (2026-09-11 06:13, on the speed
-schedule — the configuration restored at 17:05) and **13/13 fast-tier PASS**
-(15:42, controller and bridge on the real-time band, four-criteria judge). The
-17:00 full tier on the lead-1 pin was **17/20** (OPEN-37: walking recipes and
-spiro), which is why the pin was reverted. Both on the shipping binary: operational
+Last validation: **20/20 FULL-suite PASS** (2026-09-11 21:27, on the shipping
+configuration: lead 1 for trotting only via `CTRL_MPC_LEAD_SLOW: 1`, controller and
+bridge on the real-time band, the fall judge's four criteria; the suite's runs
+carried IMU-stream gaps of at most 18 ms) and **13/13 fast-tier PASS** (15:42).
+Earlier today: 20/20 at 06:13 on the speed schedule; a 17/20 at 17:00 on a lead-1
+pin for every gait that was the sim's sensor stream, not the lead (OPEN-35/37). Both on the shipping binary: operational
 joint limits ON, speed-scheduled contact-table lead, contact gate OFF;
 includes the new `dash_trotting_30` sprint case (70.5 s) and, the same
 morning, the 3-dog `dash:100` at 3.0 at 18/18. Previous: 19/19 fast-suite PASS (2026-08-28 ~23:20 + two
@@ -43,71 +44,6 @@ passed on its own in-suite retry.
 
 ### In progress
 
-- **OPEN-37 · Lead 1 pinned failed the full tier 3/20 — the knob pins EVERY
-  gait's contact table and only trotting was measured** — `CONTROLLER`.
-  Opened 2026-09-11 17:05. Shipped 15:22 on chains T/V/W (all trotting,
-  `CTRL_MPC_SCHED_LEAD=1` as an env arm); the fast tier passed 13/13 at
-  15:42; the full tier (chain Z, 16:15–17:1x) failed `expsquare_recipe`
-  (walking, gait 20, 1.5 m/s: `Unsafe locomotion: leg 3 is moving too
-  quickly (9.207 m/s)` at wp5), `lissajous_11_9` (walking, 1.5: `leg 0 …
-  9.434 m/s` at wp329 of 606) and `spiro_recipe` (trotting 1.8 with
-  continuous curvature: `leg 3's y-position is bad (0.247 m, max 0.240)`),
-  each trip followed by the LOCOMOTION ↔ RecoveryStand ping-pong and the
-  collapse. The same three cases were 20/20 at 06:13 and every earlier run
-  in the history ring, with ZERO `Unsafe locomotion` events in the morning's
-  suite logs; no freeze over 18 ms in any of the three. The knob is read in
-  `Gait::getMpcTable` for every `OffsetDurationGait`, so pinning it moved
-  walking's table lead too, and the trot at 1.8 in a sustained turn placed a
-  foot 7 mm past the FSM's lateral bar. **Reverted 17:05** to the speed
-  schedule (yaml line commented; the 06:13 configuration). Two things are
-  confounded with the lead in those runs and must be separated before the
-  trot gains are re-shipped: the controller's real-time band (deployed
-  14:26, after the morning suite) and the walking gait's own response to
-  lead 1. **Chain AB** runs the three cases on their recipe gaits, lead 1 vs
-  lead 2 by env arm, 3 reps interleaved, on the deployed binary. **Done
-  means**: a per-gait lead (trot on lead 1 where it was measured, every
-  other gait on the lead it was validated at) and 20/20 on the full tier —
-  or the trot gain given back.
-  **17:41 — chain AB's first pair: expsquare fails on lead 2 as well (l1
-  0/1 pitch 40° at wp6; l2 0/1 `leg 3 moving too quickly 10.3 m/s` at
-  wp8), on the walking gait, no lead-switch lines, loop period intact,
-  MPC inline. The lead is not the walking recipes' cause. What else changed
-  for a walking recipe since the 05:49 pass: the bridge's real-time band
-  (11:50) and the controller's (14:26) — no fast-tier case walks, so neither
-  was checked on gait 20. Chain AC takes the rig after AB's expsquare
-  campaign: the three cases, lead 2, bands ON vs OFF (`CTRL_RT=0
-  BRIDGE_RT=0`), interleaved.**
-  **17:52 — expsquare A/B complete (3 pairs, recipe gait): lead 1 2/3,
-  lead 2 2/3 — each arm's one fall was its first run, then two clean
-  passes each (lead 2's passes at pitch 9° / roll 5°). The lead does not
-  separate the arms; the case has gone from always-pass to two-in-three on
-  both. Chain AC (bands on vs off) is the next split.**
-  **18:05 — chain AC: expsquare bands on 2/2, off 2/2 so far, identical
-  peaks (9° / 5°), and the three afternoon falls all sit in a window of
-  21–45 ms IMU-stream gaps that ended at 17:44 (OPEN-35's third class).
-  The lead is cleared for walking by this; spiro's `y-position` trip
-  (trot 1.8, continuous curvature) is the one lead question left — chain
-  AD runs spiro and lissajous lead 1 vs 2 on a clean stream. If they hold,
-  the pin goes back in and the full tier is re-run with the IMU-gap
-  column watching the stream.**
-  **19:10 — spiro lead A/B (chain AD, recipe gait, 3 pairs): lead 1 3/3,
-  lead 2 3/3, pitch 6–11°, one run with a 25 ms gap and it passed anyway.
-  The 16:57 spiro failure was the stream. With expsquare 2/3 vs 2/3 under
-  gaps and 3/3 vs 3/3 clean, nothing in the full tier's failures is the
-  lead's. Chain AF re-pins lead 1 and runs the full tier with every run's
-  worst IMU gap printed beside its verdict (`stream_gap_report.sh`); of the
-  81 runs since 16:00, 32 carried a gap over 15 ms — the evening's host.**
-  **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
-  — and the lead-1 fall (run 5290) is the harness again, a different way:
-  IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
-  on the real-time band (`stalls>5ms=1/worst=126.5ms`), 122 ms of frozen
-  state, a −34° roll jump on return. The one blocking call in that loop is
-  the 1 Hz stats print to a log file on a disk Spotlight was hammering;
-  the write now goes through a writer thread (the loop only enqueues).
-  Shipping decision changed to the per-gait form OPEN-37 asked for:
-  `CTRL_MPC_LEAD_SLOW: 1` — trotting on lead 1 in both bands through the
-  schedule path that already exists, walking and every other gait untouched
-  at knob 2. Chain AF applies it and runs the full tier with the gap report.**
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
@@ -1605,6 +1541,81 @@ passed on its own in-suite retry.
 ---
 
 ## CLOSED (symptom → cause → fix → evidence)
+
+- **CLOSED (was OPEN-37) · Lead 1 pinned failed the full tier 3/20 — the knob pins EVERY
+  gait's contact table and only trotting was measured** — closed 2026-09-11 21:30.
+  Cause: two of the three failures were the sim's sensor stream (OPEN-35's third
+  class, 21–45 ms IMU gaps during a Spotlight/media-analysis storm), the third
+  a bridge-side stall of the same family; with the stream clean, expsquare and
+  spiro run 3/3 on either lead. Fix: the per-gait form — `CTRL_MPC_LEAD_SLOW: 1`
+  puts TROTTING on lead 1 in both bands through the schedule path that already
+  existed, every other gait untouched. Evidence: **20/20 FULL tier at 21:27** on
+  it (chain AF), the trot ledger of chains T/V/W intact. Opened 17:05. Shipped 15:22 on chains T/V/W (all trotting,
+  `CTRL_MPC_SCHED_LEAD=1` as an env arm); the fast tier passed 13/13 at
+  15:42; the full tier (chain Z, 16:15–17:1x) failed `expsquare_recipe`
+  (walking, gait 20, 1.5 m/s: `Unsafe locomotion: leg 3 is moving too
+  quickly (9.207 m/s)` at wp5), `lissajous_11_9` (walking, 1.5: `leg 0 …
+  9.434 m/s` at wp329 of 606) and `spiro_recipe` (trotting 1.8 with
+  continuous curvature: `leg 3's y-position is bad (0.247 m, max 0.240)`),
+  each trip followed by the LOCOMOTION ↔ RecoveryStand ping-pong and the
+  collapse. The same three cases were 20/20 at 06:13 and every earlier run
+  in the history ring, with ZERO `Unsafe locomotion` events in the morning's
+  suite logs; no freeze over 18 ms in any of the three. The knob is read in
+  `Gait::getMpcTable` for every `OffsetDurationGait`, so pinning it moved
+  walking's table lead too, and the trot at 1.8 in a sustained turn placed a
+  foot 7 mm past the FSM's lateral bar. **Reverted 17:05** to the speed
+  schedule (yaml line commented; the 06:13 configuration). Two things are
+  confounded with the lead in those runs and must be separated before the
+  trot gains are re-shipped: the controller's real-time band (deployed
+  14:26, after the morning suite) and the walking gait's own response to
+  lead 1. **Chain AB** runs the three cases on their recipe gaits, lead 1 vs
+  lead 2 by env arm, 3 reps interleaved, on the deployed binary. **Done
+  means**: a per-gait lead (trot on lead 1 where it was measured, every
+  other gait on the lead it was validated at) and 20/20 on the full tier —
+  or the trot gain given back.
+  **17:41 — chain AB's first pair: expsquare fails on lead 2 as well (l1
+  0/1 pitch 40° at wp6; l2 0/1 `leg 3 moving too quickly 10.3 m/s` at
+  wp8), on the walking gait, no lead-switch lines, loop period intact,
+  MPC inline. The lead is not the walking recipes' cause. What else changed
+  for a walking recipe since the 05:49 pass: the bridge's real-time band
+  (11:50) and the controller's (14:26) — no fast-tier case walks, so neither
+  was checked on gait 20. Chain AC takes the rig after AB's expsquare
+  campaign: the three cases, lead 2, bands ON vs OFF (`CTRL_RT=0
+  BRIDGE_RT=0`), interleaved.**
+  **17:52 — expsquare A/B complete (3 pairs, recipe gait): lead 1 2/3,
+  lead 2 2/3 — each arm's one fall was its first run, then two clean
+  passes each (lead 2's passes at pitch 9° / roll 5°). The lead does not
+  separate the arms; the case has gone from always-pass to two-in-three on
+  both. Chain AC (bands on vs off) is the next split.**
+  **18:05 — chain AC: expsquare bands on 2/2, off 2/2 so far, identical
+  peaks (9° / 5°), and the three afternoon falls all sit in a window of
+  21–45 ms IMU-stream gaps that ended at 17:44 (OPEN-35's third class).
+  The lead is cleared for walking by this; spiro's `y-position` trip
+  (trot 1.8, continuous curvature) is the one lead question left — chain
+  AD runs spiro and lissajous lead 1 vs 2 on a clean stream. If they hold,
+  the pin goes back in and the full tier is re-run with the IMU-gap
+  column watching the stream.**
+  **19:10 — spiro lead A/B (chain AD, recipe gait, 3 pairs): lead 1 3/3,
+  lead 2 3/3, pitch 6–11°, one run with a 25 ms gap and it passed anyway.
+  The 16:57 spiro failure was the stream. With expsquare 2/3 vs 2/3 under
+  gaps and 3/3 vs 3/3 clean, nothing in the full tier's failures is the
+  lead's. Chain AF re-pins lead 1 and runs the full tier with every run's
+  worst IMU gap printed beside its verdict (`stream_gap_report.sh`); of the
+  81 runs since 16:00, 32 carried a gap over 15 ms — the evening's host.**
+  **21:27 — SHIPPED, per gait: `CTRL_MPC_LEAD_SLOW: 1` (trotting on lead 1 in
+  both bands, other gaits at knob 2), full tier 20/20 on it with the
+  suite's runs at IMU gaps of 18 ms or less.**
+  **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
+  — and the lead-1 fall (run 5290) is the harness again, a different way:
+  IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
+  on the real-time band (`stalls>5ms=1/worst=126.5ms`), 122 ms of frozen
+  state, a −34° roll jump on return. The one blocking call in that loop is
+  the 1 Hz stats print to a log file on a disk Spotlight was hammering;
+  the write now goes through a writer thread (the loop only enqueues).
+  Shipping decision changed to the per-gait form OPEN-37 asked for:
+  `CTRL_MPC_LEAD_SLOW: 1` — trotting on lead 1 in both bands through the
+  schedule path that already exists, walking and every other gait untouched
+  at knob 2. Chain AF applies it and runs the full tier with the gap report.**
 
 - **CLOSED (was OPEN-34) · The 100 m dash at 3.0 regressed to a coin flip — filed as a 3-dog
   failure, found to be the contact-table lead default, fixed with a speed-scheduled lead** — closed 2026-09-11 04:40.
