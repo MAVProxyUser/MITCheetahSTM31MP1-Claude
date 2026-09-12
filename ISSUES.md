@@ -1681,6 +1681,8 @@ passed on its own in-suite retry.
   corner's margin at 2.5 is about what a gap eats.
   The 2.6 box, second N=10 block (chain AO, 09:43, gap storm): 9/10, 2.4
   10/10 — pooled 23/25 at 2.6 on the shipping configuration.
+  `wkc_finals` fourth N=10 block (10:54): 2.4 → 10/10, 2.2 → 10/10 — 2.4
+  stands at 38/40 pooled on the shipping configuration.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
