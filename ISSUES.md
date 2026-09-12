@@ -173,6 +173,11 @@ passed on its own in-suite retry.
   is re-pointed to replicate 2.5 vs 2.0 at N=10, and BB to the top rungs
   (wkc 2.6/2.8, hp 2.7) under both budgets, since the course recipe is
   shared by every `course:` mission.
+  **19:10 — the slew is not a lever here (chain BD, same block design):**
+  `WP_VSLEW` 1.0 → 2/6, 0.6 → 2/6, 0.4 → 1/6, the slower slews moving the
+  falls from wp03→wp04 to the wp01 corner (wp2). The re-acceleration
+  between the corner pair was the symptom; the corner speed the budget
+  sets is the cause. Slew: closed as a lever on the honest course.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
