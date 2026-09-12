@@ -1630,6 +1630,10 @@ passed on its own in-suite retry.
   2.7 → **2/10** (eight first-corner pitch E-stops at 30–33°, the two passes
   at 27–30° of pitch), 2.5 → **10/10** (pitch median 23°). 2.7 is dead on
   the hairpin, not marginal; the shipped table's top rung there is 2.5.
+  The 2.6 box (chain AI, 00:54, N=10): **10/10** (pitch median 22.6°, roll
+  7.4°) against 2.4's 10/10 (8.8°, 7.1°) — the cell that read 10/22 on the
+  schedule twelve hours earlier, now clean at ten with the lead. The second
+  full tier runs next.
   **19:50 — lissajous lead A/B (chain AD, 2 pairs): lead 1 1/2, lead 2 2/2
   — and the lead-1 fall (run 5290) is the harness again, a different way:
   IMU stream clean (4.9 ms) but the BRIDGE LOOP stalled 111–126 ms while
