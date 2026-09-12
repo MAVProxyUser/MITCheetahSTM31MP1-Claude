@@ -96,6 +96,24 @@ passed on its own in-suite retry.
   whole run 16.3 / 17.4° (double lap: 19–23°). The fast suite tier runs
   next, then the single-lap ladders.**
 
+  **16:05 — a second planner defect on this course, fixed before the
+  ladders.** The probe's plan table still carried `SUSTAINED 22.4–36.7
+  v_plan 0.25`: the reversal stop was registered by COORDINATES and the
+  profile brakes every path pass within 2 m of them (the rule built for a
+  loop closure visited twice), and wp03 sits one metre from the reversal
+  vertex wp07 — so the wp03 fillet was braked to v_min (the probe creeps
+  at 0.38 m/s at (27.4, 11.7), t=19–21 s) and the whole box section
+  wp03–wp06 ran at 1.3–1.7 m/s under a 2.4–2.6 cruise, in every run on
+  record. The reversal vertex itself had no planned stop at all; the
+  follower's pivot bled it down at run time. Reversal stops now resolve to
+  their own vertex (`addStopAtVertex`, `_vertexIdx` filled by `buildPath`;
+  `[plan] vertex stop at wp07 -> path s=… (… m from the vertex)` in the
+  log). Chain AZ deploys it in the next gap (old binary kept as
+  `.pre_vertexstop`), probes 2.4 ×2, then runs the single-lap ladders;
+  BA (both suite tiers) and BB (top rungs) follow. Chain AW's fast tier on
+  the follower alone went 5/5 (star, atom, oval, dash ×2) before it was
+  stopped for this.
+
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened

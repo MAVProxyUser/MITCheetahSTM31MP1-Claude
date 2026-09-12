@@ -365,6 +365,19 @@ class BodyPathPlanner {
    * setEndStop(false) / $WP_END_BRAKE=0 for A/B against old behaviour.
    */
   void addStopXY(double x, double y) { _stopsXY.emplace_back(x, y); }
+  /*!
+   * A stop AT A WAYPOINT VERTEX, resolved by index rather than by
+   * coordinates (ISSUES OPEN-38, 2026-09-12). addStopXY brakes every pass
+   * of the path that comes within 2 m of the point - right for a loop
+   * closure the course visits twice, wrong for a reversal on a course
+   * whose OTHER corners come near it: wkc_finals puts wp03 one metre from
+   * the reversal vertex wp07, so the reversal's stop also braked the wp03
+   * fillet to v_min, and the whole box section (wp03-wp06) ran at
+   * 1.3-1.7 m/s under a 2.4-2.6 cruise in every run on record (the
+   * mission table's `SUSTAINED 22.4-36.7 v_plan 0.25`). A reversal is a
+   * property of one vertex; brake that vertex and nothing else.
+   */
+  void addStopAtVertex(size_t k) { _stopVertices.push_back(k); }
   void setEndStop(bool on) { _endStop = on; }
 
   /*!
@@ -704,6 +717,12 @@ class BodyPathPlanner {
   //! Mid-path stop points (world x,y) - see addStopXY. Resolved to the
   //! nearest path index at profile time, so they survive a re-plan.
   std::vector<std::pair<double, double>> _stopsXY;
+  //! Vertex-indexed stops (see addStopAtVertex) and, filled by buildPath,
+  //! the path index nearest each waypoint vertex (the arc's midpoint for a
+  //! filleted corner, the vertex itself for a reversal or an end).
+  std::vector<size_t> _stopVertices;
+  std::vector<size_t> _vertexIdx;
+  std::vector<std::pair<double, double>> _vertexXY;   //!< the waypoints buildPath was given
   bool _endStop = true;
 
   /*!
@@ -727,6 +746,9 @@ class BodyPathPlanner {
                  double ds, bool loop, double corridor) {
     const size_t n = wx.size();
     const size_t nseg = loop ? n : n - 1;
+    _vertexIdx.assign(n, 0);
+    _vertexXY.assign(n, std::make_pair(0.0, 0.0));
+    for (size_t q = 0; q < n; ++q) _vertexXY[q] = std::make_pair(wx[q], wy[q]);
     auto push = [&](double X, double Y) {
       if (!_path.empty()) {
         const double dx = X - _path.back().x, dy = Y - _path.back().y;
@@ -816,6 +838,9 @@ class BodyPathPlanner {
         }
       }
       const size_t arcStart = _path.size();
+      // the point nearest vertex b: the last straight point (within ds of
+      // the vertex when there is no fillet), or the arc's midpoint below
+      size_t vidx = _path.empty() ? 0 : _path.size() - 1;
       if (T > 1e-6 && R > 1e-6) {
         // arc from tangent-in to tangent-out, swept about the fillet centre
         const double toutx = bx + ox2*T, touty = by + oy2*T;
@@ -842,10 +867,12 @@ class BodyPathPlanner {
             _path[q].turn = turnAngle;          // continuous, not a mode
             _path[q].hairpin = isHairpin;
           }
+          if (_path.size() > arcStart) vidx = std::min(_path.size() - 1, arcStart + (size_t)asteps / 2);
         }
       }
+      if (b < _vertexIdx.size()) _vertexIdx[b] = vidx;
     }
-    if (!loop) push(wx[n-1], wy[n-1]);
+    if (!loop) { push(wx[n-1], wy[n-1]); if (n) _vertexIdx[n-1] = _path.empty() ? 0 : _path.size() - 1; }
   }
 
   //! Arc length, heading and curvature of the smoothed path.
@@ -1027,6 +1054,14 @@ class BodyPathPlanner {
         const bool rightOk = (i + 1 >= n) || d <= d2(i + 1);
         if (leftOk && rightOk)
           _path[i].v = std::min(_path[i].v, _lim.v_min);
+      }
+    }
+    for (size_t k : _stopVertices) {
+      if (k < _vertexIdx.size() && _vertexIdx[k] < n) {
+        const size_t i = _vertexIdx[k];
+        _path[i].v = std::min(_path[i].v, _lim.v_min);
+        printf("[plan] vertex stop at wp%02zu -> path s=%.1f m (%.2f m from the vertex)\n", k, _path[i].s,
+               (k < _vertexXY.size()) ? std::hypot(_path[i].x - _vertexXY[k].first, _path[i].y - _vertexXY[k].second) : -1.0);
       }
     }
     // Backward: v_i^2 <= v_{i+1}^2 + 2*a*ds  (can I still slow down in time?)

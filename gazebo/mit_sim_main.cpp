@@ -331,10 +331,10 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       if (la < 1e-6 || lb < 1e-6) continue;
       const double cosd = (ax*bx + ay*by) / (la * lb);
       if (cosd < -0.87) {          // direction change > 150 deg
-        planner.addStopXY(wx[k], wy[k]);
-        shmtrace::logf(0.0, "[plan] reversal at (%.1f, %.1f) registered as a stop "
+        planner.addStopAtVertex(k);   // by vertex, not by XY: OPEN-38, wp03 sits 1 m from wp07
+        shmtrace::logf(0.0, "[plan] reversal at wp%02zu (%.1f, %.1f) registered as a vertex stop "
                "(%.0f deg turn - curvature cannot see it)",
-               wx[k], wy[k], std::acos(std::max(-1.0, cosd)) * 57.2958);
+               k, wx[k], wy[k], std::acos(std::max(-1.0, cosd)) * 57.2958);
       }
     }
     hold_stop_n[1] = nav.waypoint(nav.count() - 1).north;
