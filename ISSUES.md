@@ -302,7 +302,11 @@ passed on its own in-suite retry.
   the rig from here; `touch $CAMPAIGN_DIR/STOP_BR` ends it after the
   current block. **06:34 — BR blocks 1–4 (03:42–06:34):** wkc_finals 2.6
   **24/24**, hp_gap20 2.6 **24/24**, fast tier **52/52**. Served recipe
-  totals since 21:02: wkc 2.6 80/81, hairpin 2.6 50/50.
+  totals since 21:02: wkc 2.6 80/81, hairpin 2.6 50/50. **Blocks 5–8 (06:35–09:26):** wkc_finals
+  2.6 23/24 (one genuine fall, run 6389, collapsed at wp13 — the +40°
+  corner that limits 2.8), hp_gap20 2.6 24/24, fast tier 52/52. Served
+  recipe totals: wkc 2.6 **103/105**, hairpin 2.6 **74/74**, fast tier
+  117/117 across nine runs of it.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
