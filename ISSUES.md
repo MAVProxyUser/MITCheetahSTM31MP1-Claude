@@ -385,6 +385,16 @@ passed on its own in-suite retry.
   exercises the binary, not the rule). Chain BW (a standing loop: wkc 2.6
   off / 2.4 ×6, hp 2.6 off / 2.4 ×4, fast tier) holds the rig behind BV
   and keeps adding to both arms until `STOP_BW`.
+  **15:19 — chain BV, the replication (wkc 2.6, 8 × off / 2.4
+  interleaved, 14:44–15:19):** off 7/8 — the miss (run 6562, tipped at
+  wp15) a harness fall by both rules (gap 20.2 ms; 273 IMU samples/s in
+  the event second, the operator at the machine) — 2.4 **8/8**. S-bend peak
+  pitch median 19.6° / p90 20.4 vs **7.8° / 8.0**, lap 96.3 vs 97.1 s.
+  Pooled with BU, 16 per arm: **20.0° / 20.6 vs 8.0° / 8.7**, every off run
+  above 18° and every 2.4 run under 9.6°; body speed in the window 2.84 vs
+  2.81 (the cap brakes the corner, not the straight); lap median 96.3 vs
+  97.0 s (+0.7 s, 0.7 %); wp03 window unchanged (16.2 vs 15.4°). The
+  replication holds. Hairpin and box next, then 2.8.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
