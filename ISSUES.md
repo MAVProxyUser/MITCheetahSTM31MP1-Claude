@@ -368,7 +368,9 @@ passed on its own in-suite retry.
   9 m/s limit → RECOVERY_STAND folded all four legs, z 0.29→0.00 in
   0.3 s at 10° of attitude; IMU gap max 10.7 ms, no freeze in the second
   before). That trip is rare — 2 of today's 467 runs, the other a suite
-  run (6484, leg 3) — but a cap that brakes a corner also adds a
+  run (6484, leg 3) — and OPEN-39 (15:05) traced both to a second in which
+  the sim's sensor stream lost twenty samples, so by the harness's own
+  rule the 2.2 arm reads 7/7; but a cap that brakes a corner also adds a
   re-acceleration after it, and 2.2 re-accelerates 0.4 m/s where 2.4
   re-accelerates 0.2; BV watches for it. The cap at 2.4 takes the 2.6
   rung's worst feature from 20° (9° of margin, the 2 % tail) to the 2.4
@@ -420,9 +422,28 @@ passed on its own in-suite retry.
   about the RESPONSE is a separate question: RECOVERY_STAND at cruise is a
   guaranteed fall on a robot that had not yet lost its attitude, and the
   9 m/s limit is mini-cheetah's; neither is changed until the pin is
-  understood. Next: the joint-limit `stops` rate per second across the
-  wkc 2.6 arms (does a capped corner's re-acceleration raise it), and a
-  dumped run of the next occurrence.
+  understood. **15:05 — it is the sim's sensor stream, in a form the
+  freeze scan does not see.** The joint data at the pin was LIVE (every
+  500 Hz record differs from the last in the FK fields — no hold), no joint
+  was past its limit, and the bridge loop never stalled; but the bridge's
+  1 Hz line for that second reads `imu_rx=480/s imu_gap_max=10.7ms` — 20
+  IMU samples missing, as several short gaps. Across the 24 BU runs that
+  is the ONLY cruise second of 2859 with 15 or more samples missing, and
+  it is the trip second. Run 6484, the walking probe at 1.5 m/s on a
+  straight (`corner:25:90`, suite, leg 3 at 9.4 m/s with `stops=0`), has
+  the same signature: `imu_rx=482/s imu_gap_max=12.3ms` in its trip
+  second, its only such second after startup — and at 1.5 m/s the trip
+  was survivable: RECOVERY_STAND handed straight back to LOCOMOTION and
+  the mission passed 3/3. Two for two, against a base rate of one second
+  in three thousand. So the pin is Gazebo stuttering (OPEN-35 class 3,
+  the sim's physics and transport under host load), which thins the
+  sensor topics AND leaves a foot in contact through a stance exchange;
+  a 10–12 ms worst gap is under the 15 ms line every classifier uses, and
+  the state-freeze scan looks for one held sample, not twenty missing
+  ones. Harness change: the per-run CSV now carries `imu_rx_min` (the
+  fewest IMU samples the bridge received in any cruise second) and
+  `campaign_freeze_report.py` calls a fall in a second with ≤ 485/s a
+  harness fall. The response question stands as written.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened

@@ -13,6 +13,28 @@ from snapio import load_json
 from state_freeze_scan import freezes, event_window, T_SETTLE
 
 
+def event_second_deficit(run_id, data):
+    """Fewest IMU samples/s the bridge saw in the last two CRUISE seconds
+    (cmd_rx >= 400/s) of the run's archived bridge log - the controller exits on
+    a fall (SIM_FALL_EXIT=1 under the conductor), so the last cruise second is
+    the event second. None when there is no bridge log for the run."""
+    import glob as _g, re as _re
+    if not run_id:
+        return None
+    logs = _g.glob(os.path.join(data, "conductor", "archive", "*run%s_bridge_0.log" % run_id))
+    if not logs:
+        return None
+    rx = []
+    try:
+        for line in open(logs[0], errors="replace"):
+            m = _re.search(r"cmd_rx=(\d+)/s.*imu_rx=(\d+)/s", line)
+            if m and int(m.group(1)) >= 400:
+                rx.append(int(m.group(2)))
+    except Exception:
+        return None
+    return min(rx[-2:]) if rx else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("campaign")
@@ -37,6 +59,13 @@ def main():
             gap = 0.0
         if gap > 15.0:
             d["gappy"] += 1
+        # OPEN-39 (2026-09-13): the same stream can lose twenty samples in one
+        # second as several SHORT gaps - none over 15 ms, none a held sample the
+        # freeze scan below would see. Both locomotionSafe leg-speed trips on
+        # record sat in such a second (480/s and 482/s) against one cruise
+        # second in 2859. The CSV carries the run's minimum (imu_rx_min); for a
+        # fall the bridge log itself says whether the EVENT second was short.
+        deficit_s = event_second_deficit(r.get("run_id"), data)
         if r.get("verdict") == "PASS":
             d["passes"] += 1
             continue
@@ -54,7 +83,9 @@ def main():
         exc, lo, hi = event_window(R, dd.get("text_log"))
         fz = [f for f in freezes(R, 3) if exc is not None and f["t0"] <= hi and f["t1"] >= lo and f["ms"] >= a.min_ms]
         tag = "HARNESS (freeze %.0f ms at t=%.2f, loop period max %.2f ms)" % (fz[0]["ms"], fz[0]["t0"], fz[0]["period_max"]) if fz else "genuine"
-        if fz:
+        if not fz and deficit_s is not None and deficit_s <= 485:
+            tag = "HARNESS (sample deficit: %d IMU samples/s in the event second, OPEN-39)" % deficit_s
+        if fz or (deficit_s is not None and deficit_s <= 485):
             d["harness"] += 1
         print("  %s rep %s %s run %s: event at %s -> %s" % (arm, r.get("rep"), r.get("verdict"), r.get("run_id"),
                                                           ("%.2f" % exc) if exc is not None else "-", tag))

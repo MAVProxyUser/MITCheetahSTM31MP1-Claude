@@ -1387,7 +1387,12 @@ The third stall class is the SIM's sensor stream (gz-transport TCP loopback
 holding the IMU 20–45 ms under host load, bridge loop intact): every campaign
 CSV carries `imu_gap_max_ms` per run from the bridge's 1 Hz line; a run over
 ~15 ms is not the robot's evidence, and walking (gait 20) is the most
-sensitive gait to it.
+sensitive gait to it. The same stream can also lose twenty samples in one
+second as several SHORT gaps that no single-gap rule sees (ISSUES OPEN-39,
+2026-09-13: both `locomotionSafe` leg-speed trips on record sat in such a
+second, against one cruise second in 2859), so the CSV also carries
+`imu_rx_min` and `campaign_freeze_report.py` calls a fall in a ≤ 485/s
+event second a harness fall.
 Bridge knobs for that class: `BRIDGE_EXTRAP=1` dead-reckons orientation (last
 body rate) and joints (last velocities) across a gap up to `BRIDGE_EXTRAP_MAX_MS`
 (80) instead of re-sending a frozen sample; `BRIDGE_GAP_INJECT_MS=N` (test only)
