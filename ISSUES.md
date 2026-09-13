@@ -202,6 +202,10 @@ passed on its own in-suite retry.
   vs 20/21, p = 2×10⁻⁷**. The lateral budget is the honest course's rule.
   BE's 2.4 half and BF (hairpin, box) decide whether it ships in the
   shared course recipe.
+  **20:33 — BE's 2.4 half (5 reps × 2 arms):** budget 2.5 → 5/5 (peak
+  18.7–21.2°, 100.0–100.5 s), budget 2.0 → 5/5 (**15.8–16.4°**, 99.1–99.2
+  s). The lower budget gives the shipping rung five degrees more margin
+  and a second off the lap. BF (hairpin, box) is the last check.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
