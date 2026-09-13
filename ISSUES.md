@@ -257,6 +257,15 @@ passed on its own in-suite retry.
   so 8/9 genuine. Pooled with BB's 2.7 @2.0 (5/5): 13/14. The hairpin's
   honest rung stays 2.6 (10/10); 2.7 rides the bar. BL (the 2.8 rule on
   wkc_finals: budget 1.5 alone vs with the re-acceleration cap) runs now.
+  **01:15 — BL, wkc_finals 2.8 (6 reps × 3 arms interleaved): budget 1.5
+  alone 2/6, +re-accel cap 2.4 → 2/6, +cap 2.2 → 1/6.** The cap is null to
+  harmful here — releasing it 12 m after each planned minimum drops the
+  re-acceleration into the ±50° corner pair at wp10–wp11, where nine of
+  the fourteen falls sit — and budget 1.5 alone is 5/11 pooled with BH.
+  2.8 is not a rung for the trot on this course under any planner rule
+  tried: the honest ceiling is **2.6** (36/37 under the shipped budget),
+  and 2.8 saved no time anyway. Re-acceleration cap: closed as a lever
+  (stays in the tree, off). BM (box/weave 2.6/2.8 on the recipe) runs now.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
