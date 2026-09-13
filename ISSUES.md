@@ -443,6 +443,20 @@ passed on its own in-suite retry.
   restart)**, two of them through 25 ms and 80 ms sensor-stream gaps (the
   operator's NinjaPilotGCS pair holding the host at load 5) and still
   clean. BX ended on `STOP_BX`; chain BY (2.8 at depth) follows.
+  **18:25 — BY block 1, wkc 2.8 on the shipped recipe: 4/6**, both misses
+  genuine (stream clean) and both at the same place: the wp14→wp15 leg,
+  where the plan re-accelerates from the wp14 near-stop pivot (v 0.51 →
+  2.80 over six seconds on the 1.0 m/s² slew) and the orientation E-stop
+  fires at pitch 30.0° with roll 2.5° the moment the command reaches 2.8
+  (run 6666: `hdg −77`, `w −0.03`, a straight; run 6664 the same leg at
+  33°). The S-bend stays at 8–10° under the cap; the wp13→wp15 window is
+  24° median / 33 max with the two falls inside it. So 2.8 is 10/12 with
+  the cap, and its feature is no longer a corner but the trot's pitch on
+  the RISE to a 2.8 cruise (body 3.0) after a pivot — the OPEN-28
+  re-acceleration runaway, which the slew was measured to soften at 2.2
+  and 2.4. Next A/B at 2.8 on the shipped recipe: `WP_VSLEW` 1.0 (recipe)
+  vs 0.7 vs 0.5, scored on the wp13→wp15 peak and the lap, after BY's
+  first block (hairpin 2.8, box 2.8, fast tier).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
