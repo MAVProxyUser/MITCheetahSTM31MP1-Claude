@@ -206,6 +206,12 @@ passed on its own in-suite retry.
   18.7–21.2°, 100.0–100.5 s), budget 2.0 → 5/5 (**15.8–16.4°**, 99.1–99.2
   s). The lower budget gives the shipping rung five degrees more margin
   and a second off the lap. BF (hairpin, box) is the last check.
+  **21:01 — BF, the shared-recipe check (5 reps × 2 arms each):** hp_gap20
+  2.6 → 5/5 under both budgets at 49.5 s; wkc_box 2.6 → 5/5 under both at
+  44.7 s. The 2.0 budget costs the other `course:` missions nothing. The
+  course recipe carries `WP_ALAT=2.0` (commit d503577); chain BG restarts
+  the conductor the sanctioned way to load it and validates on the recipe
+  alone (fast tier, wkc 2.6 ×6, hp 2.6 ×6).
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
