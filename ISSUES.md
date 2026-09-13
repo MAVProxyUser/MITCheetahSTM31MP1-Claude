@@ -351,6 +351,35 @@ passed on its own in-suite retry.
   which the fillet geometry cannot express (a 40° fillet is 11–18 m, so
   no lateral budget brakes it) — a per-corner cap by turn angle, next.
 
+  **14:25 — chain BU, the per-corner cap by turn angle** (`BodyLimits::
+  v_turn_cap`, `WP_VTURN` / `WP_VTURN_DEG`, default off, every corner of
+  30° or more capped at the cap speed unless the fillet or a vertex stop
+  already brakes harder; binary 5ed4a3ae, deployed 13:30 in the idle gap
+  after chain BT). wkc 2.6 on the served recipe, 8 reps × 3 arms
+  interleaved, freeze scan clean: off **8/8** — S-bend peak pitch median
+  20.0° / p90 20.9 / max 22.1, roll 13.3, body 2.83, lap 96.3 s;
+  `WP_VTURN=2.4` **8/8 — 8.4° / 8.7 / 9.6**, roll 6.6, body 2.80, lap
+  96.9 s (+0.6 s, 0.6 %); `WP_VTURN=2.2` 7/8 — 6.9° / 7.3 / 8.8, lap
+  100.0 s (+3.7 s). The wp03 window (2→4) did not move: 15.5 / 15.6 /
+  15.2° at body 2.6 in all three arms — where the fillet or the vertex
+  stop already brake, the cap adds nothing, as designed. The 2.2 miss
+  (run 6548) is not the S-bend: a `locomotionSafe` leg-speed trip on the
+  wp12 exit while re-accelerating 2.2→2.6 (FR foot 9.07 m/s against the
+  9 m/s limit → RECOVERY_STAND folded all four legs, z 0.29→0.00 in
+  0.3 s at 10° of attitude; IMU gap max 10.7 ms, no freeze in the second
+  before). That trip is rare — 2 of today's 467 runs, the other a suite
+  run (6484, leg 3) — but a cap that brakes a corner also adds a
+  re-acceleration after it, and 2.2 re-accelerates 0.4 m/s where 2.4
+  re-accelerates 0.2; BV watches for it. The cap at 2.4 takes the 2.6
+  rung's worst feature from 20° (9° of margin, the 2 % tail) to the 2.4
+  rung's own 8° for 0.6 % of lap; at the recipe's 2.0 cruise it is a
+  no-op by construction (`v_max = min(v_max, max(v_pivot, cap))`), so
+  shipping it in the recipe changes only runs above 2.4. Chain BV
+  (queued behind BU's fast tier): replicate off / 2.4 at 2.6 ×8 (the
+  +0.6 s is one block), hairpin and box at 2.6 ×6 each (must be
+  unaffected — any change there is a bug), then 2.8 ×6 (with the S-bend
+  capped, is 2.8 a rung; failures used to migrate wp13 → wp15).
+
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
