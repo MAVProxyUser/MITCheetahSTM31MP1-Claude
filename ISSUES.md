@@ -470,7 +470,19 @@ passed on its own in-suite retry.
   the rise, not a corner. **18:56 — fast tier on the served recipe: 13/13**
   (33/33 across both tier runs since the restart). Chain BY ended on
   `STOP_BY`; chain BZ runs the slew A/B at 2.8, then holds the rig on the
-  served recipe at 2.6.
+  served recipe at 2.6. **19:34 — the slew is NULL at 2.8** (wkc, shipped
+  recipe, 6 × 1.0 / 0.7 / 0.5 interleaved): 3/6, 4/6, 4/6, every miss at
+  wp15, the wp13→wp15 peak 26.6 / 27.5 / 27.7° median (max 31.7 / 35.7 /
+  31.3), body 3.00–3.01 in all three arms, laps 95.3 / 95.6 / 95.9 s. The
+  ramp rate does not move the peak because the peak is not on the ramp:
+  in every fall the E-stop fires the moment the command reaches 2.8 and
+  the body is at 3.0 — the trot's own pitch at that body speed on this
+  straight, after a stop. Today's 2.8 on the shipped recipe pools to
+  13/18. Not a planner feature any more: the controller levers chain AT
+  tried at 2.6 (`CTRL_MPC_QVX=0.25`, `CTRL_BODY_H=0.27`, `CTRL_F_MAX=220`)
+  were measured on the DOUBLE LAP (chains AR–AT ran before the 15:40
+  finding) and are unmeasured on the honest course; chain CA runs them at
+  2.8 on the shipped recipe, scored on the wp13→wp15 peak.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
