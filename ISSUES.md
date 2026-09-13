@@ -247,7 +247,10 @@ passed on its own in-suite retry.
   tiers on the served recipe and the vertex-stop binary: 20/20** (the
   fourth full tier of the day: 20/20 at 07:28 on the old follower, 20/20
   at 17:56 after the two planner fixes, 13/13 fast at 21:23 after the
-  recipe restart, 20/20 now). BK (wkc 2.4 ×10, hp 2.7 ×10) runs next.
+  recipe restart, 20/20 now). BK (wkc 2.4 ×10, hp 2.7 ×10) runs next. **00:19 — BK, wkc_finals 2.4 ×10 on the
+  served recipe: 10/10**, peak pitch 15.0–16.8° in nine (one 23.7°),
+  99.1–100.0 s. The old shipping rung now runs with a 12–14° margin to the
+  bar. Hairpin 2.7 ×10 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
