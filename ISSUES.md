@@ -459,6 +459,14 @@ passed on its own in-suite retry.
   fewest IMU samples the bridge received in any cruise second) and
   `campaign_freeze_report.py` calls a fall in a second with ≤ 485/s a
   harness fall. The response question stands as written.
+  **15:45 — disk (OPEN-35's archive note).** 20 GB free and falling ~2 GB
+  an hour: 648 uncompacted snapshots of the last 24 h held 23 GB beside
+  2266 packed ones (26 GB). Compaction (lossless, background QoS, every
+  reader resolves `.zst`) now defaults to 6 h instead of 24 and a 3 h pass
+  was started by hand. Retention is still NONE by design and the packed
+  pool grows ~10 GB a day, so this buys about two days — whether to expire
+  PASS snapshots older than N days is the operator's call, not the rig's;
+  nothing is deleted.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
