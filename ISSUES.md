@@ -394,7 +394,12 @@ passed on its own in-suite retry.
   above 18° and every 2.4 run under 9.6°; body speed in the window 2.84 vs
   2.81 (the cap brakes the corner, not the straight); lap median 96.3 vs
   97.0 s (+0.7 s, 0.7 %); wp03 window unchanged (16.2 vs 15.4°). The
-  replication holds. Hairpin and box next, then 2.8.
+  replication holds. **15:36 — hairpin 2.6, 6 × off / 2.4 interleaved:**
+  off 6/6, 2.4 5/6 with the miss (run 6587, down at wp4) a harness fall —
+  246 IMU samples/s in the event second, gap 27.2 ms — so 5/5 clean; lap
+  49.4–49.6 s in both arms to the tenth, peak pitch 20–24° vs 20–22°. The
+  cap does not touch the hairpin: its only corner of 30° or more is the
+  reversal, which the vertex stop already brakes harder. Box next.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
