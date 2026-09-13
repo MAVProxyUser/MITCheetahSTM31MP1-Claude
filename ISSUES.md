@@ -430,8 +430,11 @@ passed on its own in-suite retry.
   passed (hairpin 6/6 vs 5/6, box 6/6 vs 6/6), the conductor was restarted
   the sanctioned way in the idle gap, and the course recipe now serves
   `… WP_VSLEW=1.0 WP_VTURN=2.4`. **17:34 — both suite tiers on the served
-  recipe: 20/20.** wkc 2.6 and hp 2.6 recipe blocks next, then chain BY
-  (2.8 at depth).
+  recipe: 20/20.** **17:48 — wkc 2.6 on the shipped recipe, 6/6:** S-bend
+  8.0° / 8.7 (max 11.1), lap 97.0 s — the A/B arm's numbers to the decimal
+  (8.0 / 8.7, 97.0 at N = 22), and the run's whole-lap peak pitch is now
+  16.5–19.3° with the S-bend no longer its worst feature. hp 2.6 recipe
+  block next, then chain BY (2.8 at depth).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
