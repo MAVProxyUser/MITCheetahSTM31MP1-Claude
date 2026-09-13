@@ -333,7 +333,12 @@ passed on its own in-suite retry.
   at 2.6 on the served recipe, 8 reps interleaved, scored on the S-bend
   peak and the lap time, not on falls (a 2 % tail needs N = 40 per arm to
   count; the peak it is a tail of moves in every run). The morning loop
-  was stopped after block 11 to make room.
+  was stopped after block 11 to make room. Block 11's fast tier went 12/13:
+  `oval_real_switch` (run 6486) collapsed entering the first curve right
+  after its 5→9 switch, with six state freezes in the second before the
+  event (44 ms total) and a 20 ms IMU-stream gap in the run — the
+  freeze scan calls it a harness fall (OPEN-35 class 3, the busy daytime
+  host), the case's first miss in fourteen passes today.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the

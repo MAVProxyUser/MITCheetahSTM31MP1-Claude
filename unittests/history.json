@@ -14840,5 +14840,24 @@
   },
   "verdict": "PASS",
   "wall_s": 86.6
+ },
+ {
+  "ts": "2026-09-13 12:11:22",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 98.7
  }
 ]
