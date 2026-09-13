@@ -300,7 +300,9 @@ passed on its own in-suite retry.
   tier) and BR (the standing loop) follow. **03:42 — BQ, dawn fast tier: 13/13.**
   BR (the standing loop: wkc 2.6 ×6, hp 2.6 ×6, fast tier, repeated) holds
   the rig from here; `touch $CAMPAIGN_DIR/STOP_BR` ends it after the
-  current block.
+  current block. **06:34 — BR blocks 1–4 (03:42–06:34):** wkc_finals 2.6
+  **24/24**, hp_gap20 2.6 **24/24**, fast tier **52/52**. Served recipe
+  totals since 21:02: wkc 2.6 80/81, hairpin 2.6 50/50.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
