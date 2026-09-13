@@ -557,8 +557,20 @@ RECIPES = {
                     #    exactly this, on the one course that brakes and
                     #    drives continuously - which is what an agility
                     #    course is, end to end.
-                    #  WP_ALAT=2.5 - the lateral budget the analyzer plans
-                    #    the corner speeds against.
+                    #  WP_ALAT=2.0 - THE HONEST-COURSE LESSON (2026-09-12,
+                    #    ISSUES OPEN-38/OPEN-28). Once the follower stopped
+                    #    U-turning early and the reversal stop landed on its
+                    #    own vertex, wkc_finals at 2.6 fell at the 75 deg
+                    #    corner pair the planner took at cruise (R=2.58 m
+                    #    fillets, capped at 2.54 under a 2.5 budget). At 2.0
+                    #    the plan caps them at 2.27 and the follower's yaw
+                    #    ceiling drops to a_lat/v: 2.6 went 20/21 against
+                    #    3/21 (p = 1e-7), 2.4 kept 5/5 with five degrees
+                    #    more margin (16 vs 21 deg peak), the hairpin at 2.6
+                    #    stayed 5/5 at the same 49.5 s, and nothing got
+                    #    slower (96.2 s vs 97.4 s at 2.6). The slew, the MPC
+                    #    weights and the re-acceleration cap were all null
+                    #    on the honest course; this is the lever.
                     #  WP_VSLEW=1.0 - THE REVERSAL LESSON (2026-09-11). A
                     #    course's speed limit is its 180 deg reversal: the
                     #    body pitches on the command's RISE out of it. A
@@ -569,7 +581,7 @@ RECIPES = {
                     #    m/s^2 never binds hard enough to matter. Braking
                     #    is never slewed. ISSUES.md OPEN-28 (closed) notes.
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
-                          "WP_ALAT=2.5 WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0 "
+                          "WP_ALAT=2.0 WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0 "
                           "WP_VSLEW=1.0",
                     note="designed agility course (file-defined geometry)"),
     "corner": dict(gait=20, speed=1.5,
