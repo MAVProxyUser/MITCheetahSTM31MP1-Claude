@@ -496,7 +496,14 @@ passed on its own in-suite retry.
   judge, on a clean run — booked NONE, which is right (no verdict, not a
   fall), and the freeze report's "no run" wording is not. One row in 672
   over 30 h; recorded so a recurrence is recognised by its signature
-  (complete, settled, then silence), not chased at N = 1.
+  (complete, settled, then silence), not chased at N = 1. **19:58 — BZ's
+  hairpin 2.6 block on the shipped recipe: 5/6** (11/12 since the
+  restart); the miss (run 6722, stream clean) is a genuine collapse on the
+  wp0→wp1 leg while braking from 2.6 for the wp1 vertex stop — the body
+  already at 0.20 m when `locomotionSafe` saw the RR foot above the hip
+  and RECOVERY_STAND folded the legs at 2.4 m/s (OPEN-39's other branch,
+  a consequence of the sink, not its cause). The hairpin's ~2 % tail at
+  2.6 is unchanged by the cap, as expected (its corners are not the cap's).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
