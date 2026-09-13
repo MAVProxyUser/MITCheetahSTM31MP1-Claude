@@ -433,8 +433,13 @@ passed on its own in-suite retry.
   recipe: 20/20.** **17:48 — wkc 2.6 on the shipped recipe, 6/6:** S-bend
   8.0° / 8.7 (max 11.1), lap 97.0 s — the A/B arm's numbers to the decimal
   (8.0 / 8.7, 97.0 at N = 22), and the run's whole-lap peak pitch is now
-  16.5–19.3° with the S-bend no longer its worst feature. hp 2.6 recipe
-  block next, then chain BY (2.8 at depth).
+  16.5–19.3° with the S-bend no longer its worst feature. **17:56 — hp 2.6
+  on the shipped recipe, 6/6 at 49.5–49.6 s**, unchanged. The ship is
+  validated: served recipe `WP_VTURN=2.4`, both tiers 20/20, wkc 2.6 6/6
+  with the S-bend at 8°, hairpin 6/6 at its usual lap. Served-recipe
+  record from here restarts at these numbers (the earlier 138/141 and
+  100/102 were the budget-2.0 recipe without the cap). BX holds the rig
+  with one more wkc/hp/fast-tier block, then chain BY runs 2.8 at depth.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
