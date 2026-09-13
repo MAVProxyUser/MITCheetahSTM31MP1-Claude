@@ -837,6 +837,20 @@ passed on its own in-suite retry.
   ruled out ("we should NEVER do that EVER"), on the course where OPEN-27's
   fix had not reached.
 
+  **Residual on the served recipe, counted 2026-09-13 15:20** (every wkc26 /
+  hp26 / box26 campaign since the honest-course fixes): finish-phase
+  failures — every waypoint reached, then FAIL — are hp_gap20 **2 of 118**
+  (runs 6013 and 6519: both `MISSION COMPLETE t=49.4s`, settle ok at
+  z 0.282 / roll 0.3–0.4°, then `laydown: z=0.107 roll=21.6 -> BAD` and
+  `z=0.116 roll=34.7 -> BAD`, sensor stream clean at 500/s, 2.3 ms), box
+  1 of 61 (run 5102, an older lead-era block), wkc_finals **0 of 229**. So
+  the arrival fix holds (settle passes every time) and what remains is the
+  lie-down itself rolling over on the hairpin's finish point about 1 run in
+  60 — genuine, not harness, and the hairpin only. Left open here as the
+  residual; the next diagnostic is the lie-down's per-leg foot heights at
+  that spot (the descent rolls at z ≈ 0.11, above the 0.15 → belly path's
+  usual settle), not another campaign.
+
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `CLOSED 2026-09-10`. **What limited the course
   was the simulation harness, in two layers, not the robot:** (1) macOS
