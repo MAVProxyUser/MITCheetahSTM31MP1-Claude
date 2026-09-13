@@ -500,8 +500,13 @@ passed on its own in-suite retry.
   compaction default is now 2 h (the raw window is what the rig still
   controls) and a 1 h pass follows the current one. Installing (or
   dismissing) the pending update, or `sudo tmutil deletelocalsnapshots
-  2026-09-13-110958`, is the operator's lever; at ~2 GB an hour the rig
-  has roughly nine hours of headroom without it.
+  2026-09-13-110958`, is the operator's lever. **16:31 —** with every
+  finished snapshot packed at each campaign start, free space held at
+  16 GB over 15 minutes while the archive grew 0.36 GB raw (the running
+  campaign's own snapshots, packed 7× at the next start): the rig's net
+  rate is ~0.3–0.5 GB an hour, so the fast decline of 15:00–15:50 was the
+  compaction passes themselves writing packed files against pinned
+  originals. Headroom is a day or more, not nine hours.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
