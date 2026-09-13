@@ -283,6 +283,9 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
     // for WP_REACCEL_DIST metres after every braking minimum. Unset = off.
     if (getenv("WP_REACCEL_VMAX")) { auto L=planner.limits(); L.v_reaccel_max=atof(getenv("WP_REACCEL_VMAX")); if (getenv("WP_REACCEL_DIST")) L.reaccel_dist=atof(getenv("WP_REACCEL_DIST")); planner.setLimits(L); }
     if (getenv("WP_AACC")) { auto L=planner.limits(); L.a_accel_max=atof(getenv("WP_AACC")); planner.setLimits(L); }
+    // Speed cap by turn angle (BodyLimits::v_turn_cap): the shallow-corner rule the
+    // fillet geometry cannot express. Unset = off.
+    if (getenv("WP_VTURN")) { auto L=planner.limits(); L.v_turn_cap=atof(getenv("WP_VTURN")); if (getenv("WP_VTURN_DEG")) L.turn_cap_rad=atof(getenv("WP_VTURN_DEG"))*M_PI/180.0; planner.setLimits(L); }
     if (getenv("WP_TURN_SOFT")) { auto L=planner.limits(); L.turn_soft=atof(getenv("WP_TURN_SOFT")); planner.setLimits(L); }
     if (getenv("WP_TURN_HARD")) { auto L=planner.limits(); L.turn_hard=atof(getenv("WP_TURN_HARD")); planner.setLimits(L); }
     if (getenv("WP_CSCALE"))    { auto L=planner.limits(); L.corner_scale_min=atof(getenv("WP_CSCALE")); planner.setLimits(L); }

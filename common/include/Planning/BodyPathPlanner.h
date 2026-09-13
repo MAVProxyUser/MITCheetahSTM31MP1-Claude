@@ -272,6 +272,23 @@ struct BodyLimits {
    * separate levers.
    */
   double corridor_scale_min = 1.0;
+  /*!
+   * SPEED CAP BY TURN ANGLE (2026-09-13, ISSUES OPEN-38/OPEN-28). The fillet
+   * geometry cannot make the planner brake for a shallow corner: a 40-50 deg
+   * turn fillets at R = 8-18 m even under the graded corridor, and every
+   * lateral budget then allows cruise through it. Measured on the honest
+   * wkc_finals at 2.6 (gazebo/tools/window_peak.py 11 13): the wp11->wp13
+   * S-bend (-50 then +40 deg, both taken at cruise with the body at 2.84)
+   * costs 20 deg of pitch in EVERY run, 8 deg at 2.4, and it is where the
+   * shipped rung's 2 % tail falls; neither the budget (19.2 at 1.5) nor the
+   * measured-speed cap (18.9 at gain 2) moves it. With v_turn_cap > 0, every
+   * arc point whose direction change is at least turn_cap_rad is capped at
+   * v_turn_cap; the backward pass builds the braking zone into it and the
+   * forward pass climbs out at a_lon, the same machinery sharp corners get.
+   * Off by default until measured (WP_VTURN / WP_VTURN_DEG).
+   */
+  double v_turn_cap = 0.0;
+  double turn_cap_rad = 0.5236;   // 30 deg
   double hairpin_rad = 9.9;   // OFF by default: measured to cost time on this course, see below
   //! Speed carried through a hairpin. Not zero - a stopped robot still has to
   //! accelerate again - but slow enough that v*omega is negligible.
@@ -1012,6 +1029,8 @@ class BodyPathPlanner {
           p.v_max = std::min(p.v_max, std::max(_lim.v_pivot, vAng));
         }
       }
+      if (_lim.v_turn_cap > 1e-6 && p.turn >= _lim.turn_cap_rad)
+        p.v_max = std::min(p.v_max, std::max(_lim.v_pivot, _lim.v_turn_cap));
       if (_lim.hairpin_rad < 9.0 && p.hairpin) p.v_max = std::min(p.v_max, _lim.v_pivot);
       p.v = p.v_max;
     }
@@ -1135,6 +1154,9 @@ class BodyPathPlanner {
     // climb out again. Only ever LOWERS a speed, so nothing the backward
     // pass guaranteed about braking is disturbed; the second accel pass
     // keeps the climb out of the window feasible.
+    if (_lim.v_turn_cap > 1e-6)
+      printf("[plan] turn cap %.2f m/s on every corner of %.0f deg or more (WP_VTURN)\n",
+             _lim.v_turn_cap, _lim.turn_cap_rad * 57.2958);
     if (_lim.v_reaccel_max > 1e-6 && n >= 3) {
       const double under = _lim.v_cruise - 0.3;
       double s_end = _path[0].s + _lim.reaccel_dist;   // the start is a minimum
