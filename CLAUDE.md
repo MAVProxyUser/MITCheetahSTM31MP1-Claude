@@ -1350,7 +1350,14 @@ from 3/21 to 20/21 (p = 1e-7) at no time cost, gave 2.4 five degrees more margin
 hairpin and box nothing; it ships in the course recipe since 21:02 (conductor restarted the
 sanctioned way). The slew, MPC pitch weights and re-accel cap were null there. 2.8 still
 is not a rung for the trot on this course (0/5, 3/5, 4/5 across budgets 2.0/1.5/1.2; the
-re-acceleration cap null to harmful). Both suite tiers 20/20 again at 23:55 on the served
+re-acceleration cap null to harmful). The 2.6 rung's remaining feature is the wp11→wp13 S-bend (−50°/+40°,
+both planned at cruise): 20° of pitch in every run, 8° at 2.4, and no lateral budget or
+measured-speed cap brakes a 40° fillet (8–18 m) — so the planner gained a per-corner speed
+cap by turn angle (`BodyLimits::v_turn_cap`, `WP_VTURN` / `WP_VTURN_DEG`, corners of 30° or
+more, off by default). At 2.4 the S-bend peak went 20.0 → 8.0° at N = 16 an arm with no
+overlap, +0.7 s of a 96 s lap, straights, wp03, hairpin and box unchanged; it ships in the
+course recipe since 2026-09-13 16:00 (ISSUES OPEN-38, chains BU–BX). Below a 2.4 cruise it is
+a no-op by construction. Both suite tiers 20/20 again at 23:55 on the served
 recipe; wkc_finals 2.6 on it 56/57 by 03:00, hairpin 2.6 26/26, the four reversal sub-courses
 24/24, box 2.6 clean 6/6, weave 2.8 5/6.
 Check a run's SHAPE

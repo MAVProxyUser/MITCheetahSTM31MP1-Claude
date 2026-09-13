@@ -580,9 +580,25 @@ RECIPES = {
                     #    from 0/5 into 4/5, for ~1 s of mission time. 2.0
                     #    m/s^2 never binds hard enough to matter. Braking
                     #    is never slewed. ISSUES.md OPEN-28 (closed) notes.
+                    #  WP_VTURN=2.4 - THE SHALLOW-CORNER LESSON (2026-09-13,
+                    #    ISSUES OPEN-38, chains BU/BV/BX). The wp11->wp13
+                    #    S-bend (-50 then +40 deg, both planned at cruise)
+                    #    cost 20 deg of pitch in EVERY 2.6 run and held every
+                    #    miss at that rung; its fillets are 8-18 m, so no
+                    #    lateral budget brakes them, and the measured-speed
+                    #    cap trimmed half a degree. The planner now caps every
+                    #    corner of 30 deg or more at 2.4 m/s unless the fillet
+                    #    or a vertex stop already brakes harder: S-bend peak
+                    #    20.0 -> 8.0 deg (16 runs an arm, no overlap), the
+                    #    wp03 corner and the straights unchanged, +0.7 s of a
+                    #    96 s lap. Hairpin 2.6 off 6/6 vs 2.4 5/5 clean at identical 49.4-49.6 s laps and box 2.6 6/6 vs 6/6 at 44.6-44.7 s (chain BV): where the fillet or the vertex stop already brakes harder, the cap is a no-op. Below a 2.4 cruise it
+                    #    is a no-op by construction (v_max = min(v_max,
+                    #    max(v_pivot, cap))), so the recipe's own 2.0 cruise
+                    #    is untouched and the suite tiers exercise the binary,
+                    #    not the rule.
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "
                           "WP_ALAT=2.0 WP_TURN_SOFT=0.3 WP_TURN_HARD=2.0 "
-                          "WP_VSLEW=1.0",
+                          "WP_VSLEW=1.0 WP_VTURN=2.4",
                     note="designed agility course (file-defined geometry)"),
     "corner": dict(gait=20, speed=1.5,
                     extra="WP_ACCEPT=1.5 WP_CORRIDOR_MIN=0.07 WP_ALON=0.4 "

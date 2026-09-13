@@ -399,7 +399,20 @@ passed on its own in-suite retry.
   246 IMU samples/s in the event second, gap 27.2 ms — so 5/5 clean; lap
   49.4–49.6 s in both arms to the tenth, peak pitch 20–24° vs 20–22°. The
   cap does not touch the hairpin: its only corner of 30° or more is the
-  reversal, which the vertex stop already brakes harder. Box next.
+  reversal, which the vertex stop already brakes harder. **15:52 — box
+  2.6, 6 × off / 2.4:** 6/6 vs 6/6, laps 44.6–44.7 s in both arms, peaks
+  19–22° in both; the box's 90° corners are already fillet-braked under
+  2.4, so the cap is a no-op there too. **Decision: ship.** On the served
+  recipe at 2.6, interleaved, off 15/15 clean vs 2.4 16/16 with the S-bend
+  at 8° instead of 20° for 0.7 s of a 96 s lap, hairpin and box untouched.
+  `WP_VTURN=2.4` is in the course recipe in `server.py` from this commit;
+  chain BX (queued behind BW) restarts the conductor the sanctioned way in
+  the gap after BW's first block, checks the served extra, runs both suite
+  tiers, then wkc 2.6 and hp 2.6 recipe blocks and a standing loop until
+  `STOP_BX`. Until that restart the file and the served recipe differ (the
+  documented drift window — do not read a panel launch as the new recipe
+  before BX says "course recipe now serves: … WP_VTURN=2.4"). BV's last
+  block, 2.8 off / 2.4 ×6, is still running.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
