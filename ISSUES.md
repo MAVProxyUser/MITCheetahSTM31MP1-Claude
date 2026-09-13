@@ -281,7 +281,12 @@ passed on its own in-suite retry.
   47.2–48.4 s. OPEN-28's recovery-distance table (7 m 0/8, 10 m 1/8, 14 m
   1/8, 20 m 2/8 at 1.9, and the 388-run exit analysis) was the double
   lap's; on the single lap with the vertex stop the gap does not matter
-  at 2.6. BO (wkc 2.6 ×20) is the last block of the night.
+  at 2.6. BO (wkc 2.6 ×20) is the last block of the night. **02:57 — BO, wkc_finals 2.6 ×20 on the
+  served recipe: 20/20**, peak pitch 18.6–24.5°, 96.1–96.4 s. The shipping
+  rung of the honest course at depth: **56/57 today at 2.6 under the 2.0
+  budget** (BC 6/6, BB 5/5, BE 9/10, BG 6/6, BI 10/10, BO 20/20). BP runs
+  the panel's own walking recipe on both courses next, BQ the dawn fast
+  tier.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
