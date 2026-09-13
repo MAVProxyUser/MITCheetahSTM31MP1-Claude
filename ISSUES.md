@@ -222,6 +222,18 @@ passed on its own in-suite retry.
   trot's honest wkc_finals rung is 2.6 on the shipped recipe (26/27
   today under the 2.0 budget across BC/BB/BE/BG), the hairpin 2.6 (16/16
   course-clean under it). Chain BH asks the 2.8 question next.
+  **22:35 — chain BH, wkc_finals 2.8 under budgets 2.0 / 1.5 / 1.2 (5 reps
+  each, interleaved):** 0/5 → 3/5 → 4/5. The dose-response continues but
+  the failure MOVES: at 2.0 every fall is wp13 (the +40° corner at wp12
+  taken at cruise); at 1.5 and 1.2 that corner is survived and the falls
+  are at wp15 — the exit of the closing corner, a planned near-stop
+  (R = 0.04 m → 0.05 m/s) followed by the 68 m leg, i.e. the
+  re-acceleration from a PLANNED minimum to 2.8 (peak pitch 29.9–30.5°).
+  That is the one place the planner's re-acceleration cap
+  (`WP_REACCEL_VMAX`) actually acts, so a 2.8 recipe would be budget ≤1.5
+  plus the cap — a question for tomorrow, not tonight. Passes at 2.8:
+  97.5 s (@1.5) and 99.5 s (@1.2) against 96.3 s at 2.6 — 2.8 buys no
+  time on this course anyway.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
