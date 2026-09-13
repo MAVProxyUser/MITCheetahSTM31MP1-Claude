@@ -406,9 +406,11 @@ passed on its own in-suite retry.
   (75.028), RECOVERY_STAND enters at 75.032 (τ_ff → 0), and the fold does
   the rest. Why the pair was pinned is the open question: the heartbeat's
   joint-limit counter read `stops=36` and `stops=30` in the two seconds
-  before (the calf or thigh past its operational limit 6–7 % of ticks at
-  2.7 m/s — a swing fold that runs into the OPEN-31 stop cannot lift the
-  foot), or a foot caught in the ground contact; the bridge dump
+  before (the counters are per joint per tick, 6000 a second, so some
+  joint sat past its operational limit 0.6 % of the time at 2.7 m/s — a
+  swing fold that runs into the OPEN-31 stop cannot lift the foot, but
+  that rate is ordinary: 14,000 stop-ticks a run in every arm, dominated
+  by the crouch and the lie-down), or a foot caught in the ground contact; the bridge dump
   (`BRIDGE_DUMP`) was off, so the per-joint command is not on record. Not
   a harness fall (the freeze scan is clean) and not the S-bend. What to do
   about the RESPONSE is a separate question: RECOVERY_STAND at cruise is a
