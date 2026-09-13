@@ -411,8 +411,20 @@ passed on its own in-suite retry.
   tiers, then wkc 2.6 and hp 2.6 recipe blocks and a standing loop until
   `STOP_BX`. Until that restart the file and the served recipe differ (the
   documented drift window — do not read a panel launch as the new recipe
-  before BX says "course recipe now serves: … WP_VTURN=2.4"). BV's last
-  block, 2.8 off / 2.4 ×6, is still running.
+  before BX says "course recipe now serves: … WP_VTURN=2.4"). **16:14 —
+  BV's last block, wkc 2.8, 6 × off / 2.4 interleaved: off 0/6, all six
+  collapsed at wp13 with the S-bend at 37.8° median (p90 41.7, max 47.1,
+  body 2.99 — the 2.8 signature on record); 2.4 6/6 at 95.2–96.0 s** (faster
+  than the 2.6 rung's 96.3–97.1 because only the corners are capped), the
+  S-bend at 8.7° / 9.1 max under the cap, wp03 unchanged (16.2 vs 15.8°),
+  and the next feature exposed: the wp13→wp15 window reads 23.9° median /
+  26.9 max at 2.8 — roughly the margin the 2.6 rung had at the S-bend
+  before the cap. So the cap does not merely tidy 2.6: it turns 2.8 from
+  "not a rung" (0/5, 3/5, 4/5 across budgets, 0/6 here) into a candidate
+  rung, one block deep. Not a rung yet — N = 6; the standing block after
+  the ship should run wkc 2.8 on the shipped recipe at depth, with the
+  hairpin at 2.8 (2.7 was 5/6) beside it. Chain BV done 16:14; BW's first
+  block holds the rig and `STOP_BW` is set, so BX ships in the next gap.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
