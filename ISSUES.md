@@ -380,6 +380,43 @@ passed on its own in-suite retry.
   unaffected — any change there is a bug), then 2.8 ×6 (with the S-bend
   capped, is 2.8 a rung; failures used to migrate wp13 → wp15).
 
+- **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
+  to lift at the stance exchange is dragged along the ground at cruise, the
+  joint PD winds up against it, the release launches the legs past the 9 m/s
+  check, and RECOVERY_STAND folds all four at 2.7 m/s** — opened 2026-09-13.
+  Two of today's 467 runs (0.4 %): run 6548 (wkc_finals 2.6, `WP_VTURN=2.2`
+  arm of chain BU, wp12 exit) and run 6484 (the suite's `corner:25:90`
+  probe, leg 3). The ctrl log shows `Unsafe locomotion: leg 0 is moving too
+  quickly (9.068 m/s)` → `[Recovery Balance] body height is 0.259; Stand
+  Up` and the body drops 0.29 → 0.00 m in 0.3 s at 10° of attitude — the
+  same flat signature OPEN-28 once called a level collapse. The snapshot
+  (run 6548, 500 Hz records) puts the initiating event 75 ms BEFORE the
+  trip: at t = 74.952 the FL/RR pair lifts off on schedule (their world
+  foot speed steps 0.3 → 2.1 m/s, i.e. moving WITH the body) but their FK
+  height stays at −0.284 / −0.279 m for the next 60 ms — the feet never
+  leave the ground; they are dragged at body speed while the swing
+  trajectory pulls away from them. The worst-leg joint error climbs 0.21 →
+  1.95 rad in 45 ms at a steady ~25 rad/s (the command racing away from a
+  pinned joint; the four previous exchanges held 0.2–0.35 rad), body still
+  level at z 0.284, |τ_ff| calm at 18–25 N·m, loop period 2.00 ms, no
+  freeze (IMU gap max 10.7 ms), no schedule or lead change (last `[SCHED]`
+  line is the engage at t=2). At 75.012–75.024 the feet break free — every
+  foot jumps to 3.6–4.8 m/s in two ticks, the body starts falling at
+  −0.8 m/s with wy −1.9 rad/s — and the 9 m/s check fires two ticks later
+  (75.028), RECOVERY_STAND enters at 75.032 (τ_ff → 0), and the fold does
+  the rest. Why the pair was pinned is the open question: the heartbeat's
+  joint-limit counter read `stops=36` and `stops=30` in the two seconds
+  before (the calf or thigh past its operational limit 6–7 % of ticks at
+  2.7 m/s — a swing fold that runs into the OPEN-31 stop cannot lift the
+  foot), or a foot caught in the ground contact; the bridge dump
+  (`BRIDGE_DUMP`) was off, so the per-joint command is not on record. Not
+  a harness fall (the freeze scan is clean) and not the S-bend. What to do
+  about the RESPONSE is a separate question: RECOVERY_STAND at cruise is a
+  guaranteed fall on a robot that had not yet lost its attitude, and the
+  9 m/s limit is mini-cheetah's; neither is changed until the pin is
+  understood. Next: the joint-limit `stops` rate per second across the
+  wkc 2.6 arms (does a capped corner's re-acceleration raise it), and a
+  dumped run of the next occurrence.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
