@@ -266,6 +266,15 @@ passed on its own in-suite retry.
   tried: the honest ceiling is **2.6** (36/37 under the shipped budget),
   and 2.8 saved no time anyway. Re-acceleration cap: closed as a lever
   (stays in the tree, off). BM (box/weave 2.6/2.8 on the recipe) runs now.
+  **01:40 — BM, the other sub-courses on the served recipe (6 reps per
+  rung, interleaved):** wkc_box 2.6 course-clean 6/6 (one verdict FAIL at
+  the finish lie-down, OPEN-30), 2.8 → 2/6 (four falls at the wp3→wp4
+  corner, one after a 103 s stall on one waypoint with 41 yaw
+  saturations); wkc_weave 2.6 → 5/6, 2.8 → 5/6 (53.7 s). The weave's
+  ±75° zigzag tolerates 2.8; the box's 90° corners do not. Honest table
+  on the shipped recipe: dash 3.0, weave 2.8, box 2.6, wkc_finals 2.6,
+  hairpin 2.6 (2.7 rides the bar). BN (hp_gap07/10/14 and wkc_hairpin at
+  2.6) and BO (wkc 2.6 ×20) run into the morning.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
