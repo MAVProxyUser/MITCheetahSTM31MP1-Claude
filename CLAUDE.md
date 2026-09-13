@@ -1356,8 +1356,11 @@ measured-speed cap brakes a 40° fillet (8–18 m) — so the planner gained a p
 cap by turn angle (`BodyLimits::v_turn_cap`, `WP_VTURN` / `WP_VTURN_DEG`, corners of 30° or
 more, off by default). At 2.4 the S-bend peak went 20.0 → 8.0° at N = 16 an arm with no
 overlap, +0.7 s of a 96 s lap, straights, wp03, hairpin and box unchanged; it ships in the
-course recipe since 2026-09-13 16:00 (ISSUES OPEN-38, chains BU–BX). Below a 2.4 cruise it is
-a no-op by construction. Both suite tiers 20/20 again at 23:55 on the served
+course recipe since 2026-09-13 16:42 (ISSUES OPEN-38, chains BU–BX; both suite tiers 20/20 and
+wkc 2.6 6/6 on the served recipe afterwards, the S-bend at 8.0° / 8.7 to the decimal). Below a
+2.4 cruise it is a no-op by construction. And it moves the 2.8 question: on the same day 2.8
+went 0/6 → 6/6 with the cap (S-bend 37.8 → 8.7°, laps 95.2–96.0 s, the next feature the
+wp13→wp15 window at 24°) — one block, not yet a rung; chain BY measures it at depth. Both suite tiers 20/20 again at 23:55 on the served
 recipe; wkc_finals 2.6 on it 56/57 by 03:00, hairpin 2.6 26/26, the four reversal sub-courses
 24/24, box 2.6 clean 6/6, weave 2.8 5/6.
 Check a run's SHAPE
