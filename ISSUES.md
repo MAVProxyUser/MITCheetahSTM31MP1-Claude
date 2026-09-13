@@ -456,7 +456,14 @@ passed on its own in-suite retry.
   re-acceleration runaway, which the slew was measured to soften at 2.2
   and 2.4. Next A/B at 2.8 on the shipped recipe: `WP_VSLEW` 1.0 (recipe)
   vs 0.7 vs 0.5, scored on the wp13→wp15 peak and the lap, after BY's
-  first block (hairpin 2.8, box 2.8, fast tier).
+  first block (hairpin 2.8, box 2.8, fast tier). **18:32 — hairpin 2.8 on
+  the shipped recipe: 2/6** (2/5 clean; run 6670 a 161 ms stream gap),
+  three genuine collapses at wp3 — the reversal exit — at pitch 30–35°
+  with roll under 19°: the same rise-to-cruise runaway as wkc's wp15, on
+  the course where the cap has nothing to brake. The hairpin's ceiling
+  stays 2.6–2.7 (2.7 was 5/6); 2.8 is the trot's own limit on the RISE
+  after a stop, on both courses, which is what the slew A/B (chain BZ)
+  measures next.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
