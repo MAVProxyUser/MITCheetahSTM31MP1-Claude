@@ -297,7 +297,10 @@ passed on its own in-suite retry.
   default walking configuration is worth its own look at the closing
   corner (R = 0.04 m → 0.05 m/s planned, a near-stop pivot before the
   68 m leg) — the same feature that limits the trot at 2.8. BQ (dawn fast
-  tier) and BR (the standing loop) follow.
+  tier) and BR (the standing loop) follow. **03:42 — BQ, dawn fast tier: 13/13.**
+  BR (the standing loop: wkc 2.6 ×6, hp 2.6 ×6, fast tier, repeated) holds
+  the rig from here; `touch $CAMPAIGN_DIR/STOP_BR` ends it after the
+  current block.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
