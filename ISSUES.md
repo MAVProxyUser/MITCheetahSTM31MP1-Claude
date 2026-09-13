@@ -463,7 +463,11 @@ passed on its own in-suite retry.
   the course where the cap has nothing to brake. The hairpin's ceiling
   stays 2.6–2.7 (2.7 was 5/6); 2.8 is the trot's own limit on the RISE
   after a stop, on both courses, which is what the slew A/B (chain BZ)
-  measures next.
+  measures next. **18:36 — box 2.8 on the shipped recipe: 1/4**, three
+  genuine collapses at wp4 (pitch 32–48°, roll to 37°). So 2.8 is not a
+  rung on any course: wkc 10/12, hairpin 2/5, box 1/4. The 2.6 rung is the
+  shipping envelope; 2.8 is the frontier and its feature is the trot on
+  the rise, not a corner.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
