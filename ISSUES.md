@@ -234,6 +234,10 @@ passed on its own in-suite retry.
   plus the cap — a question for tomorrow, not tonight. Passes at 2.8:
   97.5 s (@1.5) and 99.5 s (@1.2) against 96.3 s at 2.6 — 2.8 buys no
   time on this course anyway.
+  BH's hairpin half (2.8 × budgets 2.0 / 1.5, 5 reps): 2/5 and 1/5, every
+  fall at the reversal exit (wp3, pitch 30–34°) — the budget does not
+  govern that feature (a planned stop's re-acceleration); 2.7 is the
+  hairpin's honest rung under the recipe (BK measures it ×10 tonight).
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
