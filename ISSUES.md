@@ -429,9 +429,9 @@ passed on its own in-suite retry.
   on `STOP_BW` after that block. **16:42 — SHIPPED:** chain BX's gate
   passed (hairpin 6/6 vs 5/6, box 6/6 vs 6/6), the conductor was restarted
   the sanctioned way in the idle gap, and the course recipe now serves
-  `… WP_VSLEW=1.0 WP_VTURN=2.4`. Both suite tiers on the served recipe
-  next, then wkc 2.6 and hp 2.6 recipe blocks, then chain BY (2.8 at
-  depth).
+  `… WP_VSLEW=1.0 WP_VTURN=2.4`. **17:34 — both suite tiers on the served
+  recipe: 20/20.** wkc 2.6 and hp 2.6 recipe blocks next, then chain BY
+  (2.8 at depth).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
