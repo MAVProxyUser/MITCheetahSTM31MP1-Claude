@@ -467,7 +467,10 @@ passed on its own in-suite retry.
   genuine collapses at wp4 (pitch 32–48°, roll to 37°). So 2.8 is not a
   rung on any course: wkc 10/12, hairpin 2/5, box 1/4. The 2.6 rung is the
   shipping envelope; 2.8 is the frontier and its feature is the trot on
-  the rise, not a corner.
+  the rise, not a corner. **18:56 — fast tier on the served recipe: 13/13**
+  (33/33 across both tier runs since the restart). Chain BY ended on
+  `STOP_BY`; chain BZ runs the slew A/B at 2.8, then holds the rig on the
+  served recipe at 2.6.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
