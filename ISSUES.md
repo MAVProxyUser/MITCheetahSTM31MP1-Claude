@@ -438,8 +438,11 @@ passed on its own in-suite retry.
   validated: served recipe `WP_VTURN=2.4`, both tiers 20/20, wkc 2.6 6/6
   with the S-bend at 8°, hairpin 6/6 at its usual lap. Served-recipe
   record from here restarts at these numbers (the earlier 138/141 and
-  100/102 were the budget-2.0 recipe without the cap). BX holds the rig
-  with one more wkc/hp/fast-tier block, then chain BY runs 2.8 at depth.
+  100/102 were the budget-2.0 recipe without the cap). **18:11 — BX's
+  standing block, wkc 2.6 on the shipped recipe: 6/6 (12/12 since the
+  restart)**, two of them through 25 ms and 80 ms sensor-stream gaps (the
+  operator's NinjaPilotGCS pair holding the host at load 5) and still
+  clean. BX ended on `STOP_BX`; chain BY (2.8 at depth) follows.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
