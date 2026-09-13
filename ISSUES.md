@@ -212,6 +212,16 @@ passed on its own in-suite retry.
   course recipe carries `WP_ALAT=2.0` (commit d503577); chain BG restarts
   the conductor the sanctioned way to load it and validates on the recipe
   alone (fast tier, wkc 2.6 ×6, hp 2.6 ×6).
+  **21:45 — shipped and validated (chain BG).** Conductor restarted the
+  sanctioned way at 21:02 (one listener, idle in seconds, gz bindings
+  intact); `/api/state` serves `WP_ALAT=2.0` for `course:`. On the recipe
+  alone: fast tier **13/13**, wkc_finals 2.6 **6/6** (19.3–20.6°, 96.0–96.5
+  s), hp_gap20 2.6 course-clean **6/6** at 49.4–49.5 s — one of them judged
+  FAIL at the final lie-down (roll 21.6° during the lay-down, waypoints
+  5/5, settle ok), which is OPEN-30's finish tip and not the course. The
+  trot's honest wkc_finals rung is 2.6 on the shipped recipe (26/27
+  today under the 2.0 budget across BC/BB/BE/BG), the hairpin 2.6 (16/16
+  course-clean under it). Chain BH asks the 2.8 question next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
