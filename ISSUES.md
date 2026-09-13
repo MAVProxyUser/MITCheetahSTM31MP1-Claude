@@ -238,6 +238,9 @@ passed on its own in-suite retry.
   fall at the reversal exit (wp3, pitch 30–34°) — the budget does not
   govern that feature (a planned stop's re-acceleration); 2.7 is the
   hairpin's honest rung under the recipe (BK measures it ×10 tonight).
+  **22:48 — BI, wkc_finals 2.6 ×10 on the served recipe: 10/10** (peak
+  pitch 17.8–21.8° in nine, one 28.7°; 96.1–97.5 s). Under the 2.0 budget
+  today: **36/37** at 2.6 across BC/BB/BE/BG/BI. Hairpin 2.6 ×10 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
