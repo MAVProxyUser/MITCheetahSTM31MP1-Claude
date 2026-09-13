@@ -80,6 +80,15 @@ struct BodyLimits {
   //!   wkc_finals (15 turns)  2.4   38/40      2.6  0/15                DOUBLE LAP
   //!   wkc_finals, HONEST     2.2   6/6        2.4  6/6     2.6  2/6   single lap, vertex stop (16:38)
   //!   hp_gap20, HONEST       2.5   6/6        2.6  6/6     2.7  5/6   single lap, vertex stop (17:05)
+  //! And the rule that moved the honest rung (2026-09-12 evening, chains BC/BB/BE/BF):
+  //! the LATERAL BUDGET. At a_lat 2.5 the planner caps wkc_finals's 75 deg
+  //! fillets (R = 2.58 m) at 2.54 and takes them at cruise; at 2.0 it caps them
+  //! at 2.27 and the follower's yaw ceiling drops to a_lat / v. wkc_finals 2.6:
+  //! 3/21 at 2.5, 20/21 at 2.0 (p = 1e-7), 96.2 s vs 97.4 s; 2.4: 5/5 either way
+  //! but 16 deg peak at 2.0 against 21; hairpin and box at 2.6: 5/5 either way,
+  //! same lap time. The slew (1.0/0.6/0.4), the MPC pitch weights and the
+  //! re-acceleration cap were all null on the honest course. WP_ALAT=2.0 ships in
+  //! the course recipe (server.py). 2.8 still fails at the 40 deg wp12 corner.
   //! 2026-09-12, ISSUES OPEN-38: every hp_gap20 and wkc_finals row above was
   //! measured on a DOUBLE LAP. nearestIndex()'s tie-break on the collinear
   //! reversal U-turned the dog 4 m before the vertex, the waypoint layer

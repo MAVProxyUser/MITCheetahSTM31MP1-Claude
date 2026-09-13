@@ -1345,6 +1345,11 @@ lap: wkc_finals 2.2 6/6, 2.4 6/6 (peak pitch 19–21°), 2.6 2/6 — the honest 
 wp02→wp03 pair of 75° corners six metres apart, entered nose-up off the slew (chains BC/BD
 measure the lateral budget and the slew there); hp_gap20 2.5 6/6, 2.6 6/6, 2.7 5/6 — a rung
 better than the double lap said. Both suite tiers 20/20 on the vertex-stop binary (17:56).
+The lever on the honest course is the LATERAL BUDGET: `WP_ALAT` 2.5 → 2.0 took wkc_finals 2.6
+from 3/21 to 20/21 (p = 1e-7) at no time cost, gave 2.4 five degrees more margin, and cost the
+hairpin and box nothing; it ships in the course recipe since 21:02 (conductor restarted the
+sanctioned way). The slew, MPC pitch weights and re-accel cap were null there. 2.8 still
+fails at the 40° corner at wp12 under any budget tried so far.
 Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
