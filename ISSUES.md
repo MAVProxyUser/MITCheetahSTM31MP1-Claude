@@ -307,6 +307,33 @@ passed on its own in-suite retry.
   corner that limits 2.8), hp_gap20 2.6 24/24, fast tier 52/52. Served
   recipe totals: wkc 2.6 **103/105**, hairpin 2.6 **74/74**, fast tier
   117/117 across nine runs of it.
+  **12:10 — the third marginal feature, measured as a quantity instead of
+  a count.** Blocks 9–11: wkc 2.6 17/18 (run 6416, wp13 again), hairpin
+  2.6 17/18 (run 6474, reversal exit, genuine), fast tier 39/39; served
+  totals wkc 2.6 120/123, hairpin 2.6 91/92. All three wkc misses sit at
+  wp13 — the wp11→wp13 S-bend (−50° then +40°, both planned at cruise).
+  `gazebo/tools/window_peak.py 11 13` scores every run's peak attitude
+  inside that window from the snapshot:
+
+  | arm | n | S-bend peak pitch median / p90 | body vx max | fell there |
+  |---|---|---|---|---|
+  | 2.4, budget 2.0 | 10 | 8.1° / 8.4° | 2.61 | 0 |
+  | 2.6, served (2.0) | 102 | 19.7° / 21.8° | **2.84** | 2 |
+  | 2.6, budget 1.5 | 6 | 19.2° / 22.3° | 2.84 | 0 |
+  | 2.8, budget 2.0 | 9 | 37.6° / 41.8° | 3.00 | 9 |
+  | 2.8, budget 1.5 | 9 | 24.8° / 31.6° | 3.04 | 0 |
+
+  At 2.6 the S-bend costs 20° in EVERY run, a 9° margin with a 2 % tail,
+  and the lateral budget does not touch it there (it does at 2.8). What
+  differs from 2.4 is the BODY speed in the window: 2.84 against a 2.60
+  stick — the trot overruns its command on the long wp10→wp11 straight and
+  enters the S-bend at 2.8+. The measured-speed cap (`WP_VCAP_GAIN`, off;
+  pulls the stick down by gain × the body's overshoot above a 0.05 m/s
+  margin) is the lever aimed at exactly that. Chain BS: gain 0 / 1.0 / 2.0
+  at 2.6 on the served recipe, 8 reps interleaved, scored on the S-bend
+  peak and the lap time, not on falls (a 2 % tail needs N = 40 per arm to
+  count; the peak it is a tail of moves in every run). The morning loop
+  was stopped after block 11 to make room.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
