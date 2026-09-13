@@ -378,7 +378,11 @@ passed on its own in-suite retry.
   (queued behind BU's fast tier): replicate off / 2.4 at 2.6 ×8 (the
   +0.6 s is one block), hairpin and box at 2.6 ×6 each (must be
   unaffected — any change there is a bug), then 2.8 ×6 (with the S-bend
-  capped, is 2.8 a rung; failures used to migrate wp13 → wp15).
+  capped, is 2.8 a rung; failures used to migrate wp13 → wp15). **14:43 —
+  fast tier on 5ed4a3ae: 13/13** (the cap is off by default, so the tier
+  exercises the binary, not the rule). Chain BW (a standing loop: wkc 2.6
+  off / 2.4 ×6, hp 2.6 off / 2.4 ×4, fast tier) holds the rig behind BV
+  and keeps adding to both arms until `STOP_BW`.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
