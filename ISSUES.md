@@ -585,7 +585,12 @@ passed on its own in-suite retry.
   campaign's own snapshots, packed 7× at the next start): the rig's net
   rate is ~0.3–0.5 GB an hour, so the fast decline of 15:00–15:50 was the
   compaction passes themselves writing packed files against pinned
-  originals. Headroom is a day or more, not nine hours.
+  originals. Headroom is a day or more, not nine hours. **19:59 — free
+  space 15 → 50 GB in one step:** the 11:09:58 local snapshot is gone
+  (the prepared update was installed or dismissed, or the snapshot
+  thinned) and everything packed since 15:00 was released at once. The
+  The AGE_H=0 compaction default stays; it costs nothing and keeps
+  the raw window to one campaign.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
