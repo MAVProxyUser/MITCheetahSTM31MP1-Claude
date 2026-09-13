@@ -466,7 +466,17 @@ passed on its own in-suite retry.
   was started by hand. Retention is still NONE by design and the packed
   pool grows ~10 GB a day, so this buys about two days — whether to expire
   PASS snapshots older than N days is the operator's call, not the rig's;
-  nothing is deleted.
+  nothing is deleted. **15:55 — and the space is pinned anyway:** macOS
+  prepared a software update at 11:09:58 today and took an APFS local
+  snapshot of the Data volume (`tmutil listlocalsnapshotdates`), so every
+  file that existed then stays allocated after it is packed or deleted —
+  the 3 h pass took the archive 50 → 47 GB and free space did not move
+  (18–19 GB). Only files written after 11:10 free anything, so the
+  compaction default is now 2 h (the raw window is what the rig still
+  controls) and a 1 h pass follows the current one. Installing (or
+  dismissing) the pending update, or `sudo tmutil deletelocalsnapshots
+  2026-09-13-110958`, is the operator's lever; at ~2 GB an hour the rig
+  has roughly nine hours of headroom without it.
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened
