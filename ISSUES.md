@@ -250,7 +250,12 @@ passed on its own in-suite retry.
   recipe restart, 20/20 now). BK (wkc 2.4 ×10, hp 2.7 ×10) runs next. **00:19 — BK, wkc_finals 2.4 ×10 on the
   served recipe: 10/10**, peak pitch 15.0–16.8° in nine (one 23.7°),
   99.1–100.0 s. The old shipping rung now runs with a 12–14° margin to the
-  bar. Hairpin 2.7 ×10 next.
+  bar. Hairpin 2.7 ×10 next. **00:41 — hp_gap20 2.7 ×10 on the served
+  recipe: 8/10**, both falls at the reversal exit (30.3°, 36.4°), the
+  passes 23.1–29.3° with three of them over 28°. Pooled with BB's 2.7
+  @2.0 (5/5): 13/15. The hairpin's honest rung stays 2.6 (10/10); 2.7 is
+  a coin the reversal exit flips one time in seven. BL (the 2.8 rule on
+  wkc_finals: budget 1.5 alone vs with the re-acceleration cap) runs now.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
