@@ -1349,7 +1349,8 @@ The lever on the honest course is the LATERAL BUDGET: `WP_ALAT` 2.5 → 2.0 took
 from 3/21 to 20/21 (p = 1e-7) at no time cost, gave 2.4 five degrees more margin, and cost the
 hairpin and box nothing; it ships in the course recipe since 21:02 (conductor restarted the
 sanctioned way). The slew, MPC pitch weights and re-accel cap were null there. 2.8 still
-fails at the 40° corner at wp12 under any budget tried so far.
+fails at the 40° corner at wp12 under any budget tried so far. Both suite tiers 20/20 again at
+23:55 on the served recipe.
 Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*

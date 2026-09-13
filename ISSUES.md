@@ -243,7 +243,11 @@ passed on its own in-suite retry.
   today: **36/37** at 2.6 across BC/BB/BE/BG/BI. Hairpin 2.6 ×10 next. **23:02 — hp_gap20 2.6 ×10 on the
   served recipe: 10/10** (peak pitch 20.7–24.0°, 49.4–49.5 s, no lie-down
   tip this block: OPEN-30's finish tip is 1 in 16 on the hairpin tonight).
-  BJ runs both suite tiers next, then BK (wkc 2.4 ×10, hp 2.7 ×10).
+  BJ runs both suite tiers next, then BK (wkc 2.4 ×10, hp 2.7 ×10). **23:55 — chain BJ, both suite
+  tiers on the served recipe and the vertex-stop binary: 20/20** (the
+  fourth full tier of the day: 20/20 at 07:28 on the old follower, 20/20
+  at 17:56 after the two planner fixes, 13/13 fast at 21:23 after the
+  recipe restart, 20/20 now). BK (wkc 2.4 ×10, hp 2.7 ×10) runs next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
