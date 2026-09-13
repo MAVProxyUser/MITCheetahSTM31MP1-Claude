@@ -339,6 +339,17 @@ passed on its own in-suite retry.
   event (44 ms total) and a 20 ms IMU-stream gap in the run — the
   freeze scan calls it a harness fall (OPEN-35 class 3, the busy daytime
   host), the case's first miss in fourteen passes today.
+  **13:05 — chain BS, the measured-speed cap on the S-bend (wkc 2.6, 8
+  reps × 3 arms, all 24 passed):** `WP_VCAP_GAIN` 0 → S-bend peak median
+  19.5° / p90 21.3 / max 23.5, body 2.84; 1.0 → 19.1 / 20.1 / 21.1, body
+  2.80, +0.8 s; 2.0 → 18.9 / 20.0 / 20.3, body 2.77, +1.6 s. The cap acts
+  (29 `[VCAP]` lines a run) but trims the overshoot by 0.05 m/s and the
+  peak by half a degree; it compresses the tail (max −3°, roll 15 → 11)
+  for 1–2 % of lap. Not the lever: the S-bend's 20° is the trot yawing
+  −50°/+40° at ~2.7, not the 0.2 m/s of overshoot. Closed as a lever; the
+  honest rule for that feature is a planned speed for shallow corners,
+  which the fillet geometry cannot express (a 40° fillet is 11–18 m, so
+  no lateral budget brakes it) — a per-corner cap by turn angle, next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
