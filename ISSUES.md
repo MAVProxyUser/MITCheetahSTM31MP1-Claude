@@ -483,6 +483,20 @@ passed on its own in-suite retry.
   were measured on the DOUBLE LAP (chains AR–AT ran before the 15:40
   finding) and are unmeasured on the honest course; chain CA runs them at
   2.8 on the shipped recipe, scored on the wp13→wp15 peak.
+  **19:50 — one verdict-less row, opened (BZ's 2.6 block, run 6714):**
+  the ctrl log shows `MISSION COMPLETE t=97.3s (16 waypoints)` and
+  `[settle] settled in 0.23 s`, then four heartbeat seconds of a nearly
+  idle loop (0.04 ms runtime, every joint at its stop — the lie-down's
+  PASSIVE hop) and the log stops at 19:42:22 with no `[mission] settle:`
+  judge line, no laydown, no RESULT; the bridge saw the commands stop
+  (`WATCHDOG: no controller command for 0.25s`, then `cmd_rx=0/s` until
+  the runner's 200 s stall-timeout aborted at 19:45:39, report "phase
+  running, dog0 incomplete"); no crash report, stream clean. The
+  controller went silent inside the end-of-mission lie-down, before the
+  judge, on a clean run — booked NONE, which is right (no verdict, not a
+  fall), and the freeze report's "no run" wording is not. One row in 672
+  over 30 h; recorded so a recurrence is recognised by its signature
+  (complete, settled, then silence), not chased at N = 1.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
