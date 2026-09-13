@@ -195,6 +195,13 @@ passed on its own in-suite retry.
   2.7 @2.5 pooled: 8/11 vs 5/5, suggestive only). BE replicates wkc 2.6
   at N=10 and checks the 2.4 rung next; BF does the hairpin at 2.6 and the
   box at 2.6 under both budgets.
+  **20:25 — replicated (chain BE, wkc_finals 2.6, 10 reps × 2 arms
+  interleaved):** budget 2.5 → **1/10**, budget 2.0 → **9/10** (the one
+  fall a 40° roll at the wp01 corner; passes 19.2–25.1°, 96.2–96.7 s).
+  Fisher p = 1.1×10⁻³ on its own; pooled over BC + BB + BE at 2.6, **3/21
+  vs 20/21, p = 2×10⁻⁷**. The lateral budget is the honest course's rule.
+  BE's 2.4 half and BF (hairpin, box) decide whether it ships in the
+  shared course recipe.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
