@@ -423,8 +423,15 @@ passed on its own in-suite retry.
   "not a rung" (0/5, 3/5, 4/5 across budgets, 0/6 here) into a candidate
   rung, one block deep. Not a rung yet — N = 6; the standing block after
   the ship should run wkc 2.8 on the shipped recipe at depth, with the
-  hairpin at 2.8 (2.7 was 5/6) beside it. Chain BV done 16:14; BW's first
-  block holds the rig and `STOP_BW` is set, so BX ships in the next gap.
+  hairpin at 2.8 (2.7 was 5/6) beside it. Chain BV done 16:14. **16:41 —
+  BW's first wkc block: 6/6 vs 6/6; pooled N = 22 an arm: off 19.7° /
+  20.6 / max 22.1, capped 8.0° / 8.7 / 9.6, laps 96.3 vs 97.0 s.** BW ended
+  on `STOP_BW` after that block. **16:42 — SHIPPED:** chain BX's gate
+  passed (hairpin 6/6 vs 5/6, box 6/6 vs 6/6), the conductor was restarted
+  the sanctioned way in the idle gap, and the course recipe now serves
+  `… WP_VSLEW=1.0 WP_VTURN=2.4`. Both suite tiers on the served recipe
+  next, then wkc 2.6 and hp 2.6 recipe blocks, then chain BY (2.8 at
+  depth).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
