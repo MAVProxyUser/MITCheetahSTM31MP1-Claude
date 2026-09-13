@@ -252,9 +252,10 @@ passed on its own in-suite retry.
   99.1–100.0 s. The old shipping rung now runs with a 12–14° margin to the
   bar. Hairpin 2.7 ×10 next. **00:41 — hp_gap20 2.7 ×10 on the served
   recipe: 8/10**, both falls at the reversal exit (30.3°, 36.4°), the
-  passes 23.1–29.3° with three of them over 28°. Pooled with BB's 2.7
-  @2.0 (5/5): 13/15. The hairpin's honest rung stays 2.6 (10/10); 2.7 is
-  a coin the reversal exit flips one time in seven. BL (the 2.8 rule on
+  passes 23.1–29.3° with three of them over 28°; the freeze scan calls one
+  of the two falls a harness fall (a state freeze in the second before it),
+  so 8/9 genuine. Pooled with BB's 2.7 @2.0 (5/5): 13/14. The hairpin's
+  honest rung stays 2.6 (10/10); 2.7 rides the bar. BL (the 2.8 rule on
   wkc_finals: budget 1.5 alone vs with the re-acceleration cap) runs now.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
