@@ -275,6 +275,13 @@ passed on its own in-suite retry.
   on the shipped recipe: dash 3.0, weave 2.8, box 2.6, wkc_finals 2.6,
   hairpin 2.6 (2.7 rides the bar). BN (hp_gap07/10/14 and wkc_hairpin at
   2.6) and BO (wkc 2.6 ×20) run into the morning.
+  **02:12 — BN, the reversal sub-courses at 2.6 on the served recipe, 6
+  reps each interleaved: hp_gap07 6/6, hp_gap10 6/6, hp_gap14 6/6,
+  wkc_hairpin 6/6** — 24/24, peak pitch 19.9–23.1° throughout, laps
+  47.2–48.4 s. OPEN-28's recovery-distance table (7 m 0/8, 10 m 1/8, 14 m
+  1/8, 20 m 2/8 at 1.9, and the 388-run exit analysis) was the double
+  lap's; on the single lap with the vertex stop the gap does not matter
+  at 2.6. BO (wkc 2.6 ×20) is the last block of the night.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
