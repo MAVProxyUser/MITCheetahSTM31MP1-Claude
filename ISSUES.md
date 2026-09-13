@@ -287,6 +287,17 @@ passed on its own in-suite retry.
   budget** (BC 6/6, BB 5/5, BE 9/10, BG 6/6, BI 10/10, BO 20/20). BP runs
   the panel's own walking recipe on both courses next, BQ the dawn fast
   tier.
+  **03:21 — BP, the panel's OWN course recipe (walking @ 2.0, budget 2.0,
+  no --gait/--speed), 6 reps each:** hp_gap20 **6/6** (peak pitch
+  9.9–10.6°, 53.5 s); wkc_finals **5/6** (13–14°, 110.4 s) with one
+  genuine fall — rep 2 went down at the closing corner (roll 69°, pitch
+  43°, 12 yaw saturations) in a run that also carried a 24 ms IMU-stream
+  gap; walking is the gait most sensitive to that class, and the freeze
+  scan found no freeze in the second before the event. One in six on the
+  default walking configuration is worth its own look at the closing
+  corner (R = 0.04 m → 0.05 m/s planned, a near-stop pivot before the
+  68 m leg) — the same feature that limits the trot at 2.8. BQ (dawn fast
+  tier) and BR (the standing loop) follow.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
