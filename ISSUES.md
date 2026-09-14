@@ -645,7 +645,8 @@ passed on its own in-suite retry.
   case's own tail (2 misses in 24 tier runs, one a lie-down tip). Tier
   record since the restart: 263/267. **11:14 — CB block 17 (after an
   11-minute Time Machine hold), wkc 2.6: 6/6** (117/119 raw since the
-  restart, course-clean 117/117).
+  restart, course-clean 117/117). **11:23 — hairpin 2.6: 6/6** (119/120
+  since the restart).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
