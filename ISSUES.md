@@ -665,7 +665,9 @@ passed on its own in-suite retry.
   `oval_real_switch` (run 7359) went down at −41° roll in a second at
   263/s (gap 23 ms, the second before 421/s) — a host burst around 14:30.
   Tier record since the restart: 326/332 raw, 330/332 by the harness
-  rules. CB block 22.
+  rules. **14:50 — CB block 22, wkc 2.6: 5/6, 5/5 clean** (the miss a
+  finish tip at 445 IMU samples/s, gap 20 ms; 146/149 raw since the
+  restart, course-clean 146/146).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
