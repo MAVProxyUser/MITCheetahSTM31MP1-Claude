@@ -728,7 +728,19 @@ passed on its own in-suite retry.
   recipe / kd 24 / ramp 40→8 over 600 ms, scored on the bounce fraction
   and the peak roll, then the hairpin ×6, then the fast tier. **16:12 —
   CB block 24, wkc 2.6: 6/6** (157/161 raw since the restart, course-clean
-  157/157); CB ends on `STOP_CB` here and hands the rig to CC.
+  157/157); CB ends on `STOP_CB` here and hands the rig to CC. **17:27 —
+  chain CC, the damping A/B on wkc 2.6, 12 × recipe / kd 24 / ramp
+  40→8:** stage-2 peak roll median / p90 / max — recipe 4.3 / 13.5 / 13.5
+  (n = 9), kd 24 **3.6 / 6.1 / 6.1** (n = 10), ramp **6.0 / 7.5 / 7.7**
+  (n = 12); roll at the judge instant 1.1 / 0.2 / 3.0°. Every kd-24 and
+  ramp run "bounces" by the roll-rate rule (a stiffer damper lands harder,
+  7.2 rad/s median) but the roll AMPLITUDE is what tips, and neither arm
+  reached 8° where the stock hold reached 13.5° — the tail the tips live
+  in. N = 10–12 shows the distribution moved, not that a 1–3 % tail is
+  gone; that needs the arms at N ≈ 50+, which the evening's standing loop
+  can carry (chain CD alternates recipe / kd 24 per block). The course
+  verdicts in this block (9/12, 10/12, 12/12) are host falls (429/s at one
+  event, gaps to 40 ms — the operator's afternoon), not the lie-down.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
