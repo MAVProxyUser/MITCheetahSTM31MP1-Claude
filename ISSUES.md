@@ -753,7 +753,17 @@ passed on its own in-suite retry.
   in 16 runs; stock: max 13.5 in 13 today, 22.9 in 139 over the day). Chain
   CD carries both arms to N ≈ 50 each on wkc and the hairpin over the
   evening; the metric is the count past 10° and the judge-instant roll,
-  not the bounce fraction. Neither arm ships on this.
+  not the bounce fraction. Neither arm ships on this. **18:10 — fast tier
+  on the knob binary (stock defaults): 11/13** — `dash_trotRunning` down
+  at 387 IMU samples/s (harness) and `star` (run 7472) rolled −104° in the
+  dash interlude a second after `[liedown] damping hold: kd 8.0` printed,
+  stream and loop clean: the star's THIRD interlude roll-over today, 3 in
+  24 against 0 in 38 the three days before (p ≈ 0.03), every one at the
+  stage-2 hand-off. The star is the sharpest instance of this item and
+  its interlude runs the same `dampingHold()`, so a knob verdict from CD
+  applies to it; the star itself is only exercised by the tier (no env
+  arms), so its own rate at kd 24 is unmeasured until a case is added.
+  Tier record since the restart: 358/371 raw.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
