@@ -1357,7 +1357,9 @@ cap by turn angle (`BodyLimits::v_turn_cap`, `WP_VTURN` / `WP_VTURN_DEG`, corner
 more, off by default). At 2.4 the S-bend peak went 20.0 → 8.0° at N = 16 an arm with no
 overlap, +0.7 s of a 96 s lap, straights, wp03, hairpin and box unchanged; it ships in the
 course recipe since 2026-09-13 16:42 (ISSUES OPEN-38, chains BU–BX; both suite tiers 20/20 and
-wkc 2.6 6/6 on the served recipe afterwards, the S-bend at 8.0° / 8.7 to the decimal). Below a
+wkc 2.6 6/6 on the served recipe afterwards, the S-bend at 8.0° / 8.7 to the decimal; by the
+next morning the served-recipe record stood at wkc 2.6 100/100 clean (100/101 raw), hairpin 2.6
+95/96 and 226/228 tier cases, every miss a classified host event or a finish lie-down tip). Below a
 2.4 cruise it is a no-op by construction. And it moves the 2.8 question: on the same day 2.8
 went 0/6 → 6/6 with the cap (S-bend 37.8 → 8.7°, laps 95.2–96.0 s, the next feature the
 wp13→wp15 window at 24°) — but at depth it is a coin flip: 16/30 on the shipped recipe by the
