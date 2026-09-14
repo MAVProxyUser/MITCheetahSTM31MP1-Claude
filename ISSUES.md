@@ -621,7 +621,8 @@ passed on its own in-suite retry.
   residual, its first appearance on wkc (which had been 0 finish faults in
   229 runs). wkc 2.6 since the restart: 105/107 raw, the two misses one
   harness fall and this lie-down tip; course-clean 105/105. **09:47 —
-  hairpin 2.6: 6/6** (107/108 since the restart).
+  hairpin 2.6: 6/6** (107/108 since the restart). **10:07 — fast tier
+  13/13** (252/254 tier cases since the restart). CB block 16.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
