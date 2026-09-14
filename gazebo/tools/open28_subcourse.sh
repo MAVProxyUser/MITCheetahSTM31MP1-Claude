@@ -26,6 +26,9 @@ COURSES="${COURSES:-wkc_weave wkc_box wkc_hairpin}"
 # ARMS lets one course be run under several env settings, interleaved every rep -
 # for a dose-response on a knob rather than a comparison of shapes. Format is
 # NAME:ENV, e.g. ARMS="yaw08:WP_MAX_YAWRATE=0.8 yaw12:WP_MAX_YAWRATE=1.2".
+# An arm may carry several variables joined by commas (no spaces - the arm list
+# splits on whitespace): "ramp40:WP_LIEDOWN_EDAMP0=40,WP_LIEDOWN_RAMP_MS=600" -
+# the commas become spaces on the --extra line (2026-09-14).
 # Several variables in one arm are comma-separated: "old:BRIDGE_RX_THREAD=1,CTRL_MPC_TABLE_ALIAS=1".
 # The arm NAME is the label in the CSV.
 ARMS="${ARMS:-}"
@@ -89,7 +92,7 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   [ "${RECIPE_GAIT:-0}" = 1 ] && gaitargs=()
   timeout 900 python3 gazebo/conductor/mission_runner.py --terrain "$terr" \
     --slot "$slot" ${gaitargs[@]+"${gaitargs[@]}"} --dash 0 \
-    --wait-for-gate 1800 ${env:+--extra "$env"} > "$DIR/run.log" 2>&1
+    --wait-for-gate 1800 ${env:+--extra "$(echo "$env" | tr ',' ' ')"} > "$DIR/run.log" 2>&1
   local L="$RUN_DIR/ctrl_0.log" V_ W F SNAP RID
   V_=$(grep -oE "VERDICT: [A-Z]+" "$DIR/run.log" | head -1 | awk '{print $2}')
   W=$( { grep -c 'reached wp' "$L" 2>/dev/null || echo 0; } | head -1 )
