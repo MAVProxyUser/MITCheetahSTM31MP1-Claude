@@ -504,6 +504,9 @@ passed on its own in-suite retry.
   and RECOVERY_STAND folded the legs at 2.4 m/s (OPEN-39's other branch,
   a consequence of the sink, not its cause). The hairpin's ~2 % tail at
   2.6 is unchanged by the cap, as expected (its corners are not the cap's).
+  **20:18 — fast tier 13/13** (46/46 tier cases on the served recipe since
+  the restart). BZ ended on `STOP_BZ`; chain CA (controller levers at 2.8)
+  runs now.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
