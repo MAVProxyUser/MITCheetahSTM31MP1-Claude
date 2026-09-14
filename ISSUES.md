@@ -726,7 +726,9 @@ passed on its own in-suite retry.
   drop starts slow) in `mit_sim_main.cpp`'s `dampingHold()`, both
   lie-downs. Chain CC deploys it in the gap behind CB and runs wkc 2.6 ×12
   recipe / kd 24 / ramp 40→8 over 600 ms, scored on the bounce fraction
-  and the peak roll, then the hairpin ×6, then the fast tier.
+  and the peak roll, then the hairpin ×6, then the fast tier. **16:12 —
+  CB block 24, wkc 2.6: 6/6** (157/161 raw since the restart, course-clean
+  157/157); CB ends on `STOP_CB` here and hands the rig to CC.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
