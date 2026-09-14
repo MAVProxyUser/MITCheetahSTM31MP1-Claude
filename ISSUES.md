@@ -544,7 +544,10 @@ passed on its own in-suite retry.
   the S-bend 7.5° under the cap. Laps 95.9 s against 2.6's 97.2 and 2.8's
   95.6: with the corners capped the lap barely depends on the cruise, so
   2.7 buys 1.3 s of 96 for 3° of margin. 2.6 stays the rung; 2.7 is a
-  working rung with a thin tail, recorded, not promoted. Hairpin and box
+  working rung with a thin tail, recorded, not promoted. **22:03 —
+  hairpin 2.7: 5/6**, the miss genuine (run 6792, the wp0→wp1 braking
+  collapse that also took one 2.6 run tonight), pass peaks 23.6–29.0° —
+  the same 5/6 the hairpin gave at 2.7 before the cap, as expected. Box
   at 2.7 next, then the 2.8 levers at N = 12.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
