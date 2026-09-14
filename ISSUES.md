@@ -581,7 +581,13 @@ passed on its own in-suite retry.
   2.6: 6/6** (41/42 since the restart). **02:12 — fast tier 13/13**
   (110/111 tier cases since the restart). **02:26 — CB block 5, wkc 2.6:
   6/6** (46/47 raw since the restart, 46/46 clean, streams clean). **02:35
-  — hairpin 2.6: 6/6** (47/48 since the restart).
+  — hairpin 2.6: 6/6** (47/48 since the restart). **02:55 — fast tier
+  12/13:** `galloping_octagon_45deg` (run 6961) completed 9/9 and settled
+  (z 0.273, roll 3.5°) and then its lie-down rolled 23.7° at z 0.122 —
+  OPEN-30's finish residual, stream clean at 500/s, the case's first miss
+  in 22 runs since yesterday evening; genuine, not the recipe (galloping's
+  octagon is an envelope case). Tier record since the restart: 122/124,
+  one harness fall and one lie-down tip. CB block 6.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
