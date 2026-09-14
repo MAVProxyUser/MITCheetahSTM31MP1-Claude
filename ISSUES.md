@@ -1118,7 +1118,24 @@ passed on its own in-suite retry.
   `laydown: z=0.051 roll=20.3 -> BAD`, stream clean) is wkc's first in
   ~330 served-recipe runs, and the galloping octagon tier case had one at
   02:55 (run 6961). The residual is a ~1 % property of the lie-down itself
-  across courses, not of the hairpin's finish point.
+  across courses, not of the hairpin's finish point. **Anatomy (09:45,
+  snapshots of run 7190 tipped vs run 7191 clean, same block):** the
+  first stage — STAND_UP to 0.15 m — is identical and level in both (z
+  0.29 → 0.10 in 0.5 s, roll under 1°, a 2 s hold). The roll comes in the
+  SECOND stage, the 8.0 damping hold that lets the body settle onto its
+  folded legs: z 0.10 → 0.05 over ~1.2 s with `|τ_ff| = 0` and all four FK
+  foot heights equal, while the body rocks — run 7191 peaked at 16.5°
+  roll (and −11° pitch) and read 8° by the end, run 7190 peaked at 21.4°
+  and read 20.3° at the judge instant. So the belly settle rolls 10–20° in
+  EVERY run; the judge (`ok_down`: z lower by 0.06, roll and pitch under
+  20°) samples the estimate exactly 1.2 s into that settle, near the peak
+  of a rock that is still decaying, and the 20° line catches its tail
+  about once in a hundred. Not a fall, not a course fault: a resting pose
+  on folded shanks that rocks, judged mid-rock. Proposal, not applied
+  (it changes what PASS means): judge the lie-down once the roll rate has
+  settled (or 2.5 s in) rather than at a fixed 1.2 s, or raise the belly
+  roll line to 25°. Either would have passed both runs; the operator's
+  call.
 
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `CLOSED 2026-09-10`. **What limited the course
