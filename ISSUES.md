@@ -632,7 +632,9 @@ passed on its own in-suite retry.
   Spotlight's privacy list. Until then the harness books the stutters as
   host falls, which it has been doing correctly all night. **10:21 — CB
   block 16, wkc 2.6: 6/6 under that load** (worst gap 7.7 ms — the RT band
-  holds; 111/113 raw since the restart, course-clean 111/111).
+  holds; 111/113 raw since the restart, course-clean 111/111). **10:30 —
+  hairpin 2.6: 6/6** (113/114 since the restart; one pass through a 20 ms
+  gap). Load easing to 3.7 as the reindex burst passes.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
