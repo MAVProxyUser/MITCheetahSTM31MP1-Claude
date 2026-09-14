@@ -741,6 +741,19 @@ passed on its own in-suite retry.
   can carry (chain CD alternates recipe / kd 24 per block). The course
   verdicts in this block (9/12, 10/12, 12/12) are host falls (429/s at one
   event, gaps to 40 ms — the operator's afternoon), not the lie-down.
+  **17:51 — the hairpin, 6 × the same arms, reads the other way:** the
+  stock hold was QUIET in all four scored runs (bounce 0/4, peak roll
+  0.3° median, 0.8 max), while kd 24 bounced 5/6 (5.3 / 6.0 / 6.0) and the
+  ramp 6/6 (3.6 / 8.8 / 8.8). So a stiffer damper does not remove the
+  landing bounce — it makes a moderate one (5–6°, 7 rad/s) on every
+  landing, including the ones the stock hold lands smoothly, and dies out
+  before the judge (0.2–0.3° at the instant); the stock hold lands smoothly
+  two times in three and rocks 10–23° the third. Which distribution has
+  the smaller tip tail is exactly what N = 16 cannot say (kd 24: max 6.1°
+  in 16 runs; stock: max 13.5 in 13 today, 22.9 in 139 over the day). Chain
+  CD carries both arms to N ≈ 50 each on wkc and the hairpin over the
+  evening; the metric is the count past 10° and the judge-instant roll,
+  not the bounce fraction. Neither arm ships on this.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
