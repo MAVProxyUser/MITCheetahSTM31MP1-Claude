@@ -643,7 +643,9 @@ passed on its own in-suite retry.
   settle, so a harder cousin of OPEN-30's rock; and `galloping_octagon_45deg`
   (run 7236) rolled past 60° mid-course at its base speed, the envelope
   case's own tail (2 misses in 24 tier runs, one a lie-down tip). Tier
-  record since the restart: 263/267. CB block 17.
+  record since the restart: 263/267. **11:14 — CB block 17 (after an
+  11-minute Time Machine hold), wkc 2.6: 6/6** (117/119 raw since the
+  restart, course-clean 117/117).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
