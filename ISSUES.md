@@ -622,7 +622,15 @@ passed on its own in-suite retry.
   229 runs). wkc 2.6 since the restart: 105/107 raw, the two misses one
   harness fall and this lie-down tip; course-clean 105/105. **09:47 —
   hairpin 2.6: 6/6** (107/108 since the restart). **10:07 — fast tier
-  13/13** (252/254 tier cases since the restart). CB block 16.
+  13/13** (252/254 tier cases since the restart). CB block 16. **10:10 —
+  host tell (OPEN-35):** Spotlight is reindexing — `mds_stores` restarted
+  at 09:52, `mds` (root) at 40–65 % with a stream of `mdworker_shared`
+  importers at 15–45 % each, load 7–8 with the rig's own gz at 80 %. None
+  of it is killable without root (`mds` and `mds_stores` are not this
+  user's; the workers respawn per file), so the lever is the operator's:
+  `sudo mdutil -i off /System/Volumes/Data`, or the rundata tree in
+  Spotlight's privacy list. Until then the harness books the stutters as
+  host falls, which it has been doing correctly all night.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
