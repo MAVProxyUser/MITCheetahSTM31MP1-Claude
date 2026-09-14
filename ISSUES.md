@@ -763,7 +763,11 @@ passed on its own in-suite retry.
   its interlude runs the same `dampingHold()`, so a knob verdict from CD
   applies to it; the star itself is only exercised by the tier (no env
   arms), so its own rate at kd 24 is unmeasured until a case is added.
-  Tier record since the restart: 358/371 raw.
+  Tier record since the restart: 358/371 raw. **18:24 — CC's standing
+  block, wkc 2.6 on the stock hold: 6/6** (standing blocks 163/167 raw
+  since the restart, course-clean 163/163; this block's lie-downs: peak
+  roll median 1.2°, max 9.3). CC ends on `STOP_CC`; chain CD takes the
+  rig with the damping arms at depth.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
