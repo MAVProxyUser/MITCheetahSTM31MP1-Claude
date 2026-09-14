@@ -528,7 +528,8 @@ passed on its own in-suite retry.
   wp13 during the operator's 21:00 load burst (load 8; the event second
   488 IMU samples/s, 222/s two seconds later, the run's worst gap
   29.5 ms) through OPEN-39's above-hip branch — leg 2 above the hip →
-  RECOVERY_STAND → roll 34° — not the robot's evidence.
+  RECOVERY_STAND → roll 34° — not the robot's evidence. **21:20 — hairpin
+  2.6: 6/6** (17/18 since the restart), laps 49.4–49.6 s.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
