@@ -570,7 +570,11 @@ passed on its own in-suite retry.
   tier cases on the served recipe since the restart). **00:18 — CB block
   2, wkc 2.6: 6/6** (29/30 since the restart, laps 96.7–96.9 s). **00:27
   — hairpin 2.6: 6/6** (29/30 since the restart, 49.4–49.5 s). **00:47 —
-  fast tier 13/13** (84/85 tier cases since the restart). CB block 3.
+  fast tier 13/13** (84/85 tier cases since the restart). **01:00 — CB
+  block 3, wkc 2.6: 5/6, 5/5 clean** (the miss a wp1 collapse at 459 IMU
+  samples/s, gap 23 ms; another pass carried a 37 ms gap — the host was
+  busy around 00:55). Served wkc 2.6 since the restart: 34/35 raw, 34/34
+  by the harness rules.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
