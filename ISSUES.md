@@ -773,7 +773,10 @@ passed on its own in-suite retry.
   quiet; kd 24 n = 16 — median 3.6°, p90 6.1, **max 6.6, none past 10°**,
   none quiet (a moderate bounce every time, 7.6 rad/s, 0.2° at the judge
   instant). The compression holds at N = 16; the tail count needs the
-  evening.
+  evening. **19:09 — hairpin 2.6 × 6 recipe / kd 24: 6/6 and 6/6;** pooled
+  hairpin lie-downs: stock n = 10 median 0.4°, max 4.3, eight quiet; kd 24
+  n = 12 median 4.8°, max 6.4, one quiet. On the hairpin the stock hold is
+  the quieter one so far; on wkc kd 24 is. Fast tier next, then block 2.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
