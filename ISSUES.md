@@ -779,7 +779,9 @@ passed on its own in-suite retry.
   the quieter one so far; on wkc kd 24 is. **19:29 — fast tier 12/13**,
   the galloping octagon tipped in a second the bridge received 484, then
   466 and 454 samples (gaps to 15 ms) — a host stutter, harness. Tier
-  record since the restart: 370/384 raw. CD block 2.
+  record since the restart: 370/384 raw. **19:56 — CD block 2, wkc: 6/6
+  and 6/6;** pooled wkc lie-downs stock n = 21 (max 13.5, one past 10°,
+  eleven quiet) vs kd 24 n = 22 (max 7.8, none past 10°, none quiet).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
