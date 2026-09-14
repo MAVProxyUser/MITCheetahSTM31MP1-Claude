@@ -680,6 +680,9 @@ passed on its own in-suite retry.
   classified one by one. Tier record since the restart: 335/345 raw. The
   chain keeps running; the campaign CSV rows carry the deficit column and
   the freeze report splits them, so the record stays honest through it.
+  **15:30 — CB block 23, wkc 2.6: 5/6, 5/5 clean** (run 7388 down at wp8
+  in a 450-samples/s second — harness, the build still on the host);
+  151/155 raw since the restart, course-clean 151/151.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
