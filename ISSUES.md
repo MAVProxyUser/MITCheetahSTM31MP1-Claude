@@ -658,7 +658,14 @@ passed on its own in-suite retry.
   2.6: 6/6** (137/138 since the restart). **13:53 — fast tier 13/13**
   (315/319 tier cases since the restart). **14:07 — CB block 21, wkc 2.6:
   6/6** (141/143 raw since the restart, course-clean 141/141). **14:16 —
-  hairpin 2.6: 6/6** (143/144 since the restart).
+  hairpin 2.6: 6/6** (143/144 since the restart). **14:36 — fast tier
+  11/13, both misses harness by the OPEN-39 rule:** `dash_trotting_30`
+  (run 7353) settled ok and its lie-down rolled 48° at z 0.005 in the
+  second the bridge received 392 IMU samples (gap 22 ms), and
+  `oval_real_switch` (run 7359) went down at −41° roll in a second at
+  263/s (gap 23 ms, the second before 421/s) — a host burst around 14:30.
+  Tier record since the restart: 326/332 raw, 330/332 by the harness
+  rules. CB block 22.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
