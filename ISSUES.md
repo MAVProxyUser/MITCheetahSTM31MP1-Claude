@@ -684,7 +684,17 @@ passed on its own in-suite retry.
   in a 450-samples/s second — harness, the build still on the host);
   151/155 raw since the restart, course-clean 151/151. **15:38 — hairpin
   2.6: 6/6** (153/156 raw since the restart, 153/154 by the rules), the
-  build burst passed (load 2.7).
+  build burst passed (load 2.7). **15:58 — fast tier 12/13: `star` again**
+  (run 7399), the same anatomy as run 7224 at 10:32 to the line — loop
+  complete, stop from 1.17 m/s over 1.2 s, TROT→STAND, settled at 2.7°,
+  then rolled 91° at z 0.132 in the dash interlude's first lie-down stage
+  — with a clean sensor stream (500/s, no gaps) and a clean control loop
+  (maxPeriod 2.02 ms, no stalls), so genuine both times. The star tier
+  case: 0 misses in 38 over 09-11..09-13, 2 in 22 today (p ≈ 0.13 against
+  a steady tail); OPEN-27's interlude class (the oval's old ~1-in-3 tip),
+  now on the star at a few percent. The next diagnostic is the one OPEN-30
+  already names — the first stage's per-leg descent, tipped vs clean — not
+  a campaign. Tier record since the restart: 347/358 raw.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
