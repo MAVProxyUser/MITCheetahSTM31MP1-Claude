@@ -776,7 +776,10 @@ passed on its own in-suite retry.
   evening. **19:09 — hairpin 2.6 × 6 recipe / kd 24: 6/6 and 6/6;** pooled
   hairpin lie-downs: stock n = 10 median 0.4°, max 4.3, eight quiet; kd 24
   n = 12 median 4.8°, max 6.4, one quiet. On the hairpin the stock hold is
-  the quieter one so far; on wkc kd 24 is. Fast tier next, then block 2.
+  the quieter one so far; on wkc kd 24 is. **19:29 — fast tier 12/13**,
+  the galloping octagon tipped in a second the bridge received 484, then
+  466 and 454 samples (gaps to 15 ms) — a host stutter, harness. Tier
+  record since the restart: 370/384 raw. CD block 2.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
