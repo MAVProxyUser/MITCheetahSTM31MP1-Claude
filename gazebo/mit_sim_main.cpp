@@ -28,6 +28,42 @@
 void setStandUpHeight(double h);
 //! Defined in RobotRunner.cpp - Unitree-style damping hold (edampCommand).
 void setEdamp(double d);
+
+/*
+ * THE LIE-DOWN'S SECOND STAGE, AS A KNOB (ISSUES OPEN-30/27, 2026-09-14).
+ * Both lie-downs end the same way: STAND_UP holds the body at 0.15 m for
+ * 2.5 s, then setEdamp(8.0) hands the legs to a pure damper for 1.2 s and
+ * the body drops onto its folded shanks. The snapshots of every finish
+ * tip on record - wkc 7190, the galloping/dash lie-down BADs, both star
+ * interlude roll-overs (7224, 7399) - say the roll starts at THAT hand-off:
+ * the position hold vanishes in one tick, the body falls 5 cm onto the
+ * shanks under gravity, and the landing bounces (roll rate +-3-5 rad/s
+ * within 100 ms, roll 10-20 deg in every run, past 90 deg in a few).
+ *   WP_LIEDOWN_EDAMP    the damping gain of the hold (default 8.0, stock)
+ *   WP_LIEDOWN_EDAMP0   an initial gain the hold ramps DOWN from (default
+ *                       = WP_LIEDOWN_EDAMP, i.e. no ramp): a stiff damper
+ *                       first slows the drop, then relaxes to the hold
+ *   WP_LIEDOWN_RAMP_MS  how long that ramp takes (default 0)
+ * The hold's length (1.2 s) is not a knob here on purpose: the judge reads
+ * the estimate at its end, and moving the judge is a separate decision.
+ */
+static double envd(const char* k, double dflt) { const char* e = getenv(k); return e ? atof(e) : dflt; }
+static void dampingHold(int hold_ms) {
+  const double kd  = envd("WP_LIEDOWN_EDAMP", 8.0);
+  const double kd0 = envd("WP_LIEDOWN_EDAMP0", kd);
+  const int ramp   = (int)envd("WP_LIEDOWN_RAMP_MS", 0.0);
+  shmtrace::logf(0.0, "[liedown] damping hold: kd %.1f -> %.1f over %d ms, then held %d ms (WP_LIEDOWN_EDAMP/EDAMP0/RAMP_MS)",
+                 kd0, kd, ramp, hold_ms);
+  if (ramp > 0 && kd0 != kd) {
+    const int step = 10;
+    for (int t = 0; t < ramp; t += step) {
+      setEdamp(kd0 + (kd - kd0) * (double)t / (double)ramp);
+      std::this_thread::sleep_for(std::chrono::milliseconds(step));
+    }
+  }
+  setEdamp(kd);
+  std::this_thread::sleep_for(std::chrono::milliseconds(hold_ms));
+}
 //! Defined in RobotRunner.cpp - gates the fall detector's z-collapse branch.
 //! A COMMANDED lie-down is a level body descending through the detector's
 //! 0.10 m threshold - indistinguishable from the collapse it exists to
@@ -1344,8 +1380,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       setStandUpHeight(0.15);  // 0.07 measured to fall during the interpolation itself (roll/pitch stayed tiny - not a rollover - z sagged fast); trying a less extreme crouch that still counts as "lying down"
       bridge->setControlMode(1);                 // K_STAND_UP
       std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-      setEdamp(8.0);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+      dampingHold(1200);   // the second stage - see dampingHold() and OPEN-30
 
       // 4. stand back up - restore the normal stand-up target (0.25, from
       //    FSM_State_StandUp.cpp's g_standUpHeight default) and go back
@@ -1547,8 +1582,7 @@ static void navThread(Stm32mp1HardwareBridge* bridge) {
       //     StandDown (interpolate the joints down) then edampCommand, so the
       //     robot settles compliant rather than holding a pose stiffly or going
       //     limp. Ported from LegController<T>::edampCommand at 0x1af2c0.
-      setEdamp(8.0);
-      std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+      dampingHold(1200);   // the second stage - see dampingHold() and OPEN-30
       const auto& s2 = bridge->robotRunner()->getStateEstimate();
       const float down_z = s2.position[2];
       const float down_roll  = std::fabs(s2.rpy[0]) * 57.2958f;

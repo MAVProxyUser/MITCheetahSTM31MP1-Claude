@@ -712,8 +712,21 @@ passed on its own in-suite retry.
   hard-coded in `mit_sim_main.cpp`) — a higher damping or a slower,
   position-held descent from 0.10 to the belly instead of a damped drop —
   scored on the stage-2 peak roll, which every run shows (10–20°), so ten
-  runs an arm decide it rather than the 1–3 % tip rate. Needs an env knob
-  and a gated deploy; proposed, not yet built.
+  runs an arm decide it rather than the 1–3 % tip rate. **16:45 — built,
+  and the base rate measured first** (`gazebo/tools/liedown_peak.py`, the
+  hand-off found as the flat 0.10 m hold that a descent follows, over
+  every served-recipe block of the last day): the bounce (stage-2 roll
+  rate over 1 rad/s) is in **53 of 139 wkc runs (38 %) and 43 of 135
+  hairpin runs (32 %)**, not every run; the peak roll is median 1.1° /
+  p90 6.9 / max 22.9 on wkc and 0.6 / 7.6 / 19.6 on the hairpin, with 6
+  runs past 15° between them. So the descent is smooth two times in three
+  and bounces the third; the tips are the bounce's tail. The knob:
+  `WP_LIEDOWN_EDAMP` (8.0 stock), `WP_LIEDOWN_EDAMP0` and
+  `WP_LIEDOWN_RAMP_MS` (a stiff damper the hold ramps DOWN from, so the
+  drop starts slow) in `mit_sim_main.cpp`'s `dampingHold()`, both
+  lie-downs. Chain CC deploys it in the gap behind CB and runs wkc 2.6 ×12
+  recipe / kd 24 / ramp 40→8 over 600 ms, scored on the bounce fraction
+  and the peak roll, then the hairpin ×6, then the fast tier.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
