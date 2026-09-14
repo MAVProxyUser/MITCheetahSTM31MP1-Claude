@@ -614,8 +614,13 @@ passed on its own in-suite retry.
   **08:41 — fast tier 13/13** (226/228 tier cases since the restart).
   **08:55 — CB block 14, wkc 2.6: 6/6** (100/101 raw since the restart,
   100/100 clean). **09:04 — hairpin 2.6: 6/6** (101/102 since the restart).
-  **09:24 — fast tier 13/13** (239/241 tier cases since the restart). CB
-  block 15.
+  **09:24 — fast tier 13/13** (239/241 tier cases since the restart).
+  **09:38 — CB block 15, wkc 2.6: 5/6** — the miss (run 7190) reached
+  16/16, settled (z 0.289, roll 0.2°) and then its lie-down rolled 20.3°
+  at z 0.051 → `laydown bad`, stream clean at 500/s: OPEN-30's finish
+  residual, its first appearance on wkc (which had been 0 finish faults in
+  229 runs). wkc 2.6 since the restart: 105/107 raw, the two misses one
+  harness fall and this lie-down tip; course-clean 105/105.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
@@ -1108,7 +1113,12 @@ passed on its own in-suite retry.
   60 — genuine, not harness, and the hairpin only. Left open here as the
   residual; the next diagnostic is the lie-down's per-leg foot heights at
   that spot (the descent rolls at z ≈ 0.11, above the 0.15 → belly path's
-  usual settle), not another campaign.
+  usual settle), not another campaign. **2026-09-14 09:38 — not hairpin-only
+  after all:** wkc run 7190 (settle ok at z 0.289 / roll 0.2°, then
+  `laydown: z=0.051 roll=20.3 -> BAD`, stream clean) is wkc's first in
+  ~330 served-recipe runs, and the galloping octagon tier case had one at
+  02:55 (run 6961). The residual is a ~1 % property of the lie-down itself
+  across courses, not of the hairpin's finish point.
 
 - **OPEN-28 · What now limits `wkc_finals` is sustained cruise, and it is
   OPEN-26's mechanism** — `CLOSED 2026-09-10`. **What limited the course
