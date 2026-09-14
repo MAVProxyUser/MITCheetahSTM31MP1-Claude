@@ -672,7 +672,14 @@ passed on its own in-suite retry.
   collapsed at wp3, the reversal exit, genuine, in a run with a 17.5 ms
   gap while the host sat at load 4–5 with the operator active; 147/150
   raw since the restart, 147/148 by the harness rules (the hairpin's ~2 %
-  reversal-exit tail, unchanged by the cap).
+  reversal-exit tail, unchanged by the cap). **15:17 — fast tier 9/13,
+  four misses in one tier** (atom tipped over, dash_trotting_30 lie-down
+  bad, corner probe down at an angle, bounding octagon tipped 16 s in)
+  with a `cmake` build starting on the host at load 4+ and the operator
+  at the screen: an OPEN-35 host event at scale, booked as host load, not
+  classified one by one. Tier record since the restart: 335/345 raw. The
+  chain keeps running; the campaign CSV rows carry the deficit column and
+  the freeze report splits them, so the record stays honest through it.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
