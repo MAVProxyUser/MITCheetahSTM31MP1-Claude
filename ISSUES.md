@@ -564,6 +564,8 @@ passed on its own in-suite retry.
   and box** (wkc 17/18, hairpin 17/18, box 6/6 since the restart; the
   S-bend at 8°); 2.7 wkc-only (5/5, 5° of margin); 2.8 a coin flip.
   Chain CB now holds the rig on the served recipe at 2.6 until `STOP_CB`.
+  **23:35 — CB block 1, wkc 2.6: 6/6** (23/24 since the restart, laps
+  96.8–97.3 s, streams clean).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
