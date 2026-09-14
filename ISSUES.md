@@ -667,7 +667,12 @@ passed on its own in-suite retry.
   Tier record since the restart: 326/332 raw, 330/332 by the harness
   rules. **14:50 — CB block 22, wkc 2.6: 5/6, 5/5 clean** (the miss a
   finish tip at 445 IMU samples/s, gap 20 ms; 146/149 raw since the
-  restart, course-clean 146/146).
+  restart, course-clean 146/146). **14:58 — hairpin 2.6: 4/6** — rep 2
+  tipped at wp1 in a sample-deficit second (harness), rep 6 (run 7373)
+  collapsed at wp3, the reversal exit, genuine, in a run with a 17.5 ms
+  gap while the host sat at load 4–5 with the operator active; 147/150
+  raw since the restart, 147/148 by the harness rules (the hairpin's ~2 %
+  reversal-exit tail, unchanged by the cap).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
