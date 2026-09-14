@@ -587,7 +587,8 @@ passed on its own in-suite retry.
   OPEN-30's finish residual, stream clean at 500/s, the case's first miss
   in 22 runs since yesterday evening; genuine, not the recipe (galloping's
   octagon is an envelope case). Tier record since the restart: 122/124,
-  one harness fall and one lie-down tip. CB block 6.
+  one harness fall and one lie-down tip. **03:09 — CB block 6, wkc 2.6:
+  6/6** (52/53 raw since the restart, 52/52 clean).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
