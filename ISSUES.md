@@ -523,6 +523,12 @@ passed on its own in-suite retry.
   (body ~2.9) is untested on the shipped recipe. Chain CB runs it at depth
   (wkc, hairpin, box), then replicates QVX / F_MAX vs recipe at 2.8 with
   N = 12 so the tail claim is settled either way, then holds the rig.
+  **21:12 — CA's standing block, wkc 2.6 on the shipped recipe: 5/6** (17/18
+  since the restart, 17/17 by the gap rule): the miss (run 6762) fell at
+  wp13 during the operator's 21:00 load burst (load 8; the event second
+  488 IMU samples/s, 222/s two seconds later, the run's worst gap
+  29.5 ms) through OPEN-39's above-hip branch — leg 2 above the hip →
+  RECOVERY_STAND → roll 34° — not the robot's evidence.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
