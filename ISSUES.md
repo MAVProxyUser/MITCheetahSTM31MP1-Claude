@@ -529,7 +529,13 @@ passed on its own in-suite retry.
   488 IMU samples/s, 222/s two seconds later, the run's worst gap
   29.5 ms) through OPEN-39's above-hip branch — leg 2 above the hip →
   RECOVERY_STAND → roll 34° — not the robot's evidence. **21:20 — hairpin
-  2.6: 6/6** (17/18 since the restart), laps 49.4–49.6 s.
+  2.6: 6/6** (17/18 since the restart), laps 49.4–49.6 s. **21:40 — fast
+  tier 12/13:** `bounding_octagon_45deg` (run 6783) went down at an angle
+  in a second the bridge received 382 IMU samples (gap 24.6 ms, the next
+  seconds 243–320/s — the host again) after passing 16/16 today; a
+  harness fall by the OPEN-39 rule, so the tier record on the served
+  recipe is 58/59 with that one removed. Chain CA ended on `STOP_CA`;
+  chain CB (2.7 at depth, then the 2.8 levers at N = 12) runs now.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
