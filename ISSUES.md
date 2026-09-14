@@ -536,6 +536,16 @@ passed on its own in-suite retry.
   harness fall by the OPEN-39 rule, so the tier record on the served
   recipe is 58/59 with that one removed. Chain CA ended on `STOP_CA`;
   chain CB (2.7 at depth, then the 2.8 levers at N = 12) runs now.
+  **21:55 — wkc 2.7 on the shipped recipe: 5/6, 5/5 clean** (the miss a
+  finish tip in a 63 ms stream gap). The wp13→wp15 window at 2.7: median
+  23.2° / p90 23.9 / max 28.3, body 2.93, none fell — a 5° margin to the
+  28.65° E-stop where 2.6 has 8° (19.6 / 20.6 / 22.4 at N = 6, 18.2 /
+  20.5 / 22.8 at N = 128) and 2.8 has none (24.2 / 30.4 / 33.3, two down);
+  the S-bend 7.5° under the cap. Laps 95.9 s against 2.6's 97.2 and 2.8's
+  95.6: with the corners capped the lap barely depends on the cruise, so
+  2.7 buys 1.3 s of 96 for 3° of margin. 2.6 stays the rung; 2.7 is a
+  working rung with a thin tail, recorded, not promoted. Hairpin and box
+  at 2.7 next, then the 2.8 levers at N = 12.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
