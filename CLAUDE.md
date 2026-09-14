@@ -1360,7 +1360,12 @@ course recipe since 2026-09-13 16:42 (ISSUES OPEN-38, chains BU–BX; both suite
 wkc 2.6 6/6 on the served recipe afterwards, the S-bend at 8.0° / 8.7 to the decimal). Below a
 2.4 cruise it is a no-op by construction. And it moves the 2.8 question: on the same day 2.8
 went 0/6 → 6/6 with the cap (S-bend 37.8 → 8.7°, laps 95.2–96.0 s, the next feature the
-wp13→wp15 window at 24°) — one block, not yet a rung; chain BY measures it at depth. Both suite tiers 20/20 again at 23:55 on the served
+wp13→wp15 window at 24°) — but at depth it is a coin flip: 16/30 on the shipped recipe by the
+end of the day, every miss the same instant (the E-stop at pitch 30–33° as the command reaches
+2.8 on the wp14→wp15 straight with the body at 3.0, 5 % under the trot's declared 3.1 ceiling),
+and neither the slew (1.0/0.7/0.5 null) nor the controller levers (QVX 0.25, F_MAX 220 null,
+body height 0.27 harmful) move it. 2.7 is wkc-only (5/5 with 5° of margin; the box bounds the
+recipe at 2.6: 2/4 at 2.7). The envelope on the shipped recipe is 2.6 on all three courses. Both suite tiers 20/20 again at 23:55 on the served
 recipe; wkc_finals 2.6 on it 56/57 by 03:00, hairpin 2.6 26/26, the four reversal sub-courses
 24/24, box 2.6 clean 6/6, weave 2.8 5/6.
 Check a run's SHAPE

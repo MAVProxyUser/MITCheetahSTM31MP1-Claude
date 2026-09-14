@@ -552,8 +552,18 @@ passed on its own in-suite retry.
   58°), where 2.6 is 6/6 twice and 2.8 was 1/4. So the box, not wkc, is
   the course that bounds the shipped recipe above 2.6: at 2.7 wkc runs
   5/5, the hairpin 5/6, the box 2/4. **2.6 is the envelope on all three
-  courses; 2.7 is wkc-only.** The 2.8 levers at N = 12 run next, then CB
-  holds the rig on the served recipe at 2.6.
+  courses; 2.7 is wkc-only.** **23:21 — the 2.8 levers, closed** (CA + CB
+  pooled, 18 an arm raw): recipe 9/18 (9/15 clean), `CTRL_MPC_QVX=0.25`
+  12/18 (12/17 clean), `CTRL_F_MAX=220` 8/18 (8/16 clean), body height
+  0.27 0/6; the wp13→wp15 peak median 25.0 / 26.2 / 29.4° — the force cap
+  makes it worse, QVX does not move it, and 12/17 against 9/15 is a coin's
+  worth (p ≈ 0.45). Today's shipped-recipe wkc 2.8 pools to **16/30**. No
+  planner or controller lever on the board moves the 2.8 feature: it is
+  the trot at body 3.0 on the rise out of a stop, 5 % under the gait's own
+  3.1 ceiling. Envelope after today, shipped recipe: **2.6 on wkc, hairpin
+  and box** (wkc 17/18, hairpin 17/18, box 6/6 since the restart; the
+  S-bend at 8°); 2.7 wkc-only (5/5, 5° of margin); 2.8 a coin flip.
+  Chain CB now holds the rig on the served recipe at 2.6 until `STOP_CB`.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
