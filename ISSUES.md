@@ -694,7 +694,26 @@ passed on its own in-suite retry.
   a steady tail); OPEN-27's interlude class (the oval's old ~1-in-3 tip),
   now on the star at a few percent. The next diagnostic is the one OPEN-30
   already names — the first stage's per-leg descent, tipped vs clean — not
-  a campaign. Tier record since the restart: 347/358 raw.
+  a campaign. Tier record since the restart: 347/358 raw. **16:25 — the
+  snapshots of both (7224, 7399) say the same thing, and it is OPEN-30's
+  mechanism fully developed, not the first stage:** the STAND_UP descent
+  0.26 → 0.10 m is level (roll under 2°) and the 2 s hold at 0.10 is dead
+  still (−0.2°, wx 0); the roll begins the instant the damping hold
+  starts (t ≈ 85.9 in both) — z 0.10 → 0.07 with the roll rate swinging
+  ±3–5 rad/s within 100 ms of the hand-off in 7399 (±1–2 in 7224), the
+  roll growing 0 → 5° in the first 0.5 s and on to 90° by the fall, with
+  `|τ_ff| = 0` and all four FK foot heights equal throughout. The belly
+  settle under joint damping alone is a bounce on the folded shanks: in
+  most runs it rocks 10–20° and dies out (OPEN-30's residual), in these
+  two it grew. The `[FALL] z=0.132` is the estimate of a body on its side.
+  So the star's interlude roll-over, the wkc/hairpin finish tips and the
+  galloping/dash lie-down BADs are one item: the lie-down's second stage.
+  Lever to measure: the damping hold itself (`setEdamp(8.0)` for 1.2 s,
+  hard-coded in `mit_sim_main.cpp`) — a higher damping or a slower,
+  position-held descent from 0.10 to the belly instead of a damped drop —
+  scored on the stage-2 peak roll, which every run shows (10–20°), so ten
+  runs an arm decide it rather than the 1–3 % tip rate. Needs an env knob
+  and a gated deploy; proposed, not yet built.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
