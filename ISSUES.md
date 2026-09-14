@@ -567,7 +567,8 @@ passed on its own in-suite retry.
   **23:35 — CB block 1, wkc 2.6: 6/6** (23/24 since the restart, laps
   96.8–97.3 s, streams clean). **23:44 — hairpin 2.6: 6/6** (23/24 since
   the restart, 49.4–49.5 s). **00:04 (09-14) — fast tier 13/13** (71/72
-  tier cases on the served recipe since the restart). CB block 2 running.
+  tier cases on the served recipe since the restart). **00:18 — CB block
+  2, wkc 2.6: 6/6** (29/30 since the restart, laps 96.7–96.9 s).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
