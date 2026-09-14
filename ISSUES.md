@@ -634,7 +634,16 @@ passed on its own in-suite retry.
   block 16, wkc 2.6: 6/6 under that load** (worst gap 7.7 ms — the RT band
   holds; 111/113 raw since the restart, course-clean 111/111). **10:30 —
   hairpin 2.6: 6/6** (113/114 since the restart; one pass through a 20 ms
-  gap). Load easing to 3.7 as the reindex burst passes.
+  gap). Load easing to 3.7 as the reindex burst passes. **10:49 — fast
+  tier 11/13**, both misses genuine (streams clean): `star` (run 7224) —
+  the first star miss in 17 tiers — completed its loop, stopped for the
+  dash interlude (shed 1.18 m/s over 1.2 s, TROT→STAND, settled at 2.8°)
+  and then TIPPED OVER during the interlude lie-down, roll −100° at
+  z 0.125 — the lie-down's first stage (STAND_UP to 0.15), not the belly
+  settle, so a harder cousin of OPEN-30's rock; and `galloping_octagon_45deg`
+  (run 7236) rolled past 60° mid-course at its base speed, the envelope
+  case's own tail (2 misses in 24 tier runs, one a lie-down tip). Tier
+  record since the restart: 263/267. CB block 17.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the

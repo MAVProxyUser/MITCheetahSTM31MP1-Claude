@@ -1,262 +1,5 @@
 [
  {
-  "ts": "2026-08-27 22:47:56",
-  "case": "bounding_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "bounding"
-   ],
-   "speeds": [
-    1.0
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 82.6
- },
- {
-  "ts": "2026-08-27 22:49:33",
-  "case": "galloping_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "galloping"
-   ],
-   "speeds": [
-    0.8
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 96.7
- },
- {
-  "ts": "2026-08-27 23:15:34",
-  "case": "star",
-  "config": {
-   "slots": [
-    "star:10.514:5"
-   ],
-   "gaits": [
-    "trotRunning"
-   ],
-   "speeds": [
-    3.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 94.5
- },
- {
-  "ts": "2026-08-27 23:17:09",
-  "case": "atom",
-  "config": {
-   "slots": [
-    "atom:9.0:6"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    2.1
-   ],
-   "dashes": [],
-   "extras": [
-    "WP_ALON=0.4"
-   ]
-  },
-  "verdict": "PASS",
-  "wall_s": 94.6
- },
- {
-  "ts": "2026-08-27 23:18:30",
-  "case": "oval",
-  "config": {
-   "slots": [
-    "oval:40:5.0"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    2.4
-   ],
-   "dashes": [],
-   "extras": [
-    "WP_ANALYZER=0"
-   ]
-  },
-  "verdict": "PASS",
-  "wall_s": 80.6
- },
- {
-  "ts": "2026-08-27 23:19:42",
-  "case": "dash_trotRunning",
-  "config": {
-   "slots": [
-    "dash:100"
-   ],
-   "gaits": [
-    "trotRunning"
-   ],
-   "speeds": [
-    2.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 72.6
- },
- {
-  "ts": "2026-08-27 23:22:45",
-  "case": "dash_long_duration",
-  "config": {
-   "slots": [
-    "dash:100"
-   ],
-   "gaits": [
-    "trotRunning"
-   ],
-   "speeds": [
-    0.6
-   ],
-   "dashes": [],
-   "extras": [
-    "CTRL_XDRAG_CLAMP=1.0"
-   ]
-  },
-  "verdict": "PASS",
-  "wall_s": 182.8
- },
- {
-  "ts": "2026-08-27 23:23:48",
-  "case": "corner_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    2.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 62.6
- },
- {
-  "ts": "2026-08-27 23:25:10",
-  "case": "bounding_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "bounding"
-   ],
-   "speeds": [
-    1.0
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 82.7
- },
- {
-  "ts": "2026-08-27 23:26:47",
-  "case": "galloping_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "galloping"
-   ],
-   "speeds": [
-    0.8
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 96.6
- },
- {
-  "ts": "2026-08-28 00:26:20",
-  "case": "star",
-  "config": {
-   "slots": [
-    "star:10.514:5"
-   ],
-   "gaits": [
-    "trotRunning"
-   ],
-   "speeds": [
-    3.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 94.5
- },
- {
-  "ts": "2026-08-28 00:27:54",
-  "case": "atom",
-  "config": {
-   "slots": [
-    "atom:9.0:6"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    2.1
-   ],
-   "dashes": [],
-   "extras": [
-    "WP_ALON=0.4"
-   ]
-  },
-  "verdict": "PASS",
-  "wall_s": 94.6
- },
- {
-  "ts": "2026-08-28 00:29:07",
-  "case": "oval",
-  "config": {
-   "slots": [
-    "oval:40:5.0"
-   ],
-   "gaits": [
-    "trotRunning"
-   ],
-   "speeds": [
-    3.5
-   ],
-   "dashes": [],
-   "extras": [
-    "WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5"
-   ]
-  },
-  "verdict": "PASS",
-  "wall_s": 72.6
- },
- {
   "ts": "2026-08-28 00:30:20",
   "case": "dash_trotRunning",
   "config": {
@@ -18519,5 +18262,259 @@
   },
   "verdict": "PASS",
   "wall_s": 98.7
+ },
+ {
+  "ts": "2026-09-14 10:32:15",
+  "case": "star",
+  "config": {
+   "slots": [
+    "star:10.514:5"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [
+    100
+   ],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 100.7,
+  "shm_trace_paths": [
+   "/Users/kfinisterre/Desktop/Cheetah/rundata/conductor/archive/shm_trace/20260914_103212_run7224_dog0_FALL.json"
+  ]
+ },
+ {
+  "ts": "2026-09-14 10:33:48",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 92.7
+ },
+ {
+  "ts": "2026-09-14 10:35:04",
+  "case": "oval",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ANALYZER=1 WP_VSUS=2.4 WP_GAIT_CORNER=5"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-14 10:36:21",
+  "case": "dash_trotRunning",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 76.5
+ },
+ {
+  "ts": "2026-09-14 10:37:31",
+  "case": "dash_trotting_30",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    3.0
+   ],
+   "dashes": [],
+   "extras": [
+    ""
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 70.5
+ },
+ {
+  "ts": "2026-09-14 10:40:46",
+  "case": "dash_long_duration",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    0.6
+   ],
+   "dashes": [],
+   "extras": [
+    "CTRL_XDRAG_CLAMP=1.0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 194.8
+ },
+ {
+  "ts": "2026-09-14 10:41:55",
+  "case": "octagon_recipe",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 68.6
+ },
+ {
+  "ts": "2026-09-14 10:43:03",
+  "case": "circle_smooth_36gon",
+  "config": {
+   "slots": [
+    "circle:9:36"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 68.6
+ },
+ {
+  "ts": "2026-09-14 10:44:36",
+  "case": "corner_probe_90deg",
+  "config": {
+   "slots": [
+    "corner:25:90"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 92.7
+ },
+ {
+  "ts": "2026-09-14 10:45:39",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 62.6
+ },
+ {
+  "ts": "2026-09-14 10:46:55",
+  "case": "oval_real_switch",
+  "config": {
+   "slots": [
+    "oval:40:5.0"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    3.5
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_GAIT_CORNER=9"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 76.7
+ },
+ {
+  "ts": "2026-09-14 10:48:22",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 86.7
+ },
+ {
+  "ts": "2026-09-14 10:49:33",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "FAIL",
+  "wall_s": 70.6,
+  "failure_signature": "SAFETY CHECK FAILED - orientation exceeded the trip limit",
+  "shm_trace_paths": [
+   "/Users/kfinisterre/Desktop/Cheetah/rundata/conductor/archive/shm_trace/20260914_104932_run7236_dog0_FALL.json"
+  ]
  }
 ]
