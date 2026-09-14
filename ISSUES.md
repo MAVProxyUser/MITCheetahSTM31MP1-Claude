@@ -574,7 +574,8 @@ passed on its own in-suite retry.
   block 3, wkc 2.6: 5/6, 5/5 clean** (the miss a wp1 collapse at 459 IMU
   samples/s, gap 23 ms; another pass carried a 37 ms gap — the host was
   busy around 00:55). Served wkc 2.6 since the restart: 34/35 raw, 34/34
-  by the harness rules.
+  by the harness rules. **01:09 — hairpin 2.6: 6/6** (35/36 since the
+  restart).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
