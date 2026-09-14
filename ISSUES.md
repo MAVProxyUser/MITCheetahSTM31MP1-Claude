@@ -506,7 +506,23 @@ passed on its own in-suite retry.
   2.6 is unchanged by the cap, as expected (its corners are not the cap's).
   **20:18 — fast tier 13/13** (46/46 tier cases on the served recipe since
   the restart). BZ ended on `STOP_BZ`; chain CA (controller levers at 2.8)
-  runs now.
+  runs now. **20:58 — chain CA, wkc 2.8 on the shipped recipe, 6 × recipe /
+  `CTRL_MPC_QVX=0.25` / `CTRL_BODY_H=0.27` / `CTRL_F_MAX=220` interleaved
+  (the host loaded again — six runs over 15 ms, three harness falls):**
+  recipe 2/5 clean, QVX 0.25 4/5, body height 0.27 **0/6** (five collapses
+  at wp0 — the lower stance cannot even leave the start at 2.8; harmful),
+  F_MAX 220 4/5. The wp13→wp15 window's median peak is 26.1 / 26.2 / — /
+  26.2° — none of the levers moves the feature's typical size; QVX and
+  F_MAX trim its tail (p90 28.7 / 27.8 vs 32.2) and each turn 2/5 into
+  4/5, which N = 5 cannot separate from noise. Body speed 2.96–3.03 in
+  every arm. The reading that fits everything: the trot's declared ceiling
+  is 3.1 (`segMs 22, vMax 3.1`), the dash crosses at 3.1 and fails at 3.2,
+  and a 2.8 stick on this course puts the body at 3.0 on the rise out of
+  every stop — within 5 % of the gait's own limit, where no MPC weight or
+  force cap buys margin. The honest lever left is the cruise itself: 2.7
+  (body ~2.9) is untested on the shipped recipe. Chain CB runs it at depth
+  (wkc, hairpin, box), then replicates QVX / F_MAX vs recipe at 2.8 with
+  N = 12 so the tail claim is settled either way, then holds the rig.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
