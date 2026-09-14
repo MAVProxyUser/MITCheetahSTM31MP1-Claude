@@ -547,8 +547,13 @@ passed on its own in-suite retry.
   working rung with a thin tail, recorded, not promoted. **22:03 —
   hairpin 2.7: 5/6**, the miss genuine (run 6792, the wp0→wp1 braking
   collapse that also took one 2.6 run tonight), pass peaks 23.6–29.0° —
-  the same 5/6 the hairpin gave at 2.7 before the cap, as expected. Box
-  at 2.7 next, then the 2.8 levers at N = 12.
+  the same 5/6 the hairpin gave at 2.7 before the cap, as expected.
+  **22:09 — box 2.7: 2/4**, two genuine collapses at wp4 (pitch 43° and
+  58°), where 2.6 is 6/6 twice and 2.8 was 1/4. So the box, not wkc, is
+  the course that bounds the shipped recipe above 2.6: at 2.7 wkc runs
+  5/5, the hairpin 5/6, the box 2/4. **2.6 is the envelope on all three
+  courses; 2.7 is wkc-only.** The 2.8 levers at N = 12 run next, then CB
+  holds the rig on the served recipe at 2.6.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
