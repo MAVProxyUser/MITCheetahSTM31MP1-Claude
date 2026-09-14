@@ -767,7 +767,13 @@ passed on its own in-suite retry.
   block, wkc 2.6 on the stock hold: 6/6** (standing blocks 163/167 raw
   since the restart, course-clean 163/163; this block's lie-downs: peak
   roll median 1.2°, max 9.3). CC ends on `STOP_CC`; chain CD takes the
-  rig with the damping arms at depth.
+  rig with the damping arms at depth. **18:52 — CD block 1, wkc 2.6 × 6
+  recipe / kd 24: 6/6 and 6/6.** Pooled wkc lie-downs (CC + CD): stock
+  n = 15 — median 1.3°, p90 8.9, max 13.5, one past 10°, eight of fifteen
+  quiet; kd 24 n = 16 — median 3.6°, p90 6.1, **max 6.6, none past 10°**,
+  none quiet (a moderate bounce every time, 7.6 rad/s, 0.2° at the judge
+  instant). The compression holds at N = 16; the tail count needs the
+  evening.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
