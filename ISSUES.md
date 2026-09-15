@@ -975,8 +975,15 @@ passed on its own in-suite retry.
   stage-2 roll median 0.7°, p90 1.0, max 1.1, abad excursion 0.000 on all
   eleven; stock this block n = 6, two of six splayed (0.55 rad) and the
   worse of them rocked 9.2° — the block's max — the other four ≤ 0.02 rad
-  and ~1°; stock pooled n = 50, median 1.2°, p90 7.4, max 13.5. Hairpin
-  block, then the tier with the interlude gate.
+  and ~1°; stock pooled n = 50, median 1.2°, p90 7.4, max 13.5. **01:27 —
+  CG block 1, hairpin: nodamp 6/6, stock 6/6.** Lie-downs: nodamp pooled
+  n = 12, median 0.1°, p90 0.5, max 1.0, abad excursion 0.000 on all
+  twelve; stock this block 1 of 6 splayed (0.51 rad, rocked 9.8°), the
+  other five ≤ 0.02 rad, and across the six the roll follows the splay
+  exactly (rho 1.00); stock pooled n = 31, median 0.4°, p90 4.3, max 17.2.
+  Over both courses the no-damper arm is now n = 23 (max 1.1°) against
+  stock n = 81 (max 17.2, p90 4–7). The tier with the interlude gate runs
+  next.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
