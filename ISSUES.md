@@ -2440,6 +2440,36 @@ passed on its own in-suite retry.
   real, measurable, now-fixed defect — and not where the collapses come from.
   Kept as a knob (default off) pending a decision on the course-time cost.
 
+
+**2026-09-15 03:05 — run 7680, a clean-stream cornering fall with joint-level
+instrumentation (the class the operator asked to be deep-dived).** Hairpin
+2.6, stock lie-down arm of chain CF, DUMP=1, 495 samples/s and a 10.4 ms
+worst gap — the robot's evidence. Not a corner: the CLOSING leg from wp03
+(18, −9) home to (0, 0), heading 155°, braking from 2.6 toward the end
+stop exactly as the passing runs around it do (7679, 7681: hdg 155, w ≈ 0
+all the way in). At t = 48.1 s (N 3.36, E −1.63 — on the line to 5 cm,
+v 1.74, w 0.02) it was identical to them; 1.2 s later it read hdg 180,
+v 1.35, w −1.20 and went down at roll 41° propped on its legs. The first
+trip lines in its log are OPEN-39's: `Unsafe locomotion: leg 0 is moving
+too quickly (9.055 m/s)` twice, then the 40° roll lines — the leg-speed
+trip and RECOVERY_STAND, this time with NO sample deficit. The snapshot
+orders the event: at dt −1.15 s before the record end everything is quiet
+(roll 0.2°, z 0.293); at −0.95 the BODY has already been hit — roll +4.5°,
+pitch −4.6°, roll rate +1.41 rad/s, yaw rate −0.96, lateral velocity
+−0.25 m/s — while the bridge dump shows every joint still on its trot
+trajectory; at −0.85..−0.80 the right-side abads swing (FR −0.10 → +0.49
+rad, RR +0.19 → −0.41, opposite ways within 60 ms — the 9 m/s leg is FR),
+at −0.75 the roll is 46° and the rear-left foot 0.26 m ABOVE the hip, the
+E-stop zeroes the legs at −0.65. The w = −1.20 in the nav line is the
+follower REACTING to a 27° heading error, not causing it (no `[follow]
+PIVOT` line; the passing runs steer w ≈ 0 at the same spot). So: a
+body-first lateral kick on a straight at 1.9 m/s with a clean stream,
+ending in the pinned-foot release OPEN-39 described for run 6548 — which
+means that anatomy is not only a sensor-stream artefact. The 500 Hz
+window (foot speeds, joint errors, dt −1.3..−0.6) is being extracted in
+the next idle gap to see what pinned or kicked the foot. One in ~150
+hairpin runs since the restart.
+
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
   re-validated there, or JCQP made to converge on moving gaits, or the
