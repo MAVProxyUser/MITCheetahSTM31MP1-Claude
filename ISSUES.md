@@ -1174,6 +1174,8 @@ binaries n = 42 + 42 (max 14.6° / 28.5°, 17 and 14 of 42 splayed,
 rho(mean splay, roll) 0.59 / 0.91). The pooled scans had grown to minutes
 a gap (the idle watchdog called it at 08:23); `liedown_peak.py` now caches
 scores by snapshot path, so a block's scan reads only its new runs.
+**09:02 — tier 4: 13/13** (519/540 since the restart; 65/65 tier cases
+and 96 campaign runs on 4db0dc8c without a trip). Block 5 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
