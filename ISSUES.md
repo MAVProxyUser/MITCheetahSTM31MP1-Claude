@@ -1014,7 +1014,14 @@ passed on its own in-suite retry.
   6/6, stock 6/6.** Lie-downs: nodamp n = 23, median 0.9°, p90 1.1, max
   1.1, abad excursion 0.000 in all; stock on the new binary n = 18, 8 of
   18 splayed, stage-2 roll max **14.6°** this block (p90 9.6), rho(splay
-  asymmetry, roll) 0.70.
+  asymmetry, roll) 0.70. **03:41 — CG block 3, hairpin: nodamp 6/6, stock
+  6/6.** Lie-downs: nodamp n = 24, median 0.2°, p90 0.9, max 1.0, no abad
+  motion in any; stock on the new binary n = 18, 5 of 18 splayed, and one
+  of them rocked **28.5°** — a near-tip, the largest stage-2 roll on record
+  short of the tips themselves (p90 13.8), rho(mean splay, roll) 0.92.
+  Both courses: nodamp n = 47, max 1.1°; stock on the same binary n = 36,
+  max 28.5°. The A/B has its answer at N; the chain keeps the base rate
+  running.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
@@ -1102,6 +1109,36 @@ passed on its own in-suite retry.
   thinned) and everything packed since 15:00 was released at once. The
   The AGE_H=0 compaction default stays; it costs nothing and keeps
   the raw window to one campaign.
+
+**2026-09-15 03:50 — the trip is the killer, not the gap, and it needs no
+gap.** The 500 Hz windows of the two clean-stream falls of the night
+(run 7680, hairpin closing leg at 1.9 m/s, 495 samples/s; run 7763, the
+star's dash at 3.6 m/s, 490/s) both start the same way: at a touchdown the
+worst joint error jumps from 0.3 to 1.7–2.4 rad within 20–30 ms while the
+body is still level, then a leg folds under the body at 4–7 m/s and it
+rolls over inside 150 ms. The ctrl logs say why: `Unsafe locomotion: leg
+0 is moving too quickly (9.055 m/s)` → `[Recovery Balance] body height is
+0.27; Stand Up` → `[FSM LOCOMOTION] On Enter` — the leg-speed check fires
+on ONE tick over 9 m/s, RECOVERY_STAND re-commands all four legs to a
+stand pose mid-stride, and the joint error that explodes is the stand
+pose against a trot at cruise. `datas[leg].v` is J·qd with the sim's own
+joint velocity, which spikes for a tick on a touchdown impact (a trot at
+3.6 m/s swings its feet at 7.2–7.7 m/s, 15 % under the limit) exactly as
+it spikes on a held-then-jumped sample. Across every run archived since
+22:00 (189): **8 logged that line and 8 fell** — the six OPEN-39
+deficit-second falls of the night and the two clean ones — and no run
+survived it. So the "sample deficit" was one road to a one-tick velocity
+spike; the impact is the other; the response is what falls. Fix, shipped
+in the source for chain CH: the check is DEBOUNCED — `CTRL_LEGV_TRIP_TICKS`
+(default 5 = 10 ms) consecutive ticks over `CTRL_LEGV_TRIP_MPS` (default
+9, upstream) before it trips, a genuine runaway staying over the limit
+and a spike not; 1 restores the stock one-tick trip for an A/B, and every
+ignored spike is logged (`[legv] leg N over 9.0 m/s for k tick(s)`,
+throttled) so the record counts what the debounce absorbed. The harness
+rule (a fall in a ≤ 485/s event second is not the robot's evidence)
+stands: the stream still loses the samples; it should just stop killing
+the dog.
+
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
   rest of the run and the harness books a NONE** — `SIM HARNESS`. Opened

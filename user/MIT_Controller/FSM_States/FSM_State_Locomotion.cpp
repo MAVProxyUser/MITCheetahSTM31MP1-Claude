@@ -271,10 +271,37 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
       return false;
     }
 
+    // LEG-SPEED TRIP, DEBOUNCED (ISSUES OPEN-39 / OPEN-28, 2026-09-15 03:50).
+    // Upstream trips on ONE tick over 9 m/s. datas[leg].v is J * qd, and qd
+    // here is the sim's joint velocity, which spikes for a tick or two on a
+    // touchdown impact and on a sensor-stream gap (a held sample, then a
+    // jump). The response - RECOVERY_STAND - re-commands all four legs to a
+    // stand pose in the middle of a stride, which at cruise is a fall every
+    // time: of 189 runs archived on the night of 2026-09-14/15, 8 logged this
+    // line and 8 fell (two with a clean stream, run 7680 at 1.9 m/s on the
+    // hairpin's closing leg and run 7763 at 3.6 m/s on the star's dash, the
+    // rest inside OPEN-39 sample-deficit seconds). A genuine runaway leg stays
+    // over the limit; a spike does not. CTRL_LEGV_TRIP_TICKS (default 5, i.e.
+    // 10 ms) consecutive ticks over CTRL_LEGV_TRIP_MPS (default 9, upstream)
+    // are required; 1 restores the stock one-tick trip for an A/B. Ignored
+    // spikes are logged (throttled) so the record can count them.
+    static const int  legv_ticks = (int)ctrl_tuning::num("CTRL_LEGV_TRIP_TICKS", 5.0);
+    static const T    legv_mps   = (T)ctrl_tuning::num("CTRL_LEGV_TRIP_MPS", 9.0);
+    static int        legv_over[4] = {0, 0, 0, 0};
+    static int        legv_spikes_logged = 0;
     auto v_leg = this->_data->_legController->datas[leg].v.norm();
-    if(std::fabs(v_leg) > 9.) {
-      shmtrace::logf(0.0, "Unsafe locomotion: leg %d is moving too quickly (%.3f m/s)", leg, (double)v_leg);
-      return false;
+    if(std::fabs(v_leg) > legv_mps) {
+      legv_over[leg]++;
+      if(legv_over[leg] >= legv_ticks) {
+        shmtrace::logf(0.0, "Unsafe locomotion: leg %d is moving too quickly (%.3f m/s, %d ticks over %.1f)", leg, (double)v_leg, legv_over[leg], (double)legv_mps);
+        return false;
+      }
+      if(legv_spikes_logged < 50) {
+        legv_spikes_logged++;
+        shmtrace::logf(0.0, "[legv] leg %d over %.1f m/s for %d tick(s) (%.3f m/s) - not a trip until %d", leg, (double)legv_mps, legv_over[leg], (double)v_leg, legv_ticks);
+      }
+    } else {
+      legv_over[leg] = 0;
     }
   }
 
