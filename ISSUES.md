@@ -1193,7 +1193,12 @@ last second. Lie-downs: nodamp n = 54 + 54 (max 1.1° / 1.0°, abad
 excursion 0.000 in all 108); stock on the new binaries n = 48 + 47 (max
 14.6° / 28.5°, 20 and 16 splayed, rho(mean splay, roll) 0.62 / 0.90).
 **10:09 — tier 5: 13/13** (532/553 since the restart; 78/78 tier cases on
-4db0dc8c). Block 6 next.
+4db0dc8c). **11:02 — CH block 6: wkc 12/12, hairpin 12/12**, through a
+Spotlight reindex (load 7.8 at 10:10), no trip, no spike line, worst
+stream 494/s. Lie-downs: nodamp n = 60 + 60 (max 1.1° / 1.0°, abad
+excursion 0.000 in all 120); stock on the new binaries n = 54 + 53 (max
+14.6° / 28.5°, 20 and 16 splayed, rho(mean splay, roll) 0.56 / 0.91).
+Tier 6 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
@@ -2566,6 +2571,36 @@ means that anatomy is not only a sensor-stream artefact. The 500 Hz
 window (foot speeds, joint errors, dt −1.3..−0.6) is being extracted in
 the next idle gap to see what pinned or kicked the foot. One in ~150
 hairpin runs since the restart.
+
+
+**2026-09-15 11:05 — run 7994, the other clean-stream fall class: the pitch
+runaway on the hairpin's re-acceleration.** Stock lie-down arm of chain CH,
+binary 4db0dc8c, DUMP=1, 500 samples/s, 3.0 ms worst gap, no leg-speed
+line — the robot's own. After the reversal's vertex stop the follower
+re-accelerated toward wp03 on the straight; the body overshot the 2.6
+cruise to 2.66–2.83 m/s (this trot runs ~8 % over its command) and over the
+next 1.5 s the pitch grew nose-UP in steps, one per stride — 2° → 6 → 9 →
+13 → 18 → 22 → 27 → 33 — while z sank 0.29 → 0.23 and the rear feet rode
+higher than the front (foot_z RR/RL −0.21/−0.19 against FR/FL −0.26/−0.25
+at −1.16 s); the E-stop fired at 33.2° held 62 ms and the body settled
+level on its belly (the "level collapse" reading, again the aftermath).
+The dump says what the legs were doing: at −1.80 s the stance pair's knees
+were nearly straight (FR −0.98, RL −0.98 rad, the leg extended to the rear
+at the end of stance) with a knee feed-forward of +43.0 / +40.7 N·m against
+the Go1's 35.55 N·m joint limit, and the mean |tau_ff| across the twelve
+joints climbed 0.36 → 1.0 → 1.7 N·m over the runaway — the MPC asking the
+rear-most stance leg for more than the sim can deliver at that reach, the
+shortfall arriving as nose-up pitch, stride after stride. This is the wkc
+2.8 mechanism (the E-stop at pitch 30–33° with the body at 2.8–3.0,
+OPEN-38's "coin flip") showing up on the hairpin at a 2.6 cruise because
+the re-acceleration overshoots to 2.83. The knees were not on their soft
+stops (−1.3..−2.4 rad against −2.635); the `stops=119–133/s` counter in
+those seconds is another joint's. Lever, for the operator: it is the
+overshoot, not the cruise — a measured-speed cap on the re-acceleration
+(`WP_REACCEL_VMAX`, off by default, measured null-to-harmful on wkc 2.8
+on 09-12) or a hairpin cruise of 2.5 would remove it; 2.6 stays the
+served envelope, this being one run in ~200 hairpin runs since the
+restart.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
