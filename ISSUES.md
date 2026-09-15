@@ -870,6 +870,10 @@ passed on its own in-suite retry.
   pooled each block. If it holds at N, the fix for the finish tips and the
   star's interlude roll-overs is one line — the default of
   `WP_LIEDOWN_EDAMP` in `dampingHold()`, or the env in the course recipe.
+  **23:08 — CD block 5, wkc: stock 6/6, kd 24 6/6** (every run at 499–500
+  IMU samples/s); pooled wkc lie-downs stock n = 39 (median 1.1°, p90 5.4,
+  max 13.5, 3 without a hold) vs kd 24 n = 39 (median 3.9, p90 6.6, max
+  7.8). STOP_CD ended CD there (23:08:44); chain CE has the rig.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
