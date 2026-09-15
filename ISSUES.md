@@ -1216,7 +1216,11 @@ hairpin 12/12**, no trip, no spike line. Lie-downs: nodamp n = 78 + 78
 binaries n = 72 + 71 (max **18.1°** on wkc, a new wkc maximum this block,
 and 28.5° on the hairpin; 28 and 20 splayed, rho(mean splay, roll) 0.61 /
 0.91). **14:38 — tier 9: 13/13** (584/605 since the restart; 130/130 tier
-cases and 216 campaign runs on 4db0dc8c). Block 10 next.
+cases and 216 campaign runs on 4db0dc8c). **15:24 — CH block 10: wkc
+12/12, hairpin 12/12**, no trip, no spike line. Lie-downs: nodamp n = 84 +
+84 (max 1.2° / 1.1°, abad excursion 0.000 in all 168); stock on the new
+binaries n = 78 + 77 (max 18.1° / 28.5°, 30 and 24 splayed, rho(mean
+splay, roll) 0.61 / 0.91). Tier 10 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
