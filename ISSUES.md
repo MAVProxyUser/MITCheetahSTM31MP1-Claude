@@ -630,7 +630,13 @@ passed on its own in-suite retry.
   user's; the workers respawn per file), so the lever is the operator's:
   `sudo mdutil -i off /System/Volumes/Data`, or the rundata tree in
   Spotlight's privacy list. Until then the harness books the stutters as
-  host falls, which it has been doing correctly all night. **10:21 — CB
+  host falls, which it has been doing correctly all night. *(22:41: add MY
+  OWN archive scans to the tell list — three tier falls in six minutes,
+  each with the run's only deficit second as its event second, while three
+  scripts were decompressing 30–90 archived snapshots apiece at nice 19;
+  OPEN-30's record of that block has the numbers. Heavy reads of the
+  archive belong in the idle gap between campaigns, where the chains' own
+  scoring already runs.)* **10:21 — CB
   block 16, wkc 2.6: 6/6 under that load** (worst gap 7.7 ms — the RT band
   holds; 111/113 raw since the restart, course-clean 111/111). **10:30 —
   hairpin 2.6: 6/6** (113/114 since the restart; one pass through a 20 ms
