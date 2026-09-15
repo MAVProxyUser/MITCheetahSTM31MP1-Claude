@@ -874,6 +874,26 @@ passed on its own in-suite retry.
   IMU samples/s); pooled wkc lie-downs stock n = 39 (median 1.1°, p90 5.4,
   max 13.5, 3 without a hold) vs kd 24 n = 39 (median 3.9, p90 6.6, max
   7.8). STOP_CD ended CD there (23:08:44); chain CE has the rig.
+  **23:12 — the no-damper probe (run 7651, wkc 2.6, `WP_LIEDOWN_EDAMP=0`,
+  DUMP=1): PASS, and the second stage is gone.** The ctrl log carries
+  `damping hold: kd 0.0 -> 0.0`, the judge read z = 0.100, roll 0.7°,
+  pitch 0.5°; the snapshot scores as held-through with a stage-2 peak roll
+  of 0.68° and a roll rate of 1e-7 rad/s; the bridge dump shows all twelve
+  joints motionless through the hold — abad excursion 0.000 rad on all
+  four legs, knees at −2.65/−2.66 (right at the operational stop, the
+  soft-stop spring carrying the load as in every propped stock run). One
+  run, but it is the mechanism's own prediction to the letter: without the
+  damper there is nothing to splay. Then a harness defect of mine: chain
+  CE qualified the probe by grepping its ctrl log in the ARCHIVE, where the
+  conductor only moves a run's logs at the NEXT launch (`archive_log()`
+  runs before each launch's truncation), read "no kd 0.0 line" 21 s after
+  the run and fell back to kd 24 for its block 1 (wkc26_ld_ce1, running,
+  stock/kd 24 with dumps — its stock runs still feed the hand-off pose
+  question). Chain CF (pid 94457, queued 23:13 behind CE; STOP_CE ends CE
+  after that campaign) runs the recipe / nodamp blocks as designed with
+  run 7651 as the probe. Lesson for any chain: a run's ctrl log is live at
+  `conductor/ctrl_0.log` until the next launch; qualify a probe on the
+  snapshot and dump (archived at the run's end) or on the CSV verdict.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
