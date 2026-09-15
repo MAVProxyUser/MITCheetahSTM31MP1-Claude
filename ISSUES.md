@@ -1002,7 +1002,15 @@ passed on its own in-suite retry.
   max 1.0, abad excursion 0.000 in all eighteen; stock on the new binary
   n = 12, 3 of 12 splayed, stage-2 roll max **13.8°** this block (p90 9.8),
   the roll tracking the splay at rho 0.97. Both courses: nodamp n = 35, max
-  1.1°; stock on the same binary n = 24, max 13.8°. Tier 2 next.
+  1.1°; stock on the same binary n = 24, max 13.8°. **02:54 — tier 2:
+  11/13.** The atom (run 7764) went down at 18 s in three consecutive
+  430/s seconds (harness). The star (7763) lay down at the closure with
+  `kd 0.0`, stood back up (z 0.225), dashed — and tipped over 22 s into
+  the dash (roll 141°) with the stream at 490/s in the event second and
+  a 7.5 ms gap: not a deficit by the rule, the interlude itself clean,
+  the fall 70 m downstream of it on the 3.5 m/s sprint; its snapshot gets
+  the freeze scan in the next gap before it is booked either way. Tier
+  record since the restart: 441/462 raw.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
