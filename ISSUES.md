@@ -1198,7 +1198,9 @@ Spotlight reindex (load 7.8 at 10:10), no trip, no spike line, worst
 stream 494/s. Lie-downs: nodamp n = 60 + 60 (max 1.1° / 1.0°, abad
 excursion 0.000 in all 120); stock on the new binaries n = 54 + 53 (max
 14.6° / 28.5°, 20 and 16 splayed, rho(mean splay, roll) 0.56 / 0.91).
-Tier 6 next.
+**11:22 — tier 6: 13/13** (545/566 since the restart; 91/91 tier cases
+and 144 campaign runs on 4db0dc8c, one fall in all of it and that one the
+robot's own). Block 7 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
