@@ -938,6 +938,20 @@ passed on its own in-suite retry.
   fast tier FIRST (the star case carries the dash interlude, i.e. the
   stand-back-up from a held lie-down), then holds the rig on wkc / hairpin
   ×6 nodamp vs stock (explicit env on both arms) with the tier per block.
+  **00:22 — CF block 1, hairpin: nodamp 6/6, stock 4/6** — run 7676
+  tipped at wp00 in a 478/s second with a 15.6 ms gap (harness); run 7680
+  went down at the reversal exit after wp03, roll 41° at z 0.11 with a
+  clean stream (495/s, 10.4 ms): the hairpin's own cornering tail, the
+  first course-clean hairpin miss since the 16:42 restart, booked as the
+  robot's. The lie-down, run by run from the dumps: stock 7686 splayed
+  FL 0.76 / RR 0.88 rad against FR 0.15 / RL 0.31 and rocked **17.2°** — a
+  new stock maximum on the hairpin; 7684 splayed FR 0.86 against 0.27–0.39
+  and rocked 5.9°; 7678 and 7682 did not splay (≤ 0.02 rad) and read 0.4°
+  and 0.2°. The nodamp six: abad excursion 0.000 on every leg, stage-2
+  roll 0.1–0.5°. Pooled hairpin: stock n = 31 (median 0.4°, p90 4.3, max
+  17.2) vs nodamp n = 6 (median 0.2, p90 0.5, max 0.5). STOP_CF ended CF
+  at 00:22:19 (its tier skipped — CG's is on the new binary); CG is
+  building in the gap.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
