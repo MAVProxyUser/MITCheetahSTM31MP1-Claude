@@ -636,7 +636,12 @@ passed on its own in-suite retry.
   scripts were decompressing 30–90 archived snapshots apiece at nice 19;
   OPEN-30's record of that block has the numbers. Heavy reads of the
   archive belong in the idle gap between campaigns, where the chains' own
-  scoring already runs.)* **10:21 — CB
+  scoring already runs. 00:10 on 09-15, another tell for the operator's
+  list: `WallpaperAerialsExtension` at 8 % with `VTDecoderXPCService` at
+  2 % — the aerial wallpaper is decoding video on the desktop all night,
+  a steady GPU/CPU tenant beside BambuStudio's 5–10 %; four deficit-second
+  falls between 23:50 and 00:06 with no backup running and nothing else
+  caught in the act.)* **10:21 — CB
   block 16, wkc 2.6: 6/6 under that load** (worst gap 7.7 ms — the RT band
   holds; 111/113 raw since the restart, course-clean 111/111). **10:30 —
   hairpin 2.6: 6/6** (113/114 since the restart; one pass through a 20 ms
