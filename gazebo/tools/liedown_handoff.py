@@ -7,8 +7,8 @@ joint in the URDF convention: abad, thigh, calf per leg FR FL RR RL).
 
   usage: liedown_handoff.py label=CAMPAIGN_GLOB[:arm] ...
 
-The hand-off is the last stretch (>= 0.5 s) with kp == 0, tau_ff == 0 and one
-common kd > 0 on all twelve joints (edampCommand, whatever the gain); the 20 ms
+The hand-off is the last stretch (>= 0.5 s) with kp == 0 and one common joint
+kd > 0 on all twelve joints (edampCommand, whatever the gain); the 20 ms
 PASSIVE hop before STAND_UP is the same signature and is skipped by the length
 rule. An arm that never hands off
 (WP_LIEDOWN_EDAMP=0) has no such stretch and is scored over the last 1.2 s of
@@ -28,13 +28,14 @@ def handoff(dump):
     rows = list(csv.DictReader(open(dump)))
     if len(rows) < 200: return None
     f = lambda r, k: float(r[k])
-    # the damping hold: kp = 0 and tau_ff = 0 on every joint with one common kd > 0
-    # (8 stock, 24 for the kd24 arm - edampCommand sets the same gain everywhere);
-    # STAND_UP's own hold has tau_ff != 0 (the Cartesian PD), PASSIVE has kd = 0
+    # the damping hold: kp = 0 on every joint with one common joint kd > 0 (8 stock,
+    # 24 for the kd24 arm - edampCommand sets the same gain everywhere). tau_ff is
+    # NOT required to be zero: the OPEN-31 soft stop adds a capped torque on a knee
+    # sitting past its operational limit, which every propped hold does. STAND_UP's
+    # own hold has joint kd = 0 (Cartesian PD only), PASSIVE has kd = 0.
     def _damp(r):
         kd = [f(r, 'kd%d' % j) for j in range(12)]
-        return (kd[0] > 0.5 and all(abs(k - kd[0]) < 1e-6 for k in kd) and all(f(r, 'kp%d' % j) == 0.0 for j in range(12))
-                and all(f(r, 'tff%d' % j) == 0.0 for j in range(12)))
+        return kd[0] > 0.5 and all(abs(k - kd[0]) < 1e-6 for k in kd) and all(f(r, 'kp%d' % j) == 0.0 for j in range(12))
     sig = [_damp(r) for r in rows]
     segs, s = [], None
     for i, v in enumerate(sig):
