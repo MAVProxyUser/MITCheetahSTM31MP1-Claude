@@ -1175,7 +1175,19 @@ rho(mean splay, roll) 0.59 / 0.91). The pooled scans had grown to minutes
 a gap (the idle watchdog called it at 08:23); `liedown_peak.py` now caches
 scores by snapshot path, so a block's scan reads only its new runs.
 **09:02 — tier 4: 13/13** (519/540 since the restart; 65/65 tier cases
-and 96 campaign runs on 4db0dc8c without a trip). Block 5 next.
+and 96 campaign runs on 4db0dc8c without a trip). **09:49 — CH block 5:
+wkc 12/12, hairpin nodamp 6/6, stock 5/6**, no trip, no spike line. The
+stock miss (run 7994) is the robot's own and not a lie-down: on the
+straight after the reversal, back at 2.60 m/s for three seconds
+(N 17.95, E 4.51 → wp03), the pitch E-stop fired at 33.2° held 62 ms with
+the stream at 500/s and a 3.0 ms worst gap, no leg-speed line, and the
+body sank level onto its belly (z 0.037) — the hairpin's re-acceleration
+tail, with the joint-limit soft stops busy in the seconds before (119 and
+133 stops/s against a normal 0–18) and a −42.6 N·m knee command in the
+last second. Lie-downs: nodamp n = 54 + 54 (max 1.1° / 1.0°, abad
+excursion 0.000 in all 108); stock on the new binaries n = 48 + 47 (max
+14.6° / 28.5°, 20 and 16 splayed, rho(mean splay, roll) 0.62 / 0.90).
+Tier 5 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
