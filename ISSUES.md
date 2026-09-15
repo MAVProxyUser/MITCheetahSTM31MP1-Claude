@@ -796,7 +796,10 @@ passed on its own in-suite retry.
   miss (run 7613) tipped over mid-course at wp5 with a 26 ms gap in the
   adjacent second (474/s), a host event, not the lie-down; pooled wkc
   lie-downs stock n = 33 (max 13.5, one past 10°, 21 quiet) vs kd 24 n =
-  33 (max 7.8, none past 10°).
+  33 (max 7.8, none past 10°). **22:22 — hairpin: stock 5/6 (the miss a
+  447-samples/s collapse at wp0, harness), kd 24 6/6;** pooled hairpin
+  stock n = 27 (max 7.2, 21 quiet) vs kd 24 n = 30 (max 6.4, one quiet).
+  Fast tier, then block 5.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
