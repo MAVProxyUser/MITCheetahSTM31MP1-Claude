@@ -1158,7 +1158,8 @@ of 24 splayed, rho(mean splay, roll) 0.58 / 0.89. **05:34 — tier 1 on
 12/12, hairpin 12/12**, no trip and no spike line in the 24 runs. Lie-downs:
 nodamp n = 36 + 36 (max 1.1° / 1.0°, abad excursion 0.000 in all 72);
 stock on the new binaries n = 30 + 30 (max 14.6° / 28.5°, 13 and 9 of 30
-splayed). Tier 2 next.
+splayed). **06:43 — tier 2: 13/13** (493/514 since the restart; 39/39 on
+4db0dc8c so far). Block 3 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
