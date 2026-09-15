@@ -997,7 +997,12 @@ passed on its own in-suite retry.
   p90 1.0, max 1.1, abad excursion 0.000 in all seventeen; stock on the
   new binary n = 12 (kd 8 by env), 6 of 12 splayed (excursion p90 0.59
   rad), stage-2 roll median 2.0°, p90 9.2, max 9.6, the roll following
-  the splay asymmetry at rho 0.75. Hairpin block, then the tier.
+  the splay asymmetry at rho 0.75. **02:34 — CG block 2, hairpin: nodamp
+  6/6, stock 6/6.** Lie-downs: nodamp pooled n = 18, median 0.1°, p90 1.0,
+  max 1.0, abad excursion 0.000 in all eighteen; stock on the new binary
+  n = 12, 3 of 12 splayed, stage-2 roll max **13.8°** this block (p90 9.8),
+  the roll tracking the splay at rho 0.97. Both courses: nodamp n = 35, max
+  1.1°; stock on the same binary n = 24, max 13.8°. Tier 2 next.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
