@@ -50,7 +50,10 @@ void setEdamp(double d);
  * within 0.8 rad to catch it. The legs slide out like a folding table; an
  * uneven splay is the rock. WP_LIEDOWN_EDAMP=0 skips the damper (STAND_UP's
  * own PD keeps holding through the second stage) - chain CE's A/B arm.
- *   WP_LIEDOWN_EDAMP    the damping gain of the hold (default 8.0, stock)
+ *   WP_LIEDOWN_EDAMP    the damping gain of the hold (default 0.0 since
+ *                       2026-09-15 = no damper, STAND_UP keeps holding;
+ *                       8.0 is stock MIT's gain and the hand-off measured
+ *                       above - see the note at the knob)
  *   WP_LIEDOWN_EDAMP0   an initial gain the hold ramps DOWN from (default
  *                       = WP_LIEDOWN_EDAMP, i.e. no ramp): a stiff damper
  *                       first slows the drop, then relaxes to the hold
@@ -60,7 +63,15 @@ void setEdamp(double d);
  */
 static double envd(const char* k, double dflt) { const char* e = getenv(k); return e ? atof(e) : dflt; }
 static void dampingHold(int hold_ms) {
-  const double kd  = envd("WP_LIEDOWN_EDAMP", 8.0);
+  // DEFAULT 0.0 SINCE 2026-09-15 (was 8.0, stock MIT's edamp gain): no damper
+  // at all - STAND_UP's own Cartesian PD keeps holding through the second
+  // stage and the judge reads the hold. Measured (ISSUES OPEN-30, chains
+  // CE/CF): under the pure damper the abad joints splay 0.45-0.74 rad in
+  // 8 of 11 stock hand-offs and the body drops onto its belly, rocking
+  // 2-13 deg and rarely tipping; with kd = 0 the abad excursion is 0.000 rad
+  // in 6 of 6 and the stage-2 roll is 0.3 deg median, 0.7 max. Set
+  // WP_LIEDOWN_EDAMP=8 to get the stock hand-off back for an A/B.
+  const double kd  = envd("WP_LIEDOWN_EDAMP", 0.0);
   const double kd0 = envd("WP_LIEDOWN_EDAMP0", kd);
   const int ramp   = (int)envd("WP_LIEDOWN_RAMP_MS", 0.0);
   shmtrace::logf(0.0, "[liedown] damping hold: kd %.1f -> %.1f over %d ms, then held %d ms (WP_LIEDOWN_EDAMP/EDAMP0/RAMP_MS)",

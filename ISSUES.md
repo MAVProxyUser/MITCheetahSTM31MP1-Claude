@@ -922,6 +922,17 @@ passed on its own in-suite retry.
   abad splay median 0.445 rad, from a symmetric pose with the knees at the
   operational stop). The mechanism and its fix are now both measured:
   skip the damper and the abad never moves. Hairpin block, then the tier.
+  **00:25 — shipping it as the default.** `dampingHold()`'s
+  `WP_LIEDOWN_EDAMP` default is 8.0 → 0.0 in the source (8 restores stock
+  for an A/B; the knob comment carries the evidence). Chain CG (pid below,
+  queued behind CF; STOP_CF is touched only after CF's hairpin block and
+  tier have landed, so the hairpin's own nodamp runs are on record before
+  the deploy) builds and deploys in the idle gap through `deploy_host.sh`,
+  probes the served recipe once — qualified on the snapshot and dump
+  (held through, no damper segment), not on the archived log — runs the
+  fast tier FIRST (the star case carries the dash interlude, i.e. the
+  stand-back-up from a held lie-down), then holds the rig on wkc / hairpin
+  ×6 nodamp vs stock (explicit env on both arms) with the tier per block.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
