@@ -59,7 +59,41 @@ def held_end(R):
     w = [x['z'] for x in R[j - 500:j + 1]]
     return j if (max(w) - min(w) < 0.006) else None
 
+# A score cache keyed by the snapshot path (the CSV's .json path - snapio resolves
+# a later .zst, so the key is stable): the pooled scans grew to ~140 snapshots a
+# block and were holding the rig idle for minutes in every gap (2026-09-15 08:23).
+# A snapshot never changes once written, so its score never does.
+_CACHE_PATH = os.path.join(DATA, "campaigns", "liedown_score_cache.json")
+_cache = None
+_cache_dirty = False
+
+def _cache_load():
+    global _cache
+    if _cache is None:
+        try:
+            import json; _cache = json.load(open(_CACHE_PATH))
+        except Exception:
+            _cache = {}
+    return _cache
+
+def _cache_save():
+    if _cache_dirty and _cache is not None:
+        import json, tempfile
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(_CACHE_PATH), prefix=".liedown_cache."); os.close(fd)
+        with open(tmp, "w") as f: json.dump(_cache, f)
+        os.replace(tmp, _CACHE_PATH)
+
+import atexit; atexit.register(_cache_save)
+
 def score(snap):
+    c = _cache_load()
+    if snap in c: return c[snap]
+    r = _score_uncached(snap)
+    c[snap] = r
+    global _cache_dirty; _cache_dirty = True
+    return r
+
+def _score_uncached(snap):
     d = load_json(snap); R = [x for x in d['records'] if isinstance(x, dict) and 'roll' in x and 'z' in x]
     if not R: return None
     k = hold_end(R); mode = "handoff"
