@@ -787,7 +787,9 @@ passed on its own in-suite retry.
   put a lie-down past 10° in either arm since CC's first block; the
   question is now purely the stock hold's rare 15–23° rock, which needs
   the night's N. **20:34 — fast tier 13/13** (383/397 tier cases since
-  the restart). CD block 3.
+  the restart). **21:01 — CD block 3, wkc: 6/6 and 6/6;** pooled wkc stock
+  n = 27 (max 13.5, one past 10°, seventeen quiet) vs kd 24 n = 28 (max
+  7.8, none past 10°, none quiet).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
