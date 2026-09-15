@@ -992,7 +992,12 @@ passed on its own in-suite retry.
   chain keeps the nodamp / stock A/B running for the night's N (the tips
   were a 1–3 % tail, so the stock arm keeps supplying the base rate and
   the nodamp arm the absence). OPEN-30 stays open only for that N and for
-  the judge question, which is the operator's.
+  the judge question, which is the operator's. **02:16 — CG block 2, wkc:
+  nodamp 6/6, stock 6/6.** Lie-downs: nodamp pooled n = 17, median 0.9°,
+  p90 1.0, max 1.1, abad excursion 0.000 in all seventeen; stock on the
+  new binary n = 12 (kd 8 by env), 6 of 12 splayed (excursion p90 0.59
+  rad), stage-2 roll median 2.0°, p90 9.2, max 9.6, the roll following
+  the splay asymmetry at rho 0.75. Hairpin block, then the tier.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
