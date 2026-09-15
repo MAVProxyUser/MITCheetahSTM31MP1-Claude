@@ -799,7 +799,66 @@ passed on its own in-suite retry.
   33 (max 7.8, none past 10°). **22:22 — hairpin: stock 5/6 (the miss a
   447-samples/s collapse at wp0, harness), kd 24 6/6;** pooled hairpin
   stock n = 27 (max 7.2, 21 quiet) vs kd 24 n = 30 (max 6.4, one quiet).
-  Fast tier, then block 5.
+  **22:41 — fast tier 10/13** (406/423 tier cases since the restart): the
+  three misses — the oval (run 7628, a pitch collapse at 15°), the trotting
+  30 m dash (7630, tipped SIDEWAYS to roll −126°) and the long dash (7631,
+  roll 55°) — fell within six minutes of each other, and each has exactly
+  one cruise second at 479–480 IMU samples/s, the LAST cruise second of its
+  run, against 499–500/s and no deficit second in the eight passes around
+  them: three OPEN-39 harness falls in a row, three for three on the event
+  second (base rate ~1 second in 3000). What the host was doing then was ME:
+  three archive-scanning scripts (30–90 `.json.zst` snapshots each) at nice
+  19, 22:25–22:33, for the analysis below — a tenant I created (memory
+  `feedback-my-own-analysis-is-a-host-tenant`; the chains' own scoring runs
+  in the idle gap between campaigns, and from here so does mine). Not proof:
+  a later scan of the same size overlapped runs 7635/7636, which stayed at
+  499–500/s. **22:35 — the second stage is BIMODAL, and the 16:13 comment
+  was wrong.** Pooling every stock lie-down scored so far by the body's DROP
+  after the hand-off (wkc n = 33, hairpin n = 27): 26/33 and 22/27 sag
+  0.8–1.2 cm and stay PROPPED on the folded legs at z ≈ 0.093 (stage-2 roll
+  median 1.0° / 0.4°, max 1.3° apart from two partial yields); 7/33 and 5/27
+  drop 6–7 cm onto the belly (z ≈ 0.037), and those are the runs that rock
+  (roll median 4.1°, max 13.5° — run 7451 — and every tip on record). The
+  claim in the `dampingHold()` comment and in this record that "the body
+  falls 5 cm onto the shanks in every run" was written from the tip
+  snapshots alone and is false for three runs in four (corrected in the
+  source in the same commit). What yields is the ABAD: the bridge dumps of
+  two finished runs (4585, 4363 — `DUMP=1` campaigns of 09-11) show the
+  hand-off as kd = 8 on all twelve joints with kp = 0 and tau_ff = 0, the
+  knees already at their stop (−2.75..−2.82 rad against the −2.818
+  mechanical limit) and holding, and the abad joints splaying outward under
+  the pure damper — run 4585: FR +0.08 → −0.44 rad, FL +0.01 → +0.40, RR
+  −0.03 → −0.46, RL −0.04 → +0.35 within a second — the legs slide out like
+  a folding table and the body comes down on its belly. `edampCommand` is
+  zeroCommand + kdJoint: a damper cannot carry a static load, and the abad
+  has no stop within 0.8 rad to catch it, so a run stays propped only if the
+  splay never starts (the knees are held by the OPEN-31 soft stop, which is
+  why the propped runs sag exactly the centimetre that spring gives). An
+  uneven splay is the rock; the hold's own roll wobble before the hand-off
+  predicts it (roll s.d. over the last hold second 0.118° in the rockers vs
+  0.047° quiet, rho 0.80 on wkc, 0.48 on the hairpin), the pose fields the
+  snapshot carries do not (no joint angles in the snapshot — hence DUMP=1
+  from here). Two more facts the pooled record adds: on 09-11 (campaign
+  open28_wkc_vcap, 24 runs) EVERY lie-down collapsed, the hold sitting at
+  z ≈ 0.084 rather than today's 0.100, and by 09-12 13:09 (wkc26_recipe_bt)
+  0/6 did — what moved between those two binaries is not identified; and
+  the kd 24 and ramp-40 arms collapse in 10/10 and 12/12 (chain CC), so a
+  stiffer damper slows the splay and never stops it, which is what the
+  "moderate bounce on every landing" was. The cheapest test of the
+  mechanism needs no build: `WP_LIEDOWN_EDAMP=0` skips the damper entirely
+  (`setEdamp(0)` leaves STAND_UP's own Cartesian PD holding through the
+  second stage; 3.7 s in the hold, judged at the same instant), so every run
+  should end propped at z ≈ 0.10 with the hold's ~1° of roll and no second
+  stage at all. **Chain CE** (queued 22:50 behind CD, STOP_CD touched so CD
+  ends after its block-5 wkc campaign) probes that arm once (PASS and the
+  `damping hold: kd 0.0` line required, else it falls back to kd 24), then
+  interleaves recipe / nodamp ×6 on wkc 2.6 and the hairpin with the fast
+  tier per block, DUMP=1 throughout, `liedown_handoff.py` (per run: the
+  hand-off pose, the abad excursion per leg, the left/right asymmetry) and
+  `liedown_peak.py` (a held-through run scored over the hold's last 1.5 s)
+  pooled each block. If it holds at N, the fix for the finish tips and the
+  star's interlude roll-overs is one line — the default of
+  `WP_LIEDOWN_EDAMP` in `dampingHold()`, or the env in the course recipe.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the

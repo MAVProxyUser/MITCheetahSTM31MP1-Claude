@@ -44,22 +44,41 @@ def hold_end(R):
         i -= 1
     return None
 
+def held_end(R):
+    """An arm that never hands off (WP_LIEDOWN_EDAMP=0 keeps STAND_UP's own PD
+    through the second stage) has no descent to key on: the body sits in the
+    hold until the judge and the process exits. Score it over the LAST 1.5 s of
+    a flat hold that runs to the end of the record (within 0.5 s) - the same
+    instants the stock arm's judge reads. Returns the index of the hold's last
+    record, or None (a run that fell before the finish has no such hold)."""
+    n = len(R)
+    if n < 800: return None
+    j = n - 1
+    while j > n - 260 and not (0.08 <= R[j]['z'] <= 0.12 and abs(R[j]['roll']) * DEG < 5): j -= 1
+    if j <= n - 260: return None
+    w = [x['z'] for x in R[j - 500:j + 1]]
+    return j if (max(w) - min(w) < 0.006) else None
+
 def score(snap):
     d = load_json(snap); R = [x for x in d['records'] if isinstance(x, dict) and 'roll' in x and 'z' in x]
     if not R: return None
-    k = hold_end(R)
-    if k is None: return None
-    t0 = R[k]['t']; W = [x for x in R if t0 <= x['t'] <= t0 + 1.5]
+    k = hold_end(R); mode = "handoff"
+    if k is None:
+        k = held_end(R); mode = "held"
+        if k is None: return None
+        t0 = R[k]['t'] - 1.5; W = [x for x in R if t0 <= x['t'] <= R[k]['t']]
+    else:
+        t0 = R[k]['t']; W = [x for x in R if t0 <= x['t'] <= t0 + 1.5]
     if len(W) < 10: return None
     return dict(peak_roll=max(abs(x['roll']) for x in W) * DEG,
                 peak_wx=max(abs(x.get('wx', 0.0)) for x in W),
-                end_roll=abs(W[-1]['roll']) * DEG, t0=t0)
+                end_roll=abs(W[-1]['roll']) * DEG, t0=t0, mode=mode)
 
 def main():
     for spec in sys.argv[1:]:
         label, sel = spec.split("=", 1)
         pat, _, arm = sel.partition(":")
-        rolls, wxs, ends, nohold = [], [], [], 0
+        rolls, wxs, ends, nohold, held = [], [], [], 0, 0
         for f in sorted(glob.glob(os.path.join(DATA, "campaigns", pat + ".csv"))):
             for r in csv.DictReader(open(f)):
                 if arm and r.get("course") != arm: continue
@@ -67,13 +86,13 @@ def main():
                 try: s = score(r["snapshot"])
                 except Exception: s = None
                 if s is None: nohold += 1; continue
-                rolls.append(s["peak_roll"]); wxs.append(s["peak_wx"]); ends.append(s["end_roll"])
+                rolls.append(s["peak_roll"]); wxs.append(s["peak_wx"]); ends.append(s["end_roll"]); held += (s["mode"] == "held")
         if not rolls:
             print("%-14s no scored lie-downs (%d without a hold)" % (label, nohold)); continue
         rolls.sort()
         p90 = rolls[min(len(rolls) - 1, int(0.9 * len(rolls)))]
-        print("%-14s n=%3d  stage-2 peak roll median %5.1f  p90 %5.1f  max %5.1f | peak roll rate median %4.2f rad/s | roll at the judge instant median %4.1f | %d without a hold"
-              % (label, len(rolls), st.median(rolls), p90, rolls[-1], st.median(wxs), st.median(ends), nohold))
+        print("%-14s n=%3d  stage-2 peak roll median %5.1f  p90 %5.1f  max %5.1f | peak roll rate median %4.2f rad/s | roll at the judge instant median %4.1f | %d without a hold%s"
+              % (label, len(rolls), st.median(rolls), p90, rolls[-1], st.median(wxs), st.median(ends), nohold, (" | %d held through (no hand-off)" % held) if held else ""))
 
 if __name__ == "__main__":
     main()

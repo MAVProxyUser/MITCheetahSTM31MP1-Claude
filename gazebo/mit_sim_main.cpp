@@ -32,13 +32,24 @@ void setEdamp(double d);
 /*
  * THE LIE-DOWN'S SECOND STAGE, AS A KNOB (ISSUES OPEN-30/27, 2026-09-14).
  * Both lie-downs end the same way: STAND_UP holds the body at 0.15 m for
- * 2.5 s, then setEdamp(8.0) hands the legs to a pure damper for 1.2 s and
- * the body drops onto its folded shanks. The snapshots of every finish
- * tip on record - wkc 7190, the galloping/dash lie-down BADs, both star
- * interlude roll-overs (7224, 7399) - say the roll starts at THAT hand-off:
- * the position hold vanishes in one tick, the body falls 5 cm onto the
- * shanks under gravity, and the landing bounces (roll rate +-3-5 rad/s
- * within 100 ms, roll 10-20 deg in every run, past 90 deg in a few).
+ * 2.5 s, then setEdamp(8.0) hands the legs to a pure damper for 1.2 s.
+ * The snapshots of every finish tip on record - wkc 7190, the galloping/
+ * dash lie-down BADs, both star interlude roll-overs (7224, 7399) - say
+ * the roll starts at THAT hand-off. CORRECTION (2026-09-14 22:35): the
+ * first version of this comment said the body "falls 5 cm onto the shanks
+ * under gravity ... roll 10-20 deg in every run" - written from the tip
+ * snapshots alone, and false for three runs in four. Pooling 60 stock
+ * lie-downs by the drop after the hand-off: ~75 % sag 1 cm and stay
+ * PROPPED on the folded legs (the knees sit at their stop and the OPEN-31
+ * soft stop carries the load; stage-2 roll ~1 deg), ~20 % drop 6-7 cm onto
+ * the belly and those are the runs that rock (4-13 deg) and, rarely, tip.
+ * What yields is the ABAD: the bridge dumps of finished runs (4585, 4363)
+ * show the knees holding at -2.8 rad while the abad joints splay outward
+ * 0.4 rad in a second under the pure damper - edampCommand is zeroCommand +
+ * kdJoint, a damper cannot carry a static load, and the abad has no stop
+ * within 0.8 rad to catch it. The legs slide out like a folding table; an
+ * uneven splay is the rock. WP_LIEDOWN_EDAMP=0 skips the damper (STAND_UP's
+ * own PD keeps holding through the second stage) - chain CE's A/B arm.
  *   WP_LIEDOWN_EDAMP    the damping gain of the hold (default 8.0, stock)
  *   WP_LIEDOWN_EDAMP0   an initial gain the hold ramps DOWN from (default
  *                       = WP_LIEDOWN_EDAMP, i.e. no ramp): a stiff damper
