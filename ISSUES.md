@@ -1010,7 +1010,11 @@ passed on its own in-suite retry.
   a 7.5 ms gap: not a deficit by the rule, the interlude itself clean,
   the fall 70 m downstream of it on the 3.5 m/s sprint; its snapshot gets
   the freeze scan in the next gap before it is booked either way. Tier
-  record since the restart: 441/462 raw.
+  record since the restart: 441/462 raw. **03:22 — CG block 3, wkc: nodamp
+  6/6, stock 6/6.** Lie-downs: nodamp n = 23, median 0.9°, p90 1.1, max
+  1.1, abad excursion 0.000 in all; stock on the new binary n = 18, 8 of
+  18 splayed, stage-2 roll max **14.6°** this block (p90 9.6), rho(splay
+  asymmetry, roll) 0.70.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
