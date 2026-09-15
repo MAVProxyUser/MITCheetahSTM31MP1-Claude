@@ -909,6 +909,19 @@ passed on its own in-suite retry.
   asymmetry 0.17 rad). Pooled wkc: stock n = 45 (median 1.1°, p90 5.2, max
   13.5) vs kd 24 n = 45 (median 3.9, p90 7.3, max 10.9). Chain CE ended
   there (23:39:52); CF's block 1 (recipe / nodamp) is on the rig.
+  **00:05 — CF block 1, wkc: stock 5/6, nodamp 4/6 — and the no-damper
+  arm has no second stage.** The three misses are one host burst: run 7668
+  (stock, collapsed) at 23:51 with a 23.6 ms gap and a 468/s second, 7669
+  (nodamp, tipped) thirty seconds later at 440/s with a 33 ms gap, and
+  7673 (nodamp, collapsed) at 00:00 at 471/s, 16.9 ms — no backup running,
+  the tenant not caught; every other run 494–500/s. The lie-down itself:
+  nodamp n = 5, stage-2 peak roll median 0.3°, p90 0.7, max 0.7, roll rate
+  0.00 rad/s, all five held through the second stage at z ≈ 0.10, abad
+  excursion 0.000 rad on every leg; stock pooled n = 50, median 1.2°, p90
+  7.4, max 13.5 (and by the CE+CF dumps 8 of 11 stock hand-offs collapse,
+  abad splay median 0.445 rad, from a symmetric pose with the knees at the
+  operational stop). The mechanism and its fix are now both measured:
+  skip the damper and the abad never moves. Hairpin block, then the tier.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
