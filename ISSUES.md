@@ -1139,7 +1139,11 @@ ignored spike is logged (`[legv] leg N over 9.0 m/s for k tick(s)`,
 throttled) so the record counts what the debounce absorbed. The harness
 rule (a fall in a ≤ 485/s event second is not the robot's evidence)
 stands: the stream still loses the samples; it should just stop killing
-the dog.
+the dog. **04:03 — deployed**: chain CH built the one changed TU in the gap
+and installed it through `deploy_host.sh` — binary cf633090 → **4db0dc8c**
+at 04:02:54 (the lie-down default 0.0 carried along). The served-recipe
+probe, then the fast tier, then the standing blocks with per-block counts
+of trips and absorbed spikes over their runs.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
