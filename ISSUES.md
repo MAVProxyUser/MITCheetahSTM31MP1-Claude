@@ -1021,7 +1021,9 @@ passed on its own in-suite retry.
   short of the tips themselves (p90 13.8), rho(mean splay, roll) 0.92.
   Both courses: nodamp n = 47, max 1.1°; stock on the same binary n = 36,
   max 28.5°. The A/B has its answer at N; the chain keeps the base rate
-  running.
+  running. **04:01 — tier 3 on cf633090: 13/13** (454/475 since the
+  restart; the star's two held lie-downs again). STOP_CG ends CG here;
+  chain CH takes the gap for the debounced leg-speed trip (OPEN-39).
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
