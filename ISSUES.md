@@ -1154,7 +1154,11 @@ runs, 8 of 189, on the night before). Lie-downs (OPEN-30's A/B, still
 running): nodamp n = 30 + 30, max 1.1° / 1.0°, abad excursion 0.000 in all
 sixty; stock on the new binaries n = 24 + 24, max 14.6° / 28.5°, 10 and 7
 of 24 splayed, rho(mean splay, roll) 0.58 / 0.89. **05:34 — tier 1 on
-4db0dc8c: 13/13** (480/501 since the restart).
+4db0dc8c: 13/13** (480/501 since the restart). **06:22 — CH block 2: wkc
+12/12, hairpin 12/12**, no trip and no spike line in the 24 runs. Lie-downs:
+nodamp n = 36 + 36 (max 1.1° / 1.0°, abad excursion 0.000 in all 72);
+stock on the new binaries n = 30 + 30 (max 14.6° / 28.5°, 13 and 9 of 30
+splayed). Tier 2 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
