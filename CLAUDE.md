@@ -1427,7 +1427,21 @@ second as several SHORT gaps that no single-gap rule sees (ISSUES OPEN-39,
 2026-09-13: both `locomotionSafe` leg-speed trips on record sat in such a
 second, against one cruise second in 2859), so the CSV also carries
 `imu_rx_min` and `campaign_freeze_report.py` calls a fall in a ≤ 485/s
-event second a harness fall.
+event second a harness fall. *And the deficit was only the road: what
+fell the dog was the CONTROLLER's response to the spike it produced
+(2026-09-15, ISSUES OPEN-39). `locomotionSafe()`'s leg-speed check tripped
+on ONE tick of `J·qd` over 9 m/s and sent the FSM to RECOVERY_STAND, which
+re-commands all four legs to a stand pose mid-stride — a fall every time at
+cruise: of 189 runs archived in one night, 8 logged that line and 8 fell,
+two of them with a CLEAN stream (a touchdown impact spike; a trot at
+3.6 m/s swings its feet at 7.2–7.7 m/s, 15 % under the limit). The check is
+debounced since binary 4db0dc8c (04:03): `CTRL_LEGV_TRIP_TICKS` (5 = 10 ms)
+consecutive ticks over `CTRL_LEGV_TRIP_MPS` (9) before it trips, absorbed
+spikes logged as `[legv]` lines; 1 restores the one-tick trip for an A/B.
+The harness rule stands — a deficit second is still not the robot's
+evidence — it just should no longer be a fall. When a fall class carries a
+"harness" label, grep the ctrl log for the FIRST unsafe/transition line and
+ask what the response did to a robot at cruise.*
 Bridge knobs for that class: `BRIDGE_EXTRAP=1` dead-reckons orientation (last
 body rate) and joints (last velocities) across a gap up to `BRIDGE_EXTRAP_MAX_MS`
 (80) instead of re-sending a frozen sample; `BRIDGE_GAP_INJECT_MS=N` (test only)
