@@ -956,9 +956,22 @@ passed on its own in-suite retry.
   70175113 → **cf633090** at 00:23:12, `WP_LIEDOWN_EDAMP` default 0.0.
   **00:25 — the served-recipe probe on it (run 7688, no env): PASS**,
   `damping hold: kd 0.0 -> 0.0`, judge z = 0.102, roll 1.0°, pitch 0.7°,
-  499 samples/s throughout — the default took. The fast tier (the star
-  case's dash interlude = the stand-back-up from a held lie-down) runs
-  next, then the standing nodamp / stock blocks.
+  499 samples/s throughout — the default took. **00:42 — fast tier on
+  cf633090: 11/13**, both misses in one noisy-host window and neither the
+  binary's: the star (run 7689) tipped three seconds after nav took the
+  stick, at wp00, in a **402/s** second (100 samples lost — OPEN-39
+  harness, the interlude never reached, so the stand-back-up gate moves to
+  the next tier); the long dash (7694, trotRunning 0.6) tipped at 54 s
+  with the event second at 486/s and an 8.6 ms gap, the stream degrading
+  to 392 and 366/s with 11–26 ms gaps in the two seconds after — one
+  sample above the 485 line, booked as a borderline host event, not the
+  robot's evidence either way. Nothing but `mit_sim_main.cpp` (the
+  comment and the default) changed between the two binaries (git). The
+  harness now runs `archive_compact.sh` in the FOREGROUND before a
+  campaign's first launch (capped 5 min; rename-installed 00:50) instead
+  of under the first run — a tenant removed from run time, whatever its
+  share of tonight's deficits. CG block 1 (nodamp / stock ×6, wkc) is on
+  the rig on the new binary.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the

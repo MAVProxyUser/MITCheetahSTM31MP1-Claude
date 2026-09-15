@@ -39,7 +39,11 @@ campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 # Pack snapshots older than 24 h while this campaign runs (background QoS,
 # bounded, one at a time): the archive has no retention and the disk sat at
 # 96 % on 2026-09-11 (ISSUES OPEN-35). Readers resolve .json/.json.zst alike.
-pgrep -f "^bash gazebo/tools/archive_compact.sh" >/dev/null || ( nohup bash gazebo/tools/archive_compact.sh >/dev/null 2>&1 & )
+# FOREGROUND since 2026-09-15 00:50 (was nohup'd into the first run): the packer is
+# a host tenant like any other (zstd -3 -T1 at background QoS still costs the sim
+# real time - OPEN-39's sample deficits do not care about nice), so it runs to
+# completion in the idle gap before the first launch, capped at five minutes.
+pgrep -f "^bash gazebo/tools/archive_compact.sh" >/dev/null || timeout 300 bash gazebo/tools/archive_compact.sh >/dev/null 2>&1
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 [ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s,imu_rx_min" > "$OUT"
 FAILS=0
