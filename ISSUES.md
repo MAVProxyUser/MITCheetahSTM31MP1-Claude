@@ -726,7 +726,12 @@ passed on its own in-suite retry.
   hairpin runs (32 %)**, not every run; the peak roll is median 1.1° /
   p90 6.9 / max 22.9 on wkc and 0.6 / 7.6 / 19.6 on the hairpin, with 6
   runs past 15° between them. So the descent is smooth two times in three
-  and bounces the third; the tips are the bounce's tail. The knob:
+  and bounces the third; the tips are the bounce's tail. *(Corrected at
+  22:35 below: the "smooth" two-thirds do not descend at all — they stay
+  propped on the folded legs, a centimetre lower — and the "bounce" third
+  is the runs whose abad joints splay under the damper and drop the body
+  onto its belly. "Every run shows 10–20°" two sentences up was the tip
+  snapshots generalised; the record and the source comment say so.)* The knob:
   `WP_LIEDOWN_EDAMP` (8.0 stock), `WP_LIEDOWN_EDAMP0` and
   `WP_LIEDOWN_RAMP_MS` (a stiff damper the hold ramps DOWN from, so the
   drop starts slow) in `mit_sim_main.cpp`'s `dampingHold()`, both
