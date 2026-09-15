@@ -954,8 +954,11 @@ passed on its own in-suite retry.
   deployed**: CG built `mit_ctrl_sim` in the gap (the one changed TU,
   2 s on the M4 Max) and installed it through `deploy_host.sh` — binary
   70175113 → **cf633090** at 00:23:12, `WP_LIEDOWN_EDAMP` default 0.0.
-  The served-recipe probe and the fast tier (the star case's dash
-  interlude = the stand-back-up from a held lie-down) come next.
+  **00:25 — the served-recipe probe on it (run 7688, no env): PASS**,
+  `damping hold: kd 0.0 -> 0.0`, judge z = 0.102, roll 1.0°, pitch 0.7°,
+  499 samples/s throughout — the default took. The fast tier (the star
+  case's dash interlude = the stand-back-up from a held lie-down) runs
+  next, then the standing nodamp / stock blocks.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
