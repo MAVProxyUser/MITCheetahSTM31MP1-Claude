@@ -1187,7 +1187,8 @@ tail, with the joint-limit soft stops busy in the seconds before (119 and
 last second. Lie-downs: nodamp n = 54 + 54 (max 1.1° / 1.0°, abad
 excursion 0.000 in all 108); stock on the new binaries n = 48 + 47 (max
 14.6° / 28.5°, 20 and 16 splayed, rho(mean splay, roll) 0.62 / 0.90).
-Tier 5 next.
+**10:09 — tier 5: 13/13** (532/553 since the restart; 78/78 tier cases on
+4db0dc8c). Block 6 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
