@@ -970,8 +970,13 @@ passed on its own in-suite retry.
   harness now runs `archive_compact.sh` in the FOREGROUND before a
   campaign's first launch (capped 5 min; rename-installed 00:50) instead
   of under the first run — a tenant removed from run time, whatever its
-  share of tonight's deficits. CG block 1 (nodamp / stock ×6, wkc) is on
-  the rig on the new binary.
+  share of tonight's deficits. **01:09 — CG block 1, wkc: nodamp 6/6,
+  stock 6/6**, every run 499–500/s. Lie-downs: nodamp pooled n = 11,
+  stage-2 roll median 0.7°, p90 1.0, max 1.1, abad excursion 0.000 on all
+  eleven; stock this block n = 6, two of six splayed (0.55 rad) and the
+  worse of them rocked 9.2° — the block's max — the other four ≤ 0.02 rad
+  and ~1°; stock pooled n = 50, median 1.2°, p90 7.4, max 13.5. Hairpin
+  block, then the tier with the interlude gate.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
