@@ -1167,7 +1167,13 @@ excursion 0.000 in all 84); stock on the new binaries n = 36 + 36 (max
 7923 at 434/s) and both passed with no spike over 9 m/s logged — a deficit
 second does not always make a spike; the night before, the ones that did
 were the ones that fell. **07:52 — tier 3: 13/13** (506/527 since the
-restart; 52/52 tier cases on 4db0dc8c). Block 4 next.
+restart; 52/52 tier cases on 4db0dc8c). **08:41 — CH block 4: wkc 12/12,
+hairpin 12/12**, no trip, no spike line. Lie-downs: nodamp n = 48 + 48
+(max 1.1° / 1.0°, abad excursion 0.000 in all 96); stock on the new
+binaries n = 42 + 42 (max 14.6° / 28.5°, 17 and 14 of 42 splayed,
+rho(mean splay, roll) 0.59 / 0.91). The pooled scans had grown to minutes
+a gap (the idle watchdog called it at 08:23); `liedown_peak.py` now caches
+scores by snapshot path, so a block's scan reads only its new runs.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
