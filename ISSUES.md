@@ -791,7 +791,8 @@ passed on its own in-suite retry.
   n = 27 (max 13.5, one past 10°, seventeen quiet) vs kd 24 n = 28 (max
   7.8, none past 10°, none quiet). **21:19 — hairpin: 6/6 and 6/6;** pooled
   hairpin stock n = 22 (max 7.2, eighteen quiet) vs kd 24 n = 24 (max 6.4,
-  one quiet). Fast tier, then block 4.
+  one quiet). **21:39 — fast tier 13/13** (396/410 tier cases since the
+  restart). CD block 4.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
