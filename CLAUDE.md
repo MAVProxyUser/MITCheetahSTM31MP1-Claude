@@ -1374,6 +1374,24 @@ Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
 
+*The finish lie-down tips and the star's interlude roll-overs (ISSUES OPEN-30, 2026-09-14/15)
+were the lie-down's SECOND STAGE: after STAND_UP holds the body at ~0.10 m for 2.5 s, the legs
+were handed to MIT's pure joint damper (`edampCommand`, kd 8) for 1.2 s. A damper carries no
+static load — the knees are held by the OPEN-31 soft stop, but the abad has no stop within
+0.8 rad, so in 8 of 11 stock hand-offs on record (bridge dumps, `liedown_handoff.py`) the four
+abad joints splayed 0.45–0.74 rad from a SYMMETRIC pose, the legs slid out like a folding table,
+the body dropped onto its belly, and an uneven splay was the rock: stage-2 roll p90 4–7°, max
+17.2°, the tips its 1–3 % tail; the propped runs are the ones the 1.7 s window ended before the
+instability showed. `WP_LIEDOWN_EDAMP` now defaults to 0.0 (binary cf633090, 2026-09-15 00:23):
+no damper, STAND_UP's own PD holds through the second stage — abad excursion 0.000 rad in 23 of
+23, stage-2 roll max 1.1°, judge z ≈ 0.10, course verdicts unchanged, tier 13/13 with both of
+the star's lie-downs on it. `WP_LIEDOWN_EDAMP=8` restores stock for an A/B. Two records were
+wrong on the way: "the body falls 5 cm onto the shanks in every run" (three runs in four never
+drop), and the kd 24 arm's "moderate bounce on every landing" (a stiffer damper slows the splay
+and never stops it — 6/6 collapsed). Scorers: `liedown_peak.py` (snapshot, stage-2 roll;
+held-through runs over the hold's last 1.5 s) and `liedown_handoff.py` (dump, joint motion at
+the hand-off — needs `DUMP=1`).*
+
 **Host scheduling, the sensor-freeze class, and the archive (2026-09-11,
 ISSUES OPEN-35).** The bridge is a 500 Hz Python loop on a desktop Mac; at
 default QoS it stalled for 124–247 ms twice in twenty minutes under Spotlight

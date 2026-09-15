@@ -982,8 +982,17 @@ passed on its own in-suite retry.
   other five ≤ 0.02 rad, and across the six the roll follows the splay
   exactly (rho 1.00); stock pooled n = 31, median 0.4°, p90 4.3, max 17.2.
   Over both courses the no-damper arm is now n = 23 (max 1.1°) against
-  stock n = 81 (max 17.2, p90 4–7). The tier with the interlude gate runs
-  next.
+  stock n = 81 (max 17.2, p90 4–7). **01:48 — fast tier on cf633090:
+  13/13**, and the interlude gate passes: the star (run 7726, trotRunning
+  3.5 with the 100 m dash) lay down at the loop closure with `kd 0.0`, stood
+  back up, dashed, and lay down again with `kd 0.0` — judge z 0.104, roll
+  0.0°, pitch 0.7°, 7/7 waypoints; the long dash that fell in the noisy
+  window an hour earlier passed at 194.8 s. Tier record since the 16:42
+  restart: 430/449 raw. The fix is shipped and on the served recipe; the
+  chain keeps the nodamp / stock A/B running for the night's N (the tips
+  were a 1–3 % tail, so the stock arm keeps supplying the base rate and
+  the nodamp arm the absence). OPEN-30 stays open only for that N and for
+  the judge question, which is the operator's.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
