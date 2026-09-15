@@ -3,7 +3,7 @@
 # 8 of the 189 runs archived since 22:00 logged "leg N is moving too quickly" and all 8 fell -
 # RECOVERY_STAND re-commands a stand pose mid-stride; the one-tick spike comes from a touchdown
 # impact as readily as from a sample gap). CTRL_LEGV_TRIP_TICKS=5 by default now; 1 restores stock.
-# Same shape as chain CG (below, kept verbatim): waits for CG (pid 19680; STOP_CH ends it after its
+# Same shape as chain CG (below, kept verbatim): waits for CG (pid 19680; STOP_CG ends it after its
 # current campaign), builds + deploys in the gap, probes the served recipe, tier first, then the
 # standing nodamp / stock lie-down A/B with the tier per block - and per block counts the [legv]
 # absorbed-spike lines and the trips in the block's archived ctrl logs, until STOP_CH.
