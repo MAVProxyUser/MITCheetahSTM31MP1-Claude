@@ -641,7 +641,12 @@ passed on its own in-suite retry.
   2 % — the aerial wallpaper is decoding video on the desktop all night,
   a steady GPU/CPU tenant beside BambuStudio's 5–10 %; four deficit-second
   falls between 23:50 and 00:06 with no backup running and nothing else
-  caught in the act.)* **10:21 — CB
+  caught in the act. 10:10 on 09-15: Spotlight reindexing again —
+  `mds_stores` at 33 % with a fresh swarm of `mdworker_shared` importers
+  at 5–10 % each — beside a WebKit content process at 39 %, load 7.8, with
+  CH block 6's wkc campaign on the rig; the debounced trip (4db0dc8c) is
+  what stands between those stutters and a fall now, and the block's
+  `imu_rx_min` column will say what they cost.)* **10:21 — CB
   block 16, wkc 2.6: 6/6 under that load** (worst gap 7.7 ms — the RT band
   holds; 111/113 raw since the restart, course-clean 111/111). **10:30 —
   hairpin 2.6: 6/6** (113/114 since the restart; one pass through a 20 ms
