@@ -786,7 +786,8 @@ passed on its own in-suite retry.
   twelve quiet) vs kd 24 n = 18 (max 6.4, one quiet). Neither course has
   put a lie-down past 10° in either arm since CC's first block; the
   question is now purely the stock hold's rare 15–23° rock, which needs
-  the night's N. Fast tier, then block 3.
+  the night's N. **20:34 — fast tier 13/13** (383/397 tier cases since
+  the restart). CD block 3.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
