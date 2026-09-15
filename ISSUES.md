@@ -1147,7 +1147,13 @@ of trips and absorbed spikes over their runs. **04:25 — probe run 7813
 PASS (lie-down held, no spike in a quiet run); fast tier on 4db0dc8c:
 13/13** (467/488 since the restart). Standing blocks next; the debounce's
 own evidence is the count of `[legv]` absorbed spikes against trips over
-the night's runs.
+the night's runs. **05:13 — CH block 1 on 4db0dc8c: wkc 12/12, hairpin
+12/12**, no deficit second in the 24 runs, no spike line and no trip —
+quiet runs give the debounce nothing to absorb (the spike ran at ~4 % of
+runs, 8 of 189, on the night before). Lie-downs (OPEN-30's A/B, still
+running): nodamp n = 30 + 30, max 1.1° / 1.0°, abad excursion 0.000 in all
+sixty; stock on the new binaries n = 24 + 24, max 14.6° / 28.5°, 10 and 7
+of 24 splayed, rho(mean splay, roll) 0.58 / 0.89.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
