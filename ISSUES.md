@@ -782,6 +782,11 @@ passed on its own in-suite retry.
   record since the restart: 370/384 raw. **19:56 — CD block 2, wkc: 6/6
   and 6/6;** pooled wkc lie-downs stock n = 21 (max 13.5, one past 10°,
   eleven quiet) vs kd 24 n = 22 (max 7.8, none past 10°, none quiet).
+  **20:13 — hairpin: 6/6 and 6/6;** pooled hairpin stock n = 16 (max 7.2,
+  twelve quiet) vs kd 24 n = 18 (max 6.4, one quiet). Neither course has
+  put a lie-down past 10° in either arm since CC's first block; the
+  question is now purely the stock hold's rare 15–23° rock, which needs
+  the night's N. Fast tier, then block 3.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
