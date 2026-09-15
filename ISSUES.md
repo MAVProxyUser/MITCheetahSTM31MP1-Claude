@@ -1143,7 +1143,11 @@ the dog. **04:03 — deployed**: chain CH built the one changed TU in the gap
 and installed it through `deploy_host.sh` — binary cf633090 → **4db0dc8c**
 at 04:02:54 (the lie-down default 0.0 carried along). The served-recipe
 probe, then the fast tier, then the standing blocks with per-block counts
-of trips and absorbed spikes over their runs.
+of trips and absorbed spikes over their runs. **04:25 — probe run 7813
+PASS (lie-down held, no spike in a quiet run); fast tier on 4db0dc8c:
+13/13** (467/488 since the restart). Standing blocks next; the debounce's
+own evidence is the count of `[legv]` absorbed spikes against trips over
+the night's runs.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
