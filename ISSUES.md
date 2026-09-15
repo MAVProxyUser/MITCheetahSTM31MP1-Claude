@@ -1205,7 +1205,11 @@ no spike line. Lie-downs: nodamp n = 66 + 66 (max 1.1° / 1.0°, abad
 excursion 0.000 in all 132); stock on the new binaries n = 60 + 59 (max
 14.6° / 28.5°, 21 and 19 splayed, rho(mean splay, roll) 0.55 / 0.91).
 **12:27 — tier 7: 13/13** (558/579 since the restart; 104/104 tier cases
-on 4db0dc8c). Block 8 next.
+on 4db0dc8c). **13:13 — CH block 8: wkc 12/12, hairpin 12/12**, no trip,
+no spike line. Lie-downs: nodamp n = 72 + 72 (max 1.1° / 1.1°, abad
+excursion 0.000 in all 144); stock on the new binaries n = 66 + 65 (max
+14.6° / 28.5°, 24 and 20 splayed, rho(mean splay, roll) 0.56 / 0.91).
+Tier 8 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
