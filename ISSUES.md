@@ -894,6 +894,21 @@ passed on its own in-suite retry.
   run 7651 as the probe. Lesson for any chain: a run's ctrl log is live at
   `conductor/ctrl_0.log` until the next launch; qualify a probe on the
   snapshot and dump (archived at the run's end) or on the CSV verdict.
+  **23:39 — CE block 1, wkc (stock / kd 24, DUMP=1): 6/6 and 6/6**, every
+  run at 498–500 samples/s, and the first hand-off poses on record for
+  today's binary. Stock: 4 of 6 collapsed onto the belly (judge z
+  0.036–0.050) and 2 stayed propped (0.095, 0.097) — a 4/6 rate against
+  7/33 in CC/CD, so the rate wanders block to block. In every collapsed
+  run the four abad joints splayed 0.45–0.74 rad from a hand-off pose that
+  was SYMMETRIC (|abad| 0.01–0.08 rad, the propped runs slightly more) with
+  the knees at −2.63..−2.67 (the operational stop) — the splay is an
+  instability that grows from nothing, not a pre-existing lean, which
+  fits the propped runs being the ones the 1.7 s window ends before it
+  shows. Stage-2 roll in the collapsed four: 1.7, 4.7, 2.1, 4.7°. kd 24:
+  6/6 collapsed (splay 0.2–0.76 rad), the worst 10.9° (run 7663, splay
+  asymmetry 0.17 rad). Pooled wkc: stock n = 45 (median 1.1°, p90 5.2, max
+  13.5) vs kd 24 n = 45 (median 3.9, p90 7.3, max 10.9). Chain CE ended
+  there (23:39:52); CF's block 1 (recipe / nodamp) is on the rig.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
