@@ -950,8 +950,12 @@ passed on its own in-suite retry.
   and 0.2°. The nodamp six: abad excursion 0.000 on every leg, stage-2
   roll 0.1–0.5°. Pooled hairpin: stock n = 31 (median 0.4°, p90 4.3, max
   17.2) vs nodamp n = 6 (median 0.2, p90 0.5, max 0.5). STOP_CF ended CF
-  at 00:22:19 (its tier skipped — CG's is on the new binary); CG is
-  building in the gap.
+  at 00:22:19 (its tier skipped — CG's is on the new binary). **00:23 —
+  deployed**: CG built `mit_ctrl_sim` in the gap (the one changed TU,
+  2 s on the M4 Max) and installed it through `deploy_host.sh` — binary
+  70175113 → **cf633090** at 00:23:12, `WP_LIEDOWN_EDAMP` default 0.0.
+  The served-recipe probe and the fast tier (the star case's dash
+  interlude = the stand-back-up from a held lie-down) come next.
 
 - **OPEN-39 · The `locomotionSafe` leg-speed trip: a swing pair that fails
   to lift at the stance exchange is dragged along the ground at cruise, the
