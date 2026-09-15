@@ -1166,7 +1166,8 @@ excursion 0.000 in all 84); stock on the new binaries n = 36 + 36 (max
 0.90). Two of the block's runs carried a deficit second (7911 at 475/s,
 7923 at 434/s) and both passed with no spike over 9 m/s logged — a deficit
 second does not always make a spike; the night before, the ones that did
-were the ones that fell. Tier 3 next.
+were the ones that fell. **07:52 — tier 3: 13/13** (506/527 since the
+restart; 52/52 tier cases on 4db0dc8c). Block 4 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
