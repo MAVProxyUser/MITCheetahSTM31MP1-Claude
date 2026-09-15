@@ -85,6 +85,11 @@ def main():
               % (label, len(out), "held " + ("%d" % sum(h["mode"] == "held" for h in out)) if any(h["mode"] == "held" for h in out) else "hand-off",
                  st.median(h["mean_exc"] for h in out), sorted(h["mean_exc"] for h in out)[min(len(out) - 1, int(0.9 * len(out)))], len(col),
                  sum(h["knee_margin_max"] > 0 for h in out), st.median(abs(h["asym"]) for h in out)))
+        prop = [h for h in out if h["mean_exc"] <= 0.15]
+        if col and prop:
+            print("    knee at the hand-off (mean of 4, rad): collapsed median %.3f vs propped median %.3f | abad |mean| at the hand-off: collapsed %.3f vs propped %.3f | hold z proxy n/a"
+                  % (st.median(st.mean(h["calf0"]) for h in col), st.median(st.mean(h["calf0"]) for h in prop),
+                     st.median(st.mean(abs(v) for v in h["abad0"]) for h in col), st.median(st.mean(abs(v) for v in h["abad0"]) for h in prop)))
         both = [h for h in out if h["roll"] is not None]
         if len(both) >= 6:
             print("    rho(splay asymmetry, stage-2 roll) = %+.2f   rho(mean splay, roll) = %+.2f   (n=%d)"
