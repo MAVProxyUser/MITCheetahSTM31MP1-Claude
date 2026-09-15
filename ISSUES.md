@@ -1163,7 +1163,10 @@ splayed). **06:43 — tier 2: 13/13** (493/514 since the restart; 39/39 on
 trip, no spike line. Lie-downs: nodamp n = 42 + 42 (max 1.1° / 1.0°, abad
 excursion 0.000 in all 84); stock on the new binaries n = 36 + 36 (max
 14.6° / 28.5°, 15 and 11 of 36 splayed, rho(mean splay, roll) 0.60 /
-0.90). Tier 3 next.
+0.90). Two of the block's runs carried a deficit second (7911 at 475/s,
+7923 at 434/s) and both passed with no spike over 9 m/s logged — a deficit
+second does not always make a spike; the night before, the ones that did
+were the ones that fell. Tier 3 next.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
