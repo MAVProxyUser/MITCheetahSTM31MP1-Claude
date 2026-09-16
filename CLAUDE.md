@@ -1385,7 +1385,12 @@ the body dropped onto its belly, and an uneven splay was the rock: stage-2 roll 
 instability showed. `WP_LIEDOWN_EDAMP` now defaults to 0.0 (binary cf633090, 2026-09-15 00:23):
 no damper, STAND_UP's own PD holds through the second stage — abad excursion 0.000 rad in 23 of
 23, stage-2 roll max 1.1°, judge z ≈ 0.10, course verdicts unchanged, tier 13/13 with both of
-the star's lie-downs on it. `WP_LIEDOWN_EDAMP=8` restores stock for an A/B. Two records were
+the star's lie-downs on it. `WP_LIEDOWN_EDAMP=8` restores stock for an A/B. At depth the A/B
+answered itself: **234 no-damper lie-downs, worst stage-2 roll 1.2°, zero abad motion, zero
+failures**, against 219 damper lie-downs on the same binaries with a 28.5° worst case — and
+the tail event itself reproduced under the damper (run 8294: 5/5 waypoints, no unsafe line,
+500 samples/s, settle clean, then `laydown: roll=22.7 -> BAD`), about 1 in 113 hairpin runs,
+the 1–3 % band the record always quoted. Two records were
 wrong on the way: "the body falls 5 cm onto the shanks in every run" (three runs in four never
 drop), and the kd 24 arm's "moderate bounce on every landing" (a stiffer damper slows the splay
 and never stops it — 6/6 collapsed). Scorers: `liedown_peak.py` (snapshot, stage-2 roll;
@@ -2875,6 +2880,25 @@ request)
 
 **E. Test-harness safety that is WRONG on hardware as written** -
 `SIM_FALL_EXIT` `SIM_FALL_DEG` `SIM_FALL_Z` `SIM_FALL_HOLD_S`. Third criterion since 2026-09-11 (ISSUES OPEN-36): `SIM_FALL_DOWN_Z` (0.15 m) with `SIM_FALL_DOWN_DEG` (30°) — low AND tilted, held `SIM_FALL_HOLD_S`, logs `[FALL] down at an angle:`; it closes the gap where a body propped on folded legs at 40.5° / 0.11 m sat for 250 s as neither tipped nor collapsed.
+
+**`locomotionSafe()`'s per-leg checks are DEBOUNCED (2026-09-15, ISSUES OPEN-39).** All three
+read instantaneous kinematics (FK foot position, `J·qd`) and all three answer with
+RECOVERY_STAND, which re-commands four legs to a stand pose mid-stride — a fall every time at
+cruise. Measured: of 189 runs in one night, 8 logged `leg N is moving too quickly` and **8
+fell**, two with a clean sensor stream (a touchdown impact spike; a trot at 3.6 m/s swings its
+feet at 7.2–7.7 m/s, 15 % under the 9 m/s limit). Debounced, the same binary ran 591 runs with
+**zero** leg-speed trips, absorbing a genuine four-tick 12.4 m/s spike inside a 464-samples/s
+second — and that run still fell, through the un-debounced sibling: `leg 2's y-position is bad
+(-0.240 m, max 0.240)`, a foot grazing the lateral limit by 0 mm (every such line in the
+archive sits 0–11 mm past it). So the y-position and above-hip branches are debounced too.
+Knobs `CTRL_LEGV_TRIP_TICKS` / `CTRL_LEGY_TRIP_TICKS` / `CTRL_HIP_TRIP_TICKS` (5 ticks = 10 ms
+each; **1 restores upstream's one-tick trip** for an A/B); absorbed events log as `[legv]` /
+`[legkin]`. Precedent in-tree: MIT's orientation E-stop is debounced the same way
+(`CTRL_ORIENT_HOLD_MS`, 60 ms). **The lesson: when a fall class carries a "harness" or "host"
+label, grep the ctrl log for the FIRST unsafe/transition line and ask what the RESPONSE did to
+a robot at cruise — and when you debounce one check, debounce the siblings that share its
+response, because the disturbance will simply find the next undefended door.**
+
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
 the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it
