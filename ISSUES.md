@@ -3036,6 +3036,33 @@ on 09-12) or a hairpin cruise of 2.5 would remove it; 2.6 stays the
 served envelope, this being one run in ~200 hairpin runs since the
 restart.
 
+
+**2026-09-16 05:20 — the hairpin re-acceleration cap: a clean NEGATIVE on the
+distribution's body, at the cost of one block.** Chain CN, hp_gap20 2.6,
+interleaved served-recipe vs `WP_REACCEL_VMAX=2.4` (the cap holds the forward
+pass for 12 m after any braking minimum — exactly the phase in which run 7994's
+pitch marched to the 33.2° E-stop). Baseline probe: peak pitch 22.1°, lap 49.5 s.
+Block 1, 6 runs an arm, all 12 PASS:
+
+| arm | peak pitch mean | median | max | lap |
+|---|---|---|---|---|
+| served recipe | 22.9° | 23.3 | 24.6 | 49.5 s |
+| reaccel cap 2.4 | 23.5° | 23.4 | 25.5 | 49.8–49.9 s |
+
+**The manipulation took effect** — the lap is 0.3–0.4 s longer, so the profile
+genuinely changed — **and the pitch did not move**, if anything a shade higher,
+well inside a spread that runs 20.8–25.5 in both arms. That matches what this
+file already records for the same knob on wkc 2.8 ("null to harmful"), now
+measured on the course whose runaway motivated it.
+**Scope, stated precisely because the last two chains taught it:** this tests
+whether the cap shifts the BODY of the pitch distribution, and it does not. It
+does NOT test whether the cap prevents the TAIL — run 7994's 33.2° sits ~8°
+above the normal spread, i.e. the runaway is a rare excursion rather than a
+shifted mean, and six runs an arm cannot see a tail. But a lever that does not
+touch the mechanism's ordinary magnitude is a poor candidate for its tail, and
+this cost twenty minutes to learn instead of a night. The cap stays off by
+default; the hairpin's own lever remains the cruise (2.5 vs 2.6) or nothing.
+
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
   re-validated there, or JCQP made to converge on moving gaits, or the
