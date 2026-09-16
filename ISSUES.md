@@ -1420,7 +1420,26 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   stage-2 roll 1.2° / 1.1°, abad excursion 0.000 rad in all 261, zero
   failures** against **stock n = 125 + 118 on the same binaries, worst
   18.1° / 28.5°, 42 and 38 of them splayed**, the roll still tracking the
-  splay asymmetry (rho 0.53 wkc, 0.89 hairpin).
+  splay asymmetry (rho 0.53 wkc, 0.89 hairpin). **00:43 — tier 1: 13/13,
+  and the hold distribution keeps growing past my last statement of it.**
+  Over the tier's 14 runs: `maxrun` = 1 in nine, **2 in two, 3 in three** —
+  every one of them a PASS with zero trips from any branch. Pooled over
+  the 33 runs measured since the counter existed: 1 × 24, 2 × 4, 3 × 3,
+  and the freeze that fell (8407) at 8. So a held state of two or three
+  ticks is ORDINARY, twice over what I claimed at 23:16 and again what I
+  withdrew at 00:22; the only thing the data supports is that 8 is far
+  outside and the line is somewhere above 3, unmeasured.
+  **A consequence for the TRIP rule, flagged and deliberately NOT shipped
+  yet:** the rule needs 5 consecutive over-limit ticks with ≥ 2 distinct
+  values, so a stale over-limit value held for 3 ticks plus 2 fresh
+  over-limit ticks satisfies both conditions — 3 of the 5 ticks carrying
+  no new evidence. The clean form is to count only VALUE-CHANGING ticks
+  toward the 5, i.e. require 10 ms of genuinely new evidence rather than
+  10 ms of wall clock. That is the next candidate, with its rationale on
+  record; it is NOT going in tonight, because I have twice today shipped a
+  threshold set from a handful of runs and had to withdraw it within the
+  hour (`feedback-replicate-before-you-believe-a-p-value`). The column is
+  collecting the tail that should set it.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
