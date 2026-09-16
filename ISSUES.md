@@ -62,6 +62,46 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-40 · `locomotionSafe()`'s answer to a sustained trip is a 500 Hz LIMIT
+  CYCLE, and every fix that reaches RECOVERY_STAND better is worse than the bug**
+  — `CONTROLLER`, `DECISION`. Opened and measured 2026-09-16.
+
+  **WHERE THIS STANDS, before the 260 lines of working below.**
+  - **The mechanism.** A trip hands the FSM to RECOVERY_STAND, whose
+    `checkTransition()` reads only `control_mode` — which nav pins at
+    `K_LOCOMOTION` for the whole mission — so it is handed straight back. Trips
+    and entries come out EQUAL TO THE UNIT (616/616, 698/698 measured), the
+    recovery gets one tick per pass and can never stand, and the body bleeds
+    height until RECOVERY_STAND's own 0.20 m line flips it to folding four legs
+    under a moving robot.
+  - **How much it matters.** 60 falls of 1293 archive-wide (4.6 %); on the
+    CURRENT binary at the SERVED speed, **1 fall in 202 course runs — and the
+    only cause among them.** Of 79 runs that entered the cycle from a healthy
+    body, 61 fell (77 %), and bleed-versus-headroom separates them, not either
+    alone.
+  - **Two kill routes, all 79 cases accounted for.** 42 by the bleed crossing
+    0.20 m and folding; 19 by attitude runaway with no fold at all (which is
+    OPEN-39's original framing); 18 survived.
+  - **THE FIXES, MEASURED (n = 9 an arm, trigger pinned so every arm trips).**
+    Stock 4/9. **Dwell 0/9 with 10 of 10 INVERSIONS** (p = 2e-07 on tips) — it
+    collapses the cycle 58x exactly as designed and that IS the harm, because
+    `RecoveryStand` sets `checkSafeOrientation = false`, so parking the robot
+    there switches the attitude E-stop OFF. **Fold gate 2/9, a measured null**
+    (folds 449 → 228, p = 0.62) — which also refutes the fold-as-killer
+    association as the depth confound it was.
+  - **THE COROLLARY THAT MATTERS: the limit cycle is what was keeping the
+    attitude guard alive.** It bounces the robot back into LOCOMOTION where the
+    check applies. Any fix must keep the robot somewhere a guard is watching.
+  - **WHAT IS LEFT.** Option (d), the advisory trip
+    (`CTRL_LOCO_UNSAFE_ADVISORY_VMAX`) — the only untested one and the only one
+    that keeps the robot in LOCOMOTION. Coded, default off, chain CU measures it.
+  - **NOTHING SHIPS.** Every knob defaults to stock and the fast tier is 13/13 on
+    the deployed binary with all of them off. Decision #4 is the operator's.
+
+  ---
+  *The working, including the wrong turns, follows.*
+
+
 - **OPEN-40 · `locomotionSafe()` answering with RECOVERY_STAND is a 500 Hz
   LIMIT CYCLE, not a recovery — and it drives the body across RECOVERY_STAND's
   own fold threshold** (2026-09-16, found recovering the course identity of
