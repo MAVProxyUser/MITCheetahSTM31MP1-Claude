@@ -1324,9 +1324,24 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   gate refusing to count a frozen sample. **22:57 — the gate's first
   exposures, and its own measurement corrected its design.** The probe
   (8432) and the tier's first two cases passed — the **star at 3.5 m/s,
-  the very case that fell on the previous binary, PASS through a
-  453-samples/s second with ZERO trips** (run 8433), the atom likewise at
-  455/s (8434), control loop 2.02–2.06 ms throughout. But all three runs
+  the very case that fell on the previous binary, PASS with ZERO trips**
+  (run 8433), the atom likewise (8434), control loop 2.02–2.06 ms
+  throughout. ~~through a 453-samples/s second~~ **RETRACTED at 23:15, my
+  error: those runs had NO deficit second.** I recomputed `imu_rx_min`
+  from the archived bridge logs with a minimum over ALL 1 Hz lines, while
+  the harness's column — and the rule that classifies a fall — is the
+  minimum over CRUISE seconds only (`cmd_rx >= 400/s`). The ~450 figures
+  were the ramp-up and teardown seconds every run has; by the real
+  definition run 8433 is **499/s**, as is every run in the campaign CSVs
+  all evening. I then spent two checks hunting a host cause for a level
+  shift that existed only in my own arithmetic (and briefly suspected my
+  own rebuild, which the timestamps exonerated). Consequence for the
+  claim: the gate has **not yet met a genuine deficit second** — tier 0's
+  13/13 says it broke nothing, which is much less than it seemed. Run
+  8407's 404/s stands (both definitions agree; it was a cruise second),
+  and so do the CSV-sourced deficit runs. Same shape as
+  `feedback-read-the-writer-not-the-field-name`: recomputing a column
+  instead of reading how it is defined. But all three runs
   logged exactly **50** `[leghold]` lines — the throttle cap — and zero
   `[legv]`/`[legkin]`: held samples are ROUTINE, not the rare fault I had
   assumed, and at ordinary cruise values (`|v|` 0.65–1.13 m/s, feet at
@@ -1346,6 +1361,8 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   per leg per second being the number that matters — a run of 5+ is long
   enough to forge a persistent violation), built and compile-verified;
   chain CK deploys it. `CTRL_LEG_HELD_GATE=0` restores the plain count.
+  **23:13 — deployed**: binary 98b34331 → **290ab874** (two distinct
+  values required to trip, held samples counted in the heartbeat).
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
