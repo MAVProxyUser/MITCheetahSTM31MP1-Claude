@@ -3106,6 +3106,24 @@ them**, which makes this the LAST known failure mode of the shipped
 configuration rather than a frequent one. A third ship boundary sits inside era
 C as well: `run8407`, the fourth fall, predates the held-sample gate of 09-15
 23:15, and nothing has been attributed to that gate since.
+**And WHICH STEP KILLS is now measured: the FOLD, not the cycle's duration.**
+Across the 61 runs that fell and the 18 that survived, all cycles entered from a
+healthy body: RecoveryStand entries median 37 vs **43**, unsafe trips 42 vs 43 -
+**duration does not discriminate at all**, and the survivors' cycles ran
+slightly LONGER. Height bled 0.112 m vs 0.075, and fold commands median 8 vs
+**0**, with **42 of 61** fallers issuing a fold against **3 of 18** survivors.
+So `P(fall | folded) = 42/45 = 93 %` against `P(fall | never folded) = 19/34 =
+56 %`. Depth is a confound - a body under 0.20 m both folds and is likelier to
+fall - so this does not isolate the fold's own contribution, but it does locate
+the step at which 93 % of these runs were lost, and the mechanics are not in
+doubt: folding four legs under a body carrying 2.6 m/s is a fall by
+construction. **The practical consequence is that every candidate fix aimed at
+SHORTENING the cycle is retired, and a new one becomes the most targeted of
+all**: `FSM_State_RecoveryStand::onEnter()` picks fold-vs-stand from body HEIGHT
+alone, which is right for a robot lying on the ground and catastrophic for one
+mid-collapse at cruise. Gating `FoldLegs` on body SPEED would leave the
+fallen-robot recovery untouched and remove the killing step from those 45 runs.
+Not written; recorded as the option worth weighing beside the dwell.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding

@@ -329,6 +329,40 @@ passed on its own in-suite retry.
      9.749 m/s. So there is a THIRD ship boundary inside era C, and the gate
      has had no fall attributed to it since.
 
+  6. **WHICH STEP ACTUALLY KILLS: the FOLD, not the cycle's duration.**
+     Comparing the 61 runs that fell against the 18 that survived, all of them
+     cycles entered from a healthy body after a per-leg trip:
+
+     | | fell (61) | survived (18) |
+     |---|---|---|
+     | RecoveryStand entries | median 37 | median **43** |
+     | unsafe trips | median 42 | median 43 |
+     | height bled | median 0.112 m | median 0.075 m |
+     | **fold commands** | **median 8** | **median 0** |
+     | runs issuing ANY fold | **42 of 61** | **3 of 18** |
+
+     **Cycle LENGTH does not discriminate at all** — the survivors ran slightly
+     LONGER cycles, median 43 entries against 37. So "the cycle ran a long time"
+     is not the hazard, which retires a whole family of candidate fixes aimed at
+     cutting its duration. What discriminates is whether the bleed reached
+     RecoveryStand's own 0.20 m line and flipped it to `FoldLegs`:
+     `P(fall | folded) = 42/45 = 93 %` against
+     `P(fall | never folded) = 19/34 = 56 %`.
+     **Caveat, stated because it is the obvious objection:** depth is a
+     confound — a body that got under 0.20 m both folds AND is likelier to fall,
+     so this does not isolate the fold's independent contribution. What it does
+     establish is the step at which 93 % of these runs were lost, and the
+     a-priori mechanics are not in doubt: folding four legs under a body
+     carrying 2.6 m/s is a fall by construction.
+     **This makes a FIFTH option the most targeted of the set, and it is not in
+     the table above:** `FSM_State_RecoveryStand::onEnter()` picks fold vs stand
+     from body HEIGHT alone (`0.2 < z < 0.45`). That test is right for a robot
+     lying on the ground and catastrophic for one mid-collapse at cruise. Gating
+     `FoldLegs` on body SPEED — fold only when the robot is actually slow —
+     would leave the fallen-robot recovery untouched and remove the killing step
+     from exactly these 45 runs. Not written; it is the option worth the
+     operator's attention alongside the dwell.
+
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer
   froze, and the legacy nav drove the second half of the course again** —

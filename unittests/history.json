@@ -1,24 +1,5 @@
 [
  {
-  "ts": "2026-09-13 12:11:22",
-  "case": "galloping_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "galloping"
-   ],
-   "speeds": [
-    0.8
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 98.7
- },
- {
   "ts": "2026-09-13 14:25:46",
   "case": "star",
   "config": {
@@ -19043,5 +19024,26 @@
   },
   "verdict": "PASS",
   "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-16 13:51:13",
+  "case": "dash_trotting_30",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    3.0
+   ],
+   "dashes": [],
+   "extras": [
+    ""
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 70.5
  }
 ]
