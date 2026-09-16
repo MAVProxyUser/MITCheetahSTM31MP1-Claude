@@ -244,6 +244,24 @@ passed on its own in-suite retry.
   Lap cost so far: **+0.75 s on a 55 s lap, 1.4 %**, against the hairpin's +0.2 s
   on 49.5 s. Both are the same trade in kind: about a percent of time for the
   margin, on a course that currently has none.
+  **BOTH levers are now being measured, so the decision can be a comparison
+  rather than a yes/no.** Chain CT (queued behind CR) holds cruise at 2.6 and
+  varies `WP_REACCEL_VMAX` instead — 0 against 2.4. That knob caps the forward
+  pass for `reaccel_dist` = 12 m after ANY braking minimum, which is exactly the
+  failing phase: integrating the trace's speeds puts the pitch event about 10 m
+  past the pivot, inside the window. And it should cost roughly **half** what
+  2.5 costs, ~0.38 s for 12 m at 2.4 against CS's measured +0.75 s for slowing
+  the whole 115 m lap.
+  It is a deliberate re-measure of a retired null: the cap was measured null on
+  the HAIRPIN (22.5 vs 22.7, n = 12 an arm, lap +0.3 s proving the manipulation
+  took) and on wkc 2.8 — but the hairpin had 4–6° of margin and its effect would
+  have been a SHIFT, while the weave has none and its effect is a TAIL. An
+  effect does not transfer across the band, so a null measured where there was
+  room says little here.
+  CT's reporter also carries block 1's lesson forward: verdict first, then peak
+  pitch **three ways** (all runs, passing only, and the spread), because the
+  circular pooling and the survivor-only understatement are both wrong in
+  opposite directions. Validated against CS block 1 before it was queued.
   **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
   because the second was a near-miss on the rig:**
   1. **Chain CR died silently and never ran.** It sat in its wait loop from
