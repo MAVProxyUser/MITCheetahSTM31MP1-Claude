@@ -98,6 +98,13 @@ one(){ local crs="$1" rep="$2" env="${3:-}" arm="${4:-}"
   # Consumed here, not passed to the controller.
   for tok in $env; do case "$tok" in SPEED=*) v="${tok#SPEED=}";; TERRAIN=*) terr="${tok#TERRAIN=}";; *) rest="${rest:+$rest }$tok";; esac; done
   env="$rest"
+  # the label below must reflect what the CALLER asked for, so remember the
+  # user's env before the harness appends its own (2026-09-16: with ARMS empty
+  # and DUMP=1 every row was labelled with the dump PATH instead of the course,
+  # which silently destroyed the per-course grouping of a margin map - the
+  # fallback chain is arm -> user env -> course, and BRIDGE_DUMP was hijacking
+  # the middle rung).
+  local uenv="$env"
   [ "$DUMP" = 1 ] && env="${env:+$env }BRIDGE_DUMP=$DIR/bridge_{RUN}.csv"
   # a COURSES entry with a colon is a raw slot spec (dash:100, star:10.514:5);
   # a bare name is a course file under gazebo/courses/.
@@ -145,7 +152,7 @@ except Exception: print("")
 PY
 )"
   local LBL="$crs"
-  if [ -n "${arm:-}" ]; then LBL="$arm"; elif [ -n "${env:-}" ]; then LBL=$(echo "$env" | tr -d ' =' ); fi
+  if [ -n "${arm:-}" ]; then LBL="$arm"; elif [ -n "${uenv:-}" ]; then LBL=$(echo "$uenv" | tr -d ' =' ); fi
   local BD=""; [ "$DUMP" = 1 ] && BD="$DIR/bridge_${RID}.csv"
   local IG0; IG0=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
   # THE SAME STREAM, COUNTED (ISSUES OPEN-39, 2026-09-13): the fewest IMU
