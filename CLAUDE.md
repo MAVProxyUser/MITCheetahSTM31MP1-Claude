@@ -1370,6 +1370,16 @@ body height 0.27 harmful) move it. 2.7 is wkc-only (5/5 with 5° of margin; the 
 recipe at 2.6: 2/4 at 2.7). The envelope on the shipped recipe is 2.6 on all three courses. Both suite tiers 20/20 again at 23:55 on the served
 recipe; wkc_finals 2.6 on it 56/57 by 03:00, hairpin 2.6 26/26, the four reversal sub-courses
 24/24, box 2.6 clean 6/6, weave 2.8 5/6.
+*The hairpin's pitch margin is buyable with cruise, measured (2026-09-16, ISSUES
+OPEN-28): `hp_gap20` at 2.5 m/s instead of 2.6 gives peak pitch 19.0° against 22.2°
+(n = 18 an arm over three interleaved blocks, 36/36 PASS, exact rank-sum p < 1e-5)
+for +0.2 s on a 49.5 s lap — a third more margin to the 33° E-stop for half a
+percent of time, on the course whose only course-clean fall in ~200 runs was a pitch
+runaway. The re-acceleration cap (`WP_REACCEL_VMAX`) is a measured NULL on the same
+score (22.5 vs 22.7 at n = 12 an arm, lap +0.3 s proving the manipulation took), as
+it was on wkc 2.8. NOTHING SHIPPED: the recipe still serves 2.6 and the envelope is
+the operator's call.*
+
 Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*

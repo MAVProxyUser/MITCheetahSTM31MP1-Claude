@@ -3106,7 +3106,11 @@ and the conclusion is unchanged. Margin to the 33.2° E-stop that killed run
 hairpin's envelope decision, and it is the operator's:** 2.5 buys a third more
 pitch margin for half a percent of lap time, on a course whose only
 course-clean fall in ~200 runs was a pitch runaway. Nothing is shipped — the
-recipe still serves 2.6 — and the chain keeps accumulating.
+recipe still serves 2.6 — and the chain keeps accumulating. **08:16 — a third
+block, n = 18 an arm, 36 runs, all PASS: 2.6 → 22.2° mean / 24.6 max, 2.5 →
+19.0° / 20.5, lap 49.5 vs 49.7 s.** Three independent blocks, the effect
+steady at 3.2° (block means 3.4, 2.7, 3.4), the lap cost steady at 0.2 s. The
+measurement is finished; what remains is the operator's envelope choice.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
