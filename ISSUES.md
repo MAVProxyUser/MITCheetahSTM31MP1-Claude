@@ -216,6 +216,34 @@ passed on its own in-suite retry.
   chain CO used to settle the hairpin at n = 18 an arm — with the lap cost
   reported beside the margin gained so the trade is visible rather than
   asserted.
+  **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
+  because the second was a near-miss on the rig:**
+  1. **Chain CR died silently and never ran.** It sat in its wait loop from
+     12:37, and the moment chain CQ exited at 14:44 it disappeared without
+     logging a line or reaching its build. The cause is UNKNOWN and will stay
+     unknown, because I launched it with `> /dev/null 2>&1` — so there is no
+     stderr to read. The strong suspicion is that I rename-installed the script
+     THREE times while that process was parked in the loop; rename-install
+     protects a running script from an in-place edit, but re-designing a chain
+     that has not started yet should be done by killing it and launching the new
+     file, not by swapping the file under it. **Chains are now launched with
+     stdout and stderr to a file** (`chaincr_stdio.log`), because a chain that
+     can die undiagnosably is worse than one that fails loudly.
+  2. **Re-queueing CR behind CS silently disabled its wait, and it went straight
+     for a DEPLOY while CS was running.** The wait predicate was
+     `ps -p $PREV | grep -q "campaign_chain_20260912cq[.]sh"` — hardcoded to the
+     ORIGINAL predecessor. Pointed at CS it failed on the first check, the loop
+     became a no-op, and the chain headed for `cmake --build` plus
+     `deploy_host.sh` with a live suite tier in flight. Caught by reading the
+     relaunch's own first log line, and the process was killed (argv-verified)
+     before any build log existed. The predicate is now
+     `campaign_chain_20260912[a-z][a-z][.]sh`, so re-queueing is safe by
+     construction. **A guard keyed to one specific predecessor is not a guard.**
+  CS itself is unaffected: it had already cleared its own wait correctly against
+  its real predecessor, and it varies SPEED only, so the old binary it is running
+  on is the shipped one and its comparison is valid. Its log line "no deploy
+  needed - CR already deployed" is nonetheless WRONG, since CR never deployed;
+  binary 22e0f456 is the pre-OPEN-40 build.
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself

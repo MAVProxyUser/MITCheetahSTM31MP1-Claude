@@ -140,10 +140,19 @@ for arm in sorted(arms):
           % (arm, a["p"], a["n"], a["seen"], a["trip"], a["worst"], a["fold"], a["estop"], a["dwell"], z))
 PY
 }
-PREV="${PREV_CHAIN_PID:-78002}"
+PREV="${PREV_CHAIN_PID:-39404}"
+# The predecessor pattern must NOT hardcode one chain's name. The first launch of
+# CR waited on "campaign_chain_20260912cq[.]sh"; when CR had to be re-queued behind
+# CS instead, that grep failed on the FIRST check, the wait became a no-op, and the
+# chain went straight for its build and deploy WHILE CS WAS RUNNING - the one thing
+# a deploy must never do. Caught by reading the relaunch's own first log line, and
+# the chain was killed before it reached the build. Match ANY campaign chain
+# instead, so re-queueing is safe by construction.
+PREV_PAT="${PREV_CHAIN_PAT:-campaign_chain_20260912[a-z][a-z][.]sh}"
 LOG="$CAMPAIGN_DIR/open28_chaincr.log"
-say "chain CR pid $$: waiting for chain CQ (pid $PREV) to exit"
-while kill -0 "$PREV" 2>/dev/null && ps -p "$PREV" -o command= | grep -q "campaign_chain_20260912cq[.]sh"; do sleep 30; done
+say "chain CR pid $$: waiting for the previous chain (pid $PREV) to exit"
+while kill -0 "$PREV" 2>/dev/null && ps -p "$PREV" -o command= | grep -qE "$PREV_PAT"; do sleep 30; done
+say "predecessor $PREV gone - CR has the rig"
 rm -f "$CAMPAIGN_DIR/STOP_CR"
 wait_idle; sleep 30; wait_idle; tm_wait
 OLD=$(md5 -q host-run/mit_ctrl_sim | cut -c1-8); DEPLOYED=0
