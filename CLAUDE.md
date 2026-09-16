@@ -3124,6 +3124,23 @@ alone, which is right for a robot lying on the ground and catastrophic for one
 mid-collapse at cruise. Gating `FoldLegs` on body SPEED would leave the
 fallen-robot recovery untouched and remove the killing step from those 45 runs.
 Not written; recorded as the option worth weighing beside the dwell.
+**And the mechanism closes as a RACE between two quantities.** Testing "the bleed
+carried z below the 0.20 m fold line" as a single predictor over all 79 runs: 42
+crossed and fell, 3 crossed and survived, 19 never crossed and fell, 15 never
+crossed and survived - 72 % accuracy, and 45 crossed against the 45 that folded,
+so crossing and folding are the same event. The group means say why neither
+quantity separated them alone: the fallers entered at 0.271 with 0.071 of
+headroom over 0.20 and bled 0.132, so **bleed exceeded headroom**; the survivors
+entered at 0.294 with 0.094 of headroom and bled 0.067, so **bleed stayed
+under**. You survive if the bleed stays inside your headroom above the fold line.
+That is why "entry height decides it" was wrong at n=2 and why bleed alone only
+separates 2x - it is the race, not either side of it. It also predicts that any
+fix acting on EITHER side should help: the dwell and the counter reset shrink the
+bleed, the fold gate removes the line the race is against.
+**Honest residual: the fold is not the only route.** 19 of the 61 falls never
+crossed 0.20, and 56 % of the 34 non-crossers fell anyway, so the cycle can
+disrupt the gait enough to lose attitude without the body dropping that far. A
+fold gate alone would address at most 42 of the 61.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding

@@ -368,6 +368,29 @@ passed on its own in-suite retry.
      genuinely tumbling robot at speed would stand instead of fold, and that
      case has no data either way.
 
+     **The mechanism closed, and it is a RACE between two quantities.** Testing
+     "the bleed carried z below the 0.20 m fold line" as a single predictor over
+     all 79 runs: 42 crossed and fell, 3 crossed and survived, 19 never crossed
+     and fell, 15 never crossed and survived — 72 % accuracy, and note 45
+     crossed against the 45 that folded, so crossing and folding are the same
+     event. The group means say why neither quantity separated them alone:
+
+     | | entry z | headroom over 0.20 | bleed | outcome |
+     |---|---|---|---|---|
+     | fell (61) | 0.271 | 0.071 | **0.132** | bleed EXCEEDS headroom |
+     | survived (18) | 0.294 | 0.094 | **0.067** | bleed stays UNDER headroom |
+
+     **You survive if the bleed stays inside your headroom above the fold
+     line.** That is why "entry height decides it" was wrong at n=2 and why
+     bleed alone only separates 2x: it is the race between them. It also
+     explains why every fix that acts on either side should work — the dwell and
+     the counter reset shrink the bleed, and the fold gate removes the line the
+     race is against.
+     **Honest residual: the fold is not the only route.** 19 of the 61 falls
+     never crossed 0.20, and 56 % of the 34 non-crossers fell anyway — the cycle
+     can disrupt the gait enough to lose attitude without the body dropping that
+     far. So a fold gate alone would address at most the 42, not all 61.
+
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer
   froze, and the legacy nav drove the second half of the course again** —
