@@ -1562,7 +1562,38 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   stands as a candidate, its stated rationale withdrawn, and nothing
   should ship on it until the distribution is in. **03:52 — tier 0 on the
   instrumented binary 22e0f456: 13/13**, so the instrument costs nothing;
-  its own 13 cases give the first cross-course excursion sample.
+  its own 13 cases give the first cross-course excursion sample — and they
+  close this question in the opposite direction to my proposal.
+  **04:00 — the 0.30 proposal is WITHDRAWN, on the evidence.** Three
+  numbers do it. (1) **The normal envelope:** across the tier's 14 cases
+  (star, atom, oval, three dashes, octagon, smooth circle, corner, the
+  switching oval, bounding, galloping) `leg_y_max` runs **134–225 mm**,
+  the 225 being wkc and everything else ≤ 164. So the 240 limit is never
+  approached; it sits ~15 mm above the worst course and ~75 above the
+  rest. (2) **The fatal run was a TRUE POSITIVE, and 0.30 would not have
+  saved it.** Run 8315's y-position values do not hover — they march:
+  −0.240, −0.245, −0.248, −0.263, −0.268, −0.274, −0.282, −0.288, −0.290,
+  −0.296, −0.300, −0.304, −0.305, **−0.308**. The leg was genuinely
+  leaving the envelope, progressively, past my proposed 300 mm ceiling; a
+  0.30 limit would merely have tripped 60 mm later, which is worse. The
+  check fired at the START of a real divergence, which is what it is for.
+  (3) **8507's 54 trips are the other phenomenon entirely** — values
+  hovering at −0.240/−0.241, a graze while the body stood at 0.306 m, all
+  survived. So one branch, two populations: a harmless graze at standstill
+  and a real divergence at cruise. **What is actually wrong is unchanged
+  and is OPEN-39's original finding: the RESPONSE.** In 8315 the causal
+  chain is stream degradation → a leg genuinely diverging to 308 mm →
+  the check correctly tripping → RECOVERY_STAND commanded mid-stride at
+  2.6 m/s → the fall. The limit is well placed, the debounce and the
+  held-sample gate are right, and the remaining question is what
+  `locomotionSafe` should DO at cruise instead of folding four legs into a
+  stand pose — a design question with an operator-flavoured history in
+  this tree (the stall mitigation that was worse than the stall), so it is
+  written down rather than acted on. `CTRL_MAX_PLEG_Y` stays at 0.24 and
+  stays a knob; CM's two arms are now known to differ only in a threshold
+  that fires in ~0.3 % of runs, i.e. to be the same experiment twice, so
+  the A/B is retired too and the useful residue is the single-arm
+  `leg_y_max` column the harness now collects on every run.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
