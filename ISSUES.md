@@ -3068,6 +3068,7 @@ Twenty-four runs, all PASS, the manipulation confirmed by the lap every
 block and the pitch unmoved. The cap is retired for this course as it was
 for wkc 2.8; chain CO now measures the cruise itself, 2.6 vs 2.5
 interleaved per run, for the SIZE of the pitch margin 0.1 m/s buys.
+CN's own tiers: **13/13 twice**, so the hairpin work cost the suite nothing.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
