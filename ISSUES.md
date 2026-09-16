@@ -270,7 +270,19 @@ passed on its own in-suite retry.
   It also gives option **(d)** its best argument: keeping the robot in LOCOMOTION
   keeps the attitude guard live, which is the only one of the four that does not
   trade a foot-position check for the attitude check.
-  n = 6 an arm; the chain continues, and nothing here changes a default.
+  **CR was ENDED EARLY at n = 9 an arm (STOP_CR touched 18:26), deliberately, and
+  the reasoning belongs in the record:** the dwell verdict is qualitative and
+  settled at 7/7 tips, so every further dwell run is a rig-minute spent
+  reproducing a known catastrophic configuration; the fold gate is a measured
+  null with a 4.8x fold reduction proving its manipulation took; and stock is the
+  control with the cycle confirmed 1:1 at 616/616. Two more blocks would only
+  tighten a null, while chain CT (the weave's cheaper lever) and chain CU
+  (option d, the decisive one) are both waiting. **Stopping early is the right
+  call when the remaining n buys precision on a question already answered and
+  the rig has an unanswered one queued** — the opposite of this tree's usual
+  error, which is calling an answer from too FEW runs, and it only applies
+  because the effect here is qualitative (7/7 versus 0/12) rather than a rate.
+  Nothing here changes a default.
 
   **The option set for decision #4, so the call is a choice and not a blank.**
   All four act on the RESPONSE; none changes the check's threshold, which the
