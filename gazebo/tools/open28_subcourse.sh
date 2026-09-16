@@ -69,7 +69,7 @@ elif [ "${DISK_FREE_GB:-999}" -lt "$DISK_WARN_GB" ]; then
   echo "DISK GUARD: ${DISK_FREE_GB} GB free (warn ${DISK_WARN_GB} GB, floor ${DISK_STOP_GB} GB) - about $(( (DISK_FREE_GB - DISK_STOP_GB) * 4 )) hours of runs left at ~6 GB/day."
 fi
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s,imu_rx_min" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s,imu_rx_min,held_maxrun" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -164,7 +164,18 @@ PY
   # index, is a mission-shape problem, not a robot result.
   local MT DW; MT=$(grep -oE 'MISSION COMPLETE t=[0-9.]+' "$L" 2>/dev/null | tail -1 | cut -d= -f2)
   DW=$(awk '/^\[nav\] wp[0-9]+\/[0-9]+ /{ idx=$2; t=$NF; sub(/^t=/,"",t); sub(/s$/,"",t); if (idx!=last){ if (last!="") { d=tl-t0; if (d>m) m=d }; last=idx; t0=t }; tl=t } END{ if (last!="") { d=tl-t0; if (d>m) m=d }; printf "%.1f", m+0 }' "$L" 2>/dev/null)
-  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms imu_rx_min=${IR:-?}/s mission_t=${MT:-none}s dwell=${DW:-?}s"
+  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms imu_rx_min=${IR:-?}/s held_maxrun=${HR:-?} mission_t=${MT:-none}s dwell=${DW:-?}s"
+  # THE CONTROLLER'S OWN FREEZE DETECTOR (ISSUES OPEN-39, 2026-09-15 23:40).
+  # locomotionSafe() counts, per leg per tick, when the leg's state (FK y, FK z,
+  # |J*qd|) is bit-for-bit unchanged from the previous tick, and the heartbeat
+  # reports the longest consecutive run each second. Calibrated over 7 runs on
+  # 6 courses: holds happen in 0.39-0.85 % of leg-ticks and the longest run is
+  # ONE tick, every time - so maxrun >= 2 means the state genuinely stopped
+  # updating, per leg, measured where the trip decision is made rather than in
+  # the bridge. Run 8407 (the star that fell) held EIGHT consecutive ticks at an
+  # identical 9.749 m/s. This column is that per-run maximum; blank on binaries
+  # before 290ab874, which do not print the line.
+  local HR; HR=$(grep -h 'held samples' "$L" 2>/dev/null | grep -oE 'maxrun=[0-9]+' | cut -d= -f2 | sort -n | tail -1)
   # the control loop's worst period in this run (ms) - a host-stall column,
   # so a run that survived a 469 ms freeze and one that ran clean are not
   # the same row (2026-09-10: three of six control runs carried 44-469 ms)
@@ -175,7 +186,7 @@ PY
   # 2026-09-11, 4-6 ms in the ones that passed). A run with a gap over ~15 ms
   # is not the robot's evidence.
   local IG; IG=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-},${MT:-},${DW:-},${IR:-}" >> "$OUT"
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-},${MT:-},${DW:-},${IR:-},${HR:-}" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
