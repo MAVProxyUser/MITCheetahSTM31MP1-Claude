@@ -294,6 +294,46 @@ passed on its own in-suite retry.
   measured on this course, which needs the bridge dump or `SIM_ESTERR`. Recorded
   rather than assumed — `feedback-read-the-writer-not-the-field-name` names this
   exact trap, and the tell here was nine runs agreeing to the centimetre.
+
+  **THE PER-TICK TRACES SETTLE IT, and the answer is a marginal event, not a
+  planning error.** A fall archives a per-tick `shm_trace`, and so does a PASS —
+  so `margin_cq3` left uncompressed traces for two passing weave runs and the
+  failing one. `vBody` and rpy are in there (`ShmTrace.h`: vx/vy/vz are vBody in
+  m/s, **rpy in RADIANS** — I read them as degrees on the first pass and got
+  0.4–0.6, which is the units trap, caught because the CSV said 20–31). Peak
+  |pitch| per second, mean body speed, mean z:
+
+  | t (s) | 8959 PASS | 8963 PASS | 8967 FAIL |
+  |---|---|---|---|
+  | 48 | 1.9° 0.32 m/s | 2.1° 0.25 | 1.8° 0.30 | ← the reversal pivot |
+  | 51 | 4.6° 1.02 | 4.9° 1.11 | 4.7° 1.05 |
+  | 53 | 5.1° 1.80 | 5.2° 1.91 | 5.1° 1.84 |
+  | 54 | 4.8° 2.20 | 4.5° 2.30 | 4.7° 2.23 |
+  | **55** | **17.6° 2.58** | **22.7° 2.57** | **19.1° 2.61** |
+  | **56** | **20.5° 2.22 z .279** | **22.8° 2.28 z .288** | **33.2° 1.17 z .144** |
+  | 57 | 8.1° 2.73 | 7.7° 2.75 | 5.7° 0.04 z .055 |
+
+  The three runs track each other **to within 0.1 m/s and half a degree** from
+  the pivot at t≈48 all the way to t=54. Then **all three hit the same pitch
+  event at t=55** as the re-acceleration completes at ~2.6 m/s — 17.6°, 22.7°,
+  19.1° — and the passing pair hold 20–23° and are back to 8° by t=57, while the
+  third runs away to 33.2°, sheds speed to 1.17 and drops 13 cm.
+  So: **a reproducible pitch event at the completion of the re-acceleration out
+  of the reversal, which normally peaks at 18–23° and recovers inside a second,
+  and occasionally does not.** What that RULES OUT, each by measurement rather
+  than argument:
+  - not the plan — the commanded profile is identical across all nine runs;
+  - not the approach — the three traces are indistinguishable until t=54;
+  - not an overshoot — max body speed is **2.83 / 2.87 / 2.82**, so all three
+    exceed the 2.60 command by ~0.2 (which this tree already documents as normal
+    for the gait) and the failing one overshoots LEAST;
+  - not the entry pitch — 8963 entered the event at **22.7°** and recovered,
+    8967 entered at **19.1°** and did not, so the magnitude going in does not
+    predict the outcome.
+  That is why the spread is 3.39° and why cruise is the credible lever: 2.5 does
+  not change the event's shape, it lowers the speed at which it happens. It also
+  explains the shape of the risk — this course is not slowly degrading, it is
+  passing a coin-flip once a lap.
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself

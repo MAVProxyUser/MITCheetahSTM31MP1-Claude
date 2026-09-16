@@ -1454,6 +1454,36 @@ runaway stands, from the trip's timing against the pivot; the shared MECHANISM i
 an analogy until a body speed is measured on this course, which needs the bridge
 dump or `SIM_ESTERR`. The tell that I was reading a command rather than a
 measurement was nine runs agreeing to the centimetre.
+**The PER-TICK TRACES then settled it, and the answer is a marginal event rather
+than a planning error.** A fall archives a `shm_trace` and so does a PASS, so one
+block left uncompressed traces for two passing weave runs and the failing one;
+`ShmTrace.h` says vx/vy/vz are vBody in m/s and **rpy is in RADIANS** (I read
+them as degrees first and got 0.4-0.6, caught because the CSV said 20-31). Peak
+|pitch| per second with mean body speed:
+
+| t (s) | 8959 PASS | 8963 PASS | 8967 FAIL |
+|---|---|---|---|
+| 48 | 1.9 deg 0.32 m/s | 2.1 0.25 | 1.8 0.30  (the reversal pivot) |
+| 54 | 4.8 2.20 | 4.5 2.30 | 4.7 2.23 |
+| **55** | **17.6 2.58** | **22.7 2.57** | **19.1 2.61** |
+| **56** | **20.5 2.22** | **22.8 2.28** | **33.2 1.17, z 0.144** |
+| 57 | 8.1 2.73 | 7.7 2.75 | 5.7 0.04, z 0.055 |
+
+The three track each other to within 0.1 m/s and half a degree from the pivot at
+t~48 to t=54. **All three then hit the same pitch event at t=55** as the
+re-acceleration completes near 2.6 m/s, and the passing pair hold 20-23 deg and
+are back to 8 by t=57 while the third runs to 33.2, sheds speed and drops 13 cm.
+So the weave carries **a reproducible pitch event at the completion of its
+reversal re-acceleration, which normally peaks at 18-23 deg and recovers inside a
+second, and occasionally does not.** Ruled out by measurement: not the plan
+(identical commanded profile across all nine runs), not the approach (traces
+indistinguishable to t=54), not an overshoot (max body speed 2.83/2.87/2.82, so
+all three exceed the 2.60 command by ~0.2 as this file documents is normal, and
+the failing one overshoots LEAST), and not the entry pitch (8963 entered at 22.7
+and recovered, 8967 at 19.1 and did not). That is why the spread is 3.39 deg and
+why cruise is the credible lever - 2.5 does not change the event's shape, it
+lowers the speed at which it happens. The risk shape is a coin flip once a lap,
+not a slow degradation.
 
 **The general lesson: a course can fail two ways, and a single fall tells you
 which one it was, not which one binds.** One roll-dominant mechanism failure had
