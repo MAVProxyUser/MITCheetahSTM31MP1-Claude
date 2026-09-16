@@ -1274,6 +1274,16 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   and above-hip branches (`CTRL_LEGY_TRIP_TICKS`, `CTRL_HIP_TRIP_TICKS`,
   default 5, 1 = stock), with in-tree precedent — MIT's own orientation
   E-stop is already debounced here (`CTRL_ORIENT_HOLD_MS`, 60 ms).
+  **21:59 — chain CH ended after block 16 (STOP_CH), 17.5 h on one binary.**
+  Final CH totals on 4db0dc8c: **16 blocks, 384 campaign runs, 381 PASS**
+  (the three misses: run 7994 the hairpin re-acceleration pitch runaway,
+  8294 the lie-down tip in the stock arm, 8315 the y-position trip in a
+  464/s second — one per course-mechanism, none of them the debounced
+  check) plus **16 fast tiers, all 13/13 = 208/208 cases**. Lie-downs at
+  the close: nodamp n = 120 + 120, stage-2 peak roll max **1.2° / 1.1°**,
+  abad excursion 0.000 rad in all 240, not one failure; stock n = 113 +
+  113 on the same binaries, max **18.1° / 28.5°**, 37 and 33 of them
+  splayed. Chain CI has the rig (y-position + above-hip debounce).
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
