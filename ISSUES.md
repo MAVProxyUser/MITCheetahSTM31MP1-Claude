@@ -120,6 +120,20 @@ passed on its own in-suite retry.
   immediately; the dwell can never trap the robot. Logs
   `[recover] unsafe dwell expired`. Not shipped: n=2 on the outcome, and
   decision #4 is the operator's.
+  **The option set for decision #4, so the call is a choice and not a blank.**
+  All four act on the RESPONSE; none changes the check's threshold, which the
+  `leg_y_max` instrument says is well placed (142 mm on a passing run against a
+  240 mm limit):
+  | # | response | what it costs | status |
+  |---|---|---|---|
+  | a | **Dwell in RecoveryStand** until the stand-up ramp has run (`CTRL_LOCO_UNSAFE_HOLD_MS`, 600 ms clears the 250-iter ramp) | the robot stops locomoting mid-course, so the RUN is likely lost even when the robot is not; at 2.6 m/s it also arrives off-path | **written, default off, chain CR measures it** |
+  | b | **Reset the per-leg counters on LOCOMOTION entry** so each re-entry gets a fresh 5-tick debounce | cuts the cycle's frequency ~5x and so its bleed, but does NOT stop it — partial by construction | not written; one line, and it is correct on its own terms (a fresh entry should get a fresh budget) |
+  | c | **Degrade instead of aborting**: keep locomotion, cut commanded speed and/or raise the height reference while the condition holds | no mission loss, and it acts on the quantity the cycle consumes — but this tree DELETED its stall mitigation for being worse than the stall it guarded, so a reflex here has a bad precedent | not written; this is the one that most needs the operator |
+  | d | **Treat the check as advisory above a speed** and only log | removes the fall class outright and removes the guard with it | not written |
+  The honest framing: (a) is the minimum change that makes the existing design
+  do what it was written to do, and it is the only one with a measurement
+  pending. (c) is what an operator would probably want on real hardware. (b) is
+  free and compatible with any of the others. They are not exclusive.
 
 - **OPEN-28 · The per-course MARGIN MAP at the served 2.6 — and `wkc_weave` is
   the weak link, on the ROLL axis** (chain CQ, 2026-09-16). The map exists to
