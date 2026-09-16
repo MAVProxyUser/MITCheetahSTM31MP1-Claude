@@ -124,7 +124,10 @@ passed on its own in-suite retry.
   **FIRST RUN OF THE DEPLOYED FIX (probe run 9069, 2026-09-16 17:03) — the
   mechanism works and the PREMISE IS WRONG, which is why it was default-off.**
   Binary 22e0f456 → 978b0b30, both globals and all three knob strings verified
-  present. With the trigger pinned at `CTRL_MAX_PLEG_Y=0.21` and the dwell at
+  present, and **the fast tier then went 13/13 on that binary with every OPEN-40
+  knob at its DEFAULT** (dwell 0, fold gate −1, counter reset off) — so the three
+  changes are inert unless asked for, which is the property they were written to
+  have and the one that matters most while decision #4 is open. With the trigger pinned at `CTRL_MAX_PLEG_Y=0.21` and the dwell at
   600 ms, the log reads, in order:
 
   ```
