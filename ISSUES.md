@@ -193,6 +193,29 @@ passed on its own in-suite retry.
   one measured on the hairpin — serve 2.5 on this course — but that has NOT been
   measured here and the weave is the least-tested course in the catalog (~39
   runs all told against wkc_finals' 1684).
+  **And the SPREAD agrees, which is this tree's own documented early warning**
+  ("the rising standard deviation is the only advance warning… watch the spread,
+  not the mean"). Per-run peak-pitch SD over the same 9 runs a course:
+
+  | course | mean | **sd** | worst | margin |
+  |---|---|---|---|---|
+  | `hp_gap20` | 21.7 | **0.84** | 23.2 | +5.4 |
+  | `wkc_finals` | 19.2 | **1.12** | 20.6 | +8.0 |
+  | `wkc_box` | 21.8 | **1.78** | 24.6 | +4.0 |
+  | `wkc_weave` | 23.0 | **3.39** | 31.5 | **−2.9** |
+
+  The weave's spread is **4x the hairpin's and 2x the box's**, and it is the only
+  course whose worst case crosses the limit — so the mean, the worst case, the
+  spread and the verdicts all name the same course. Note the spread also ranks
+  `wkc_box` second-riskiest, which its +4.0 margin independently agrees with, and
+  that `hp_gap20` has the TIGHTEST distribution while not having the best margin,
+  because its mean sits higher: spread and margin are different questions and
+  both are worth carrying in this table.
+  **Queued to answer decision #9:** chain CS measures the weave at 2.5 against
+  2.6, interleaved run by run, scored on peak pitch per run — the same design
+  chain CO used to settle the hairpin at n = 18 an arm — with the lap cost
+  reported beside the margin gained so the trade is visible rather than
+  asserted.
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
