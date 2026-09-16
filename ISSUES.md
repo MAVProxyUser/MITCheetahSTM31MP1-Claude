@@ -1227,7 +1227,53 @@ Lie-downs: nodamp n = 90 + 90 (max 1.2° / 1.1°, abad excursion 0.000 in
 all 180); stock on the new binaries n = 84 + 83 (max 18.1° / 28.5°, 31 and
 25 splayed, rho(mean splay, roll) 0.59 / 0.91). **16:50 — tier 11: 13/13**
 (610/631 since the restart; 156/156 tier cases and 264 campaign runs on
-4db0dc8c). Block 12 next.
+4db0dc8c). **16:50–21:41 — blocks 12–16 and tiers 12–15, in one record.**
+Every tier 13/13 (four more; 662/683 cases since the 16:42 restart,
+208/208 on 4db0dc8c). Course verdicts by block: 12 wkc 12/12 hairpin
+12/12; 13 wkc 12/12, hairpin nodamp 6/6 / **stock 5/6**; 14 wkc nodamp
+6/6 / **stock 5/6**, hairpin 12/12; 15 wkc 12/12 hairpin 12/12; 16 wkc
+12/12 (hairpin running). Lie-downs after block 16's wkc: nodamp **n = 120
++ 114** — stage-2 peak roll median 0.8° / 0.3°, p90 1.1 / 0.9, **max 1.2°
+/ 1.1°**, abad excursion 0.000 rad in every one of the 234; stock on the
+same binaries n = 113 + 106, median 1.1° / 0.6°, p90 8.7 / 9.5, **max
+18.1° / 28.5°**, 37 and 31 splayed, roll still tracking the splay
+asymmetry (rho 0.61 wkc, 0.78 hairpin).
+  **THE TAIL EVENT ITSELF LANDED, IN THE STOCK ARM (run 8294, block 13's
+  hairpin, 18:41).** Its mission was perfect — 5/5 waypoints, ZERO
+  `Unsafe locomotion` lines in the whole log, the stream at 500 samples/s
+  with a 3.1 ms worst gap, the settle clean at z 0.281 / roll 0.3° — and
+  then `damping hold: kd 8.0` followed by **`laydown: z=0.110 roll=22.7
+  pitch=3.0 -> BAD`**, judged FAIL on the lie-down alone. That is the
+  finish tip OPEN-30 was opened for, reproduced under the damper at
+  N = 113 while the no-damper arm has 234 lie-downs with a 1.2° worst case
+  and not one failure. The A/B is answered: the shipped default
+  (`WP_LIEDOWN_EDAMP=0`) removes the mechanism, and the tip rate under the
+  damper is ~1 in 113 on the hairpin — the 1–3 % band the record has
+  always quoted.
+  **AND THE DEBOUNCE'S FIRST REAL TEST, WITH AN HONEST RESULT (run 8315,
+  block 14's wkc, 19:19).** In a second the stream fell to 464 samples/s
+  with an 18.1 ms gap and commands to 437/s, leg 1's speed went over the
+  limit for FOUR consecutive ticks reaching **12.4 m/s** — and the
+  debounce held: `[legv] leg 1 over 9.0 m/s for 4 tick(s) (12.389 m/s) -
+  not a trip until 5`, no leg-speed trip, exactly as designed. **The run
+  fell anyway**, and the log says by which door: `Unsafe locomotion: leg
+  2's y-position is bad (-0.240 m, max 0.240)` → `[Recovery Balance] ...
+  Stand Up`, repeating from body height 0.299 down, then the pitch E-stop
+  at 35.1°. So the SAME one-tick-trip-into-RECOVERY_STAND defect lives in
+  `locomotionSafe()`'s other branches, and the lateral-foot one is
+  grazing: every y-position line in the archive reads −0.240 to −0.251 m
+  against a 0.240 m limit, i.e. 0–11 mm past it, on a robot whose feet
+  legitimately stand wide. Base rate on the debounced binary, 591 runs:
+  the y-position branch fired first in **2** (one fell, one survived), the
+  above-hip branch in 0, the leg-speed branch in **0** — the spike that
+  would have tripped it was absorbed. Honest reading: the leg-speed
+  debounce does what it claims (0 trips in 591 runs, one 12.4 m/s spike
+  absorbed) and it does NOT make a 464/s second survivable on its own,
+  because a different single-tick check answers the same disturbance the
+  same fatal way. Fix for chain CI: the same debounce on the y-position
+  and above-hip branches (`CTRL_LEGY_TRIP_TICKS`, `CTRL_HIP_TRIP_TICKS`,
+  default 5, 1 = stock), with in-tree precedent — MIT's own orientation
+  E-stop is already debounced here (`CTRL_ORIENT_HOLD_MS`, 60 ms).
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
