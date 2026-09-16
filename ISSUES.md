@@ -3069,6 +3069,27 @@ block and the pitch unmoved. The cap is retired for this course as it was
 for wkc 2.8; chain CO now measures the cruise itself, 2.6 vs 2.5
 interleaved per run, for the SIZE of the pitch margin 0.1 m/s buys.
 CN's own tiers: **13/13 twice**, so the hairpin work cost the suite nothing.
+**2026-09-16 06:59 — and the cruise IS the lever: 0.1 m/s buys 3.4° of pitch,
+for 0.2 s of lap.** Chain CO block 1, hp_gap20, `SPEED=2.6` vs `SPEED=2.5`
+interleaved run by run (the speed column confirms the manipulation on every
+row), 12/12 PASS:
+
+| arm | peak pitch mean | median | range | lap |
+|---|---|---|---|---|
+| 2.6 m/s | 22.0° | 21.5 | 20.5–23.9 | 49.5 s |
+| 2.5 m/s | **18.6°** | 18.6 | 17.7–19.6 | 49.7 s |
+
+**The distributions do not overlap** — 2.5's worst run (19.6°) is below 2.6's
+best (20.5°) — which at 6 v 6 is a two-sided Mann-Whitney p = 0.0022. The lap
+cost is **+0.2 s on 49.5 (0.4 %)**, cheap because the hairpin is mostly braking
+and cornering, so the cruise applies to limited straight. In margin terms
+against the 33.2° E-stop that killed run 7994: 9.3° at 2.6, **13.6° at 2.5**.
+Held deliberately as ONE BLOCK: complete separation is strong and the
+interleaving means host drift hits both arms equally, but tonight has three
+retractions in it from believing a handful of runs, so the recommendation waits
+for block 2 and the chain keeps running. If it holds, this is the hairpin's
+envelope decision for the operator — 2.5 with a third more pitch margin for
+half a percent of lap, against 2.6 as shipped.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
