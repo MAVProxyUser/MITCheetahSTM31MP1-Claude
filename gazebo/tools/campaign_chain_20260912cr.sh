@@ -31,23 +31,32 @@
 # cycles and a natural-trigger A/B on the weave would have measured NOTHING for days - CL's exact
 # failure, which I nearly repeated after writing its lesson down.
 #
-# So the trigger is HELD FIXED AND FREQUENT on both arms, and only the RESPONSE varies. The knob
-# for that is not arbitrary: CTRL_MAX_PLEG_Y=0.18 is MIT's own upstream limit, mini-cheetah's abad
-# link, and this tree's record says exactly what it does to a Go1 - "the Go1's abad link is 0.08 m
-# so its feet legitimately stand ~30 % wider, the rear legs cross 0.18 m within ~1 s of gait entry,
-# and failing this check sends the FSM to RECOVERY_STAND, which folds all four legs. Every 'the MPC
-# tumbles at gait start' note in this file was that check firing." That is a ~100 % trigger rate,
-# already characterised, on a documented value rather than a number I invented to force a result.
+# So the trigger is HELD FIXED AND FREQUENT on EVERY arm, and only the RESPONSE varies.
+# CTRL_MAX_PLEG_Y=0.21 is the value, taken from this chain's own margin data rather than invented:
+# wkc_finals' per-run lateral maximum is 219-224 mm across 6 runs at the served 2.6 (chain CQ's
+# leg_y_max column), so a 210 mm limit is crossed by EVERY run - a ~100 % trigger - and crossed
+# WHERE THE LATERAL EXCURSION PEAKS, which is cornering at cruise.
+# The first draft used MIT's own upstream 0.18. That is a documented ~100 % trigger too ("the rear
+# legs cross 0.18 m within ~1 s of gait entry"), but it fires DURING THE VELOCITY RAMP while the
+# robot is still slow - which would have made the fold-gate arm a NULL BY CONSTRUCTION, because
+# that fix only acts on a body that is travelling. A trigger has to fire in the REGIME the fix
+# addresses, not merely often.
 # The course is wkc_finals at the served 2.6 because it normally passes ~100/100 clean, so any fall
-# in either arm is attributable to the induced trip and its response - a clean baseline, unlike the
+# in any arm is attributable to the induced trip and its response - a clean baseline, unlike the
 # weave, which already falls on its own.
 #
-# WHAT THIS DOES AND DOES NOT MEASURE: it measures whether the DWELL changes the outcome of a trip.
-# It says nothing about the natural fall rate, because the trip is induced - and it must not be
-# quoted as an envelope or reliability number for 0.18, which is a limit this robot is known to
-# violate by design. The manipulation check sits beside every result (runs that tripped, worst
+# THREE ARMS, every knob explicit on every one so nothing is inherited: stock, the DWELL
+# (CTRL_LOCO_UNSAFE_HOLD_MS=600), and the FOLD GATE (CTRL_RECOVER_FOLD_VMAX=1.0).
+#
+# WHAT THIS DOES AND DOES NOT MEASURE: it measures whether either response changes the OUTCOME of
+# a trip. It says nothing about the natural fall rate, because the trip is induced - and it must
+# not be quoted as an envelope or reliability number for 0.21, a limit the shipped gait crosses on
+# every run by design. The manipulation check sits beside every result (runs that tripped, worst
 # cycle length, folds, dwells per arm); if an arm does not trip, the block measured nothing and
-# says so.
+# says so. THE COLUMN THAT DECIDES IT IS `folded`: across the 79 historical entries from a healthy
+# body, 42 of the 61 that fell issued a fold against 3 of the 18 that survived, while cycle
+# DURATION did not discriminate at all - so judge the arms on whether the fold happened, with the
+# verdict beside it, never on cycle length.
 #
 # NOTHING SHIPS FROM THIS CHAIN. The default stays 0 and decision #4 is the operator's; this
 # chain only measures. Builds and deploys in the gap behind CQ, probes, tier first, then blocks of
@@ -140,18 +149,19 @@ else say "BUILD FAILED (see build_cr.log) - the old binary stays"; fi
 # which the [recover] dwell line proves - but the weave only trips on some runs, so a probe that
 # does not trip is INCONCLUSIVE, not a failure, and the blocks run either way.
 wait_idle; tm_wait
-COURSES="wkc_finals" ARMS="probe:CTRL_MAX_PLEG_Y=0.18,CTRL_LOCO_UNSAFE_HOLD_MS=600" run dwell_probe 1 2.6
+COURSES="wkc_finals" ARMS="probe:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_HOLD_MS=600,CTRL_RECOVER_FOLD_VMAX=1.0" run dwell_probe 1 2.6
 say "probe rows:"; cyc "$CAMPAIGN_DIR/dwell_probe.csv" | tee -a "$LOG"
-A="hold0:CTRL_MAX_PLEG_Y=0.18,CTRL_LOCO_UNSAFE_HOLD_MS=0 hold600:CTRL_MAX_PLEG_Y=0.18,CTRL_LOCO_UNSAFE_HOLD_MS=600"
+A="stock:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_HOLD_MS=0,CTRL_RECOVER_FOLD_VMAX=-1 dwell:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_HOLD_MS=600,CTRL_RECOVER_FOLD_VMAX=-1 foldgate:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_HOLD_MS=0,CTRL_RECOVER_FOLD_VMAX=1.0"
 say "arms (interleaved run by run, explicit on BOTH so neither inherits a default): $A"
 say "deploy=$DEPLOYED - if 0, both arms ran on a binary without the knob and the block is a NULL by construction"
 tier 0
 i=0
 while [ ! -f "$CAMPAIGN_DIR/STOP_CR" ]; do
   i=$((i+1)); wait_idle; sleep 30; wait_idle; tm_wait; say "block $i: rig idle (phase $(phase)) - binary $(md5 -q host-run/mit_ctrl_sim | cut -c1-8)"
-  COURSES="wkc_finals" ARMS="$A" run "dwell_cr$i" 4 2.6
-  say "OPEN-40 A/B: wkc_finals 2.6, trigger held at CTRL_MAX_PLEG_Y=0.18 on BOTH arms (INDUCED -"
-  say "  not an envelope number), response varied. Pooled over CR; no trips in an arm = no measurement:"
+  COURSES="wkc_finals" ARMS="$A" run "dwell_cr$i" 3 2.6
+  say "OPEN-40, three arms on wkc_finals 2.6: trigger PINNED at CTRL_MAX_PLEG_Y=0.21 on every arm"
+  say "  (INDUCED - not an envelope number for 0.21). stock / dwell / foldgate; judge on FOLDED."
+  say "  Pooled over CR; an arm with no trips measured nothing:"
   cyc "$CAMPAIGN_DIR"/dwell_cr*.csv | tee -a "$LOG"
   tier "$i"
 done
