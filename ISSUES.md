@@ -163,6 +163,13 @@ passed on its own in-suite retry.
   (`leg_y_max` on the passing box run was 142 mm, nowhere near it).
   Still to measure on this map: `wkc_finals` and `hp_gap20` at 2.6, and the
   weave at depth — n=1 decides nothing here.
+  **Harness bug found and fixed in the same block**: with `ARMS=""` and
+  `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
+  course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
+  appends, so both rows were labelled with the dump path and the per-course
+  grouping was destroyed. Fixed by capturing the CALLER's env first
+  (`local uenv="$env"`); rename-installed, so it applies from the next
+  campaign.
 
 - **OPEN-40 ← OPEN-35: this ping-pong was OBSERVED FIVE DAYS AGO and filed as a
   symptom, and it is what the "level collapse" class always WAS.** OPEN-35's own
@@ -189,35 +196,61 @@ passed on its own in-suite retry.
      said the cycle "is what the level collapse class always WAS" — that is
      withdrawn; it was generalised from OPEN-35's single narrated run (5058)
      before the class was counted.*
-  3. **MEASURED across the whole archive, and it is far bigger than the "2 runs
-     in ~400" I first reported.** That figure came from grepping only the most
-     recent ~400 logs — the ones that postdate every mitigation. Scanning the
-     tail (20 KB) of all **7077** ctrl logs back to 2026-08-30, which takes
-     1.7 s and is not a host tenant at all:
+  3. **MEASURED across the whole archive — and the honest number is 4.6 % of
+     falls, after two wrong answers of my own.** Scanning the 120 KB tail of all
+     **7082** ctrl logs back to 2026-08-30 takes under 2 s and is no host tenant
+     at all: both the fold lines and the `[FALL]` line sit at the END of a log,
+     so the question needs kilobytes per file, not the 7 MB average.
 
-     | | |
-     |---|---|
-     | runs showing the cycle (≥5 RecoveryStand entries) | **353 of 7077 (5.0 %)** |
-     | of those, ended in a `[FALL]` | **307 (87 %)** |
-     | share of EVERY fall on record (1293) that went through it | **24 %** |
-     | worst cycle seen | **152** RecoveryStand entries in one run |
+     **The full fall taxonomy — 1293 falls in 7082 runs (18.3 %), classified by
+     what immediately preceded the `[FALL]` line.** The most complete one this
+     project has had, and the most valuable part of the scan:
 
-     And the daily rate tracks the TRIGGER fixes, never the response: 5.2 % on
-     09-03, **18.3 % on 09-04, 24.9 % on 09-05**, then 1.1–5.9 % through the
-     `BRIDGE_RT` era, 0.9 % on 09-15 (the debounces), **0.2 % on 09-16**. So
-     roughly a quarter of this project's recorded falls ended through a
-     mechanism nobody had diagnosed, the rate was driven down by fixing what
-     TRIPPED the check, and the response itself is the last unfixed layer —
-     still ~87 % lethal in the ~1-in-200 runs that still reach it. These are
-     LOWER BOUNDS: a cycle that ran early in a long run is outside the 20 KB
-     tail.
-  **Harness bug found and fixed in the same block**: with `ARMS=""` and
-  `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
-  course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
-  appends, so both rows were labelled with the dump path and the per-course
-  grouping was destroyed. Fixed by capturing the CALLER's env first
-  (`local uenv="$env"`); rename-installed, so it applies from the next
-  campaign.
+     | what preceded the fall | n | % of falls |
+     |---|---|---|
+     | **orientation E-stop, nothing else** | **836** | **64.7 %** |
+     | cycle, per-leg trip, body already below 0.24 m | 121 | 9.4 % |
+     | cycle as AFTERMATH — already past 40° when the ATTITUDE branch tripped | 112 | 8.7 % |
+     | host stall (`[STALL]`) | 112 | 8.7 % |
+     | **OPEN-40: cycle from a HEALTHY body after a per-leg trip** | **60** | **4.6 %** |
+     | no precursor in the tail | 23 | 1.8 % |
+     | single per-leg trip, no cycle | 20 | 1.5 % |
+     | single attitude trip, no cycle | 9 | 0.7 % |
+
+     **OPEN-40's own class at proper power: 79 runs entered the cycle from a
+     healthy body after a per-leg trip; 61 fell (77 %), 18 survived.** And the
+     n=2 finding GENERALISES — bleed is the discriminator, entry height is not:
+
+     | | fell (61) | survived (18) |
+     |---|---|---|
+     | entry height | mean 0.271, range 0.241–0.338 | mean 0.294, range 0.254–0.324 |
+     | **bleed (entry − min)** | **mean 0.132 m** | **mean 0.067 m** |
+
+     The entry ranges overlap almost entirely, so headroom at entry does not
+     separate them — the correction above, now at n=79 rather than n=2. Bleed
+     separates ~2x, at the same magnitudes the 8507/8892 pair gave (0.057 vs
+     0.112 m).
+
+     **TWO WRONG NUMBERS OF MINE, AND IT IS THE SAME ERROR TWICE.** First "2
+     runs in ~400" — a grep over only the most recent logs, the ones postdating
+     every mitigation, understating by an order of magnitude. Then "353 runs,
+     5.0 %, 307 falls, **24 % of every fall on record**" — that counted ANY run
+     with ≥5 RecoveryStand entries near the fall and called the cycle the cause.
+     A spot-check of three killed it: runs 7236, 7359 and 7364 first tripped on
+     `Unsafe locomotion: roll is 40.4 / −41.0 / −53.0 degrees` — the ATTITUDE
+     branch, body already past 40° and in two cases already at 0.087–0.153 m.
+     Those robots were going down regardless; the ping-pong was the corpse
+     twitching, not the killer, and that is the 112-run aftermath class the
+     error swept in. **A signature's presence is not causation** — counting a
+     mechanism's footprint across an archive also requires checking, per
+     instance, that the mechanism COULD have been causal: here via the trip
+     BRANCH (per-leg vs attitude) and the body state at cycle entry.
+     So the standing claim is 60 falls in which a HEALTHY robot at cruise was
+     killed by its own recovery, 77 % lethal once entered, upper bound 181
+     (14.0 %) if the ambiguous low-body per-leg cycles belong too. Smaller than
+     I said twice; the fix is still worth having. And the taxonomy says plainly
+     where the REST of the falls are: two thirds are a genuine attitude E-stop,
+     which is the envelope question, not this one.
 
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer

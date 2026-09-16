@@ -3016,40 +3016,53 @@ OPEN-40, attributed wholly to the host stall that TRIGGERED it. Nobody asked why
 the FSM could alternate every few ms, so the trigger was fixed (`BRIDGE_RT`) and
 the response was not. **The trigger and the response are separable**: a stall
 freezing the state and a genuine sustained violation both trip
-`locomotionSafe()`, and the cycle is the same either way. **Then it was MEASURED, and the numbers are much
-larger than the "2 runs in ~400" first reported** (that came from grepping only
-the most recent ~400 logs, which postdate every mitigation). Scanning the 20 KB
-TAIL of all 7077 archived ctrl logs back to 2026-08-30 - 1.7 seconds, and not a
-host tenant at all, because the fold lines and the `[FALL]` line both sit at the
-end of the file:
+`locomotionSafe()`, and the cycle is the same either way. **Then it was MEASURED across all 7082 archived ctrl logs, and the honest number
+is 4.6 % of falls - after two wrong answers of mine.** The scan is cheap because
+both the fold lines and the `[FALL]` line sit at the END of a log: kilobytes per
+file, not the 7 MB average, so under 2 seconds for the whole archive.
 
-| | |
-|---|---|
-| runs showing the cycle (>=5 RecoveryStand entries) | **353 of 7077 (5.0 %)** |
-| of those, ended in a `[FALL]` | **307 (87 %)** |
-| share of EVERY fall on record (1293) | **24 %** |
-| worst cycle in one run | **152** entries |
+**The full fall taxonomy, 1293 falls in 7082 runs (18.3 %), by what immediately
+preceded the `[FALL]` line** - the most complete this project has had:
 
-The daily rate tracks the TRIGGER fixes and never the response: 5.2 % on 09-03,
-**18.3 % on 09-04, 24.9 % on 09-05**, then 1.1-5.9 % through the `BRIDGE_RT`
-era, 0.9 % on 09-15 (the debounces), 0.2 % on 09-16. So about a quarter of this
-project's recorded falls ended through a mechanism nobody had diagnosed; every
-fix so far drove the rate down by removing what TRIPPED the check; and the
-response is the last unfixed layer, still ~87 % lethal in the ~1-in-200 runs
-that reach it. Lower bounds - a cycle early in a long run falls outside the tail.
-It is also **one route to the flat "level collapse", not the class**: of 457 flat
-collapses only 79 (17 %) went through the cycle. *An earlier note here said the
-cycle "is what the level collapse class always WAS" - withdrawn, generalised
-from OPEN-35's one narrated run before the class was counted.*
-**Method note worth more than the number: I deferred this scan as "a host tenant,
-wait for an idle gap", which was the right instinct about the WRONG scan.** The
-question needed 20 KB per file, not the 7 MB average - both signatures are at the
-end. 141 MB and 1.7 s instead of 51 GB. Before deferring an analysis for cost,
-check where in the data the answer actually lives.
-**The lesson: when a write-up explains a mechanism as a symptom of its trigger,
-the mechanism has not been explained.** Ask what made the observed behaviour
-POSSIBLE, not just what set it off - the trigger is where the report stops and
-the defect is one layer under it.
+| what preceded the fall | n | % of falls |
+|---|---|---|
+| **orientation E-stop, nothing else** | **836** | **64.7 %** |
+| cycle, per-leg trip, body already below 0.24 m | 121 | 9.4 % |
+| cycle as AFTERMATH - already past 40 deg when the ATTITUDE branch tripped | 112 | 8.7 % |
+| host stall (`[STALL]`) | 112 | 8.7 % |
+| **OPEN-40: cycle from a HEALTHY body after a per-leg trip** | **60** | **4.6 %** |
+| no precursor in the tail | 23 | 1.8 % |
+| single per-leg trip, no cycle | 20 | 1.5 % |
+| single attitude trip, no cycle | 9 | 0.7 % |
+
+**OPEN-40's own class at proper power: 79 runs entered the cycle from a healthy
+body after a per-leg trip; 61 fell (77 %), 18 survived** - and the n=2 finding
+GENERALISES. Entry height: fell mean 0.271 (0.241-0.338), survived mean 0.294
+(0.254-0.324) - overlapping, so headroom at entry does not separate them. Bleed
+(entry - min): **fell 0.132 m, survived 0.067 m** - ~2x, at the same magnitudes
+the 8507/8892 pair gave (0.057 vs 0.112).
+
+**TWO WRONG NUMBERS OF MINE, THE SAME ERROR TWICE.** First "2 runs in ~400", a
+grep over only the most recent logs - the ones postdating every mitigation.
+Then "353 runs, 5.0 %, 307 falls, 24 % of every fall on record", which counted
+ANY run with >=5 RecoveryStand entries near the fall and called the cycle the
+cause. A spot-check of three killed it: runs 7236, 7359 and 7364 first tripped
+on `Unsafe locomotion: roll is 40.4 / -41.0 / -53.0 degrees` - the ATTITUDE
+branch, body already past 40 deg and two of them already at 0.087-0.153 m. Those
+robots were going down regardless; the ping-pong was the corpse twitching, and
+that is the 112-run aftermath class the error swept in. **A signature's presence
+is not causation** - counting a mechanism's footprint across an archive also
+requires checking, per instance, that the mechanism COULD have been causal (here:
+the trip BRANCH, and the body state at cycle entry). It is also one route to the
+flat "level collapse" and not the class: of 457 flat collapses only 79 (17 %)
+went through the cycle.
+
+**Method note worth as much as the number: I deferred this scan as "a host
+tenant, wait for an idle gap", which was the right instinct about the WRONG
+scan.** The answer lived in the last few KB of each file. 1.7 s instead of 51 GB.
+Before deferring an analysis for cost, check WHERE IN THE DATA the answer lives.
+And the rest of the taxonomy is the more actionable half: two thirds of all falls
+are a genuine attitude E-stop, which is the envelope question, not this one.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
