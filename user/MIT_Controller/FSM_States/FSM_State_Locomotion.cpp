@@ -35,6 +35,7 @@
 // trip so the stand-up actually runs. 0 = stock (bounce back next tick).
 std::atomic<long> g_locoUnsafeHold{0};
 std::atomic<long> g_locoEntrySeq{0};   // bumped on every LOCOMOTION onEnter (OPEN-40 option b)
+std::atomic<long> g_locoUnsafeAdvisory{0};  // trips suppressed by OPEN-40 option (d)
 //#include <rt/rt_interface_lcm.h>
 
 /**
@@ -188,12 +189,47 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
                        (int)K_LOCOMOTION, (int)this->_data->controlParameters->control_mode);
     }
   } else {
-    this->nextStateName = FSM_StateName::RECOVERY_STAND;
-    this->transitionDuration = 0.;
-    rc_control.mode = RC_mode::RECOVERY_STAND;
-    // Arm the dwell so RecoveryStand is not handed back one tick later (OPEN-40).
-    static const long hold_ticks = (long)(ctrl_tuning::num("CTRL_LOCO_UNSAFE_HOLD_MS", 0.0) / 2.0);
-    if(hold_ticks > 0) g_locoUnsafeHold.store(hold_ticks);
+    // OPEN-40 option (d), CTRL_LOCO_UNSAFE_ADVISORY_VMAX (default -1 = stock/off).
+    // THIS DISABLES A SAFETY TRANSITION ABOVE A SPEED, and it is written because
+    // the measurements say the transition is what kills:
+    //   * the trip hands the FSM to RecoveryStand, which reads only control_mode
+    //     and is handed straight back, so a sustained violation becomes a 500 Hz
+    //     cycle - 296 trips and 296 entries in one measured run;
+    //   * holding it there instead (option a) collapsed the cycle 60x exactly as
+    //     designed AND tipped 4 of 4 runs completely over (roll 131-180 deg),
+    //     because RecoveryStand's _StandUp interpolates from a captured pose and
+    //     assumes a STATIONARY body;
+    //   * suppressing the fold (option e) is a measured null - 57 folds
+    //     suppressed, outcome unchanged.
+    // So no variation on "reach RecoveryStand better" works, and what is left is
+    // not routing a MOVING robot into a state built for a fallen one. Above the
+    // knob the trip is advisory: it is counted and logged and locomotion
+    // continues. Below it, stock behaviour is untouched - a genuinely fallen or
+    // slow robot still recovers.
+    // THE RISK, stated plainly: this removes the guard in the regime where it
+    // fires. Every y-position line in the archive grazes the limit by 0-11 mm of
+    // 240, which is the argument that there is nothing to guard against there;
+    // that argument is not proof, the knob defaults OFF, and shipping it is the
+    // operator's call (ISSUES decision #4).
+    static const double advisory_vmax = ctrl_tuning::num("CTRL_LOCO_UNSAFE_ADVISORY_VMAX", -1.0);
+    const T v_body = this->_data->_stateEstimator->getResult().vBody.template head<2>().norm();
+    if(advisory_vmax > 0.0 && (double)v_body > advisory_vmax) {
+      ++g_locoUnsafeAdvisory;
+      static int adv_logged = 0;
+      if(adv_logged < 20) {
+        adv_logged++;
+        shmtrace::logf(0.0, "[locoadv] unsafe trip at %.2f m/s (> %.2f) - ADVISORY, staying in LOCOMOTION (%ld so far)",
+                       (double)v_body, advisory_vmax, g_locoUnsafeAdvisory.load());
+      }
+      // nextStateName is left as the current state: no transition, no cycle.
+    } else {
+      this->nextStateName = FSM_StateName::RECOVERY_STAND;
+      this->transitionDuration = 0.;
+      rc_control.mode = RC_mode::RECOVERY_STAND;
+      // Arm the dwell so RecoveryStand is not handed back one tick later (OPEN-40).
+      static const long hold_ticks = (long)(ctrl_tuning::num("CTRL_LOCO_UNSAFE_HOLD_MS", 0.0) / 2.0);
+      if(hold_ticks > 0) g_locoUnsafeHold.store(hold_ticks);
+    }
   }
 
 
