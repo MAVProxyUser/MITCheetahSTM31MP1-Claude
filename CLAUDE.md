@@ -2912,8 +2912,10 @@ reports a new value every tick and trips on schedule (checked against both runs 
 record). And measure the hold rate rather than inferring it — the heartbeat's
 `[stm32mp1] held samples: held=N/s maxrun=N` says a normal run holds a state for
 **one tick at a time** (0.85 % of leg-ticks, 16 seconds of 120, `maxrun` never above
-1), which makes `maxrun >= 2` a freeze detector in its own right, per leg and inside
-the controller. Two claims were corrected on the way, both by inferring a number from
+1) — though `maxrun = 2` then turned up in 2 of 12 hairpin runs, all passing, so the
+norm is 1, 2 happens in about 1 run in 10, and the freeze that started this had EIGHT;
+where to draw the line is what the column is collecting, and "≥ 2 is a freeze" was
+withdrawn within the hour of being written. Two claims were corrected on the way, both by inferring a number from
 a THROTTLED log or a recomputed column instead of reading the definition: "the star
 passed a 453-samples/s second" (that was a ramp second; `imu_rx_min` is the minimum
 over CRUISE seconds, `cmd_rx >= 400/s`) and "held samples are routine" (fifty lines

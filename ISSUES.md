@@ -1391,9 +1391,19 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   than something I grep by hand: the harness carries **`held_maxrun`** per
   run (rename-installed 23:40, last field, blank on binaries before
   290ab874) and prints it on the verdict line beside `imu_rx_min`. A row
-  with `held_maxrun >= 2` is a run whose leg state genuinely stopped
-  updating — measured per leg, inside the controller, where the trip
-  decision is made, rather than inferred from the bridge's 1 Hz counter.
+  with a high `held_maxrun` is a run whose leg state stopped updating —
+  measured per leg, inside the controller, where the trip decision is
+  made, rather than inferred from the bridge's 1 Hz counter. **(Threshold
+  corrected at 00:22, by the column's own third campaign: `maxrun = 2`
+  turns up in 2 of 12 hairpin runs, both PASSing with clean 496–498/s
+  streams, so across the 19 runs measured so far it is 17 × 1 and 2 × 2 —
+  about 1 run in 10, far too common to flag a freeze. "≥ 2 is a freeze"
+  was mine, set from 7 runs, and it is withdrawn. What the numbers say is
+  that 1 is the norm, 2 happens, and run 8407's EIGHT consecutive
+  identical ticks is nothing like either. Where the line belongs is a
+  question for the night's N, which the column now collects — the same
+  `feedback-replicate-before-you-believe-a-p-value` shape, a threshold
+  from a handful of runs revised by the next dozen.)**
   Tier 0 on the corrected binary: **13/13**, and CK block 1's wkc 12/12
   (lie-downs: nodamp n = 135, max 1.2°, no abad motion in any; stock
   n = 125, max 18.1°, 42 of them splayed). First campaign under the new
