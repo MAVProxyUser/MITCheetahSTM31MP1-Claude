@@ -1465,6 +1465,41 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   against, so whether 0.24 is the right number is DERIVABLE rather than a
   guess. Deliberately not touched tonight — changing a safety limit wants
   the kinematic derivation, not a reaction to two runs.
+  **So here is the derivation (01:40), from this tree's own constants, so
+  the number is a decision rather than a guess.** The checked quantity is
+  the foot's lateral coordinate in the hip frame, and
+  `computeLegJacobianAndPosition` gives it exactly: `p(1) =
+  (l1+l4)·sideSign·cos(q0) + l3·sin(q0)·cos(q2+q3) + l2·cos(q2)·sin(q0)` =
+  `(l1+l4)·cos(q0) + R·sin(q0)` with `R` the leg's in-plane reach. For the
+  Go1 `l1 = 0.08`, `l4 = 0` (mini-cheetah's is 0.004), `l2 = l3 = 0.213`,
+  `_maxLegLength = 0.430`:
+
+  | abad q0 | p(1), stance R = 0.27 | p(1), leg extended |
+  |---|---|---|
+  | 0° (nominal) | 0.080 | 0.080 |
+  | 30° | 0.204 | 0.284 |
+  | 40° | 0.235 | 0.338 |
+  | 45° | **0.247** | 0.361 |
+  | 49.5° (Unitree's mechanical stop) | 0.257 | **0.379** |
+  | 55° (the SDK's operational clamp) | 0.267 | 0.398 |
+
+  Three things fall out. (1) The observed 0.247 is an abad angle of
+  **44.9°** at a 0.27 m stance — inside the ±49.5° mechanical stop, so the
+  gait asks for nothing the joint cannot do. (2) The mechanical ceiling on
+  this quantity is **0.379 m** and the shipped `max_pleg_y = 0.24` is 63 %
+  of it: a STANCE-ENVELOPE policy, not a mechanical guard, and numerically
+  0.18 × (0.08/0.062) = 0.232 rounded up — mini-cheetah's ratio, never
+  checked against this robot's own gait. (3) That gait EXCEEDS the policy
+  by 0–7 mm on these courses, which is the whole reason the branch fires.
+  **Proposal for the operator: 0.30 m** — 21 % above the gait's measured
+  envelope and 21 % below the mechanical bound, still catching a leg
+  genuinely swung out (0.30 needs 56° of abad at stance, past the
+  mechanical stop, so it is only reachable with the leg extended and
+  therefore really out of the envelope), while ending both the fatal trip
+  of run 8315 and the 54 nuisance trips of 8507. It wants to be a knob
+  (`CTRL_MAX_PLEG_Y`, default 0.24 = today's behaviour) so the A/B is one
+  env var, and it belongs in a chain of its own with the full tier rather
+  than bolted onto the lie-down A/B.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
