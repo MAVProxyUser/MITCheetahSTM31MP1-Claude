@@ -2897,7 +2897,15 @@ each; **1 restores upstream's one-tick trip** for an A/B); absorbed events log a
 (`CTRL_ORIENT_HOLD_MS`, 60 ms). **The lesson: when a fall class carries a "harness" or "host"
 label, grep the ctrl log for the FIRST unsafe/transition line and ask what the RESPONSE did to
 a robot at cruise — and when you debounce one check, debounce the siblings that share its
-response, because the disturbance will simply find the next undefended door.**
+response, because the disturbance will simply find the next undefended door.** And a
+count of ticks is not enough on its own: a HELD sample persists perfectly. Run 8407 lost
+the star in a 404-samples/s second with eight consecutive ticks reading an identical
+9.749 m/s and a foot at exactly 0.000 m above hip, while a genuine transient the same day
+read a different value every tick (10.06 → 12.39) and was absorbed correctly. So a tick
+whose leg state (`p[1]`, `p[2]`, `|v|`) is **bit-for-bit identical** to the previous tick
+advances no counter (`[leghold]`; `CTRL_LEG_HELD_GATE=0` disables) — bit-for-bit for the
+same reason the GPS staleness gate uses it. **Before trusting a persistence test on
+sensor-derived input, ask what a stalled sensor looks like to it.**
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
