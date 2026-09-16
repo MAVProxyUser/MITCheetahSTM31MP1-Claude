@@ -23,7 +23,7 @@ shipped, and none of it needs more data to decide.
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. **And the star's own interlude is clear at depth: 38 interludes since the fix, 37 stood back up and PASSED**; the one exception (run 7763) stood up fine and tipped 22 s later mid-dash, i.e. not the interlude. That retires the "3 of 24 star interlude roll-overs" left unexplained on 09-14. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
 | 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED at n = 24 an arm, and it is a safety line, not a trade.** 2.6: **24/24 PASS**, pitch mean 19.1°, **worst 22.0 in twenty-four runs, 0 of 24 over 23°**, margin 6.6° to the 28.65° limit. 2.7: **22/24**, mean 23.0, worst **32.5**, **10 of 24 over 23°**, two course-clean E-stop falls. It buys 0.7 s of a 97 s lap. **Recommendation: keep 2.6.** | OPEN-28 |
-| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | **The current answer is a 500 Hz limit cycle.** RecoveryStand reads only `control_mode`, which nav pins at locomotion, so a trip is handed back after ONE tick forever; trips and recovery entries are equal to the unit (45/45, 54/54). Of 79 runs entering from a healthy body, **61 fell (77 %)**, and bleed per cycle separates them (0.132 m vs 0.067 m) while entry height does not. Historically 51 falls in era A; on the binary running today **1 fall in 531 runs** (an earlier "71 % of what still falls" was withdrawn — it pooled across the 09-15 debounce). So this is a correctness question, not a fire. Four response options are written up; the dwell (`CTRL_LOCO_UNSAFE_HOLD_MS`) and the counter reset (`CTRL_LEG_TRIP_RESET_ON_ENTRY`) are both coded and default-off, and chain CR measures the dwell against a pinned trigger. | OPEN-40 |
+| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | **The current answer is a 500 Hz limit cycle.** RecoveryStand reads only `control_mode`, which nav pins at locomotion, so a trip is handed back after ONE tick forever; trips and recovery entries are equal to the unit (45/45, 54/54). Of 79 runs entering from a healthy body, **61 fell (77 %)**, and bleed per cycle separates them (0.132 m vs 0.067 m) while entry height does not. Historically 51 falls in era A. On the current binary at the SERVED 2.6 it is **1 fall in 202 course runs — and the ONLY cause among them**, which makes this the last known failure mode of the shipped configuration rather than a frequent one. (Two earlier figures of mine, "24 % of all falls" and "71 % of what still falls", are withdrawn: the first counted the cycle's footprint without testing causation, the second pooled across the 09-15 debounce.) For contrast the 2.70 rung falls 2 of 42 on the same binary, which independently confirms decision #3. Four response options are written up; the dwell (`CTRL_LOCO_UNSAFE_HOLD_MS`) and the counter reset (`CTRL_LEG_TRIP_RESET_ON_ENTRY`) are both coded and default-off, and chain CR measures the dwell against a pinned trigger. | OPEN-40 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
 | 7 | Desktop tenants running beside the rig. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night. **Added 2026-09-16 12:53**, sampled during a live tier: `searchpartyd` (Find My) spiked to **71.7 %** and re-sampled at 23.3 %, though its lifetime total is only 299 min over 22 days, so it is a spiky tenant rather than a runaway — worth a look precisely because it is new to this list and it spikes. `bluetoothd` 3.4 %, WindowServer 5.5 %. None of these is mine to kill. | OPEN-35 |
@@ -302,6 +302,32 @@ passed on its own in-suite retry.
      decision #4 is a correctness question rather than a fire. It also
      vindicates chain CR's redesign outright: at 1 in 531 a natural-trigger A/B
      could never have measured anything.
+
+  5. **AND THE SHARPEST VERSION: at the SERVED speed, on the current binary,
+     OPEN-40 is the only course-clean fall mode on record.** Era C's 531 runs
+     include suite cases and off-recipe probes. Restricting to COURSE runs and
+     splitting by commanded speed:
+
+     | | runs | falls | rate |
+     |---|---|---|---|
+     | **served 2.60 m/s** | 202 | **1** | **0.50 %** |
+     | off-recipe probes (both `wkc_finals` at 2.70) | 42 | 2 | 4.76 % |
+
+     The single served-recipe fall is run 8892, the weave, through this cycle.
+     Both off-recipe falls are the 2.70 rung at pitch 32.5° and 30.0°, which
+     **independently confirms decision #3** from a different direction: 2.7
+     falls about 10x more often than the 2.6 we serve, on the same binary in the
+     same hours.
+     So the honest headline is neither "24 % of all falls" nor "71 % of what is
+     left": **it is 1 fall in 202 served-recipe course runs, and it is the only
+     cause among them.** That makes decision #4 the one remaining known failure
+     mode of the shipped configuration — important because it is the last one,
+     not because it is frequent.
+     Also noted while enumerating era C: `run8407` is the fourth fall and it
+     predates the held-sample gate (chain CK, 09-15 23:15) — its first unsafe
+     line is the documented frozen-sample case, eight ticks of an identical
+     9.749 m/s. So there is a THIRD ship boundary inside era C, and the gate
+     has had no fall attributed to it since.
 
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer

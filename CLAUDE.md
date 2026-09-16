@@ -3093,6 +3093,19 @@ BRANCH alone is not a sufficient admissibility test, because a collapsed robot's
 legs trip it too: of 21 such runs, 13 entered the cycle already BELOW the 0.20 m
 fold line and 8 between 0.20 and 0.24, so the cycle was their finisher, not their
 prime mover. Entry height needs bands, not one cutoff.
+**Sharpest version, and the one to quote: at the SERVED speed on the current
+binary, OPEN-40 is the only course-clean fall mode on record.** Era C's 531 runs
+include suite cases and off-recipe probes; restricting to course runs and
+splitting by commanded speed gives 202 runs at the served 2.60 with **1 fall**,
+which is run 8892 through this cycle, against 42 off-recipe runs at 2.70 with 2
+falls at pitch 32.5 and 30.0 deg. That second row independently confirms the
+decision to keep 2.6: the 2.7 rung falls about 10x more often, same binary, same
+hours. So the headline is neither "24 % of all falls" nor "71 % of what is left"
+- it is **1 fall in 202 served-recipe course runs, and the only cause among
+them**, which makes this the LAST known failure mode of the shipped
+configuration rather than a frequent one. A third ship boundary sits inside era
+C as well: `run8407`, the fourth fall, predates the held-sample gate of 09-15
+23:15, and nothing has been attributed to that gate since.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
