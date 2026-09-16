@@ -1540,9 +1540,17 @@ count; `state_freeze_scan.py` is the per-snapshot form (identical state under
 motion, loop period intact, jump on return). Host tells: `mdutil -a -s` (the
 external volumes stay indexed after `/` is turned off), `ps -r` for
 `mds_stores`/`corespotlightd`. The snapshot archive has NO retention and
-grows ~21 GB/day; `archive_compact.sh` packs snapshots older than 24 h to
+grows ~21 GB/day; `archive_compact.sh` packs snapshots to
 `.json.zst` and every reader resolves `.json`/`.json.zst` through
-`gazebo/tools/snapio.py` — new readers must too. `open28_subcourse.sh` starts a compaction at
+`gazebo/tools/snapio.py` — new readers must too. **CORRECTED 2026-09-16: it is
+NOT "older than 24 h".** `AGE_H` defaults to **0**, so every snapshot on disk is
+packed at every campaign start; the script's own comment says "was 24 until".
+A fresh run's per-tick trace is therefore readable as plain JSON only until the
+NEXT campaign begins, which can be minutes — three weave traces were analysed at
+15:00 and were `.zst` by 15:06 when the next block started. Same shape as "a
+run's log is live until the next launch": take a per-tick trace promptly or go
+through `snapio.py`, and remember that decompressing a pile of them mid-run is
+itself the host-tenant hazard. `open28_subcourse.sh` starts a compaction at
 every campaign start and prints the per-arm harness-fall split at the end.
 A Time Machine backup creates an APFS local snapshot (`tmutil
 listlocalsnapshots /System/Volumes/Data`) that pins every file deleted after
