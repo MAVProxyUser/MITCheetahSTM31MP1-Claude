@@ -1395,7 +1395,11 @@ the body dropped onto its belly, and an uneven splay was the rock: stage-2 roll 
 instability showed. `WP_LIEDOWN_EDAMP` now defaults to 0.0 (binary cf633090, 2026-09-15 00:23):
 no damper, STAND_UP's own PD holds through the second stage — abad excursion 0.000 rad in 23 of
 23, stage-2 roll max 1.1°, judge z ≈ 0.10, course verdicts unchanged, tier 13/13 with both of
-the star's lie-downs on it. `WP_LIEDOWN_EDAMP=8` restores stock for an A/B. At depth the A/B
+the star's lie-downs on it. `WP_LIEDOWN_EDAMP=8` restores stock for an A/B. The star's DASH interlude — the
+same code, and the site of the "3 of 24 roll-overs" this file left unexplained on
+09-14 — is clear on the fix: **38 interludes since it deployed, 37 stood back up and
+passed**, the one exception standing up cleanly and tipping 22 s later mid-dash. At
+depth the A/B
 answered itself: **234 no-damper lie-downs, worst stage-2 roll 1.2°, zero abad motion, zero
 failures**, against 219 damper lie-downs on the same binaries with a 28.5° worst case — and
 the tail event itself reproduced under the damper (run 8294: 5/5 waypoints, no unsafe line,
