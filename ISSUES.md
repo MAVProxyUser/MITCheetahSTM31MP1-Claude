@@ -244,6 +244,34 @@ passed on its own in-suite retry.
   Lap cost so far: **+0.75 s on a 55 s lap, 1.4 %**, against the hairpin's +0.2 s
   on 49.5 s. Both are the same trade in kind: about a percent of time for the
   margin, on a course that currently has none.
+  **BLOCK 2 REVERSES THE VERDICT READING — 2.5 FELL TOO, and the difference in
+  reliability is gone (n = 12 an arm, 2026-09-16 16:02):**
+
+  | | verdicts | PASSING pitch mean | sd | PASSING worst | margin | lap |
+  |---|---|---|---|---|---|---|
+  | 2.5 | **11/12** | **19.7** | 1.54 | 22.7 | **+5.9** | 55.8 s |
+  | 2.6 | **10/12** | **23.1** | 1.95 | 26.0 | **+2.6** | 55.1 s |
+
+  Block 1's 6/6 vs 4/6 became **11/12 vs 10/12, Fisher p = 1.000**. Run 9029 is a
+  2.5 run that peaked at **29.5°** and collapsed, so **the runaway is NOT
+  removed by slowing to 2.5** — 1 in 12 against 2 in 12. Exactly the regression
+  this tree keeps documenting, and the reason block 1 was explicitly not allowed
+  to call it.
+  **What DOES hold, and it is now stronger:** the passing-run peak pitch is
+  **3.4° apart** (19.7 vs 23.1), exact one-sided rank-sum **p = 0.00019**, and
+  the figure grew from 2.1° at n = 6 toward the hairpin's shipped 3.2°. The
+  worst PASSING case moves 26.0 → 22.7, i.e. margin +2.6 → +5.9. So 2.5 buys a
+  real, replicated shift in the body of the distribution for +0.7 s a lap.
+  **The two findings together say something sharper than either alone: the
+  typical peak is speed-driven and the RUNAWAY IS NOT.** A 2.5 cruise still
+  produced a 29.5° peak, so whatever loses the pitch event at t≈55 is not simply
+  the speed it happens at. That reframes decision #9 — 2.5 is a margin purchase,
+  not a fix — and it raises the value of the per-tick question CT cannot answer
+  either: what separates a recovery from a runaway when both arms do both.
+  Twelve uncompressed traces from this block (five 2.5 passes, six 2.6 passes and
+  the 2.5 failure) were copied out before compaction packed them, so that
+  question is now answerable from local data.
+
   **BOTH levers are now being measured, so the decision can be a comparison
   rather than a yes/no.** Chain CT (queued behind CR) holds cruise at 2.6 and
   varies `WP_REACCEL_VMAX` instead — 0 against 2.4. That knob caps the forward
