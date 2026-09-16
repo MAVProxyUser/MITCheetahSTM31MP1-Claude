@@ -1395,8 +1395,37 @@ not the per-corner turn cap that fixed the S-bend: a turn cap brakes for a
 CORNER, and a weave's demand is continuous. **Not encoded, and it must not be at
 n=1** - this tree has retracted a terrain cap set from a thin cell before. Chain
 CQ's margin map is collecting the per-course distribution at the served speed;
-the honest statement today is that the weave is the SUSPECTED weak link in the
-shipped envelope and that its deficit is lateral. Note also that the fall it
+the honest statement today is that the weave is the suspected weak link in
+the shipped envelope.
+**MEASURED at n = 9 a course, 3 interleaved blocks (2026-09-16 14:23), and the
+weave HAS NO MARGIN at the served 2.6** - while the lateral framing above was
+wrong about WHICH AXIS:
+
+| course | verdicts | pitch mean | pitch worst | margin to 28.65 | roll worst | leg_y max |
+|---|---|---|---|---|---|---|
+| `hp_gap20` | 9/9 | 21.7 | 23.2 | **+5.4** | 10.8 | 140 mm |
+| `wkc_box` | 9/9 | 21.8 | 24.6 | **+4.0** | 13.4 | 143 mm |
+| `wkc_finals` | 9/9 | 19.2 | 20.6 | **+8.0** | 14.5 | 224 mm |
+| **`wkc_weave`** | **8/9** | **23.0** | **31.5** | **-2.9** | 17.7 | 241 mm |
+
+The weave has the highest mean pitch of the four and a worst case that exceeds
+the E-stop limit outright, and it is the only course that failed. Its fall, run
+8967, is a BARE ENVELOPE fall: pitch 31.3 deg with a 31.5 peak held 62 ms, ZERO
+unsafe-locomotion lines, ZERO RecoveryStand entries, no folds, `leg_y_max`
+221 mm inside the 240 limit, a clean 500 samples/s stream, six waypoints
+reached. No mechanism at all - the robot simply pitched past the limit.
+**Correcting the paragraph above: I called the weave's deficit LATERAL from run
+8892's 34.6 deg of roll and 243 mm foot. But 8892 was the OPEN-40 limit cycle, a
+MECHANISM failure the envelope did not cause; the weave's ENVELOPE failure is
+PITCH.** Both falls are real and they are different things, one mechanism and
+one envelope. Roll still ranks worst of the four at 17.7 deg but keeps 10.9 deg
+of margin, while pitch has none. The lever, by analogy with the hairpin and NOT
+yet measured here, is to serve 2.5 on this course; the caveat is that the weave
+is the least-tested course in the catalog, ~39 runs against wkc_finals' 1684.
+**The general lesson: a course can fail two ways, and a single fall tells you
+which one it was, not which one binds.** One roll-dominant mechanism failure had
+me looking at the lateral budget for hours; nine runs of the unconditional
+per-run peaks named the real axis. Note also that the fall it
 produced was OPEN-40's limit-cycle response, not the lateral limit being set
 wrong - separate a check's threshold from what its trip DOES before moving
 either.*

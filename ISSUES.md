@@ -27,6 +27,7 @@ shipped, and none of it needs more data to decide.
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
 | 7 | Desktop tenants running beside the rig. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night. **Added 2026-09-16 12:53**, sampled during a live tier: `searchpartyd` (Find My) spiked to **71.7 %** and re-sampled at 23.3 %, though its lifetime total is only 299 min over 22 days, so it is a spiky tenant rather than a runaway — worth a look precisely because it is new to this list and it spikes. `bluetoothd` 3.4 %, WindowServer 5.5 %. None of these is mine to kill. **And a note on `mediaanalysisd`, measured 2026-09-16 13:49:** the standing culler has made **32,401 kills in 1207 minutes — 26.8 per minute, a respawn about every 2.2 s** — and `com.apple.mediaanalysisd` is ALREADY `=> disabled` in this user's launchd disabled list, so the obvious lever has been pulled and something else is still launching it (system job or on-demand XPC). Each instance dies having used **0.01 s of CPU**, so the culler is holding it at effectively zero cost and it is not a meaningful tenant today; what remains is ~27 process spawns a minute of pure churn. Worth knowing the agent-level disable does not stop it before spending any more effort there. | OPEN-35 |
+| 9 | **NEW 2026-09-16: the `wkc_weave` envelope at 2.6.** | **The margin map says the weave has no margin**: n = 9 a course over 3 interleaved blocks, `wkc_weave` is **8/9** with pitch mean **23.0°** and worst **31.5°**, i.e. **2.9° PAST** the 28.65° E-stop, while `wkc_box` keeps +4.0, `hp_gap20` +5.4 and `wkc_finals` +8.0 and all three go 9/9. The failing run is a bare envelope fall: pitch 31.3°, zero unsafe lines, zero RecoveryStand entries, `leg_y_max` 221 mm inside the 240 limit, clean 500 samples/s. The binding axis is PITCH, not the lateral load I first assumed from the OPEN-40 run. Lever, by analogy with decision #2 and NOT yet measured here: serve 2.5 on this course. Caveat: the weave is the least-tested course in the catalog, ~39 runs against wkc_finals' 1684. | OPEN-28 |
 | 8 | The archive: thin it, move it, or leave it. | 50 GB, fully compacted, growing ~6 GB/day with no retention; 09-08…09-12 is 29 GB and every result from it is in this file. Free space 32 GB; the harness now warns at 20 and stops the chains at 8. | OPEN-35 |
 - A closed entry keeps: symptom → root cause → fix → evidence. If it was
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
@@ -162,8 +163,36 @@ passed on its own in-suite retry.
   crossed in ~50 ms. So the weave's real deficit is **lateral**, and the fall
   it produced is the OPEN-40 response, not a lateral limit that is set wrong
   (`leg_y_max` on the passing box run was 142 mm, nowhere near it).
-  Still to measure on this map: `wkc_finals` and `hp_gap20` at 2.6, and the
-  weave at depth — n=1 decides nothing here.
+  **MEASURED, n = 9 a course, 3 interleaved blocks (2026-09-16 14:23) — and the
+  weave has NO MARGIN at the served 2.6:**
+
+  | course | verdicts | pitch mean | pitch worst | margin to 28.65 | roll worst | leg_y max |
+  |---|---|---|---|---|---|---|
+  | `hp_gap20` | 9/9 | 21.7 | 23.2 | **+5.4** | 10.8 | 140 mm |
+  | `wkc_box` | 9/9 | 21.8 | 24.6 | **+4.0** | 13.4 | 143 mm |
+  | `wkc_finals` | 9/9 | 19.2 | 20.6 | **+8.0** | 14.5 | 224 mm |
+  | **`wkc_weave`** | **8/9** | **23.0** | **31.5** | **−2.9** | 17.7 | 241 mm |
+
+  The weave carries the highest mean pitch of the four AND a worst case that
+  **exceeds the E-stop limit outright**, and it is the only course that failed.
+  Its fall, run 8967, is a BARE ENVELOPE fall and nothing else: pitch 31.3° with
+  a 31.5° peak held 62 ms, **zero** unsafe-locomotion lines, **zero**
+  RecoveryStand entries, zero folds, `leg_y_max` 221 mm well inside the 240
+  limit, a clean 500 samples/s stream, six waypoints reached. No mechanism is
+  involved — the robot simply pitched past the limit.
+  **This corrects my own framing from earlier today.** I recorded the weave's
+  deficit as LATERAL, from run 8892's roll of 34.6° and its 243 mm foot. But
+  8892 was the OPEN-40 limit cycle, i.e. a mechanism failure that the envelope
+  did not cause; the weave's ENVELOPE failure is **pitch**. Both of the weave's
+  falls are real and they are different things: one mechanism, one envelope. Its
+  roll still ranks worst of the four at 17.7°, but roll keeps 10.9° of margin
+  while pitch has none.
+  **So the map delivered exactly what it was built for, and it opens a new
+  operator decision:** the weave is the weak link in the shipped envelope, the
+  binding axis is pitch, and 2.6 does not hold it. The obvious lever is the same
+  one measured on the hairpin — serve 2.5 on this course — but that has NOT been
+  measured here and the weave is the least-tested course in the catalog (~39
+  runs all told against wkc_finals' 1684).
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
