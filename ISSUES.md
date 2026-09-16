@@ -270,6 +270,37 @@ passed on its own in-suite retry.
   It also gives option **(d)** its best argument: keeping the robot in LOCOMOTION
   keeps the attitude guard live, which is the only one of the four that does not
   trade a foot-position check for the attitude check.
+  **CR FINAL, n = 9 an arm (18:36). Both of my testable fixes are worse than
+  doing nothing:**
+
+  | arm | verdicts | trips | RecovStand entries | folds | **TIPPED OVER** |
+  |---|---|---|---|---|---|
+  | stock | **4/9** | 698 | 698 | 449 | 0 |
+  | **dwell** | **0/9** | 9 | **12** | 11 | **9 of 9** |
+  | foldgate | **2/9** | 835 | 835 | 228 | 0 |
+
+  | comparison | p |
+  |---|---|
+  | verdicts, stock vs dwell (4/9 vs 0/9) | 0.082 |
+  | verdicts, stock vs foldgate (4/9 vs 2/9) | 0.620 — **a null, not a harm claim** |
+  | **TIPS, other arms vs dwell (0/18 vs 9/9)** | **2.1e-07 — the decisive number** |
+
+  - **The dwell: 0/9, and 10 of 10 inversions with the probe**, roll to 180.0°.
+    It collapses the cycle 58x exactly as designed and that is the harm, because
+    RECOVERY_STAND is where the attitude guard is switched off. The verdict
+    comparison alone would be p = 0.082; **the tips are p = 2e-07**, and that is
+    the quantity to read.
+  - **The fold gate: 2/9 against stock's 4/9, with folds halved (449 → 228).**
+    The manipulation took and the outcome did not improve — p = 0.620, so this is
+    a NULL and must not be reported as "worse", though it is certainly not
+    better.
+  - Stock passes 4/9 under a trigger firing ~78 times a run, which is the control
+    the other two failed to beat.
+  **So of the four options, one is measured harmful, one is a measured null, one
+  (the counter reset) can only slow a cycle it does not stop, and the last —
+  (d), the advisory trip — is the only one untested and the only one that keeps
+  the robot where a guard is watching.** Chain CU measures it.
+
   **CR was ENDED EARLY at n = 9 an arm (STOP_CR touched 18:26), deliberately, and
   the reasoning belongs in the record:** the dwell verdict is qualitative and
   settled at 7/7 tips, so every further dwell run is a rig-minute spent
