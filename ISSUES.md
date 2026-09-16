@@ -1383,7 +1383,18 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   **`maxrun` is now a better freeze detector than anything upstream of
   it** — per leg, per tick, inside the controller, where `maxrun >= 2`
   means the state genuinely stopped updating. One run so far; the chain
-  will give the base rate across courses.
+  will give the base rate across courses. **23:37 — the base rate, over
+  the tier's own runs: 0.39–0.58 % of leg-ticks on six different
+  courses/gaits (octagon, oval, dash, bounding, galloping), holds in 2–10
+  seconds of 52–81, and the longest consecutive run is ONE tick in every
+  single run.** So the signal is calibrated, and it is now a COLUMN rather
+  than something I grep by hand: the harness carries **`held_maxrun`** per
+  run (rename-installed 23:40, last field, blank on binaries before
+  290ab874) and prints it on the verdict line beside `imu_rx_min`. A row
+  with `held_maxrun >= 2` is a run whose leg state genuinely stopped
+  updating — measured per leg, inside the controller, where the trip
+  decision is made, rather than inferred from the bridge's 1 Hz counter.
+  Tier 0 on the corrected binary: **13/13**.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
