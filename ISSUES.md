@@ -22,7 +22,7 @@ shipped, and none of it needs more data to decide.
 |---|---|---|---|
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
-| 3 | The WKC envelope: is 2.7 a rung? | Two blocks, n = 12 an arm, **24/24 PASS**: 2.7 costs **+2.6° of mean pitch (18.9 → 21.5) and +3.4° on the worst run (21.1 → 24.5)**, and buys **0.8 s of a 97 s lap (0.8 %)**. Margin to the 28.65° orientation limit: **7.5° at 2.6, 4.1° at 2.7**. The arms overlap in the body but 2.7's tail is where the cost is — its worst two runs both hit 24.5. A time-for-margin trade, not a safety verdict: nothing fell at either speed. | OPEN-28 |
+| 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED, and it is not a trade — it is a safety line.** Three blocks, n = 18 an arm: 2.6 is **18/18 PASS**, pitch mean 19.1°, p90 20.6, **worst 21.2 in eighteen runs, never once over 23**. 2.7 is **17/18**, mean 22.8, p90 25.3, **worst 32.5° — a course-clean E-stop fall** (499 samples/s, 3.0 ms worst gap, zero trips) — with a second run at 30.2° that survived, and **7 of 18 runs over 23°** against 0 of 18 at 2.6. It buys 0.7 s of a 97 s lap. Recommendation: **keep 2.6**; the decision is still the operator's but the evidence is one-sided. | OPEN-28 |
 | 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | 8 of 8 runs that tripped it fell before the debounce; the trips are now rare and the check itself is well placed, but folding four legs mid-stride at 2.6 m/s is still a fall. This tree's own stall-mitigation history says a reflex here needs the operator. | OPEN-39 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
@@ -3148,6 +3148,28 @@ limit: **7.5° at 2.6 against 4.1° at 2.7**. That is the honest shape of the
 rung: not "2.7 is unsafe" — nothing fell in 12 runs — but "2.7 halves the
 margin and does its damage in the tail", for 0.8 % of the lap. The operator's
 trade, with both numbers now measured on the same binary in the same hour.
+**11:02 — block 3 answers it, and not the way a trade would.** Pooled n = 18 an
+arm on the same binary, interleaved run by run:
+
+| arm | verdicts | pitch mean | median | p90 | worst | runs > 23° | lap |
+|---|---|---|---|---|---|---|---|
+| 2.6 | **18/18** | 19.1° | 18.7 | 20.6 | **21.2** | **0 / 18** | 96.9 s |
+| 2.7 | **17/18** | 22.8° | 21.6 | 25.3 | **32.5** | **7 / 18** | 96.2 s |
+
+Run 8850, the 2.7 miss, is **the robot's own evidence**: 499 samples/s, a 3.0 ms
+worst gap, `held_maxrun` 1, zero locomotionSafe trips, `leg_y_max` 231 mm — the
+stream and every instrument clean, the pitch simply ran away on the wp15 leg at
+2.70 m/s and the orientation E-stop fired at 32.5°, after which the body sank
+level (the `[FALL] collapsed: pitch=7°` line is the aftermath, as always). Run
+8852 did the same thing 2° short of the limit and survived. Meanwhile 2.6's
+eighteen runs span 18.0–21.2° and never reach 23°.
+**So 2.7 is not 0.7 s for 2.6° of margin — it is 0.7 s for a tail that crosses
+the E-stop about once in eighteen runs, on a course where 2.6 shows no tail at
+all.** My own framing an hour ago ("a time-for-margin trade, not a safety
+verdict: nothing fell at either speed") was true at n = 12 and wrong by n = 18;
+the tail is exactly what the extra block was for. Recommendation to the
+operator: **keep the served 2.6.** This also puts a number on the 09-13 line
+"2.7 is wkc-only, 5/5" — five verdicts could not see a 1-in-18 tail.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
