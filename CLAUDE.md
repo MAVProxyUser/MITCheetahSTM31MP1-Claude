@@ -3016,13 +3016,36 @@ OPEN-40, attributed wholly to the host stall that TRIGGERED it. Nobody asked why
 the FSM could alternate every few ms, so the trigger was fixed (`BRIDGE_RT`) and
 the response was not. **The trigger and the response are separable**: a stall
 freezing the state and a genuine sustained violation both trip
-`locomotionSafe()`, and the cycle is the same either way. It also explains the
-"level collapse" signature this file chased for days - the flat
-`roll=0 pitch=0 z=0.03` last tick is the settled aftermath of the fold, which is
-why 8892's `[FALL]` line reads level while its E-stop fired at roll 33.3 deg.
-And it reframes "2 runs in ~400" as a TRIGGER rate measured on logs that
-postdate the stall mitigation, not the response's own rate - so the dwell, if it
-measures out, mitigates the host-stall fall class too, which is the larger prize.
+`locomotionSafe()`, and the cycle is the same either way. **Then it was MEASURED, and the numbers are much
+larger than the "2 runs in ~400" first reported** (that came from grepping only
+the most recent ~400 logs, which postdate every mitigation). Scanning the 20 KB
+TAIL of all 7077 archived ctrl logs back to 2026-08-30 - 1.7 seconds, and not a
+host tenant at all, because the fold lines and the `[FALL]` line both sit at the
+end of the file:
+
+| | |
+|---|---|
+| runs showing the cycle (>=5 RecoveryStand entries) | **353 of 7077 (5.0 %)** |
+| of those, ended in a `[FALL]` | **307 (87 %)** |
+| share of EVERY fall on record (1293) | **24 %** |
+| worst cycle in one run | **152** entries |
+
+The daily rate tracks the TRIGGER fixes and never the response: 5.2 % on 09-03,
+**18.3 % on 09-04, 24.9 % on 09-05**, then 1.1-5.9 % through the `BRIDGE_RT`
+era, 0.9 % on 09-15 (the debounces), 0.2 % on 09-16. So about a quarter of this
+project's recorded falls ended through a mechanism nobody had diagnosed; every
+fix so far drove the rate down by removing what TRIPPED the check; and the
+response is the last unfixed layer, still ~87 % lethal in the ~1-in-200 runs
+that reach it. Lower bounds - a cycle early in a long run falls outside the tail.
+It is also **one route to the flat "level collapse", not the class**: of 457 flat
+collapses only 79 (17 %) went through the cycle. *An earlier note here said the
+cycle "is what the level collapse class always WAS" - withdrawn, generalised
+from OPEN-35's one narrated run before the class was counted.*
+**Method note worth more than the number: I deferred this scan as "a host tenant,
+wait for an idle gap", which was the right instinct about the WRONG scan.** The
+question needed 20 KB per file, not the 7 MB average - both signatures are at the
+end. 141 MB and 1.7 s instead of 51 GB. Before deferring an analysis for cost,
+check where in the data the answer actually lives.
 **The lesson: when a write-up explains a mechanism as a symptom of its trigger,
 the mechanism has not been explained.** Ask what made the observed behaviour
 POSSIBLE, not just what set it off - the trigger is where the report stops and

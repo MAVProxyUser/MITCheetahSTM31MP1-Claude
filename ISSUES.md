@@ -180,20 +180,37 @@ passed on its own in-suite retry.
      state and a genuine sustained violation both trip `locomotionSafe()`; the
      RESPONSE is the same cycle either way. OPEN-35 fixed one trigger. OPEN-39
      debounced the transients. Neither touched the response.
-  2. **It explains the terminal signature this tree chased for days.** A
-     "level collapse" reads `roll=0 pitch=0 z=0.03` flat at the last tick
-     because the cycle folds the legs and the body settles — 8892's `[FALL]`
-     line says exactly that, while its E-stop fired at **roll 33.3°**. This is
-     `feedback-classify-at-the-event` in its purest form: the flat pose is the
-     aftermath of the fold, not the event.
-  3. **"2 runs in ~400" is a TRIGGER rate, not the response's.** That scan
-     covered recent logs, which postdate `BRIDGE_RT`; the cycle is rare today
-     because 100 ms+ stalls are rare today. So the dwell, if chain CR shows it
-     works, mitigates the host-stall fall class too — a bigger prize than the
-     weave. **Unmeasured and deliberately deferred**: the cycle's incidence
-     across the whole archive (7075 ctrl logs, 51 GB, back to 2026-08-30) needs
-     a full grep, and a scan that size is itself a host tenant — it waits for a
-     real idle gap (memory: `feedback-my-own-analysis-is-a-host-tenant`).
+  2. **It is ONE route to the flat "level collapse", not the class.** The cycle
+     folds the legs and the body settles, so the last tick reads
+     `roll=0 pitch=0 z=0.03` — 8892's `[FALL]` line says exactly that while its
+     E-stop fired at **roll 33.3°** (`feedback-classify-at-the-event`, purest
+     form). But measured: of **457** flat collapses on record only **79 (17 %)**
+     went through the cycle, and 378 did not. *An earlier version of this entry
+     said the cycle "is what the level collapse class always WAS" — that is
+     withdrawn; it was generalised from OPEN-35's single narrated run (5058)
+     before the class was counted.*
+  3. **MEASURED across the whole archive, and it is far bigger than the "2 runs
+     in ~400" I first reported.** That figure came from grepping only the most
+     recent ~400 logs — the ones that postdate every mitigation. Scanning the
+     tail (20 KB) of all **7077** ctrl logs back to 2026-08-30, which takes
+     1.7 s and is not a host tenant at all:
+
+     | | |
+     |---|---|
+     | runs showing the cycle (≥5 RecoveryStand entries) | **353 of 7077 (5.0 %)** |
+     | of those, ended in a `[FALL]` | **307 (87 %)** |
+     | share of EVERY fall on record (1293) that went through it | **24 %** |
+     | worst cycle seen | **152** RecoveryStand entries in one run |
+
+     And the daily rate tracks the TRIGGER fixes, never the response: 5.2 % on
+     09-03, **18.3 % on 09-04, 24.9 % on 09-05**, then 1.1–5.9 % through the
+     `BRIDGE_RT` era, 0.9 % on 09-15 (the debounces), **0.2 % on 09-16**. So
+     roughly a quarter of this project's recorded falls ended through a
+     mechanism nobody had diagnosed, the rate was driven down by fixing what
+     TRIPPED the check, and the response itself is the last unfixed layer —
+     still ~87 % lethal in the ~1-in-200 runs that still reach it. These are
+     LOWER BOUNDS: a cycle that ran early in a long run is outside the 20 KB
+     tail.
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
