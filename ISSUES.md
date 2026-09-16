@@ -270,7 +270,12 @@ passed on its own in-suite retry.
   either: what separates a recovery from a runaway when both arms do both.
   Twelve uncompressed traces from this block (five 2.5 passes, six 2.6 passes and
   the 2.5 failure) were copied out before compaction packed them, so that
-  question is now answerable from local data.
+  question is answerable from local data — **but the parse is DEFERRED, not
+  done.** Loading four of those traces (`json.load`, ~140 MB, ~40k records x 40
+  fields each) blew a 120 s budget without printing a line while a run and a
+  tier were in flight, so it was killed: rescuing the perishable files is cheap
+  and urgent, parsing them is neither. Next pass should reduce each trace to a
+  slim CSV once, in an idle gap, and do every later comparison over that.
 
   **BOTH levers are now being measured, so the decision can be a comparison
   rather than a yes/no.** Chain CT (queued behind CR) holds cruise at 2.6 and
