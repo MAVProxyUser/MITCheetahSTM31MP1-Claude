@@ -304,6 +304,10 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     const float v_now  = (float)this->_data->_legController->datas[leg].v.norm();
     const bool  held   = last_valid[leg] && py_now == last_py[leg] && pz_now == last_pz[leg] && v_now == last_v[leg];
     last_py[leg] = py_now; last_pz[leg] = pz_now; last_v[leg] = v_now; last_valid[leg] = true;
+    {   // the lateral excursion itself, whatever the limit is set to
+      const long ymm = (long)(std::fabs((double)py_now) * 1000.0 + 0.5);
+      if(ymm > g_legYMaxMm.load()) g_legYMaxMm.store(ymm);
+    }
     if(held) {
       ++g_legHeldTicks;
       if(++held_run[leg] > g_legHeldMaxRun.load()) g_legHeldMaxRun.store(held_run[leg]);

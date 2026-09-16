@@ -615,8 +615,8 @@ void Stm32mp1HardwareBridge::run() {
       // routine at matched rates - and `maxrun` is the longest consecutive
       // hold for one leg this second, which is the number that matters: a run
       // of 5+ is long enough to have forged a "persistent" violation.
-      shmtrace::logf(_healthElapsed, "[stm32mp1] held samples: held=%ld/s maxrun=%ld",
-             g_legHeldTicks.exchange(0), g_legHeldMaxRun.exchange(0));
+      shmtrace::logf(_healthElapsed, "[stm32mp1] held samples: held=%ld/s maxrun=%ld  leg_y_max=%ld mm",
+             g_legHeldTicks.exchange(0), g_legHeldMaxRun.exchange(0), g_legYMaxMm.exchange(0));
     }
   }
 }

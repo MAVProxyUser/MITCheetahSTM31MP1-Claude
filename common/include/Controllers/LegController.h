@@ -96,3 +96,9 @@ extern std::atomic<long> g_jointLimitClamps, g_jointLimitStops;
 // from the previous tick (a held sensor sample) and the longest such run, so
 // the heartbeat can report it instead of 50 throttled log lines.
 extern std::atomic<long> g_legHeldTicks, g_legHeldMaxRun;
+// OPEN-39: the largest |p(1)| (foot lateral coordinate, hip frame) any leg
+// reached, in MILLIMETRES so it fits an integer counter. This is the quantity
+// locomotionSafe's lateral check acts on, measured in the check's own frame -
+// the limit question is "how close does the gait come to max_pleg_y", and the
+// trip itself is far too rare (2 runs in ~600) to answer it.
+extern std::atomic<long> g_legYMaxMm;

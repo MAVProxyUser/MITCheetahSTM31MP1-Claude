@@ -143,6 +143,7 @@ void LegController<T>::updateData(const TiBoardData* tiBoardData) {
 // $CTRL_JOINT_LIMITS=0 disables for A/B; margin/stiffness are knobs.
 std::atomic<long> g_jointLimitClamps{0}, g_jointLimitStops{0};
 std::atomic<long> g_legHeldTicks{0}, g_legHeldMaxRun{0};
+std::atomic<long> g_legYMaxMm{0};
 namespace {
 constexpr float kJLo[3] = {-55.f * 0.0174533f, -165.f * 0.0174533f,  53.f * 0.0174533f};
 constexpr float kJHi[3] = { 55.f * 0.0174533f,   33.f * 0.0174533f, 151.f * 0.0174533f};

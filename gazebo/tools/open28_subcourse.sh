@@ -69,7 +69,7 @@ elif [ "${DISK_FREE_GB:-999}" -lt "$DISK_WARN_GB" ]; then
   echo "DISK GUARD: ${DISK_FREE_GB} GB free (warn ${DISK_WARN_GB} GB, floor ${DISK_STOP_GB} GB) - about $(( (DISK_FREE_GB - DISK_STOP_GB) * 4 )) hours of runs left at ~6 GB/day."
 fi
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
-[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s,imu_rx_min,held_maxrun" > "$OUT"
+[ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s,imu_rx_min,held_maxrun,leg_y_max_mm" > "$OUT"
 FAILS=0
 
 dump_with_retry(){   # $1 = tag, $2 = the run id the runner said it launched
@@ -166,6 +166,15 @@ PY
   # identical 9.749 m/s. This column is that per-run maximum; blank on binaries
   # before 290ab874, which do not print the line.
   local HR; HR=$(grep -h 'held samples' "$L" 2>/dev/null | grep -oE 'maxrun=[0-9]+' | cut -d= -f2 | sort -n | tail -1)
+  # THE LATERAL EXCURSION THE LIMIT ACTS ON (ISSUES OPEN-39, 2026-09-16 03:15).
+  # locomotionSafe's lateral check bounds |p(1)|, the foot's y in the hip frame,
+  # at max_pleg_y (0.24 for the Go1, now CTRL_MAX_PLEG_Y). The TRIP is far too
+  # rare to compare limits with - 2 runs in ~600, and a 12-run block produced
+  # none in either arm - so the controller reports the excursion itself each
+  # second and this column is the per-run maximum in mm. The FK derivation says
+  # the shipped trot should reach ~247 mm against a 240 mm limit; this is the
+  # number that confirms or refutes it, once per run instead of once in 300.
+  local YM; YM=$(grep -h 'leg_y_max=' "$L" 2>/dev/null | grep -oE 'leg_y_max=[0-9]+' | cut -d= -f2 | sort -n | tail -1)
   # THE RUN'S SHAPE (ISSUES OPEN-38): the mission time and the longest a
   # single waypoint index stayed active while the [nav] lines kept coming.
   # Every wkc_finals and hp_gap20 verdict before 2026-09-12 was a DOUBLE
@@ -175,7 +184,7 @@ PY
   # index, is a mission-shape problem, not a robot result.
   local MT DW; MT=$(grep -oE 'MISSION COMPLETE t=[0-9.]+' "$L" 2>/dev/null | tail -1 | cut -d= -f2)
   DW=$(awk '/^\[nav\] wp[0-9]+\/[0-9]+ /{ idx=$2; t=$NF; sub(/^t=/,"",t); sub(/s$/,"",t); if (idx!=last){ if (last!="") { d=tl-t0; if (d>m) m=d }; last=idx; t0=t }; tl=t } END{ if (last!="") { d=tl-t0; if (d>m) m=d }; printf "%.1f", m+0 }' "$L" 2>/dev/null)
-  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms imu_rx_min=${IR:-?}/s held_maxrun=${HR:-?} mission_t=${MT:-none}s dwell=${DW:-?}s"
+  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms imu_rx_min=${IR:-?}/s held_maxrun=${HR:-?} leg_y_max=${YM:-?}mm mission_t=${MT:-none}s dwell=${DW:-?}s"
   # the control loop's worst period in this run (ms) - a host-stall column,
   # so a run that survived a 469 ms freeze and one that ran clean are not
   # the same row (2026-09-10: three of six control runs carried 44-469 ms)
@@ -186,7 +195,7 @@ PY
   # 2026-09-11, 4-6 ms in the ones that passed). A run with a gap over ~15 ms
   # is not the robot's evidence.
   local IG; IG=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -oE 'imu_gap_max=[0-9.]+' | cut -d= -f2 | sort -n | tail -1)
-  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-},${MT:-},${DW:-},${IR:-},${HR:-}" >> "$OUT"
+  echo "$(date +%H:%M:%S),$LBL,$rep,${V_:-NONE},$W,${F:-none},${PP:-},${PR:-},${YS:-0},${WZ:-},$RID,$BD,$SNAP,${LM:-},$v,${IG:-},${MT:-},${DW:-},${IR:-},${HR:-},${YM:-}" >> "$OUT"
   if [ "$SNAP" = NONE ]; then
     FAILS=$((FAILS+1))
     [ "$FAILS" -ge 3 ] && { echo "  ABORT: 3 failed dumps"; campaign_failed "$NAME" "3 failed dumps"; exit 1; }
