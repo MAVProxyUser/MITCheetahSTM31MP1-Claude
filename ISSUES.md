@@ -1288,6 +1288,29 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   **72a4973f**, all three per-leg checks now debounced at 5 ticks. Probe,
   then the tier, then the standing blocks with per-block counts of trips
   (any branch) and absorbed grazes (`[legv]` / `[legkin]`).
+  **22:21 — CI tier 0: 12/13, and the miss taught the rule a third case.**
+  The star (run 8407, trotRunning 3.5) fell in a second the stream
+  delivered **404 samples/s**. Not a regression from the new debounce: the
+  branch that tripped it was the LEG-SPEED one, identical on the previous
+  binary, where it would have tripped at tick 1 instead of tick 5 — the
+  same fall, sooner. What the log shows instead is that **a held sample
+  persists perfectly**, so a tick count cannot tell it from a genuine
+  runaway: all eight leg-speed lines in 8407 read the same value to the
+  millimetre per second (`9.749 m/s`, eight consecutive ticks) and the
+  foot read exactly `0.000 m` above hip alongside them — one frozen state
+  re-read, not a leg moving. Contrast run 8315's real transient, absorbed
+  correctly the same day: **10.064 → 10.978 → 12.133 → 12.389 m/s**, a
+  different value every tick. So the discriminator is CHANGE, not
+  duration. Fix, built and compile-verified at 22:24 (deploy left to the
+  chain): a HELD-SAMPLE GATE — a tick whose leg state (`p[1]`, `p[2]`,
+  `|v|`) is bit-for-bit identical to the previous tick carries no new
+  evidence and advances none of the three counters, logged as
+  `[leghold]`; `CTRL_LEG_HELD_GATE=0` disables it. Bit-for-bit is the
+  right test for the same reason the GPS staleness gate uses it: a
+  zero-order-held value IS bit-identical, while real float dynamics never
+  repeat. A genuine runaway holding a constant speed to the last bit for
+  10 ms would be missed; the attitude checks and the debounced orientation
+  E-stop still catch a robot actually going over. Chain CJ ships it.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the

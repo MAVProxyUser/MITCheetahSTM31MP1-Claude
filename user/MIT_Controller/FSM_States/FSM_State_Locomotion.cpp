@@ -265,6 +265,39 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     static int        kin_spikes_logged = 0;
 
     auto p_leg = this->_data->_legController->datas[leg].p;
+
+    // A HELD SAMPLE PERSISTS PERFECTLY - so a tick count alone is not enough
+    // (ISSUES OPEN-39, 2026-09-15 22:25). Run 8407 (the tier's star at 3.5 m/s)
+    // fell in a second the stream delivered 404 samples/s: eight consecutive
+    // ticks each reported leg 0 at EXACTLY 9.749 m/s and the foot at exactly
+    // 0.000 m above hip - one frozen sample re-read, not a leg moving. The
+    // debounce counted it as persistence and tripped at tick 5. Contrast run
+    // 8315's genuine transient, absorbed correctly the same day: 10.064 ->
+    // 10.978 -> 12.133 -> 12.389 m/s, a different value every tick. So the
+    // discriminator is CHANGE, not duration: a tick whose leg state is
+    // bit-for-bit identical to the previous tick carries no new evidence and
+    // must not advance any of these counters. (Bit-for-bit is the right test
+    // for exactly the reason the GPS staleness gate uses it - a zero-order-held
+    // value IS bit-identical, while real float dynamics never repeat.) A
+    // genuine runaway that held a constant speed to the last bit for 10 ms
+    // would be missed; the attitude checks above and the debounced orientation
+    // E-stop still catch a robot that is actually going over.
+    // CTRL_LEG_HELD_GATE=0 disables this gate for an A/B.
+    static const bool  held_gate = ctrl_tuning::flag("CTRL_LEG_HELD_GATE", true);
+    static float       last_py[4] = {0, 0, 0, 0}, last_pz[4] = {0, 0, 0, 0}, last_v[4] = {0, 0, 0, 0};
+    static bool        last_valid[4] = {false, false, false, false};
+    static int         held_logged = 0;
+    const float py_now = (float)p_leg[1], pz_now = (float)p_leg[2];
+    const float v_now  = (float)this->_data->_legController->datas[leg].v.norm();
+    const bool  held   = held_gate && last_valid[leg] && py_now == last_py[leg] && pz_now == last_pz[leg] && v_now == last_v[leg];
+    last_py[leg] = py_now; last_pz[leg] = pz_now; last_v[leg] = v_now; last_valid[leg] = true;
+    if(held) {
+      if(held_logged < 50) {
+        held_logged++;
+        shmtrace::logf(0.0, "[leghold] leg %d state unchanged (y %.3f z %.3f |v| %.3f) - a held sample, not counted toward any trip", leg, (double)py_now, (double)pz_now, (double)v_now);
+      }
+      continue;   // no new evidence about this leg this tick
+    }
     if(p_leg[2] > 0) {
       hip_over[leg]++;
       if(hip_over[leg] >= hip_ticks) {
@@ -330,7 +363,7 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     static const T    legv_mps   = (T)ctrl_tuning::num("CTRL_LEGV_TRIP_MPS", 9.0);
     static int        legv_over[4] = {0, 0, 0, 0};
     static int        legv_spikes_logged = 0;
-    auto v_leg = this->_data->_legController->datas[leg].v.norm();
+    const auto v_leg = v_now;   // computed once above for the held-sample gate
     if(std::fabs(v_leg) > legv_mps) {
       legv_over[leg]++;
       if(legv_over[leg] >= legv_ticks) {
