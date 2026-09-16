@@ -246,6 +246,30 @@ passed on its own in-suite retry.
     slightly worse (1/6 against stock's 2/6).
   - The pinned trigger is working hard: ~103 trips a run in the stock arm, so
     neither arm is failing for want of exposure.
+  **AND THE MECHANISM OF THE DWELL'S HARM IS NOW SOURCE-VERIFIED, from a column
+  I nearly skipped: the dwell arm logs ZERO orientation E-stops, stock logs 2 and
+  foldgate 4.** The reason is one line —
+  `FSM_State_RecoveryStand.cpp:31: this->checkSafeOrientation = false;` — and
+  `ControlFSM::safetyPreCheck()` reads exactly that flag
+  (`if (currentState->checkSafeOrientation && …)`). **So the 28.65° attitude
+  E-stop is DISABLED BY DESIGN while the FSM is in RECOVERY_STAND**, which is
+  correct for a recovering robot and catastrophic for one still moving.
+  That closes the chain:
+  - **stock** bounces between LOCOMOTION and RecoveryStand every tick, so it
+    spends half its ticks in LOCOMOTION where the guard IS live — the E-stop
+    fires at 29–31° and cuts the motors, giving the familiar flat collapse;
+  - **the dwell** parks the robot in RecoveryStand for 600 ms, where nothing
+    watches attitude, so there is no longer anything to stop it between 30° and
+    180°. Only the fall detector at 50° notices, after the fact.
+  **The uncomfortable corollary: the limit cycle is what keeps the attitude guard
+  alive.** The defect bounces the robot back into the state where the check
+  applies. "Fixing" the cycle by holding the state removes the protection, which
+  is why the dwell is not merely unhelpful but structurally unsafe — and why
+  option (e) still sees E-stops (at dwell 0 it is handed back each tick and the
+  guard gets its turn).
+  It also gives option **(d)** its best argument: keeping the robot in LOCOMOTION
+  keeps the attitude guard live, which is the only one of the four that does not
+  trade a foot-position check for the attitude check.
   n = 6 an arm; the chain continues, and nothing here changes a default.
 
   **The option set for decision #4, so the call is a choice and not a blank.**
