@@ -1439,6 +1439,21 @@ margin to spare. The weave has none and overshoots by 2.9, so that null does not
 obviously transfer and this is the one place the cap deserves a re-measure.
 Caution for anyone reading the trace: the pivot to 0.25 m/s at the vertex is the
 follower's `ex < 0` branch working as designed, not a fault.
+**A LIMIT on that, caught by reading the writer before the claim spread**: the
+`[nav]` line's `v=` is `nv`, the COMMANDED speed out of the follower
+(`mit_sim_main.cpp:1760`), not a measured body speed. Comparing it across the
+nine weave runs was therefore null by construction - all nine read a max of 2.60,
+capped at cruise, and the failing run reached only 2.53 because it E-stopped
+first. Two things follow. **The commanded plan is not the discriminator**: nine
+runs, one identical profile, eight pass and one pitches over, so the weave's
+failure is run-to-run variance in how the body TRACKS that plan - which is what
+"no margin" means, and is worth having ruled out. And **the hairpin's OVERSHOOT
+half is unverified here**, because "the body overshot its 2.6 cruise to 2.83 m/s"
+was a measured body speed and this log carries none. The LOCATION of the weave's
+runaway stands, from the trip's timing against the pivot; the shared MECHANISM is
+an analogy until a body speed is measured on this course, which needs the bridge
+dump or `SIM_ESTERR`. The tell that I was reading a command rather than a
+measurement was nine runs agreeing to the centimetre.
 
 **The general lesson: a course can fail two ways, and a single fall tells you
 which one it was, not which one binds.** One roll-dominant mechanism failure had

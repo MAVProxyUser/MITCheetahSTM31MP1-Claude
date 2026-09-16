@@ -277,6 +277,23 @@ passed on its own in-suite retry.
   A caution for whoever reads the trace: the pivot to 0.25 m/s at the vertex is
   the follower's `ex < 0` branch working as designed, not a fault. Do not
   "fix" it.
+  **AND A LIMIT ON THE ABOVE, found by reading the writer before the claim
+  spread.** The `[nav]` line's `v=` is `nv` — the COMMANDED speed out of the
+  follower (`mit_sim_main.cpp:1760`), not the measured body speed. So comparing
+  it across the nine weave runs was null BY CONSTRUCTION: all nine read a max of
+  2.60, capped at cruise, and the failing run reached only 2.53 because it
+  E-stopped first. That comparison measures the plan, not the robot.
+  Two things follow. **The commanded plan is NOT the discriminator** — nine runs,
+  one identical profile, eight pass and one pitches over — so the weave's failure
+  is run-to-run variance in how the body TRACKS that plan, which is exactly what
+  "no margin" means and is a useful thing to have ruled out. And **the hairpin's
+  OVERSHOOT half is unverified here**: "the body overshot its 2.6 cruise to
+  2.83 m/s" was a measured BODY speed, and this log does not carry one. The
+  LOCATION of the weave's runaway stands, because it comes from the trip's timing
+  against the pivot; the shared MECHANISM is an analogy until a body speed is
+  measured on this course, which needs the bridge dump or `SIM_ESTERR`. Recorded
+  rather than assumed — `feedback-read-the-writer-not-the-field-name` names this
+  exact trap, and the tell here was nine runs agreeing to the centimetre.
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself

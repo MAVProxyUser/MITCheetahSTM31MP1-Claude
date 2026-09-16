@@ -1,20 +1,5 @@
 [
  {
-  "ts": "2026-09-13 17:18:15",
-  "case": "lissajous_5_7",
-  "config": {
-   "slots": [
-    "lissajous:15:5:7"
-   ],
-   "gaits": [],
-   "speeds": [],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 393.8
- },
- {
   "ts": "2026-09-13 17:28:42",
   "case": "lissajous_11_9",
   "config": {
@@ -19059,5 +19044,20 @@
   },
   "verdict": "PASS",
   "wall_s": 68.6
+ },
+ {
+  "ts": "2026-09-16 14:58:45",
+  "case": "circle_smooth_36gon",
+  "config": {
+   "slots": [
+    "circle:9:36"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 68.9
  }
 ]
