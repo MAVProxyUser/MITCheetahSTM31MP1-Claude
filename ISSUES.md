@@ -3062,6 +3062,12 @@ shifted mean, and six runs an arm cannot see a tail. But a lever that does not
 touch the mechanism's ordinary magnitude is a poor candidate for its tail, and
 this cost twenty minutes to learn instead of a night. The cap stays off by
 default; the hairpin's own lever remains the cruise (2.5 vs 2.6) or nothing.
+**05:58 — block 2 doubles it and the null holds: n = 12 an arm, peak pitch
+mean 22.5° (recipe) vs 22.7° (cap), max 24.6 vs 25.5, lap 49.5 vs 49.8 s.**
+Twenty-four runs, all PASS, the manipulation confirmed by the lap every
+block and the pitch unmoved. The cap is retired for this course as it was
+for wkc 2.8; chain CO now measures the cruise itself, 2.6 vs 2.5
+interleaved per run, for the SIZE of the pitch margin 0.1 m/s buys.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
