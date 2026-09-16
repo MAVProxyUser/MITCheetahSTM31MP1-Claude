@@ -155,16 +155,6 @@ PY
   # leg-speed trips on record sat in exactly such a second (480/s, 482/s)
   # against one cruise second in 2859 with 15 or more missing. 500 is clean.
   local IR; IR=$(grep -v "peer=None" "$RUN_DIR/bridge_0.log" 2>/dev/null | grep -E 'cmd_rx=([4-9][0-9][0-9]|[1-9][0-9]{3})/s' | grep -oE 'imu_rx=[0-9]+' | cut -d= -f2 | sort -n | head -1)
-  # THE RUN'S SHAPE (ISSUES OPEN-38): the mission time and the longest a
-  # single waypoint index stayed active while the [nav] lines kept coming.
-  # Every wkc_finals and hp_gap20 verdict before 2026-09-12 was a DOUBLE
-  # LAP - 171 s for a 197 m course at 2.4, and wp7 held for 75 s while the
-  # body swept the whole course - and no column said so. A mission time
-  # far over course length / cruise, or a dwell of tens of seconds on one
-  # index, is a mission-shape problem, not a robot result.
-  local MT DW; MT=$(grep -oE 'MISSION COMPLETE t=[0-9.]+' "$L" 2>/dev/null | tail -1 | cut -d= -f2)
-  DW=$(awk '/^\[nav\] wp[0-9]+\/[0-9]+ /{ idx=$2; t=$NF; sub(/^t=/,"",t); sub(/s$/,"",t); if (idx!=last){ if (last!="") { d=tl-t0; if (d>m) m=d }; last=idx; t0=t }; tl=t } END{ if (last!="") { d=tl-t0; if (d>m) m=d }; printf "%.1f", m+0 }' "$L" 2>/dev/null)
-  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms imu_rx_min=${IR:-?}/s held_maxrun=${HR:-?} mission_t=${MT:-none}s dwell=${DW:-?}s"
   # THE CONTROLLER'S OWN FREEZE DETECTOR (ISSUES OPEN-39, 2026-09-15 23:40).
   # locomotionSafe() counts, per leg per tick, when the leg's state (FK y, FK z,
   # |J*qd|) is bit-for-bit unchanged from the previous tick, and the heartbeat
@@ -176,6 +166,16 @@ PY
   # identical 9.749 m/s. This column is that per-run maximum; blank on binaries
   # before 290ab874, which do not print the line.
   local HR; HR=$(grep -h 'held samples' "$L" 2>/dev/null | grep -oE 'maxrun=[0-9]+' | cut -d= -f2 | sort -n | tail -1)
+  # THE RUN'S SHAPE (ISSUES OPEN-38): the mission time and the longest a
+  # single waypoint index stayed active while the [nav] lines kept coming.
+  # Every wkc_finals and hp_gap20 verdict before 2026-09-12 was a DOUBLE
+  # LAP - 171 s for a 197 m course at 2.4, and wp7 held for 75 s while the
+  # body swept the whole course - and no column said so. A mission time
+  # far over course length / cruise, or a dwell of tens of seconds on one
+  # index, is a mission-shape problem, not a robot result.
+  local MT DW; MT=$(grep -oE 'MISSION COMPLETE t=[0-9.]+' "$L" 2>/dev/null | tail -1 | cut -d= -f2)
+  DW=$(awk '/^\[nav\] wp[0-9]+\/[0-9]+ /{ idx=$2; t=$NF; sub(/^t=/,"",t); sub(/s$/,"",t); if (idx!=last){ if (last!="") { d=tl-t0; if (d>m) m=d }; last=idx; t0=t }; tl=t } END{ if (last!="") { d=tl-t0; if (d>m) m=d }; printf "%.1f", m+0 }' "$L" 2>/dev/null)
+  echo "  $LBL rep$rep ${V_:-NONE} wp=$W ${F:-nofall} peak pitch=${PP:-?} roll=${PR:-?} wz=${WZ:-?} yawsat=${YS:-0} run=$RID imu_gap=${IG0:-?}ms imu_rx_min=${IR:-?}/s held_maxrun=${HR:-?} mission_t=${MT:-none}s dwell=${DW:-?}s"
   # the control loop's worst period in this run (ms) - a host-stall column,
   # so a run that survived a 469 ms freeze and one that ran clean are not
   # the same row (2026-09-10: three of six control runs carried 44-469 ms)
