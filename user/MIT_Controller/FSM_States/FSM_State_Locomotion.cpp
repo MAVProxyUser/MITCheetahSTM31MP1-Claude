@@ -242,10 +242,41 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
   }
 
   for(int leg = 0; leg < 4; leg++) {
+    // ALL THREE PER-LEG CHECKS BELOW ARE DEBOUNCED (ISSUES OPEN-39, 2026-09-15
+    // 21:50). They read INSTANTANEOUS kinematics (FK position, J*qd) and answer
+    // with RECOVERY_STAND, which re-commands all four legs to a stand pose
+    // mid-stride - a fall every time at cruise. Run 8315 is the case that forced
+    // this: the leg-speed debounce (below) correctly absorbed a four-tick
+    // 12.4 m/s spike inside a 464-samples/s second, and the run fell anyway
+    // through THIS branch's un-debounced sibling, `leg 2's y-position is bad
+    // (-0.240 m, max 0.240)` - 0 mm past the limit, repeating into
+    // RECOVERY_STAND from a body still at 0.299 m. Every y-position line in the
+    // archive grazes the limit (-0.240..-0.251 m against 0.240), which is what a
+    // boundary graze looks like, not a leg swung out of the envelope. A genuine
+    // violation persists; a graze or a one-tick sensor artefact does not. Knobs:
+    // CTRL_LEGY_TRIP_TICKS / CTRL_HIP_TRIP_TICKS / CTRL_LEGV_TRIP_TICKS (each
+    // default 5 ticks = 10 ms; 1 restores upstream's one-tick trip for an A/B).
+    // In-tree precedent: MIT's orientation E-stop is debounced here too
+    // (CTRL_ORIENT_HOLD_MS, 60 ms), for exactly this reason.
+    static const int  hip_ticks  = (int)ctrl_tuning::num("CTRL_HIP_TRIP_TICKS", 5.0);
+    static const int  legy_ticks = (int)ctrl_tuning::num("CTRL_LEGY_TRIP_TICKS", 5.0);
+    static int        hip_over[4]  = {0, 0, 0, 0};
+    static int        legy_over[4] = {0, 0, 0, 0};
+    static int        kin_spikes_logged = 0;
+
     auto p_leg = this->_data->_legController->datas[leg].p;
     if(p_leg[2] > 0) {
-      shmtrace::logf(0.0, "Unsafe locomotion: leg %d is above hip (%.3f m)", leg, (double)p_leg[2]);
-      return false;
+      hip_over[leg]++;
+      if(hip_over[leg] >= hip_ticks) {
+        shmtrace::logf(0.0, "Unsafe locomotion: leg %d is above hip (%.3f m, %d ticks)", leg, (double)p_leg[2], hip_over[leg]);
+        return false;
+      }
+      if(kin_spikes_logged < 50) {
+        kin_spikes_logged++;
+        shmtrace::logf(0.0, "[legkin] leg %d above hip (%.3f m) for %d tick(s) - not a trip until %d", leg, (double)p_leg[2], hip_over[leg], hip_ticks);
+      }
+    } else {
+      hip_over[leg] = 0;
     }
 
     // Lateral foot limit. TWO fixes here:
@@ -266,9 +297,19 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     const T max_pleg_y = 0.18;
 #endif
     if(std::fabs(p_leg[1]) > max_pleg_y) {
-      shmtrace::logf(0.0, "Unsafe locomotion: leg %d's y-position is bad (%.3f m, max %.3f)",
-             leg, (double)p_leg[1], (double)max_pleg_y);
-      return false;
+      legy_over[leg]++;
+      if(legy_over[leg] >= legy_ticks) {
+        shmtrace::logf(0.0, "Unsafe locomotion: leg %d's y-position is bad (%.3f m, max %.3f, %d ticks)",
+               leg, (double)p_leg[1], (double)max_pleg_y, legy_over[leg]);
+        return false;
+      }
+      if(kin_spikes_logged < 50) {
+        kin_spikes_logged++;
+        shmtrace::logf(0.0, "[legkin] leg %d y-position %.3f m (max %.3f) for %d tick(s) - not a trip until %d",
+               leg, (double)p_leg[1], (double)max_pleg_y, legy_over[leg], legy_ticks);
+      }
+    } else {
+      legy_over[leg] = 0;
     }
 
     // LEG-SPEED TRIP, DEBOUNCED (ISSUES OPEN-39 / OPEN-28, 2026-09-15 03:50).
