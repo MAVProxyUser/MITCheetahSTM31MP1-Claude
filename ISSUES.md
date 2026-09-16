@@ -611,6 +611,34 @@ passed on its own in-suite retry.
   pitch **three ways** (all runs, passing only, and the spread), because the
   circular pooling and the survivor-only understatement are both wrong in
   opposite directions. Validated against CS block 1 before it was queued.
+  **CT BLOCK 1 (2026-09-16 19:37, n = 6 an arm). The manipulation is perfect and
+  MY COST PREDICTION WAS WRONG:**
+
+  | | verdicts | PASSING pitch mean | sd | PASSING worst | margin | lap |
+  |---|---|---|---|---|---|---|
+  | cap 2.4 | 6/6 | **18.9** | **3.76** | 25.8 | **+2.8** | **55.8 s** |
+  | no cap | 5/6 | 23.7 | 2.41 | 27.2 | +1.4 | 55.1 s |
+  | *CS's 2.5 arm, same course* | *17/18* | *19.7* | *1.34* | *22.7* | *+5.9* | *55.8 s* |
+
+  **Manipulation: the `[plan] re-acceleration cap` line appears in 5 of 5
+  archived cap runs and 0 of 6 controls.** The knob took, every time, so
+  whatever this block says it says about the cap.
+  **The cap costs +0.7 s, not the ~0.38 s I predicted — the same as slowing the
+  whole lap.** My arithmetic assumed the 12 m window applies once, after the
+  reversal. It applies after EVERY braking minimum, and a serpentine is nothing
+  but braking minima, so the cap binds across most of the course. A targeted
+  lever is only cheap if the feature it targets is rare, and I should have
+  counted the minima before predicting.
+  **And on the numbers that matter it is WORSE than simply serving 2.5**: the
+  same passing mean (18.9 vs 19.7) at the same lap (55.8), but **nearly 3x the
+  spread** (3.76 vs 1.34) and a **worst passing case 3.1° hotter** (25.8 vs
+  22.7), which leaves +2.8° of margin against 2.5's +5.9. Since the E-stop is a
+  threshold, the worst case and the spread are the quantities that decide, and
+  cruise wins both.
+  n = 6 an arm and the spread is driven by one 25.8 run, so this is a first
+  block, not the answer; two more follow. But the early read is that the cheaper
+  lever is not cheaper and not better, which would leave decision #9 exactly
+  where CS put it.
   **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
   because the second was a near-miss on the rig:**
   1. **Chain CR died silently and never ran.** It sat in its wait loop from
