@@ -1317,7 +1317,11 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   added no trips and no grazes. Running lie-down totals across CF–CI:
   nodamp **n = 127** (max 1.2°, abad excursion 0.000 rad in all 127, zero
   failures) vs stock n = 119 on the same binaries (max 18.1°, 39 of them
-  splayed). Chain CJ (pid 2490) has the rig.
+  splayed). **22:50 — the gate is deployed**: binary 72a4973f →
+  **98b34331** (the object was already built and verified at 22:24, so the
+  chain's build was a no-op relink — "build ok (0 warnings)"). Probe, then
+  the tier, then the standing blocks; a `[leghold]` line in any run is the
+  gate refusing to count a frozen sample.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
