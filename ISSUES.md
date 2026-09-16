@@ -216,6 +216,34 @@ passed on its own in-suite retry.
   chain CO used to settle the hairpin at n = 18 an arm — with the lap cost
   reported beside the margin gained so the trade is visible rather than
   asserted.
+  **BLOCK 1 IS IN (2026-09-16 15:23, n = 6 an arm, interleaved) and 2.5 looks
+  right — but read the whole table, because the effect is a TAIL, not a shift:**
+
+  | | verdicts | pitch mean | sd | worst | margin | lap |
+  |---|---|---|---|---|---|---|
+  | **2.5** | **6/6** | 19.6 | 1.40 | 21.7 | **+6.95** | 55.75 s |
+  | 2.6 | **4/6** | 24.8 | 4.88 | **31.2** | **−2.55** | 55.00 s |
+  | 2.6, PASSING runs only | — | 21.7 | **1.35** | 23.2 | +5.45 | — |
+
+  The `all runs` row makes 2.6 look 5.2° hotter, and that is **partly circular**:
+  a fall's peak is high by definition, and 2.6's two falls peaked at 31.2 and
+  30.7. On the non-circular comparison — passing runs only — the arms are
+  **2.1° apart** (19.6 vs 21.7, exact one-sided rank-sum p = 0.033) with
+  **essentially identical spread**, 1.40 against 1.35. So 2.6 does not run
+  broadly hotter; **2.6's ordinary runs look like 2.5's, and 2.6 additionally
+  throws a runaway.** That is exactly the trace finding: one pitch event a lap
+  that usually recovers, and at 2.6 sometimes does not.
+  **Methodological consequence, and it is the useful part:** chain CO's
+  powered-quantity design works when the effect is a distribution SHIFT, as it
+  was on the hairpin. Here the effect is mostly a TAIL, so peak pitch over
+  passing runs UNDERSTATES it and peak pitch including falls OVERSTATES it by
+  construction. The quantity that actually matters is the verdict, and at n = 6
+  6/6 vs 4/6 is **Fisher p = 0.45 — not significant.** If the rates hold, n = 18
+  an arm gives roughly 6/18 vs 0/18, p ≈ 0.02, which is why CS runs to 18 and
+  why the answer is NOT to be called from this block.
+  Lap cost so far: **+0.75 s on a 55 s lap, 1.4 %**, against the hairpin's +0.2 s
+  on 49.5 s. Both are the same trade in kind: about a percent of time for the
+  margin, on a course that currently has none.
   **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
   because the second was a near-miss on the rig:**
   1. **Chain CR died silently and never ran.** It sat in its wait loop from
