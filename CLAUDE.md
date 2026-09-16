@@ -2943,6 +2943,34 @@ claiming "X happens this often" or "X reaches this value", ask what had to be tr
 the datum to be written — if the answer includes the claim, add an unconditional counter
 instead (memory: `feedback-a-log-line-is-a-selected-sample`).
 
+**And debouncing the trip was only half of it: the RESPONSE to a SUSTAINED
+violation is a 500 Hz limit cycle (2026-09-16, ISSUES OPEN-40).**
+`FSM_State_RecoveryStand::checkTransition()` reads ONLY `control_mode`, and nav
+holds that at `K_LOCOMOTION` for the whole mission — so a trip goes LOCOMOTION →
+RECOVERY_STAND → (next tick) → LOCOMOTION → trip, giving the recovery state
+**exactly one tick per cycle**, which cannot stand a robot; the per-leg counter
+is not reset on re-entry either, so each pass re-trips immediately while the
+foot stays out. Only 2 runs of the last ~400 enter it, both on leg 2's
+y-position branch with the value changing every tick (genuine, correctly
+debounced — 4 ticks absorbed as `[legkin]`, trip on the 5th, `held=0/s`), and
+they split on ONE quantity: `FSM_State_RecoveryStand::onEnter()` re-decides
+fold-vs-stand on EVERY entry against `0.2 < body_height < 0.45`, so at 500 Hz
+that decision is re-made every 2 ms against a height the cycle itself is
+bleeding at **~0.36 m/s**. Run 8507 entered at z=0.306 (106 mm of headroom over
+the 0.20 m fold threshold), bled to 0.257, and PASSED 16/16. Run 8892 entered at
+z=0.219 (**19 mm**), crossed in ~50 ms, and `[Recovery Balance] ... Folding
+legs` folded four legs under a body at cruise — roll 34.6°, E-stop, collapse.
+**The recovery state is what folded the legs, and it did so because the cycle
+starved it of the ticks it needed to stand.** `CTRL_LOCO_UNSAFE_HOLD_MS` arms a
+dwell (`g_locoUnsafeHold`, set in `FSM_State_Locomotion.cpp`, honoured in
+RecoveryStand's `K_LOCOMOTION` case) so the stand-up actually runs; 0 = stock,
+and PASSIVE/E-stop requests are never held. Default off pending the A/B.
+**The lesson generalises the OPEN-39 one**: when you debounce a check, also ask
+what its RESPONSE does when the condition is *sustained* rather than transient —
+a debounce only ever buys time, and the door the disturbance found next was the
+one marked "recover". And a state that re-decides its own strategy in `onEnter()`
+must never be re-entered at loop rate.
+
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
 the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it

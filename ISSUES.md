@@ -23,7 +23,7 @@ shipped, and none of it needs more data to decide.
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. **And the star's own interlude is clear at depth: 38 interludes since the fix, 37 stood back up and PASSED**; the one exception (run 7763) stood up fine and tipped 22 s later mid-dash, i.e. not the interlude. That retires the "3 of 24 star interlude roll-overs" left unexplained on 09-14. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
 | 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED at n = 24 an arm, and it is a safety line, not a trade.** 2.6: **24/24 PASS**, pitch mean 19.1°, **worst 22.0 in twenty-four runs, 0 of 24 over 23°**, margin 6.6° to the 28.65° limit. 2.7: **22/24**, mean 23.0, worst **32.5**, **10 of 24 over 23°**, two course-clean E-stop falls. It buys 0.7 s of a 97 s lap. **Recommendation: keep 2.6.** | OPEN-28 |
-| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | 8 of 8 runs that tripped it fell before the debounce; the trips are now rare and the check itself is well placed, but folding four legs mid-stride at 2.6 m/s is still a fall. This tree's own stall-mitigation history says a reflex here needs the operator. | OPEN-39 |
+| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | **SHARPENED 2026-09-16 — the current answer is a 500 Hz limit cycle.** RecoveryStand reads only `control_mode` (nav pins it to locomotion), so a trip is handed back after ONE tick, forever: the body bleeds ~0.36 m/s until it crosses RecoveryStand's own 0.20 m fold threshold and the recovery folds four legs at cruise. 2 runs in ~400 enter it; the one with 106 mm of headroom lived, the one with 19 mm died. A dwell (`CTRL_LOCO_UNSAFE_HOLD_MS`) is written and default-off. | OPEN-40 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
 | 7 | The aerial wallpaper's video decoder. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night beside the rig. | OPEN-35 |
@@ -60,6 +60,82 @@ passed on its own in-suite retry.
 ## OPEN
 
 ### In progress
+
+- **OPEN-40 · `locomotionSafe()` answering with RECOVERY_STAND is a 500 Hz
+  LIMIT CYCLE, not a recovery — and it drives the body across RECOVERY_STAND's
+  own fold threshold** (2026-09-16, found recovering the course identity of
+  chain CQ's margin probe). `FSM_State_RecoveryStand::checkTransition()` reads
+  ONLY `control_mode`, and nav holds that at `K_LOCOMOTION` for the whole
+  mission — so a trip goes LOCOMOTION → RECOVERY_STAND → (next tick) →
+  LOCOMOTION → trip, handing the recovery state **exactly one tick per cycle**,
+  which cannot stand a robot. The per-leg counter is not reset either, so every
+  re-entry re-trips immediately while the foot stays out.
+  Only **2 runs of the last ~400** enter it, both on leg 2's y-position branch
+  with the value changing every tick (a genuine sustained violation, correctly
+  debounced — 4 ticks absorbed as `[legkin]`, trip on the 5th — not a held
+  sample; `held=0/s maxrun=0` in 8892's heartbeat). And they split:
+
+  | run | course | trips | z at entry | z at exit | folded? | outcome |
+  |---|---|---|---|---|---|---|
+  | 8507 | wkc_finals | 54 | **0.306 m** | 0.257 m | no | PASS 16/16 |
+  | 8892 | wkc_weave | 45 | **0.219 m** | 0.183 m | **yes** | FELL |
+
+  The cycle bleeds height at **~0.36 m/s** (8892: 0.2186 → 0.1832 in 49 ticks
+  = 98 ms), and `FSM_State_RecoveryStand::onEnter()` re-decides fold-vs-stand on
+  EVERY entry against `0.2 < body_height < 0.45` — so at 500 Hz that decision is
+  re-made every 2 ms against a height the cycle itself is driving down. At
+  0.197 m it flips to `Folding legs` and folds four legs under a body still at
+  cruise. **Survival is decided by height headroom above 0.20 m when the cycle
+  starts: 8507 had 106 mm and lived, 8892 had 19 mm and died.** That is the
+  whole coin flip.
+  This is the missing half of OPEN-39: debouncing the trip was right and the
+  check is well placed, but the RESPONSE to a *sustained* violation was never
+  examined — the disturbance found the next door, which is the door marked
+  "recover".
+  **Fix, written and default-OFF pending the A/B**: `CTRL_LOCO_UNSAFE_HOLD_MS`
+  (0 = stock, bounce back next tick) arms a dwell in
+  `FSM_State_Locomotion.cpp` (`g_locoUnsafeHold`) that RecoveryStand honours
+  before returning to LOCOMOTION, so the stand-up actually runs. Every other
+  request — PASSIVE, the operator's E-stop path — is still honoured
+  immediately; the dwell can never trap the robot. Logs
+  `[recover] unsafe dwell expired`. Not shipped: n=2 on the outcome, and
+  decision #4 is the operator's.
+
+- **OPEN-28 · The per-course MARGIN MAP at the served 2.6 — and `wkc_weave` is
+  the weak link, on the ROLL axis** (chain CQ, 2026-09-16). The map exists to
+  say how much attitude margin each course actually keeps against the 28.65°
+  orientation E-stop at the cruise the recipe serves. First two unmeasured
+  courses, one rep each (`DUMP=1`, labels recovered from the ctrl logs after
+  the harness label bug below):
+
+  | course | verdict | wp | peak pitch | peak roll | yawsat | lap | leg_y_max | stream |
+  |---|---|---|---|---|---|---|---|---|
+  | `wkc_box` | PASS | 6/6 | 21.6° | 10.6° | 0 | 44.7 s | 142 mm | 499/s, gap 3.3 ms |
+  | `wkc_weave` | **FELL** | 4 | 29.7° | **34.6°** | **1** | — | **243 mm** | **500/s, gap 3.1 ms** |
+
+  **The weave fall is the robot's own evidence, not the harness's**: a perfect
+  500 samples/s, worst gap 3.1 ms, loop 2.04 ms, `held_maxrun 1` (the norm) —
+  every harness discriminator this tree has is clean. And it is the FIRST fall
+  in this map that is **roll**-dominant (34.6° against 29.7° of pitch) and the
+  first with **yaw saturated**, which fits the course: a serpentine spends its
+  whole length asking for lateral acceleration, where the hairpin and box ask
+  for longitudinal. Every margin concern before this one was pitch.
+  Mechanism, end to end: the weave drove the foot to 243 mm — 3 mm past the
+  240 mm limit — and **held it there for 49 ticks**, so the OPEN-39 debounce
+  correctly called it genuine and tripped, and the trip landed in OPEN-40's
+  limit cycle with the body at 0.219 m, 19 mm above the fold threshold. It
+  crossed in ~50 ms. So the weave's real deficit is **lateral**, and the fall
+  it produced is the OPEN-40 response, not a lateral limit that is set wrong
+  (`leg_y_max` on the passing box run was 142 mm, nowhere near it).
+  Still to measure on this map: `wkc_finals` and `hp_gap20` at 2.6, and the
+  weave at depth — n=1 decides nothing here.
+  **Harness bug found and fixed in the same block**: with `ARMS=""` and
+  `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
+  course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
+  appends, so both rows were labelled with the dump path and the per-course
+  grouping was destroyed. Fixed by capturing the CALLER's env first
+  (`local uenv="$env"`); rename-installed, so it applies from the next
+  campaign.
 
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer

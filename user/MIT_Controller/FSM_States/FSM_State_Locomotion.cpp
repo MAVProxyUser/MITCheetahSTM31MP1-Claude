@@ -12,6 +12,28 @@
 #include <Controllers/WBC_Ctrl/LocomotionCtrl/LocomotionCtrl.hpp>
 #include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 #include "Utilities/CtrlTuning.h"
+#include <atomic>
+
+// ISSUES OPEN-40 (2026-09-16): locomotionSafe() answering with RECOVERY_STAND is
+// not a recovery - it is a 500 Hz LIMIT CYCLE, because
+// FSM_State_RecoveryStand::checkTransition() reads only control_mode, which nav
+// leaves at K_LOCOMOTION for the whole mission. So the FSM goes
+// LOCOMOTION -> (trip) -> RECOVERY_STAND -> (next tick) -> LOCOMOTION -> (trip),
+// giving the recovery state exactly ONE tick per cycle - never enough to stand -
+// while the body sinks. Measured on the only two runs in ~400 that enter it, both
+// on leg 2's y-position branch with the value changing every tick (a genuine
+// sustained violation, correctly debounced, not a held sample):
+//   run 8507 wkc_finals: 54 trips, entered at z=0.306 m, bled to 0.257 -> PASS
+//   run 8892 wkc_weave:  45 trips, entered at z=0.219 m, bled to 0.183 -> FELL
+// The bleed rate is ~0.36 m/s (8892: 0.2186 -> 0.1832 in 49 ticks / 98 ms), and
+// RECOVERY_STAND::onEnter() re-decides fold-vs-stand EVERY entry against
+// `0.2 < body_height < 0.45`. So the cycle drives the body across its own 0.20 m
+// fold threshold and then RECOVERY_STAND FOLDS FOUR LEGS under a body still at
+// cruise. Survival is decided by height headroom above 0.20 m when the cycle
+// starts: 8507 had 106 mm and lived, 8892 had 19 mm and died.
+// CTRL_LOCO_UNSAFE_HOLD_MS holds the robot IN RecoveryStand for that long after a
+// trip so the stand-up actually runs. 0 = stock (bounce back next tick).
+std::atomic<long> g_locoUnsafeHold{0};
 //#include <rt/rt_interface_lcm.h>
 
 /**
@@ -167,6 +189,9 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
     this->nextStateName = FSM_StateName::RECOVERY_STAND;
     this->transitionDuration = 0.;
     rc_control.mode = RC_mode::RECOVERY_STAND;
+    // Arm the dwell so RecoveryStand is not handed back one tick later (OPEN-40).
+    static const long hold_ticks = (long)(ctrl_tuning::num("CTRL_LOCO_UNSAFE_HOLD_MS", 0.0) / 2.0);
+    if(hold_ticks > 0) g_locoUnsafeHold.store(hold_ticks);
   }
 
 

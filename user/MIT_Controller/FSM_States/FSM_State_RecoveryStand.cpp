@@ -7,6 +7,13 @@
 #include "FSM_State_RecoveryStand.h"
 #include <Utilities/Utilities_print.h>
 #include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
+#include <atomic>
+
+// ISSUES OPEN-40: armed by FSM_State_Locomotion when locomotionSafe() trips, so
+// this state is not handed straight back to LOCOMOTION on the next tick. See the
+// block comment beside g_locoUnsafeHold in FSM_State_Locomotion.cpp for the
+// measured limit cycle this closes.
+extern std::atomic<long> g_locoUnsafeHold;
 
 
 /**
@@ -232,6 +239,19 @@ FSM_StateName FSM_State_RecoveryStand<T>::checkTransition() {
       break;
 
     case K_LOCOMOTION:
+      // OPEN-40: nav holds control_mode at K_LOCOMOTION for the whole mission, so
+      // honouring it unconditionally is what made the safety trip a 500 Hz cycle
+      // instead of a recovery. While the dwell is armed, stay and actually stand.
+      // Every OTHER request below is still honoured immediately - an operator's
+      // PASSIVE/E-stop path must never be trapped behind this.
+      if(g_locoUnsafeHold.load() > 0) {
+        long left = g_locoUnsafeHold.fetch_sub(1) - 1;
+        if(left <= 0) {
+          g_locoUnsafeHold.store(0);
+          shmtrace::logf(0.0, "[recover] unsafe dwell expired - handing back to LOCOMOTION");
+        }
+        break;
+      }
       this->nextStateName = FSM_StateName::LOCOMOTION;
       break;
 
