@@ -22,7 +22,7 @@ shipped, and none of it needs more data to decide.
 |---|---|---|---|
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
-| 3 | The WKC envelope: is 2.7 a rung? | Being measured now (chain CP, same method). | OPEN-28 |
+| 3 | The WKC envelope: is 2.7 a rung? | Block 1 (n = 6 an arm, 12/12 PASS, no falls): 2.7 costs **+2.4° of mean pitch (19.1 → 21.5; worst run 21.1 → 23.3, +2.2)** and buys **0.8 s of a 97 s lap**. The arms OVERLAP by a run each side. Margin to the 28.65° orientation limit: 7.6° at 2.6, **5.4° at 2.7** — independently reproducing this file's earlier "2.7 with 5° of margin", now from a distribution rather than five verdicts. More blocks running. | OPEN-28 |
 | 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | 8 of 8 runs that tripped it fell before the debounce; the trips are now rare and the check itself is well placed, but folding four legs mid-stride at 2.6 m/s is still a fall. This tree's own stall-mitigation history says a reflex here needs the operator. | OPEN-39 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
@@ -3127,6 +3127,16 @@ block, n = 18 an arm, 36 runs, all PASS: 2.6 → 22.2° mean / 24.6 max, 2.5 →
 19.0° / 20.5, lap 49.5 vs 49.7 s.** Three independent blocks, the effect
 steady at 3.2° (block means 3.4, 2.7, 3.4), the lap cost steady at 0.2 s. The
 measurement is finished; what remains is the operator's envelope choice.
+**09:27 — the same method on WKC, where the open rung is 2.7. Block 1, n = 6 an
+arm, 12/12 PASS, no falls:** 2.6 → peak pitch mean **19.1°** (worst 21.1), lap
+97.1 s; 2.7 → mean **21.5°** (worst 23.3), lap 96.3 s. The 2.7 rung therefore
+costs **2.4° of mean pitch (2.2 on the worst run) and buys 0.8 s of a 97 s lap
+(0.8 %)**. Unlike the hairpin's arms these OVERLAP — 2.6's worst run (21.1)
+exceeds 2.7's best (20.2) — so the separation is partial at n = 6 and the chain
+continues. Against the 28.65° orientation limit the margin is **7.6° at 2.6 and
+5.4° at 2.7**, which independently reproduces the "2.7 is wkc-only, 5/5 with 5°
+of margin" line recorded on 09-13 from five verdicts: the same number, now from
+a distribution.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
