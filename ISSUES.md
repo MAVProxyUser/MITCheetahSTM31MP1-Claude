@@ -1524,7 +1524,19 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   wkc 2.6 ×6 per arm with the per-arm y-position counts. **02:40 — probe
   PASS (run 8546, clean stream) and tier 0 on 824e81e9: 13/13**, so the
   knob is a no-op at its default, as intended. Block 1 starts the
-  interleaved measurement.
+  interleaved measurement. **03:08 — block 1: 12/12 (6 per arm) and the
+  manipulation check measured NOTHING: "0 runs with any y-position line, 0
+  trips" in BOTH arms.** Of course it did — the trip is 2 runs in ~600, so
+  a 12-run block has no power over it, and I should have said so when I
+  designed the chain rather than after. Fixed by instrumenting the
+  quantity the limit acts on instead of the rare consequence: the
+  controller now reports **max |p(1)| per second in the check's own
+  frame** and the harness carries the per-run maximum as
+  **`leg_y_max_mm`** (rename-installed 03:15). The FK derivation predicts
+  the shipped trot reaches ~247 mm against a 240 mm limit; one run now
+  tests that instead of one in three hundred, and the two arms' whole
+  distributions become comparable rather than their zero-count trips.
+  Chain CM deploys it behind CL (STOP_CL touched).
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
