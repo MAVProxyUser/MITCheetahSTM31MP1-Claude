@@ -2905,7 +2905,19 @@ read a different value every tick (10.06 → 12.39) and was absorbed correctly. 
 whose leg state (`p[1]`, `p[2]`, `|v|`) is **bit-for-bit identical** to the previous tick
 advances no counter (`[leghold]`; `CTRL_LEG_HELD_GATE=0` disables) — bit-for-bit for the
 same reason the GPS staleness gate uses it. **Before trusting a persistence test on
-sensor-derived input, ask what a stalled sensor looks like to it.**
+sensor-derived input, ask what a stalled sensor looks like to it.** The rule that
+ships requires **two distinct values** while over the limit before tripping: a frozen
+sample reports one value however long it lasts and can never trip, a real transient
+reports a new value every tick and trips on schedule (checked against both runs on
+record). And measure the hold rate rather than inferring it — the heartbeat's
+`[stm32mp1] held samples: held=N/s maxrun=N` says a normal run holds a state for
+**one tick at a time** (0.85 % of leg-ticks, 16 seconds of 120, `maxrun` never above
+1), which makes `maxrun >= 2` a freeze detector in its own right, per leg and inside
+the controller. Two claims were corrected on the way, both by inferring a number from
+a THROTTLED log or a recomputed column instead of reading the definition: "the star
+passed a 453-samples/s second" (that was a ramp second; `imu_rx_min` is the minimum
+over CRUISE seconds, `cmd_rx >= 400/s`) and "held samples are routine" (fifty lines
+was the log cap, not a rate).
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
