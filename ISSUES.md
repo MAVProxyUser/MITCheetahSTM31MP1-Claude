@@ -1560,7 +1560,9 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   past 225, past 240, and whether those excursions are benign), which is
   exactly what CM's two arms now collect once per run. The 0.30 proposal
   stands as a candidate, its stated rationale withdrawn, and nothing
-  should ship on it until the distribution is in.
+  should ship on it until the distribution is in. **03:52 — tier 0 on the
+  instrumented binary 22e0f456: 13/13**, so the instrument costs nothing;
+  its own 13 cases give the first cross-course excursion sample.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
