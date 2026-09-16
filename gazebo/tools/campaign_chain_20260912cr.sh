@@ -105,7 +105,7 @@ for path in sys.argv[1:]:
     for r in rows:
         arm=(r.get("course") or "?").strip(); rid=(r.get("run_id") or "").strip()
         if not rid: continue
-        a=arms.setdefault(arm, dict(n=0,p=0,trip=0,worst=0,fold=0,dwell=0,seen=0,zent=[],zmin=[]))
+        a=arms.setdefault(arm, dict(n=0,p=0,trip=0,worst=0,fold=0,dwell=0,estop=0,seen=0,zent=[],zmin=[]))
         a["n"]+=1
         if r.get("verdict")=="PASS": a["p"]+=1
         g=glob.glob(os.path.join(data,"conductor","archive","*run%s_ctrl_0.log"%rid))
@@ -117,6 +117,12 @@ for path in sys.argv[1:]:
         if trips: a["trip"]+=1
         a["worst"]=max(a["worst"],trips)
         if "Folding legs" in t: a["fold"]+=1
+        # BOTH kill routes must be visible: 42 of 61 historical fallers went via
+        # the fold (route 1) and 19 via an attitude runaway with NO fold at all
+        # (route 2, OPEN-39's original framing). An arm that removes only the
+        # fold should show folds fall while E-stops do not - reporting only the
+        # fold would read that as a fix.
+        if "Orientation safety check failed" in t: a["estop"]+=1
         a["dwell"]+=len(re.findall(r"unsafe dwell expired", t))
         # z is what the fold decision reads, so collect it only for runs that
         # actually tripped and keep BOTH the entry height and the lowest the
@@ -130,8 +136,8 @@ for arm in sorted(arms):
     z=("z %.3f->%.3f (worst %.3f, fold line 0.20)" % (
           sum(a["zent"])/len(a["zent"]), sum(a["zmin"])/len(a["zmin"]), min(a["zmin"]))
        ) if a["zent"] else "z (no trip, nothing measured)"
-    print("    %-26s %2d/%-2d PASS | logs %2d | tripped %2d | worst cycle %3d trips | folded %2d | dwells %3d | %s"
-          % (arm, a["p"], a["n"], a["seen"], a["trip"], a["worst"], a["fold"], a["dwell"], z))
+    print("    %-26s %2d/%-2d PASS | logs %2d | tripped %2d | cycle<=%3d | FOLDED %2d (route 1) | E-STOP %2d (route 2) | dwells %3d | %s"
+          % (arm, a["p"], a["n"], a["seen"], a["trip"], a["worst"], a["fold"], a["estop"], a["dwell"], z))
 PY
 }
 PREV="${PREV_CHAIN_PID:-78002}"
@@ -160,7 +166,10 @@ while [ ! -f "$CAMPAIGN_DIR/STOP_CR" ]; do
   i=$((i+1)); wait_idle; sleep 30; wait_idle; tm_wait; say "block $i: rig idle (phase $(phase)) - binary $(md5 -q host-run/mit_ctrl_sim | cut -c1-8)"
   COURSES="wkc_finals" ARMS="$A" run "dwell_cr$i" 3 2.6
   say "OPEN-40, three arms on wkc_finals 2.6: trigger PINNED at CTRL_MAX_PLEG_Y=0.21 on every arm"
-  say "  (INDUCED - not an envelope number for 0.21). stock / dwell / foldgate; judge on FOLDED."
+  say "  (INDUCED - not an envelope number for 0.21). stock / dwell / foldgate."
+  say "  Judge on the VERDICT with both routes beside it: FOLDED is route 1 (42 of 61 historical"
+  say "  falls) and E-STOP is route 2 (19 of 61, no fold at all). The fold gate should move only"
+  say "  route 1; the dwell should move both. An arm whose folds drop while E-stops hold is NOT fixed."
   say "  Pooled over CR; an arm with no trips measured nothing:"
   cyc "$CAMPAIGN_DIR"/dwell_cr*.csv | tee -a "$LOG"
   tier "$i"
