@@ -1414,7 +1414,13 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   as intended, not a defect), and the first version printed
   `held_maxrun=?` on the verdict LINE because I had put the extraction
   after the echo that used it — the CSV was right, the printed line was
-  not; fixed and rename-installed at 00:10.
+  not; fixed and rename-installed at 00:10. **00:22 — CK block 1 complete:
+  wkc 12/12, hairpin 12/12** on the corrected binary, and the pooled
+  lie-down A/B across CF–CK now stands at **nodamp n = 135 + 126, worst
+  stage-2 roll 1.2° / 1.1°, abad excursion 0.000 rad in all 261, zero
+  failures** against **stock n = 125 + 118 on the same binaries, worst
+  18.1° / 28.5°, 42 and 38 of them splayed**, the roll still tracking the
+  splay asymmetry (rho 0.53 wkc, 0.89 hairpin).
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
