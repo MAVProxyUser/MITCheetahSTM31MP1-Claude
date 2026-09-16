@@ -225,7 +225,28 @@ passed on its own in-suite retry.
   now points at the conclusion behind all of them: **RecoveryStand is not usable
   by a robot at cruise at all**, so the answer is likely (c) degrade inside
   locomotion or (d) make the check advisory above a speed — not any variation on
-  "go to RecoveryStand better". n = 3 an arm; the chain continues to 9–12.
+  "go to RecoveryStand better".
+  **CONFIRMED AT n = 6 AN ARM (block 2, 18:04), and the dwell verdict is now
+  qualitative rather than statistical:**
+
+  | arm | verdicts | trips | RecovStand entries | folds | **TIPPED OVER** |
+  |---|---|---|---|---|---|
+  | stock | 2/6 | 616 | **616** | 410 | 0 |
+  | **dwell** | **0/6** | 6 | **9** | 8 | **6 of 6** |
+  | foldgate | 1/6 | 417 | **417** | 85 | 0 |
+
+  - **The dwell has now tipped 7 of 7** (6 here plus the probe), roll 131–180°,
+    against **0 of 12** in the other two arms. A perfectly consistent
+    qualitative effect, and it needs no p-value: the dwell does not fail to
+    help, it changes the failure mode from a flat collapse into a full
+    inversion. It collapses the cycle as designed — 9 entries against stock's
+    616, a 68x reduction — and that is precisely the harm.
+  - **The fold gate holds as a measured null at n = 6**: folds 410 → 85, a 4.8x
+    reduction that proves the manipulation took, with the verdict if anything
+    slightly worse (1/6 against stock's 2/6).
+  - The pinned trigger is working hard: ~103 trips a run in the stock arm, so
+    neither arm is failing for want of exposure.
+  n = 6 an arm; the chain continues, and nothing here changes a default.
 
   **The option set for decision #4, so the call is a choice and not a blank.**
   All four act on the RESPONSE; none changes the check's threshold, which the
