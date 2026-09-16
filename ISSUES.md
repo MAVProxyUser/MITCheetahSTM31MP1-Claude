@@ -175,6 +175,22 @@ passed on its own in-suite retry.
   the only candidate that does not route a moving robot through a state built
   for a stationary one. n = 1, and the chain's blocks will now produce 9–12 runs
   an arm on exactly this.
+  **AND THE ARCHIVE SAYS SOMETHING SHARPER: that bailout had NEVER FIRED BEFORE.**
+  Scanning all **7251** ctrl logs for `body height is still too low`: it appears
+  in exactly **1** run, and that run is today's probe. 437 runs contain
+  RecoveryStand entries and not one ever reached it. The arithmetic says why —
+  the gate is `curr_iter > floor(250*0.7)` = **175 iters = 350 ms of CONTINUOUS
+  RecoveryStand**, and stock hands the state back after ONE tick, so under the
+  limit cycle it is **unreachable by construction**. My 600 ms dwell is 1.7x it.
+  **So the dwell's real effect is not "let the recovery run" — it is to make a
+  code path reachable that has never executed in this project's history**, and
+  the first time it executed it folded a moving robot and flipped it to −174°.
+  That is a caution about the whole option rather than a detail: holding a robot
+  in a state it has only ever visited for single ticks exercises logic nothing
+  has ever validated. It also means history CANNOT corroborate "StandUp fails at
+  speed" — there is no prior instance — so the running A/B is the only source,
+  and its dwell arm should be read as a test of newly-live code as much as of
+  the idea.
 
   **The option set for decision #4, so the call is a choice and not a blank.**
   All four act on the RESPONSE; none changes the check's threshold, which the
