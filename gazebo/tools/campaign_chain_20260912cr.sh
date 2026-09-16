@@ -23,13 +23,31 @@
 # 600 ms is chosen to clear that ramp with margin, not tuned. PASSIVE and every other mode request
 # are still honoured immediately, so the dwell can never trap the robot away from an E-stop.
 #
-# WHY THE WEAVE IS THE COURSE: the fall is 1 run in ~400 across the catalog, which no block can
-# measure - but the weave tripped on its FIRST run, and it is the course whose deficit is lateral
-# (roll 34.6 > pitch 29.7, yaw saturated). So the weave is where the trip rate is high enough for
-# a block to have power. The POWERED QUANTITY is therefore not the raw verdict split: it is the
-# CONDITIONAL outcome given a trip, plus the manipulation check that the arms differ at all
-# (runs that tripped, cycle length, and folds per arm). If neither arm trips, the block measured
-# nothing and says so - that is CL's lesson, learned the hard way.
+# THE DESIGN CHANGED BEFORE LAUNCH, and the reason is a power calculation I should have done
+# first. Measuring the archive (20 KB tail of all 7077 ctrl logs) says the cycle occurs in 353
+# runs, 5.0 %, and 307 of those fell - 24 % of every fall on record - but the rate tracks the
+# TRIGGER fixes: 24.9 % on 09-05, 0.9 % on 09-15 after the debounces, 0.2 % on 09-16. Post-debounce
+# it is ~0.6 % of runs (8 cycles in ~1240 runs over two days), so a 6-rep block expects 0.04
+# cycles and a natural-trigger A/B on the weave would have measured NOTHING for days - CL's exact
+# failure, which I nearly repeated after writing its lesson down.
+#
+# So the trigger is HELD FIXED AND FREQUENT on both arms, and only the RESPONSE varies. The knob
+# for that is not arbitrary: CTRL_MAX_PLEG_Y=0.18 is MIT's own upstream limit, mini-cheetah's abad
+# link, and this tree's record says exactly what it does to a Go1 - "the Go1's abad link is 0.08 m
+# so its feet legitimately stand ~30 % wider, the rear legs cross 0.18 m within ~1 s of gait entry,
+# and failing this check sends the FSM to RECOVERY_STAND, which folds all four legs. Every 'the MPC
+# tumbles at gait start' note in this file was that check firing." That is a ~100 % trigger rate,
+# already characterised, on a documented value rather than a number I invented to force a result.
+# The course is wkc_finals at the served 2.6 because it normally passes ~100/100 clean, so any fall
+# in either arm is attributable to the induced trip and its response - a clean baseline, unlike the
+# weave, which already falls on its own.
+#
+# WHAT THIS DOES AND DOES NOT MEASURE: it measures whether the DWELL changes the outcome of a trip.
+# It says nothing about the natural fall rate, because the trip is induced - and it must not be
+# quoted as an envelope or reliability number for 0.18, which is a limit this robot is known to
+# violate by design. The manipulation check sits beside every result (runs that tripped, worst
+# cycle length, folds, dwells per arm); if an arm does not trip, the block measured nothing and
+# says so.
 #
 # NOTHING SHIPS FROM THIS CHAIN. The default stays 0 and decision #4 is the operator's; this
 # chain only measures. Builds and deploys in the gap behind CQ, probes, tier first, then blocks of
@@ -122,17 +140,18 @@ else say "BUILD FAILED (see build_cr.log) - the old binary stays"; fi
 # which the [recover] dwell line proves - but the weave only trips on some runs, so a probe that
 # does not trip is INCONCLUSIVE, not a failure, and the blocks run either way.
 wait_idle; tm_wait
-COURSES="wkc_weave" ARMS="probe_hold600:CTRL_LOCO_UNSAFE_HOLD_MS=600" run dwell_probe 1 2.6
+COURSES="wkc_finals" ARMS="probe:CTRL_MAX_PLEG_Y=0.18,CTRL_LOCO_UNSAFE_HOLD_MS=600" run dwell_probe 1 2.6
 say "probe rows:"; cyc "$CAMPAIGN_DIR/dwell_probe.csv" | tee -a "$LOG"
-A="hold0:CTRL_LOCO_UNSAFE_HOLD_MS=0 hold600:CTRL_LOCO_UNSAFE_HOLD_MS=600"
+A="hold0:CTRL_MAX_PLEG_Y=0.18,CTRL_LOCO_UNSAFE_HOLD_MS=0 hold600:CTRL_MAX_PLEG_Y=0.18,CTRL_LOCO_UNSAFE_HOLD_MS=600"
 say "arms (interleaved run by run, explicit on BOTH so neither inherits a default): $A"
 say "deploy=$DEPLOYED - if 0, both arms ran on a binary without the knob and the block is a NULL by construction"
 tier 0
 i=0
 while [ ! -f "$CAMPAIGN_DIR/STOP_CR" ]; do
   i=$((i+1)); wait_idle; sleep 30; wait_idle; tm_wait; say "block $i: rig idle (phase $(phase)) - binary $(md5 -q host-run/mit_ctrl_sim | cut -c1-8)"
-  COURSES="wkc_weave" ARMS="$A" run "dwell_cr$i" 6 2.6
-  say "OPEN-40 A/B on wkc_weave 2.6, pooled over CR (a trip is the manipulation; no trips = no measurement):"
+  COURSES="wkc_finals" ARMS="$A" run "dwell_cr$i" 4 2.6
+  say "OPEN-40 A/B: wkc_finals 2.6, trigger held at CTRL_MAX_PLEG_Y=0.18 on BOTH arms (INDUCED -"
+  say "  not an envelope number), response varied. Pooled over CR; no trips in an arm = no measurement:"
   cyc "$CAMPAIGN_DIR"/dwell_cr*.csv | tee -a "$LOG"
   tier "$i"
 done
