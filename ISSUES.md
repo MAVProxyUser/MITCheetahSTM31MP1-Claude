@@ -154,6 +154,18 @@ passed on its own in-suite retry.
   fold-vs-stand choice; this fold came from the mid-stand-up bailout
   (`curr_iter > 0.7*standup_ramp_iter && something_wrong` → `_flag = FoldLegs`),
   which the guard never sees. The probe had the fold gate ON and folded anyway.
+  **And I am deliberately NOT completing that gate mid-experiment, for a reason
+  worth writing down: the half-gated behaviour is probably the better one.** As
+  deployed, `CTRL_RECOVER_FOLD_VMAX` suppresses the ENTRY fold and leaves the
+  mid-stand-up bailout intact — which means "try to stand; if the stand-up is
+  visibly failing, fold after all". Gating both sites would remove the fallback
+  and commit a moving robot to a stand-up this very probe shows can put it on its
+  back. So the arm now running measures a fix WITH a safety net, which is the
+  version anyone would actually want to ship. Completing the gate is not queued;
+  if it ever is, it needs its own arm against this one, not a silent change.
+  A second reason not to touch it now: CR is mid-experiment on binary 978b0b30,
+  and a rebuild would either overlap a live run or silently split the arms across
+  two binaries.
   **Consequence for decision #4:** options (a) and (e) both depend on StandUp
   succeeding at speed, and this run says it does not — which promotes **(c),
   degrade within locomotion**, from "the one that most needs the operator" to
