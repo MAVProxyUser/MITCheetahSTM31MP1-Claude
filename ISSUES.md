@@ -1499,7 +1499,16 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   of run 8315 and the 54 nuisance trips of 8507. It wants to be a knob
   (`CTRL_MAX_PLEG_Y`, default 0.24 = today's behaviour) so the A/B is one
   env var, and it belongs in a chain of its own with the full tier rather
-  than bolted onto the lie-down A/B.
+  than bolted onto the lie-down A/B. **01:50 — the knob exists (default
+  0.24, behaviour unchanged, compile-verified) and chain CL is queued to
+  MEASURE the two values**, with `CTRL_MAX_PLEG_Y` explicit on both arms.
+  Deliberately NOT a fall-rate A/B: the fall is 1 run in ~600, which no
+  overnight N can resolve. The powered quantity is the manipulation —
+  **how many runs carry any y-position line at all, and the trip count per
+  run** (8507 reached 54) — which 0.30 should drive to zero if the
+  derivation is right, and which says nothing about whether it should ship.
+  STOP_CK touched: CK ends after its current block, having answered the
+  lie-down question at n = 261 vs 243, and the rig moves to the open one.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
