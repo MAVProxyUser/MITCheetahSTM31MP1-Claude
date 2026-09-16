@@ -274,8 +274,36 @@ passed on its own in-suite retry.
   done.** Loading four of those traces (`json.load`, ~140 MB, ~40k records x 40
   fields each) blew a 120 s budget without printing a line while a run and a
   tier were in flight, so it was killed: rescuing the perishable files is cheap
-  and urgent, parsing them is neither. Next pass should reduce each trace to a
-  slim CSV once, in an idle gap, and do every later comparison over that.
+  and urgent, parsing them is neither. **Solved, and it turned out to be cheap:**
+  `gazebo/tools/trace_slim.py` extracts the columns with ONE regex pass instead
+  of building 40 000 dicts — **0.11 s for a 17 MB trace**, all twelve in 2.0 s,
+  400 MB of JSON down to 31 MB of CSV. `json.load` had blown 120 s on four.
+  **AND THE COMPARISON REFUTES BOTH OF MY CANDIDATE STORIES.** Run 9029 (the 2.5
+  failure) went down at the **t≈36 feature, not the t≈56 reversal exit** — so the
+  weave has at least TWO marginal features and its two falls are at different
+  ones, which by itself weakens "the reversal exit is the problem". State through
+  that feature (t = 35.3–36.8, i.e. BEFORE the divergence), all twelve runs:
+
+  | | min z | max pitch | mean speed |
+  |---|---|---|---|
+  | **9029, the FAILURE** | **0.260** | **15.3°** | 2.31 |
+  | the 11 passes | 0.150 … 0.257 | 14.1 … 24.4° | 2.17 … 2.26 |
+
+  **The failing run entered the feature with the HIGHEST body height of the
+  twelve and a mid-range pitch.** And run 9022 — a 2.6 PASS — went through the
+  same feature at **z = 0.150 m, below the 0.20 fold line, pitching 24.4°** and
+  recovered. So neither height nor pitch nor speed entering the feature separates
+  the outcomes; my "the failing run was 3–4 cm lower" reading came from the
+  t = 36.5 bin, which is a moment DURING the divergence rather than before it.
+  **What that leaves, stated as the negative result it is: no body-state variable
+  in the trace predicts the runaway.** Which is a real constraint on decision #9
+  — if the pre-state is indistinguishable, no speed-based lever is likely to
+  remove the tail, and 2.5's value stays what block 2 measured: a 3.4° shift in
+  the typical peak, not a fix. The next place to look is what the trace does NOT
+  carry: gait phase at the event, foot placement, and contact timing.
+  Caveat: one failure against eleven passes. That is enough to refute "the
+  failing run was the low one" (it was the highest) and not enough to assert that
+  nothing could ever predict it.
 
   **BOTH levers are now being measured, so the decision can be a comparison
   rather than a yes/no.** Chain CT (queued behind CR) holds cruise at 2.6 and
