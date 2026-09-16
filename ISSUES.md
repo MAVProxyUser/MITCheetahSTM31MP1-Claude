@@ -130,6 +130,7 @@ passed on its own in-suite retry.
   | b | **Reset the per-leg counters on LOCOMOTION entry** so each re-entry gets a fresh 5-tick debounce | cuts the cycle's frequency, and so its BLEED — the measured discriminator between the 61 that fell and the 18 that survived — by `legy_ticks`, i.e. ~5x. Does NOT stop the cycle: partial by construction, but it keeps the robot LOCOMOTING, which (a) does not | **written 2026-09-16, `CTRL_LEG_TRIP_RESET_ON_ENTRY`, default off.** Untested |
   | c | **Degrade instead of aborting**: keep locomotion, cut commanded speed and/or raise the height reference while the condition holds | no mission loss, and it acts on the quantity the cycle consumes — but this tree DELETED its stall mitigation for being worse than the stall it guarded, so a reflex here has a bad precedent | not written; this is the one that most needs the operator |
   | d | **Treat the check as advisory above a speed** and only log | removes the fall class outright and removes the guard with it | not written |
+| **e** | **Do not FOLD a body that is still travelling.** `RecoveryStand::onEnter()` picks fold-vs-stand from HEIGHT alone; when `CTRL_RECOVER_FOLD_VMAX` is set, an upright body moving faster than it prefers StandUp even below 0.20 m. Upside-down folds, slow folds, so the fallen-robot recovery is untouched | acts directly on the step where 93 % of these runs were lost, and costs nothing when the robot really is settled. Risk: a genuinely tumbling robot at speed would stand instead of fold, which is untested | **written 2026-09-16, `CTRL_RECOVER_FOLD_VMAX`, default -1 = off.** Compile-verified, untested |
   The honest framing: (a) is the minimum change that makes the existing design
   do what it was written to do, and it is the only one with a measurement
   pending. (c) is what an operator would probably want on real hardware. (b) is
@@ -360,8 +361,12 @@ passed on its own in-suite retry.
      lying on the ground and catastrophic for one mid-collapse at cruise. Gating
      `FoldLegs` on body SPEED — fold only when the robot is actually slow —
      would leave the fallen-robot recovery untouched and remove the killing step
-     from exactly these 45 runs. Not written; it is the option worth the
-     operator's attention alongside the dwell.
+     from exactly these 45 runs. **Written 2026-09-16 as
+     `CTRL_RECOVER_FOLD_VMAX` (default -1 = stock/off, compile-verified,
+     untested)** so it can be measured rather than argued; it is the option
+     worth the operator's attention alongside the dwell. The risk to weigh: a
+     genuinely tumbling robot at speed would stand instead of fold, and that
+     case has no data either way.
 
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer

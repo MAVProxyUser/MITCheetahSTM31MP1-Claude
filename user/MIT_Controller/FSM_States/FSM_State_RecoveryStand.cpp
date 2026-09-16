@@ -8,6 +8,7 @@
 #include <Utilities/Utilities_print.h>
 #include "../../../gazebo/ShmTrace.h"   // per-tick/text SHM tracing - see that file's own header
 #include <atomic>
+#include "Utilities/CtrlTuning.h"
 
 // ISSUES OPEN-40: armed by FSM_State_Locomotion when locomotionSafe() trips, so
 // this state is not handed straight back to LOCOMOTION on the next tick. See the
@@ -74,10 +75,33 @@ void FSM_State_RecoveryStand<T>::onEnter() {
   T body_height = 
     this->_data->_stateEstimator->getResult().position[2];
 
+  // OPEN-40 option (e), CTRL_RECOVER_FOLD_VMAX (default -1 = stock, off).
+  // The fold-vs-stand decision below reads body HEIGHT alone. That is right for
+  // a robot lying on the ground and catastrophic for one mid-collapse AT CRUISE:
+  // measured over the 79 runs that entered the LOCOMOTION<->RecoveryStand limit
+  // cycle from a healthy body, 42 of the 61 that fell issued a fold against 3 of
+  // the 18 that survived, i.e. P(fall | folded) = 42/45 = 93 % against
+  // P(fall | never folded) = 19/34 = 56 %. Cycle DURATION did not discriminate
+  // at all (survivors' cycles were slightly longer), so the fold is where these
+  // runs were lost, and folding four legs under a body carrying 2.6 m/s is a
+  // fall by construction. Depth is a confound - a body under 0.20 m both folds
+  // and is likelier to fall - which is exactly why this ships default-OFF and
+  // behind an A/B rather than as a belief.
+  // When set, a body that is upright and still TRAVELLING faster than the knob
+  // prefers StandUp even below 0.20 m: at speed the robot is mid-collapse, not
+  // settled. An upside-down robot still folds, and a slow one still folds, so
+  // the fallen-robot recovery this state exists for is untouched.
+  static const double fold_vmax = ctrl_tuning::num("CTRL_RECOVER_FOLD_VMAX", -1.0);
+  const T v_fwd = this->_data->_stateEstimator->getResult().vBody.template head<2>().norm();
+
   _flag = FoldLegs;
   if( !_UpsideDown() ) { // Proper orientation
     if (  (0.2 < body_height) && (body_height < 0.45) ){
       shmtrace::logf(0.0, "[Recovery Balance] body height is %f; Stand Up", (double)body_height);
+      _flag = StandUp;
+    }else if( fold_vmax > 0.0 && body_height < 0.45 && (double)v_fwd > fold_vmax ){
+      shmtrace::logf(0.0, "[Recovery Balance] body height is %f but travelling %.2f m/s (> %.2f) - standing, NOT folding",
+                     (double)body_height, (double)v_fwd, fold_vmax);
       _flag = StandUp;
     }else{
       shmtrace::logf(0.0, "[Recovery Balance] body height is %f; Folding legs", (double)body_height);
