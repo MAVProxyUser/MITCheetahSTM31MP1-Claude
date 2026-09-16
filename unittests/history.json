@@ -1,45 +1,5 @@
 [
  {
-  "ts": "2026-09-13 10:37:31",
-  "case": "dash_trotRunning",
-  "config": {
-   "slots": [
-    "dash:100"
-   ],
-   "gaits": [
-    "trotRunning"
-   ],
-   "speeds": [
-    2.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 76.6
- },
- {
-  "ts": "2026-09-13 10:38:41",
-  "case": "dash_trotting_30",
-  "config": {
-   "slots": [
-    "dash:100"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    3.0
-   ],
-   "dashes": [],
-   "extras": [
-    ""
-   ]
-  },
-  "verdict": "PASS",
-  "wall_s": 70.6
- },
- {
   "ts": "2026-09-13 10:41:56",
   "case": "dash_long_duration",
   "config": {
@@ -19037,5 +18997,39 @@
   },
   "verdict": "PASS",
   "wall_s": 68.5
+ },
+ {
+  "ts": "2026-09-16 12:37:13",
+  "case": "corner_probe_90deg",
+  "config": {
+   "slots": [
+    "corner:25:90"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 92.6
+ },
+ {
+  "ts": "2026-09-16 12:38:15",
+  "case": "corner_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.5
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 62.5
  }
 ]
