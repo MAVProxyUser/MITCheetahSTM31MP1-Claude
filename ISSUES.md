@@ -1508,7 +1508,17 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   run** (8507 reached 54) — which 0.30 should drive to zero if the
   derivation is right, and which says nothing about whether it should ship.
   STOP_CK touched: CK ends after its current block, having answered the
-  lie-down question at n = 261 vs 243, and the rig moves to the open one.
+  lie-down question, and the rig moves to the open one.
+  **02:16 — CK closed, and with it the OPEN-30 A/B, at its full depth:
+  nodamp n = 147 (wkc) + 132 (hairpin) = 279 lie-downs, worst stage-2 roll
+  1.2° / 1.1°, abad excursion 0.000 rad in EVERY one, zero failures;
+  stock on the same binaries n = 137 + 124 = 261, worst 18.1° / 28.5°, 46
+  and 42 of them splayed, one outright tip (run 8294).** Across CF–CK the
+  three chains ran 3 tiers × 13 and every block 12/12 or 24/24 apart from
+  the four misses already anatomised. The mechanism, the fix, the
+  interleaved comparison at N ≈ 280 an arm, and the reproduced tail event
+  are all on record; OPEN-30 needs nothing further but the operator's
+  judge decision, which is unchanged and still theirs.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
