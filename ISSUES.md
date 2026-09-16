@@ -102,10 +102,10 @@ passed on its own in-suite retry.
   *The working, including the wrong turns, follows.*
 
 
-- **OPEN-40 · `locomotionSafe()` answering with RECOVERY_STAND is a 500 Hz
-  LIMIT CYCLE, not a recovery — and it drives the body across RECOVERY_STAND's
-  own fold threshold** (2026-09-16, found recovering the course identity of
-  chain CQ's margin probe). `FSM_State_RecoveryStand::checkTransition()` reads
+  **THE MECHANISM, as first written up.** `locomotionSafe()` answering with
+  RECOVERY_STAND is a 500 Hz LIMIT CYCLE, not a recovery — and it drives the
+  body across RECOVERY_STAND's own fold threshold (2026-09-16, found recovering
+  the course identity of chain CQ's margin probe). `FSM_State_RecoveryStand::checkTransition()` reads
   ONLY `control_mode`, and nav holds that at `K_LOCOMOTION` for the whole
   mission — so a trip goes LOCOMOTION → RECOVERY_STAND → (next tick) →
   LOCOMOTION → trip, handing the recovery state **exactly one tick per cycle**,
