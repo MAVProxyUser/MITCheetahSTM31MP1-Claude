@@ -2974,13 +2974,28 @@ is not reset on re-entry either, so each pass re-trips immediately while the
 foot stays out. Only 2 runs of the last ~400 enter it, both on leg 2's
 y-position branch with the value changing every tick (genuine, correctly
 debounced — 4 ticks absorbed as `[legkin]`, trip on the 5th, `held=0/s`), and
-they split on ONE quantity: `FSM_State_RecoveryStand::onEnter()` re-decides
-fold-vs-stand on EVERY entry against `0.2 < body_height < 0.45`, so at 500 Hz
-that decision is re-made every 2 ms against a height the cycle itself is
-bleeding at **~0.36 m/s**. Run 8507 entered at z=0.306 (106 mm of headroom over
-the 0.20 m fold threshold), bled to 0.257, and PASSED 16/16. Run 8892 entered at
-z=0.219 (**19 mm**), crossed in ~50 ms, and `[Recovery Balance] ... Folding
-legs` folded four legs under a body at cruise — roll 34.6°, E-stop, collapse.
+**trips and recovery entries are EQUAL to the unit — 54/54 and 45/45** — which
+is the cycle measured rather than argued, and it means
+`FSM_State_RecoveryStand::onEnter()` ran, and so re-decided fold-vs-stand against
+`0.2 < body_height < 0.45`, on every single trip. Both runs entered the cycle at
+essentially the same height (0.306 and 0.295), and what separates them is the
+**bleed per cycle**: 1.06 mm on wkc_finals (0.057 m over 54 passes, bottoming at
+0.249 — it escapes) against **2.49 mm on the weave** (0.112 m over 45), which
+crosses 0.20. The weave's last four entries read 0.197 / 0.192 / 0.188 / 0.183
+and produced **exactly four** `Folding legs` lines, so the threshold crossing and
+the fold correspond one for one: the RECOVERY folded four legs under a body at
+cruise, roll ran to 34.6°, and the orientation E-stop ended it. The 2.4x bleed
+fits the weave being the laterally-loaded, roll-dominant course — a cycle costs
+more per pass when the body is already rolling.
+**A correction inside this finding, worth keeping because of how it was made:**
+the first write-up said 8892 entered at 0.219 m with 19 mm of headroom and
+concluded that survival is decided by headroom at entry. It entered at 0.295.
+I had extracted 8507's heights first/last over the whole log and 8892's by eye
+from a tail window, so I read a mid-cycle value as the entry value — **two runs,
+two extraction methods, and the inconsistency manufactured a discriminator that
+does not exist.** Use one extraction for every arm of a comparison, and when a
+quantity decides the conclusion, take it from the file's full sequence rather
+than a window you happened to be reading.
 **The recovery state is what folded the legs, and it did so because the cycle
 starved it of the ticks it needed to stand.** `CTRL_LOCO_UNSAFE_HOLD_MS` arms a
 dwell (`g_locoUnsafeHold`, set in `FSM_State_Locomotion.cpp`, honoured in

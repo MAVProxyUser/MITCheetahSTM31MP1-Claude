@@ -1,35 +1,5 @@
 [
  {
-  "ts": "2026-09-13 10:43:05",
-  "case": "octagon_recipe",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [],
-   "speeds": [],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 68.6
- },
- {
-  "ts": "2026-09-13 10:44:13",
-  "case": "circle_smooth_36gon",
-  "config": {
-   "slots": [
-    "circle:9:36"
-   ],
-   "gaits": [],
-   "speeds": [],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 68.5
- },
- {
   "ts": "2026-09-13 10:45:44",
   "case": "corner_probe_90deg",
   "config": {
@@ -19031,5 +19001,43 @@
   },
   "verdict": "PASS",
   "wall_s": 76.6
+ },
+ {
+  "ts": "2026-09-16 12:40:58",
+  "case": "bounding_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "bounding"
+   ],
+   "speeds": [
+    1.0
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 86.6
+ },
+ {
+  "ts": "2026-09-16 12:42:37",
+  "case": "galloping_octagon_45deg",
+  "config": {
+   "slots": [
+    "circle:9:8"
+   ],
+   "gaits": [
+    "galloping"
+   ],
+   "speeds": [
+    0.8
+   ],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 98.7
  }
 ]

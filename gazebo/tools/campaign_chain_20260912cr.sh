@@ -8,10 +8,15 @@
 # K_LOCOMOTION for the whole mission, so the recovery state is handed back after ONE tick, forever.
 # It cannot stand a robot on one tick per cycle, and onEnter() re-decides fold-vs-stand on EVERY
 # entry against 0.2 < z < 0.45, so the decision is re-made every 2 ms against a height the cycle
-# bleeds at ~0.36 m/s. Of the only two runs in ~400 that enter it: 8507 entered at z=0.306 (106 mm
-# over the fold threshold), bled to 0.257 and PASSED 16/16; 8892 entered at z=0.219 (19 mm),
-# crossed in ~50 ms, and the recovery FOLDED FOUR LEGS under a body at cruise -> roll 34.6, E-stop,
-# collapse. The recovery state is what folded the legs, starved of the ticks it needed to stand.
+# bleeds. Trips and recovery entries are EQUAL to the unit in both runs that enter it (54/54 and
+# 45/45) - the cycle measured rather than argued, one onEnter() per trip. Both entered at ~0.30 m,
+# so headroom at entry does NOT separate them (this header first said 8892 entered at 0.219 with
+# 19 mm of margin; that was a MID-cycle value read from a tail window, and is withdrawn - see the
+# correction in ISSUES OPEN-40). What separates them is bleed per CYCLE: 1.06 mm on wkc_finals
+# (0.057 m over 54 passes, bottoming at 0.249, escapes) vs 2.49 mm on the weave (0.112 m over 45),
+# which crosses 0.20 - and the weave's last four entries, 0.197/0.192/0.188/0.183, produced EXACTLY
+# four `Folding legs` lines, so crossing and fold correspond one for one. The recovery state is what
+# folded four legs under a body at cruise, starved of the ticks it needed to stand.
 #
 # CTRL_LOCO_UNSAFE_HOLD_MS arms a dwell (g_locoUnsafeHold) that RecoveryStand honours before
 # handing back, so the stand-up ramp (standup_ramp_iter 250 = 500 ms) actually runs. 0 = stock.
@@ -73,7 +78,7 @@ for path in sys.argv[1:]:
     for r in rows:
         arm=(r.get("course") or "?").strip(); rid=(r.get("run_id") or "").strip()
         if not rid: continue
-        a=arms.setdefault(arm, dict(n=0,p=0,trip=0,worst=0,fold=0,dwell=0,seen=0,zent=[]))
+        a=arms.setdefault(arm, dict(n=0,p=0,trip=0,worst=0,fold=0,dwell=0,seen=0,zent=[],zmin=[]))
         a["n"]+=1
         if r.get("verdict")=="PASS": a["p"]+=1
         g=glob.glob(os.path.join(data,"conductor","archive","*run%s_ctrl_0.log"%rid))
@@ -86,11 +91,18 @@ for path in sys.argv[1:]:
         a["worst"]=max(a["worst"],trips)
         if "Folding legs" in t: a["fold"]+=1
         a["dwell"]+=len(re.findall(r"unsafe dwell expired", t))
-        m=re.search(r"Recovery Balance\] body height is ([0-9.]+)", t)
-        if m: a["zent"].append(float(m.group(1)))
+        # z is what the fold decision reads, so collect it only for runs that
+        # actually tripped and keep BOTH the entry height and the lowest the
+        # cycle drove it to - the bleed (first - min) is the discriminator,
+        # not the entry height, which was the same ~0.30 m in both runs.
+        if trips:
+            zs=[float(x) for x in re.findall(r"Recovery Balance\] body height is ([0-9.]+)", t)]
+            if zs: a["zent"].append(zs[0]); a["zmin"].append(min(zs))
 for arm in sorted(arms):
     a=arms[arm]
-    z=("z@entry %.3f" % (sum(a["zent"])/len(a["zent"]))) if a["zent"] else "z@entry -"
+    z=("z %.3f->%.3f (worst %.3f, fold line 0.20)" % (
+          sum(a["zent"])/len(a["zent"]), sum(a["zmin"])/len(a["zmin"]), min(a["zmin"]))
+       ) if a["zent"] else "z (no trip, nothing measured)"
     print("    %-26s %2d/%-2d PASS | logs %2d | tripped %2d | worst cycle %3d trips | folded %2d | dwells %3d | %s"
           % (arm, a["p"], a["n"], a["seen"], a["trip"], a["worst"], a["fold"], a["dwell"], z))
 PY
