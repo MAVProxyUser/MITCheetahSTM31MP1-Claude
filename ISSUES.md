@@ -1440,6 +1440,31 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   threshold set from a handful of runs and had to withdraw it within the
   hour (`feedback-replicate-before-you-believe-a-p-value`). The column is
   collecting the tail that should set it.
+  **01:28 — CK block 2: wkc 12/12, hairpin 12/12, and TWO runs worth the
+  whole block.** (a) **Run 8513 held SEVEN consecutive ticks and passed
+  with no trip** — `maxrun=7` in one second and 5 in another, its cruise
+  worst gap 15.2 ms, which is the right magnitude for 7 ticks (14 ms) seen
+  from the bridge's side. But the gate was NOT exercised by it: zero
+  `[legv]` lines, i.e. the frozen value was UNDER the 9 m/s limit, so this
+  says the column measures real freezes and that a 7-tick freeze is
+  survivable — not yet that a frozen OVER-limit value cannot trip. That
+  test is still outstanding. (b) **Run 8507 tripped the y-position branch
+  54 times and PASSED**, and its log corrects what I wrote about that
+  branch at 21:50. It is not "a graze, a one-tick artefact": the foot sat
+  over the limit for five and more CONSECUTIVE ticks with the value
+  genuinely changing (−0.240 → −0.241), so the debounce judged it
+  persistent and tripped, exactly as designed — 54 times, each into
+  RECOVERY_STAND at a body height of 0.306 m, and the robot survived every
+  one and finished the mission. So the same branch is survivable when the
+  robot is standing or slow (8507) and fatal at cruise (8315, the only
+  other run with these trips in the last twelve hours). **What is left is
+  the LIMIT, not the debounce.** The Go1's foot reaches 0.240–0.247 m
+  against a `max_pleg_y` of 0.24, an exceedance of 0–7 mm; the limit was
+  scaled from mini-cheetah's 0.18 by the abad-link ratio, and this tree
+  has Unitree's own mechanical abad stop (±0.863938 rad) to check it
+  against, so whether 0.24 is the right number is DERIVABLE rather than a
+  guess. Deliberately not touched tonight — changing a safety limit wants
+  the kinematic derivation, not a reaction to two runs.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
