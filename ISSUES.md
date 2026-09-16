@@ -1283,7 +1283,11 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   the close: nodamp n = 120 + 120, stage-2 peak roll max **1.2° / 1.1°**,
   abad excursion 0.000 rad in all 240, not one failure; stock n = 113 +
   113 on the same binaries, max **18.1° / 28.5°**, 37 and 33 of them
-  splayed. Chain CI has the rig (y-position + above-hip debounce).
+  splayed. **21:59 — deployed**: chain CI built the one changed TU in the
+  gap and installed it through `deploy_host.sh` — binary 4db0dc8c →
+  **72a4973f**, all three per-leg checks now debounced at 5 ticks. Probe,
+  then the tier, then the standing blocks with per-block counts of trips
+  (any branch) and absorbed grazes (`[legv]` / `[legkin]`).
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
