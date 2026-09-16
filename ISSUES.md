@@ -22,7 +22,7 @@ shipped, and none of it needs more data to decide.
 |---|---|---|---|
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
-| 3 | The WKC envelope: is 2.7 a rung? | Block 1 (n = 6 an arm, 12/12 PASS, no falls): 2.7 costs **+2.4° of mean pitch (19.1 → 21.5; worst run 21.1 → 23.3, +2.2)** and buys **0.8 s of a 97 s lap**. The arms OVERLAP by a run each side. Margin to the 28.65° orientation limit: 7.6° at 2.6, **5.4° at 2.7** — independently reproducing this file's earlier "2.7 with 5° of margin", now from a distribution rather than five verdicts. More blocks running. | OPEN-28 |
+| 3 | The WKC envelope: is 2.7 a rung? | Two blocks, n = 12 an arm, **24/24 PASS**: 2.7 costs **+2.6° of mean pitch (18.9 → 21.5) and +3.4° on the worst run (21.1 → 24.5)**, and buys **0.8 s of a 97 s lap (0.8 %)**. Margin to the 28.65° orientation limit: **7.5° at 2.6, 4.1° at 2.7**. The arms overlap in the body but 2.7's tail is where the cost is — its worst two runs both hit 24.5. A time-for-margin trade, not a safety verdict: nothing fell at either speed. | OPEN-28 |
 | 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | 8 of 8 runs that tripped it fell before the debounce; the trips are now rare and the check itself is well placed, but folding four legs mid-stride at 2.6 m/s is still a fall. This tree's own stall-mitigation history says a reflex here needs the operator. | OPEN-39 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
@@ -3137,6 +3137,17 @@ continues. Against the 28.65° orientation limit the margin is **7.6° at 2.6 an
 5.4° at 2.7**, which independently reproduces the "2.7 is wkc-only, 5/5 with 5°
 of margin" line recorded on 09-13 from five verdicts: the same number, now from
 a distribution.
+**10:15 — block 2 replicates it, and sharpens where the cost sits.** Pooled
+n = 12 an arm, **24/24 PASS, no falls at either speed**: 2.6 → pitch mean
+**18.9°**, median 18.6, worst 21.1, lap 97.0 s; 2.7 → mean **21.5°**, median
+20.9, worst **24.5**, lap 96.2 s. So 2.7 costs **2.6° of mean pitch and 3.4° on
+the worst run** for **0.8 s**. The arms still overlap in the body (both have
+runs near 19–20°) — what separates them is the TAIL: 2.7 produced 24.5° twice,
+where 2.6's twelve runs never exceeded 21.1. Margin to the 28.65° orientation
+limit: **7.5° at 2.6 against 4.1° at 2.7**. That is the honest shape of the
+rung: not "2.7 is unsafe" — nothing fell in 12 runs — but "2.7 halves the
+margin and does its damage in the tail", for 0.8 % of the lap. The operator's
+trade, with both numbers now measured on the same binary in the same hour.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
