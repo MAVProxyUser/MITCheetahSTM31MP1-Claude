@@ -340,10 +340,26 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     // 2) UPSTREAM TYPO. `std::fabs(p_leg[1] > 0.18)` takes fabs of a *bool* -
     //    it is 0 or 1, so the test reduces to `p_leg[1] > 0.18` and the
     //    negative side is never checked at all. Parenthesis moved.
+    // A KNOB SINCE 2026-09-16 01:45, default unchanged (ISSUES OPEN-39). This
+    // limit is a STANCE-ENVELOPE policy, not a mechanical guard, and the number
+    // is inherited: 0.18 * (0.08/0.062) = 0.232 rounded up to 0.24, mini-cheetah's
+    // ratio, never checked against this robot's gait. The FK says
+    // p(1) = (l1+l4)*cos(q0) + R*sin(q0), so with the Go1's l1 = 0.08, l4 = 0 and
+    // R up to _maxLegLength = 0.430 the MECHANICAL ceiling at Unitree's own abad
+    // stop (49.5 deg) is 0.379 m - 0.24 is 63 % of it. The shipped trot reaches
+    // 0.240-0.247 m on wkc_finals and hp_gap20 (an abad angle of 44.9 deg at a
+    // 0.27 m stance, well inside the stop), i.e. it EXCEEDS the policy by 0-7 mm,
+    // which is why this branch fires at all: run 8507 tripped it 54 times and
+    // survived because the body was standing, run 8315 tripped it at cruise and
+    // fell. 0.30 would sit 21 % above the gait's envelope and 21 % below the
+    // mechanical bound (reaching 0.30 needs 56 deg of abad at stance, past the
+    // stop, so only an extended leg genuinely out of the envelope gets there).
+    // The default here stays 0.24 - which value SHIPS is the operator's call;
+    // this makes the A/B one env var instead of a rebuild.
 #ifdef USE_GO1_MODEL
-    const T max_pleg_y = 0.24;   // 0.18 * (Go1 abad 0.08 / mini-cheetah 0.062)
+    static const T max_pleg_y = (T)ctrl_tuning::num("CTRL_MAX_PLEG_Y", 0.24);
 #else
-    const T max_pleg_y = 0.18;
+    static const T max_pleg_y = (T)ctrl_tuning::num("CTRL_MAX_PLEG_Y", 0.18);
 #endif
     if(std::fabs(p_leg[1]) > max_pleg_y) {
       if(legy_over[leg]++ == 0) { legy_first[leg] = py_now; legy_moved[leg] = false; }
