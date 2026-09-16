@@ -192,17 +192,52 @@ passed on its own in-suite retry.
   and its dwell arm should be read as a test of newly-live code as much as of
   the idea.
 
+  **BLOCK 1 OF THE THREE-ARM A/B (2026-09-16 17:34, n = 3 an arm, trigger pinned
+  at 0.21 on every arm, binary 978b0b30). It refutes TWO of my own hypotheses,
+  one of them by intervention:**
+
+  | arm | verdicts | per-leg trips | RecovStand entries | ENTRY folds | BAILOUT folds | dwells | folds suppressed | **TIPPED OVER** |
+  |---|---|---|---|---|---|---|---|---|
+  | stock | 1/3 | 296 | **296** | 180 | 0 | 0 | — | 0 |
+  | **dwell** | **0/3** | 3 | **5** | 2 | **2** | 3 | — | **3** |
+  | foldgate | 1/3 | 209 | **209** | 51 | 0 | 0 | **57** | 0 |
+
+  1. **Stock reproduces the cycle exactly on the new binary** — 296 trips and
+     296 entries, 1:1, the signature — so the mechanism is confirmed, not
+     inferred.
+  2. **The dwell WORKS and is HARMFUL.** It collapses the cycle from 296 entries
+     to 5, a 60x reduction, precisely as designed. And all three runs **tipped
+     completely over** (roll 131.5°, 179.9°, 135.8°; pitch 73–80°), where stock
+     and foldgate produce ordinary flat collapses at 29–31° of pitch and zero
+     tips. With the probe that is 4 for 4. **The dwell converts a flat collapse
+     into a full inversion**, via the bailout path that had never executed before
+     today. It should not ship, and the default stays 0.
+  3. **The fold gate is a MEASURED null, and that refutes the fold-as-killer
+     reading.** It did exactly what it promises — 57 folds suppressed, entry
+     folds down from 180 to 51 — and the outcome is stock's: 1/3, same failure
+     mode, no tips. So **suppressing the folds while the cycle continues changes
+     nothing**, which is the intervention test of the historical 93 %-vs-56 %
+     association, and it comes out the way my own caveat warned: depth was the
+     confound and the fold was a marker, not the cause.
+  **Where that leaves decision #4.** The cycle is real and confirmed; of my three
+  coded options one is harmful, one is a measured null, and the third (counter
+  reset) is untested and can only slow the cycle it does not stop. The evidence
+  now points at the conclusion behind all of them: **RecoveryStand is not usable
+  by a robot at cruise at all**, so the answer is likely (c) degrade inside
+  locomotion or (d) make the check advisory above a speed — not any variation on
+  "go to RecoveryStand better". n = 3 an arm; the chain continues to 9–12.
+
   **The option set for decision #4, so the call is a choice and not a blank.**
   All four act on the RESPONSE; none changes the check's threshold, which the
   `leg_y_max` instrument says is well placed (142 mm on a passing run against a
   240 mm limit):
   | # | response | what it costs | status |
   |---|---|---|---|
-  | a | **Dwell in RecoveryStand** until the stand-up ramp has run (`CTRL_LOCO_UNSAFE_HOLD_MS`, 600 ms clears the 250-iter ramp) | the robot stops locomoting mid-course, so the RUN is likely lost even when the robot is not; at 2.6 m/s it also arrives off-path | **written, default off, chain CR measures it** |
+  | a | **Dwell in RecoveryStand** until the stand-up ramp has run (`CTRL_LOCO_UNSAFE_HOLD_MS`) | **MEASURED HARMFUL, 2026-09-16.** It does collapse the cycle, 296 RecoveryStand entries → 5, exactly as designed — and **4 of 4 runs tipped completely over** (roll 131–180°) where stock produces flat collapses and no tips, because it unlocks a stand-up bailout that had never executed in 7251 runs | **written, DEFAULT OFF, and it must stay off** |
   | b | **Reset the per-leg counters on LOCOMOTION entry** so each re-entry gets a fresh 5-tick debounce | cuts the cycle's frequency, and so its BLEED — the measured discriminator between the 61 that fell and the 18 that survived — by `legy_ticks`, i.e. ~5x. Does NOT stop the cycle: partial by construction, but it keeps the robot LOCOMOTING, which (a) does not | **written 2026-09-16, `CTRL_LEG_TRIP_RESET_ON_ENTRY`, default off.** Untested |
   | c | **Degrade instead of aborting**: keep locomotion, cut commanded speed and/or raise the height reference while the condition holds | no mission loss, and it acts on the quantity the cycle consumes — but this tree DELETED its stall mitigation for being worse than the stall it guarded, so a reflex here has a bad precedent | not written; this is the one that most needs the operator |
   | d | **Treat the check as advisory above a speed** and only log | removes the fall class outright and removes the guard with it | not written |
-| **e** | **Do not FOLD a body that is still travelling.** `RecoveryStand::onEnter()` picks fold-vs-stand from HEIGHT alone; when `CTRL_RECOVER_FOLD_VMAX` is set, an upright body moving faster than it prefers StandUp even below 0.20 m. Upside-down folds, slow folds, so the fallen-robot recovery is untouched | acts directly on the step where 93 % of these runs were lost, and costs nothing when the robot really is settled. Risk: a genuinely tumbling robot at speed would stand instead of fold, which is untested | **written 2026-09-16, `CTRL_RECOVER_FOLD_VMAX`, default -1 = off.** Compile-verified, untested |
+| **e** | **Do not FOLD a body that is still travelling** (`CTRL_RECOVER_FOLD_VMAX`) | **MEASURED NULL, 2026-09-16, and the manipulation TOOK**: 57 folds suppressed, entry folds 180 → 51, and the outcome is stock's (1/3, same failure mode, no tips). So suppressing folds while the cycle continues changes nothing — the intervention test of the historical 93 %-vs-56 % association, which comes out as the depth confound my own caveat named | **written, default off; null** |
   The honest framing: (a) is the minimum change that makes the existing design
   do what it was written to do, and it is the only one with a measurement
   pending. (c) is what an operator would probably want on real hardware. (b) is
