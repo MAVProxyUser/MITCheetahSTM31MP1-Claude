@@ -22,7 +22,7 @@ shipped, and none of it needs more data to decide.
 |---|---|---|---|
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. **And the star's own interlude is clear at depth: 38 interludes since the fix, 37 stood back up and PASSED**; the one exception (run 7763) stood up fine and tipped 22 s later mid-dash, i.e. not the interlude. That retires the "3 of 24 star interlude roll-overs" left unexplained on 09-14. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
-| 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED, and it is not a trade — it is a safety line.** Three blocks, n = 18 an arm: 2.6 is **18/18 PASS**, pitch mean 19.1°, p90 20.6, **worst 21.2 in eighteen runs, never once over 23**. 2.7 is **17/18**, mean 22.8, p90 25.3, **worst 32.5° — a course-clean E-stop fall** (499 samples/s, 3.0 ms worst gap, zero trips) — with a second run at 30.2° that survived, and **7 of 18 runs over 23°** against 0 of 18 at 2.6. It buys 0.7 s of a 97 s lap. Recommendation: **keep 2.6**; the decision is still the operator's but the evidence is one-sided. | OPEN-28 |
+| 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED at n = 24 an arm, and it is a safety line, not a trade.** 2.6: **24/24 PASS**, pitch mean 19.1°, **worst 22.0 in twenty-four runs, 0 of 24 over 23°**, margin 6.6° to the 28.65° limit. 2.7: **22/24**, mean 23.0, worst **32.5**, **10 of 24 over 23°**, two course-clean E-stop falls. It buys 0.7 s of a 97 s lap. **Recommendation: keep 2.6.** | OPEN-28 |
 | 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | 8 of 8 runs that tripped it fell before the debounce; the trips are now rare and the check itself is well placed, but folding four legs mid-stride at 2.6 m/s is still a fall. This tree's own stall-mitigation history says a reflex here needs the operator. | OPEN-39 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
@@ -3170,6 +3170,15 @@ verdict: nothing fell at either speed") was true at n = 12 and wrong by n = 18;
 the tail is exactly what the extra block was for. Recommendation to the
 operator: **keep the served 2.6.** This also puts a number on the 09-13 line
 "2.7 is wkc-only, 5/5" — five verdicts could not see a 1-in-18 tail.
+**11:58 — CP's fourth and final block, n = 24 an arm, closes it: 2.6 is 24/24
+with a worst run of 22.0° and NOT ONE run over 23°; 2.7 is 22/24 with a second
+course-clean E-stop fall (30.3°) and 10 of 24 runs over 23°.** The two arms'
+means are 19.1° and 23.0°. So the 2.7 tail is not a fluke of one block: it
+appeared in block 3 and again in block 4, at a rate of 2 falls in 24, and the
+body of its distribution has shifted into the region 2.6 never visits. The lap
+gain remains 0.7 s of 97 (0.7 %). **Keep 2.6** is the recommendation; the
+decision is the operator's, and it is the last thing OPEN-28 was waiting on for
+this course.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
