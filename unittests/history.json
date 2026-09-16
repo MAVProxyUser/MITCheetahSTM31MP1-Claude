@@ -1,24 +1,5 @@
 [
  {
-  "ts": "2026-09-13 10:46:47",
-  "case": "corner_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    2.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 62.6
- },
- {
   "ts": "2026-09-13 10:48:03",
   "case": "oval_real_switch",
   "config": {
@@ -19045,5 +19026,26 @@
   },
   "verdict": "PASS",
   "wall_s": 144.8
+ },
+ {
+  "ts": "2026-09-16 13:06:57",
+  "case": "atom",
+  "config": {
+   "slots": [
+    "atom:9.0:6"
+   ],
+   "gaits": [
+    "trotting"
+   ],
+   "speeds": [
+    2.1
+   ],
+   "dashes": [],
+   "extras": [
+    "WP_ALON=0.4"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 92.7
  }
 ]

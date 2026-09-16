@@ -34,6 +34,7 @@
 // CTRL_LOCO_UNSAFE_HOLD_MS holds the robot IN RecoveryStand for that long after a
 // trip so the stand-up actually runs. 0 = stock (bounce back next tick).
 std::atomic<long> g_locoUnsafeHold{0};
+std::atomic<long> g_locoEntrySeq{0};   // bumped on every LOCOMOTION onEnter (OPEN-40 option b)
 //#include <rt/rt_interface_lcm.h>
 
 /**
@@ -117,6 +118,7 @@ void FSM_State_Locomotion<T>::onEnter() {
   this->transitionData.zero();
   cMPCOld->initialize();
   this->_data->_gaitScheduler->gaitData._nextGait = GaitType::TROT;
+  g_locoEntrySeq.fetch_add(1);
   shmtrace::logf(0.0, "[FSM LOCOMOTION] On Enter");
 }
 
@@ -425,6 +427,25 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     static const T    legv_mps   = (T)ctrl_tuning::num("CTRL_LEGV_TRIP_MPS", 9.0);
     static int        legv_over[4] = {0, 0, 0, 0};
     static int        legv_spikes_logged = 0;
+    // OPEN-40 option (b), CTRL_LEG_TRIP_RESET_ON_ENTRY (default OFF = stock).
+    // These counters are function-statics, so they survive the FSM leaving and
+    // re-entering LOCOMOTION. That is what makes the limit cycle tight: once a
+    // counter is past its trip threshold it re-trips on the FIRST tick of every
+    // re-entry, so the debounce protects only the very first trip and the cycle
+    // runs at 500 Hz. Zeroing them on a fresh entry restores the 5-tick budget
+    // per entry, which divides the cycle's frequency - and so its height bleed,
+    // the measured discriminator between the 61 runs that fell and the 18 that
+    // survived - by legy_ticks. It does NOT stop the cycle; it is the cheap,
+    // partial half of the fix and is compatible with the dwell above.
+    static const bool reset_on_entry = ctrl_tuning::flag("CTRL_LEG_TRIP_RESET_ON_ENTRY", false);
+    static long       last_entry_seq = -1;
+    if(reset_on_entry) {
+      const long seq = g_locoEntrySeq.load();
+      if(seq != last_entry_seq) {      // first leg of the first tick after an entry
+        last_entry_seq = seq;
+        for(int i = 0; i < 4; i++) { hip_over[i] = 0; legy_over[i] = 0; legv_over[i] = 0; }
+      }
+    }
     const auto v_leg = v_now;   // computed once above for the held-sample gate
     if(std::fabs(v_leg) > legv_mps) {
       if(legv_over[leg]++ == 0) { legv_first[leg] = v_now; legv_moved[leg] = false; }
