@@ -149,6 +149,37 @@ passed on its own in-suite retry.
   (`leg_y_max` on the passing box run was 142 mm, nowhere near it).
   Still to measure on this map: `wkc_finals` and `hp_gap20` at 2.6, and the
   weave at depth — n=1 decides nothing here.
+
+- **OPEN-40 ← OPEN-35: this ping-pong was OBSERVED FIVE DAYS AGO and filed as a
+  symptom, and it is what the "level collapse" class always WAS.** OPEN-35's own
+  entry, written 2026-09-11 for run 5058 (wkc_box at 2.6), says it in as many
+  words: after a 247.5 ms bridge stall *"the locomotion safety check tripped and
+  the FSM ping-ponged LOCOMOTION ↔ RecoveryStand (`[FSM LOCOMOTION] On Enter` /
+  `[Recovery Balance] … Folding legs`, alternating every few ms) until the body
+  was on the ground at 0° roll and pitch."* That is OPEN-40's limit cycle,
+  described correctly, and then attributed entirely to the host stall that
+  TRIGGERED it — nobody asked why the FSM was able to alternate every few ms,
+  so the response defect went unexamined and only the trigger was fixed
+  (`BRIDGE_RT`).
+  Three consequences, and the third is the one that matters:
+  1. **The trigger and the response are separable.** A host stall freezing the
+     state and a genuine sustained violation both trip `locomotionSafe()`; the
+     RESPONSE is the same cycle either way. OPEN-35 fixed one trigger. OPEN-39
+     debounced the transients. Neither touched the response.
+  2. **It explains the terminal signature this tree chased for days.** A
+     "level collapse" reads `roll=0 pitch=0 z=0.03` flat at the last tick
+     because the cycle folds the legs and the body settles — 8892's `[FALL]`
+     line says exactly that, while its E-stop fired at **roll 33.3°**. This is
+     `feedback-classify-at-the-event` in its purest form: the flat pose is the
+     aftermath of the fold, not the event.
+  3. **"2 runs in ~400" is a TRIGGER rate, not the response's.** That scan
+     covered recent logs, which postdate `BRIDGE_RT`; the cycle is rare today
+     because 100 ms+ stalls are rare today. So the dwell, if chain CR shows it
+     works, mitigates the host-stall fall class too — a bigger prize than the
+     weave. **Unmeasured and deliberately deferred**: the cycle's incidence
+     across the whole archive (7075 ctrl logs, 51 GB, back to 2026-08-30) needs
+     a full grep, and a scan that size is itself a host tenant — it waits for a
+     real idle gap (memory: `feedback-my-own-analysis-is-a-host-tenant`).
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself

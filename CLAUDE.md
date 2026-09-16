@@ -3007,6 +3007,27 @@ a debounce only ever buys time, and the door the disturbance found next was the
 one marked "recover". And a state that re-decides its own strategy in `onEnter()`
 must never be re-entered at loop rate.
 
+**And this cycle was already written down, five days earlier, as a symptom.**
+OPEN-35's entry for run 5058 (2026-09-11, wkc_box at 2.6) says that after a
+247.5 ms bridge stall "the locomotion safety check tripped and the FSM
+ping-ponged LOCOMOTION <-> RecoveryStand ... alternating every few ms until the
+body was on the ground at 0 deg roll and pitch" - a correct description of
+OPEN-40, attributed wholly to the host stall that TRIGGERED it. Nobody asked why
+the FSM could alternate every few ms, so the trigger was fixed (`BRIDGE_RT`) and
+the response was not. **The trigger and the response are separable**: a stall
+freezing the state and a genuine sustained violation both trip
+`locomotionSafe()`, and the cycle is the same either way. It also explains the
+"level collapse" signature this file chased for days - the flat
+`roll=0 pitch=0 z=0.03` last tick is the settled aftermath of the fold, which is
+why 8892's `[FALL]` line reads level while its E-stop fired at roll 33.3 deg.
+And it reframes "2 runs in ~400" as a TRIGGER rate measured on logs that
+postdate the stall mitigation, not the response's own rate - so the dwell, if it
+measures out, mitigates the host-stall fall class too, which is the larger prize.
+**The lesson: when a write-up explains a mechanism as a symptom of its trigger,
+the mechanism has not been explained.** Ask what made the observed behaviour
+POSSIBLE, not just what set it off - the trigger is where the report stops and
+the defect is one layer under it.
+
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
 the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it
