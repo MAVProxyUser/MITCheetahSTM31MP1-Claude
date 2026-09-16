@@ -1394,7 +1394,17 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   with `held_maxrun >= 2` is a run whose leg state genuinely stopped
   updating — measured per leg, inside the controller, where the trip
   decision is made, rather than inferred from the bridge's 1 Hz counter.
-  Tier 0 on the corrected binary: **13/13**.
+  Tier 0 on the corrected binary: **13/13**, and CK block 1's wkc 12/12
+  (lie-downs: nodamp n = 135, max 1.2°, no abad motion in any; stock
+  n = 125, max 18.1°, 42 of them splayed). First campaign under the new
+  harness confirms the column reads what it should: `held_maxrun=1` on
+  every run, the calibrated value. Two harness notes from installing it:
+  the wkc campaign already running kept the previous inode and so wrote
+  the old 19-field header (the rename-install discipline behaving exactly
+  as intended, not a defect), and the first version printed
+  `held_maxrun=?` on the verdict LINE because I had put the extraction
+  after the echo that used it — the CSV was right, the printed line was
+  not; fixed and rename-installed at 00:10.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
