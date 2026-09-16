@@ -389,6 +389,27 @@ passed on its own in-suite retry.
   Caveat: one failure against eleven passes. That is enough to refute "the
   failing run was the low one" (it was the highest) and not enough to assert that
   nothing could ever predict it.
+  **AND THE TRACE DOES CARRY CONTACT TIMING — I said it did not, which was wrong,
+  so I tested that too.** `c0..c3` are the schedule's per-leg contact flags and
+  `kin_z` is the body above its lowest foot BY FORWARD KINEMATICS, i.e. a height
+  that needs no estimator at all. `trace_slim.py` now extracts both. Over the
+  same pre-divergence window, all twelve runs:
+
+  | | min kin_z | mean contacts | ticks with 0 contacts |
+  |---|---|---|---|
+  | **the FAILURE** | **0.264** | 1.06 | 351 |
+  | the 11 passes | 0.154 … 0.264 | 1.01 … 1.16 | 314 … 370 |
+
+  Null on all three, and `kin_z` — the estimator-free height — puts the failure
+  at the TOP of the range, confirming the estimator-based result rather than
+  inheriting its error. **So six variables have now been tested before the
+  divergence — speed, pitch, estimated height, kinematic height, mean contact
+  count and airborne-tick count — and every one is null, with the failing run
+  mid-range or at the favourable end.** The honest statement is that nothing in
+  the per-tick trace predicts this runaway, which is a real constraint on any
+  lever that acts on the body state. (Incidentally the contact numbers say the
+  trot is genuinely airborne for roughly half these ticks at 2.6, which is worth
+  knowing independently.)
 
   **BOTH levers are now being measured, so the decision can be a comparison
   rather than a yes/no.** Chain CT (queued behind CR) holds cruise at 2.6 and

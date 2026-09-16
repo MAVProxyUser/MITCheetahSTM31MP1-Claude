@@ -1,20 +1,5 @@
 [
  {
-  "ts": "2026-09-13 23:56:22",
-  "case": "octagon_recipe",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [],
-   "speeds": [],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 68.6
- },
- {
   "ts": "2026-09-13 23:57:31",
   "case": "circle_smooth_36gon",
   "config": {
@@ -19060,5 +19045,26 @@
   },
   "verdict": "PASS",
   "wall_s": 70.6
+ },
+ {
+  "ts": "2026-09-16 17:14:32",
+  "case": "dash_long_duration",
+  "config": {
+   "slots": [
+    "dash:100"
+   ],
+   "gaits": [
+    "trotRunning"
+   ],
+   "speeds": [
+    0.6
+   ],
+   "dashes": [],
+   "extras": [
+    "CTRL_XDRAG_CLAMP=1.0"
+   ]
+  },
+  "verdict": "PASS",
+  "wall_s": 194.8
  }
 ]

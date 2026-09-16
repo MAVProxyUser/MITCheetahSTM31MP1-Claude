@@ -34,16 +34,24 @@ REC = re.compile(
     r'\s*"roll":\s*([-\d.eE+]+),\s*"pitch":\s*([-\d.eE+]+),\s*"yaw":\s*[-\d.eE+]+,'
     r'\s*"wx":\s*[-\d.eE+]+,\s*"wy":\s*([-\d.eE+]+),\s*"wz":\s*[-\d.eE+]+,'
     r'\s*"vx":\s*([-\d.eE+]+),\s*"vy":\s*([-\d.eE+]+),\s*"vz":\s*[-\d.eE+]+,'
-    r'\s*"z":\s*([-\d.eE+]+)')
+    r'\s*"z":\s*([-\d.eE+]+),\s*"period_ms":\s*[-\d.eE+]+,'
+    r'\s*"c0":\s*([-\d.eE+]+),\s*"c1":\s*([-\d.eE+]+),\s*"c2":\s*([-\d.eE+]+),\s*"c3":\s*([-\d.eE+]+),'
+    r'\s*"kin_z":\s*([-\d.eE+]+)')
 D = 180.0 / math.pi
-HDR = ["t", "tag", "speed", "pitch_deg", "roll_deg", "wy_dps", "z"]
+# contacts and kin_z are here because the first version omitted them and I then
+# wrote that the trace "does not carry contact timing" - it does. c0..c3 are the
+# GAIT SCHEDULE's contact flags per leg (FR,FL,RR,RL) and kin_z is the
+# kinematic height, i.e. the body above the lowest foot by FK, which needs no
+# estimator. `contacts` below is how many of the four are down.
+HDR = ["t", "tag", "speed", "pitch_deg", "roll_deg", "wy_dps", "z", "contacts", "kin_z"]
 
 def rows_fast(text):
     for m in REC.finditer(text):
-        t, tag, roll, pitch, wy, vx, vy, z = m.groups()
+        t, tag, roll, pitch, wy, vx, vy, z, c0, c1, c2, c3, kz = m.groups()
+        nc = sum(1 for c in (c0, c1, c2, c3) if float(c) > 0.5)
         yield [t, tag, "%.4f" % math.hypot(float(vx), float(vy)),
                "%.3f" % (abs(float(pitch)) * D), "%.3f" % (abs(float(roll)) * D),
-               "%.2f" % (float(wy) * D), z]
+               "%.2f" % (float(wy) * D), z, nc, kz]
 
 def rows_slow(text):
     for r in json.loads(text).get("records", []):
@@ -52,7 +60,9 @@ def rows_slow(text):
         yield ["%.4f" % r["t"], r.get("tag", ""),
                "%.4f" % math.hypot(r["vx"], r["vy"]),
                "%.3f" % (abs(r["pitch"]) * D), "%.3f" % (abs(r["roll"]) * D),
-               "%.2f" % (r.get("wy", 0.0) * D), "%.4f" % r.get("z", 0.0)]
+               "%.2f" % (r.get("wy", 0.0) * D), "%.4f" % r.get("z", 0.0),
+               sum(1 for k in ("c0","c1","c2","c3") if r.get(k, 0) > 0.5),
+               "%.4f" % r.get("kin_z", 0.0)]
 
 def main(argv):
     if len(argv) < 3:
