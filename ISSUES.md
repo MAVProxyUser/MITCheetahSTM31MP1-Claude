@@ -121,6 +121,46 @@ passed on its own in-suite retry.
   immediately; the dwell can never trap the robot. Logs
   `[recover] unsafe dwell expired`. Not shipped: n=2 on the outcome, and
   decision #4 is the operator's.
+  **FIRST RUN OF THE DEPLOYED FIX (probe run 9069, 2026-09-16 17:03) — the
+  mechanism works and the PREMISE IS WRONG, which is why it was default-off.**
+  Binary 22e0f456 → 978b0b30, both globals and all three knob strings verified
+  present. With the trigger pinned at `CTRL_MAX_PLEG_Y=0.21` and the dwell at
+  600 ms, the log reads, in order:
+
+  ```
+  Unsafe locomotion: leg 2's y-position is bad (-0.219 m, max 0.210, 5 ticks)
+  [Recovery Balance] body height is 0.279359; Stand Up
+  [Recovery Balance - Warning] body height is still too low (0.098889) …; Folding legs
+  [recover] unsafe dwell expired - handing back to LOCOMOTION
+  Unsafe locomotion: roll is 153.337 degrees (max 40.000)
+  [FALL] tipped over: roll=-174 deg
+  ```
+
+  **Everything I built did exactly what it was written to do**: the debounce
+  absorbed 4 ticks, the trip fired on the 5th, the dwell HELD the robot in
+  RecoveryStand (3 entries instead of the cycle's 45–152), and the dwell expired
+  and handed back cleanly. **And the run was worse than stock**: the robot ended
+  upside down at roll −174°.
+  **Because the stand-up itself does not work at cruise.** RecoveryStand entered
+  at a healthy 0.279 m, chose StandUp, and the body was at **0.099 m** by the
+  time its own `something_wrong` check ran — `_StandUp` interpolates joint
+  targets from a captured pose and assumes a roughly STATIONARY body; commanded
+  at 2.6 m/s it put the robot over. **So handing a moving robot to RecoveryStand
+  is broken however long you hold it there**, and "let the stand-up actually
+  run" was the wrong premise. That is a result about the recovery state, not
+  about the dwell.
+  **It also exposes a gap in option (e): RecoveryStand folds in TWO places and I
+  gated one.** My `CTRL_RECOVER_FOLD_VMAX` guard sits in `onEnter()`'s
+  fold-vs-stand choice; this fold came from the mid-stand-up bailout
+  (`curr_iter > 0.7*standup_ramp_iter && something_wrong` → `_flag = FoldLegs`),
+  which the guard never sees. The probe had the fold gate ON and folded anyway.
+  **Consequence for decision #4:** options (a) and (e) both depend on StandUp
+  succeeding at speed, and this run says it does not — which promotes **(c),
+  degrade within locomotion**, from "the one that most needs the operator" to
+  the only candidate that does not route a moving robot through a state built
+  for a stationary one. n = 1, and the chain's blocks will now produce 9–12 runs
+  an arm on exactly this.
+
   **The option set for decision #4, so the call is a choice and not a blank.**
   All four act on the RESPONSE; none changes the check's threshold, which the
   `leg_y_max` instrument says is well placed (142 mm on a passing run against a
