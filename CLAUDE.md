@@ -3141,6 +3141,23 @@ bleed, the fold gate removes the line the race is against.
 crossed 0.20, and 56 % of the 34 non-crossers fell anyway, so the cycle can
 disrupt the gait enough to lose attitude without the body dropping that far. A
 fold gate alone would address at most 42 of the 61.
+**All 79 cases are now accounted for, and the cycle kills by TWO routes that map
+onto OPEN-39 and OPEN-40 respectively.** Of the 19 that never crossed the fold
+line, **19 of 19 had an orientation E-stop first** - peak mean 32.1 deg, max
+38.1, pitch-dominant in 13 and roll-dominant in 6 - and 17 of 19 settled to a
+`collapsed` pose because the E-stop cuts the motors and the body drops flat.
+Route 1, the bleed, 42 runs: the cycle bleeds height, crosses 0.20 m, and
+RecoveryStand folds four legs under a moving body. Route 2, the attitude, 19
+runs: the cycle re-commands a stand pose mid-stride, attitude runs away, and the
+orientation E-stop fires at ~32 deg. 18 survived, with the bleed inside the
+headroom and attitude holding. **Route 2 is exactly OPEN-39's original framing**
+- "RECOVERY_STAND re-commands all four legs to a stand pose mid-stride, a fall
+every time at cruise" - so that insight was right and describes that route,
+while OPEN-40's bleed-and-fold is the other. Consequences for the fixes: the
+DWELL addresses both routes because it stops the oscillation outright, and is
+the only one that costs mission progress; the FOLD GATE addresses route 1 only,
+at most 42 of 61, and is free when the robot really is settled; the COUNTER
+RESET cuts exposure to both by roughly 5x and costs nothing. Not exclusive.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding

@@ -391,6 +391,34 @@ passed on its own in-suite retry.
      can disrupt the gait enough to lose attitude without the body dropping that
      far. So a fold gate alone would address at most the 42, not all 61.
 
+  7. **ALL 79 CASES NOW ACCOUNTED FOR — the cycle kills by TWO routes, and they
+     map onto OPEN-39 and OPEN-40 respectively.** Characterising the 19 that
+     never crossed the fold line: **19 of 19 had an orientation E-stop before
+     the fall**, at a peak of mean 32.1° and max 38.1°, pitch-dominant in 13 and
+     roll-dominant in 6, with 17 of 19 settling to a `collapsed` pose because
+     the E-stop cuts the motors and the body drops flat.
+
+     | route | n | how it kills |
+     |---|---|---|
+     | **1, the bleed** | 42 | cycle bleeds height → crosses 0.20 m → RecoveryStand FOLDS four legs under a moving body |
+     | **2, the attitude** | 19 | cycle re-commands a stand pose mid-stride → attitude runs away → orientation E-stop at ~32° |
+     | survived | 18 | bleed stayed inside the headroom AND attitude held |
+
+     **Route 2 is exactly OPEN-39's original framing** — "RECOVERY_STAND
+     re-commands all four legs to a stand pose mid-stride, a fall every time at
+     cruise" — so that insight was right and describes this route; OPEN-40's
+     bleed-and-fold is the other one. Together they close every case.
+     **What each option therefore covers**, which is the practical point for
+     decision #4:
+     - the **dwell (a)** addresses BOTH routes, because it stops the oscillation
+       outright and lets the robot stand — the most complete fix, and the one
+       that costs mission progress;
+     - the **fold gate (e)** addresses route 1 only, at most 42 of 61 — the most
+       targeted, and free when the robot really is settled;
+     - the **counter reset (b)** reduces exposure to both by `legy_ticks`,
+       roughly 5x, and costs nothing.
+     They are not exclusive, and (b) composes with either.
+
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer
   froze, and the legacy nav drove the second half of the course again** —
