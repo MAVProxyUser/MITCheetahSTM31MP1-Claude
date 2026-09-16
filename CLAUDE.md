@@ -1380,6 +1380,27 @@ score (22.5 vs 22.7 at n = 12 an arm, lap +0.3 s proving the manipulation took),
 it was on wkc 2.8. NOTHING SHIPPED: the recipe still serves 2.6 and the envelope is
 the operator's call.*
 
+*And the margin map found a course whose binding axis is NOT pitch (2026-09-16,
+ISSUES OPEN-28/40). Every envelope number above is a PITCH margin, because every
+course measured so far spends itself longitudinally - braking for a corner,
+re-accelerating out of a reversal. `wkc_weave` is a serpentine, so it spends its
+whole length asking for LATERAL acceleration, and its first run at the served 2.6
+fell with **roll 34.6 deg against pitch 29.7 deg, yaw SATURATED (`yawsat=1`), and
+`leg_y_max` 243 mm** - 3 mm past the 240 mm foot limit and held there for 49
+ticks - on a perfect 500 samples/s stream with a 3.1 ms worst gap and a 2.04 ms
+loop. The passing `wkc_box` run beside it peaked at `leg_y_max` 142 mm. So the
+pre-planner's relevant lever here is very likely the LATERAL BUDGET (`WP_ALAT`,
+already 2.0 in the wkc recipe - the knob that took wkc 2.6 from 3/21 to 20/21),
+not the per-corner turn cap that fixed the S-bend: a turn cap brakes for a
+CORNER, and a weave's demand is continuous. **Not encoded, and it must not be at
+n=1** - this tree has retracted a terrain cap set from a thin cell before. Chain
+CQ's margin map is collecting the per-course distribution at the served speed;
+the honest statement today is that the weave is the SUSPECTED weak link in the
+shipped envelope and that its deficit is lateral. Note also that the fall it
+produced was OPEN-40's limit-cycle response, not the lateral limit being set
+wrong - separate a check's threshold from what its trip DOES before moving
+either.*
+
 Check a run's SHAPE
 before its verdict: the waypoint sequence in the `[nav]` lines and the mission time
 against the course length (171 s for a 197 m course at 2.4 was the tell, in every log).*
