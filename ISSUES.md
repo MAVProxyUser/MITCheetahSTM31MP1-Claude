@@ -1537,6 +1537,30 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   tests that instead of one in three hundred, and the two arms' whole
   distributions become comparable rather than their zero-count trips.
   Chain CM deploys it behind CL (STOP_CL touched).
+  **03:31 — the instrument's first reading REFUTES the premise of my own
+  0.30 proposal, by the same selection error as the other two tonight.**
+  Probe run 8585, wkc 2.6, PASS: **`leg_y_max = 225 mm`, and ZERO of its
+  119 seconds reached 240** — the run never came within 15 mm of the
+  limit. Top per-second values 165, 185, 210, 214, 225. So the claim I
+  wrote at 01:40, that "the shipped trot reaches 0.240–0.247 m on these
+  courses" and therefore "EXCEEDS the policy by 0–7 mm", was read off a
+  grep of the exceedance VALUES in the ctrl logs — a sample that BY
+  CONSTRUCTION cannot contain anything below 240, because the line is only
+  printed when the limit is exceeded. Selecting on the outcome and then
+  describing the population: the same shape as inferring a rate from a
+  capped log (22:57) and recomputing a column instead of reading its
+  definition (23:15), three times in one night from the same habit of
+  taking a number from whatever text happened to be available.
+  **What the correction does to the proposal:** 240 is NOT below the
+  gait's normal envelope — a passing run tops out around 225 — so raising
+  it to 0.30 would not remove a systematic false positive, it would remove
+  a RARE one, and the two runs that tripped it were a minority excursion
+  rather than the norm. That may still be worth doing, but the argument
+  has to be made on the tail of the distribution (how often a run gets
+  past 225, past 240, and whether those excursions are benign), which is
+  exactly what CM's two arms now collect once per run. The 0.30 proposal
+  stands as a candidate, its stated rationale withdrawn, and nothing
+  should ship on it until the distribution is in.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
