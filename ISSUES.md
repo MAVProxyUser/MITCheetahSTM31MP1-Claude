@@ -27,7 +27,7 @@ shipped, and none of it needs more data to decide.
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
 | 7 | Desktop tenants running beside the rig. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night. **Added 2026-09-16 12:53**, sampled during a live tier: `searchpartyd` (Find My) spiked to **71.7 %** and re-sampled at 23.3 %, though its lifetime total is only 299 min over 22 days, so it is a spiky tenant rather than a runaway — worth a look precisely because it is new to this list and it spikes. `bluetoothd` 3.4 %, WindowServer 5.5 %. None of these is mine to kill. **And a note on `mediaanalysisd`, measured 2026-09-16 13:49:** the standing culler has made **32,401 kills in 1207 minutes — 26.8 per minute, a respawn about every 2.2 s** — and `com.apple.mediaanalysisd` is ALREADY `=> disabled` in this user's launchd disabled list, so the obvious lever has been pulled and something else is still launching it (system job or on-demand XPC). Each instance dies having used **0.01 s of CPU**, so the culler is holding it at effectively zero cost and it is not a meaningful tenant today; what remains is ~27 process spawns a minute of pure churn. Worth knowing the agent-level disable does not stop it before spending any more effort there. | OPEN-35 |
-| 9 | **NEW 2026-09-16: the `wkc_weave` envelope at 2.6.** | **The margin map says the weave has no margin**: n = 9 a course over 3 interleaved blocks, `wkc_weave` is **8/9** with pitch mean **23.0°** and worst **31.5°**, i.e. **2.9° PAST** the 28.65° E-stop, while `wkc_box` keeps +4.0, `hp_gap20` +5.4 and `wkc_finals` +8.0 and all three go 9/9. The failing run is a bare envelope fall: pitch 31.3°, zero unsafe lines, zero RecoveryStand entries, `leg_y_max` 221 mm inside the 240 limit, clean 500 samples/s. The binding axis is PITCH, not the lateral load I first assumed from the OPEN-40 run. Lever, by analogy with decision #2 and NOT yet measured here: serve 2.5 on this course. Caveat: the weave is the least-tested course in the catalog, ~39 runs against wkc_finals' 1684. | OPEN-28 |
+| 9 | **The `wkc_weave` envelope: keep 2.6, or serve 2.5?** | **ANSWERED at n = 18 an arm, three interleaved blocks, and it is a SAFETY line rather than a reliability one.** 2.5: 17/18, passing pitch mean **19.7** sd 1.34, worst **22.7** → **+5.9°** of margin. 2.6: 15/18, mean **24.5** sd 2.81, worst **29.1** → **−0.5°**, i.e. a run that PASSED went past the 28.65° E-stop and survived only because the trip needs 60 ms held. The verdict difference is **not** significant (Fisher p = 0.603) — do not quote reliability. The margin difference is (4.7°, Mann-Whitney p = 6e-06). **Cost +0.7 s on a 55 s lap, 1.3 %.** Same shape as decision #3. Cautions: 2.6's per-block mean CLIMBS 21.7/24.1/27.1 while 2.5 sits flat at 19.6/19.8/19.8, so the pooled 24.5 is an average over a rising trend; and per-tick traces say **no body-state variable predicts the runaway**, so 2.5 buys margin and does not remove the tail. Chain CT is measuring the cheaper targeted alternative (`WP_REACCEL_VMAX`) next. | OPEN-28 |
 | 8 | The archive: thin it, move it, or leave it. | 50 GB, fully compacted, growing ~6 GB/day with no retention; 09-08…09-12 is 29 GB and every result from it is in this file. Free space 32 GB; the harness now warns at 20 and stops the chains at 8. | OPEN-35 |
 - A closed entry keeps: symptom → root cause → fix → evidence. If it was
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
@@ -244,8 +244,41 @@ passed on its own in-suite retry.
   Lap cost so far: **+0.75 s on a 55 s lap, 1.4 %**, against the hairpin's +0.2 s
   on 49.5 s. Both are the same trade in kind: about a percent of time for the
   margin, on a course that currently has none.
-  **BLOCK 2 REVERSES THE VERDICT READING — 2.5 FELL TOO, and the difference in
-  reliability is gone (n = 12 an arm, 2026-09-16 16:02):**
+  **FINAL, n = 18 an arm, three interleaved blocks (2026-09-16 16:40). The
+  answer for decision #9 is a SAFETY line, not a reliability one:**
+
+  | | verdicts | PASSING pitch mean | sd | PASSING worst | margin | lap |
+  |---|---|---|---|---|---|---|
+  | **2.5** | 17/18 | **19.7** | **1.34** | **22.7** | **+5.9** | 55.8 s |
+  | 2.6 | 15/18 | 24.5 | 2.81 | **29.1** | **−0.5** | 55.1 s |
+
+  - **The verdict difference is NOT significant even at n = 18**: 17/18 vs 15/18,
+    Fisher p = 0.603. Anyone quoting "2.5 is more reliable" from this is quoting
+    noise.
+  - **The margin difference IS decisive, and it is the safety argument.** At 2.6
+    a run that PASSED reached **29.1°** — past the 28.65° E-stop, surviving only
+    because the trip needs 60 ms held — so the passing population itself has no
+    margin (−0.5). At 2.5 the worst passing case is 22.7, i.e. +5.9. The
+    difference of passing means is **4.7°**, Mann-Whitney p = 6.4e-06.
+  - **Cost: +0.7 s on a 55 s lap, 1.3 %.**
+  This is the same shape as decision #3's answer on wkc 2.7 — *a safety line,
+  not a trade* — reached from the opposite direction: there the verdicts moved,
+  here they do not and the margin does.
+  **One caution that belongs with the number: 2.6's mean is not stable.** Per
+  block, the 2.5 arm sits at 19.6 / 19.8 / 19.8 while 2.6 climbs
+  **21.7 / 24.1 / 27.1**. The arms are interleaved WITHIN each block, so host
+  drift would move both and the 2.5 arm did not move at all. So either the faster
+  arm is genuinely degrading over a session or this is small-sample noise at
+  n ≈ 5 a block; either way the pooled 24.5 is an average over a rising trend and
+  should not be treated as a fixed property of 2.6.
+  *(Process note: the first attempt at the exact rank-sum enumerated
+  C(36,18) ≈ 9e9 combinations and burned a core for nothing before being killed.
+  The exact test was affordable at n = 6 and n = 12 and is not at n = 18 — check
+  the combinatorics before enumerating; the tie-corrected normal approximation
+  is what the figures above use.)*
+
+  **BLOCK 2's intermediate reading, kept because it is the honest middle of the
+  story — 2.5 FELL TOO, and at n = 12 the reliability difference was gone:**
 
   | | verdicts | PASSING pitch mean | sd | PASSING worst | margin | lap |
   |---|---|---|---|---|---|---|
