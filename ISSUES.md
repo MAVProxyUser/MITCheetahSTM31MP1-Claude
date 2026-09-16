@@ -3087,9 +3087,26 @@ against the 33.2° E-stop that killed run 7994: 9.3° at 2.6, **13.6° at 2.5**.
 Held deliberately as ONE BLOCK: complete separation is strong and the
 interleaving means host drift hits both arms equally, but tonight has three
 retractions in it from believing a handful of runs, so the recommendation waits
-for block 2 and the chain keeps running. If it holds, this is the hairpin's
-envelope decision for the operator — 2.5 with a third more pitch margin for
-half a percent of lap, against 2.6 as shipped.
+for block 2 and the chain keeps running. **07:37 — block 2 REPLICATES it.**
+Pooled over both blocks, 24 runs, all PASS:
+
+| arm | n | peak pitch mean | median | range | lap |
+|---|---|---|---|---|---|
+| 2.6 m/s | 12 | 21.9° | 21.5 | 20.3–23.9 | 49.5 s |
+| 2.5 m/s | 12 | **18.8°** | 18.8 | 17.7–20.3 | 49.7 s |
+
+The effect is **3.0° of mean pitch for +0.2 s of lap**, and it reproduced in a
+second independent block (block 1: 22.0 vs 18.6; block 2: 21.8 vs 19.1). The
+exact rank-sum over the pooled 12 v 12 is p < 1e-5. Honest detail: the pooled
+ranges now TOUCH at a single point (2.5's worst run 20.3° equals 2.6's best
+20.3°) where block 1 alone had them disjoint — the separation is near-total
+rather than total, which is what a bigger sample usually does to a clean gap,
+and the conclusion is unchanged. Margin to the 33.2° E-stop that killed run
+7994: **9.3° at 2.6, 12.9° at 2.5** on the worst run of each arm. **This is the
+hairpin's envelope decision, and it is the operator's:** 2.5 buys a third more
+pitch margin for half a percent of lap time, on a course whose only
+course-clean fall in ~200 runs was a pitch runaway. Nothing is shipped — the
+recipe still serves 2.6 — and the chain keeps accumulating.
 
 - **OPEN-10 · Board backport: the solver on the A7** — `HARDWARE`. qpOASES
   costs 198-218 ms vs a 26 ms segment on the STM32MP1; needs the async path
