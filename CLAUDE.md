@@ -3258,6 +3258,31 @@ DWELL addresses both routes because it stops the oscillation outright, and is
 the only one that costs mission progress; the FOLD GATE addresses route 1 only,
 at most 42 of 61, and is free when the robot really is settled; the COUNTER
 RESET cuts exposure to both by roughly 5x and costs nothing. Not exclusive.
+**MEASURED 2026-09-16, and every candidate failed - the last one instructively.**
+Trigger pinned so each arm trips (`CTRL_MAX_PLEG_Y=0.21`, wkc_finals at 2.6),
+n = 6 an arm: stock 2/6 with **616 trips and 616 RecoveryStand entries** (1:1,
+the cycle); the DWELL 0/6, cycle collapsed to 9 entries exactly as designed,
+**and 7 of 7 runs TIPPED COMPLETELY OVER** (roll 131-180 deg against 0 of 12 in
+the other arms); the FOLD GATE a measured null (folds 410 -> 85, a 4.8x
+reduction proving the manipulation took, verdict 1/6 against stock's 2/6 - which
+also refutes the historical fold-as-killer association as the depth confound it
+was).
+**Why the dwell is STRUCTURALLY unsafe, from one line of source.**
+`FSM_State_RecoveryStand` sets `this->checkSafeOrientation = false`, and
+`ControlFSM::safetyPreCheck()` reads exactly that flag - so **the 28.65 deg
+attitude E-stop is DISABLED BY DESIGN while the FSM is in RECOVERY_STAND.**
+Correct for a recovering robot, catastrophic for a moving one. Stock bounces
+between the states every tick, so it spends half its ticks in LOCOMOTION where
+the guard is live and the E-stop cuts the motors at 29-31 deg - the familiar
+flat collapse. The dwell parks the robot for 600 ms where nothing watches
+attitude, so nothing stops it between 30 and 180 deg and only the 50 deg fall
+detector notices. **The corollary: THE LIMIT CYCLE IS WHAT WAS KEEPING THE
+ATTITUDE GUARD ALIVE** - the defect bounces the robot back into the state where
+the check applies, so "fixing" the cycle by holding the state removes the
+protection. Any future fix here has to keep the robot somewhere a guard is
+watching, which is the one argument for the advisory option
+(`CTRL_LOCO_UNSAFE_ADVISORY_VMAX`): it keeps the robot in LOCOMOTION, where the
+attitude check is live.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
