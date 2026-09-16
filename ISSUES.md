@@ -1519,6 +1519,9 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   interleaved comparison at N ≈ 280 an arm, and the reproduced tail event
   are all on record; OPEN-30 needs nothing further but the operator's
   judge decision, which is unchanged and still theirs.
+  **02:17 — binary 290ab874 → 824e81e9**, the `CTRL_MAX_PLEG_Y` knob in
+  (default 0.24, behaviour unchanged). CL's probe, then the tier, then
+  wkc 2.6 ×6 per arm with the per-arm y-position counts.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
