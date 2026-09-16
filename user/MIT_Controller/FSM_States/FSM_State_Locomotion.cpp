@@ -282,25 +282,41 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     // genuine runaway that held a constant speed to the last bit for 10 ms
     // would be missed; the attitude checks above and the debounced orientation
     // E-stop still catch a robot that is actually going over.
-    // CTRL_LEG_HELD_GATE=0 disables this gate for an A/B.
+    // CORRECTED at 23:10 the same evening, by its own first measurement. The
+    // first cut SKIPPED unchanged ticks, and the very first probe run logged 50
+    // held samples - the throttle cap - so holds are ROUTINE at matched rates
+    // (the controller ticks at 500 Hz and the sensor stream delivers ~500/s, so
+    // two control ticks landing on one packet is ordinary, not a fault). Skipping
+    // those ticks would have made every genuine trip slower by however often the
+    // stream happens to hold, an input nobody chose. The rule that needs no such
+    // bargain: count EVERY over-limit tick as before, but require that at least
+    // two DISTINCT values were seen while over the limit before tripping. A
+    // frozen sample reports one value however long it lasts and can never trip;
+    // a real transient reports a different value every tick and trips on
+    // schedule. Checked against both runs on record: 8407's eight ticks at an
+    // identical 9.749 m/s never trip, 8315's 10.064 -> 12.389 would trip on time.
+    // CTRL_LEG_HELD_GATE=0 restores the plain tick count for an A/B.
     static const bool  held_gate = ctrl_tuning::flag("CTRL_LEG_HELD_GATE", true);
     static float       last_py[4] = {0, 0, 0, 0}, last_pz[4] = {0, 0, 0, 0}, last_v[4] = {0, 0, 0, 0};
     static bool        last_valid[4] = {false, false, false, false};
-    static int         held_logged = 0;
+    static long        held_run[4] = {0, 0, 0, 0};
     const float py_now = (float)p_leg[1], pz_now = (float)p_leg[2];
     const float v_now  = (float)this->_data->_legController->datas[leg].v.norm();
-    const bool  held   = held_gate && last_valid[leg] && py_now == last_py[leg] && pz_now == last_pz[leg] && v_now == last_v[leg];
+    const bool  held   = last_valid[leg] && py_now == last_py[leg] && pz_now == last_pz[leg] && v_now == last_v[leg];
     last_py[leg] = py_now; last_pz[leg] = pz_now; last_v[leg] = v_now; last_valid[leg] = true;
     if(held) {
-      if(held_logged < 50) {
-        held_logged++;
-        shmtrace::logf(0.0, "[leghold] leg %d state unchanged (y %.3f z %.3f |v| %.3f) - a held sample, not counted toward any trip", leg, (double)py_now, (double)pz_now, (double)v_now);
-      }
-      continue;   // no new evidence about this leg this tick
+      ++g_legHeldTicks;
+      if(++held_run[leg] > g_legHeldMaxRun.load()) g_legHeldMaxRun.store(held_run[leg]);
+    } else {
+      held_run[leg] = 0;
     }
+    // "has this over-limit streak shown more than one value?", per leg per check
+    static float legy_first[4] = {0, 0, 0, 0}, hip_first[4] = {0, 0, 0, 0}, legv_first[4] = {0, 0, 0, 0};
+    static bool  legy_moved[4] = {false, false, false, false}, hip_moved[4] = {false, false, false, false}, legv_moved[4] = {false, false, false, false};
     if(p_leg[2] > 0) {
-      hip_over[leg]++;
-      if(hip_over[leg] >= hip_ticks) {
+      if(hip_over[leg]++ == 0) { hip_first[leg] = pz_now; hip_moved[leg] = false; }
+      else if(pz_now != hip_first[leg]) hip_moved[leg] = true;
+      if(hip_over[leg] >= hip_ticks && (hip_moved[leg] || !held_gate)) {
         shmtrace::logf(0.0, "Unsafe locomotion: leg %d is above hip (%.3f m, %d ticks)", leg, (double)p_leg[2], hip_over[leg]);
         return false;
       }
@@ -330,8 +346,9 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     const T max_pleg_y = 0.18;
 #endif
     if(std::fabs(p_leg[1]) > max_pleg_y) {
-      legy_over[leg]++;
-      if(legy_over[leg] >= legy_ticks) {
+      if(legy_over[leg]++ == 0) { legy_first[leg] = py_now; legy_moved[leg] = false; }
+      else if(py_now != legy_first[leg]) legy_moved[leg] = true;
+      if(legy_over[leg] >= legy_ticks && (legy_moved[leg] || !held_gate)) {
         shmtrace::logf(0.0, "Unsafe locomotion: leg %d's y-position is bad (%.3f m, max %.3f, %d ticks)",
                leg, (double)p_leg[1], (double)max_pleg_y, legy_over[leg]);
         return false;
@@ -365,14 +382,15 @@ bool FSM_State_Locomotion<T>::locomotionSafe() {
     static int        legv_spikes_logged = 0;
     const auto v_leg = v_now;   // computed once above for the held-sample gate
     if(std::fabs(v_leg) > legv_mps) {
-      legv_over[leg]++;
-      if(legv_over[leg] >= legv_ticks) {
+      if(legv_over[leg]++ == 0) { legv_first[leg] = v_now; legv_moved[leg] = false; }
+      else if(v_now != legv_first[leg]) legv_moved[leg] = true;
+      if(legv_over[leg] >= legv_ticks && (legv_moved[leg] || !held_gate)) {
         shmtrace::logf(0.0, "Unsafe locomotion: leg %d is moving too quickly (%.3f m/s, %d ticks over %.1f)", leg, (double)v_leg, legv_over[leg], (double)legv_mps);
         return false;
       }
       if(legv_spikes_logged < 50) {
         legv_spikes_logged++;
-        shmtrace::logf(0.0, "[legv] leg %d over %.1f m/s for %d tick(s) (%.3f m/s) - not a trip until %d", leg, (double)legv_mps, legv_over[leg], (double)v_leg, legv_ticks);
+        shmtrace::logf(0.0, "[legv] leg %d over %.1f m/s for %d tick(s) (%.3f m/s, %s) - not a trip until %d", leg, (double)legv_mps, legv_over[leg], (double)v_leg, legv_moved[leg] ? "changing" : "one value - held sample", legv_ticks);
       }
     } else {
       legv_over[leg] = 0;

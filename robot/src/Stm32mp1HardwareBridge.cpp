@@ -610,6 +610,13 @@ void Stm32mp1HardwareBridge::run() {
       // (joint-PD targets clamped / soft stops applied, summed over 12 joints)
       shmtrace::logf(_healthElapsed, "[stm32mp1] joint limits: clamps=%ld stops=%ld",
              g_jointLimitClamps.exchange(0), g_jointLimitStops.exchange(0));
+      // OPEN-39: held sensor samples as locomotionSafe() sees them. `held` is
+      // (leg,tick) pairs whose state was bit-identical to the previous tick -
+      // routine at matched rates - and `maxrun` is the longest consecutive
+      // hold for one leg this second, which is the number that matters: a run
+      // of 5+ is long enough to have forged a "persistent" violation.
+      shmtrace::logf(_healthElapsed, "[stm32mp1] held samples: held=%ld/s maxrun=%ld",
+             g_legHeldTicks.exchange(0), g_legHeldMaxRun.exchange(0));
     }
   }
 }

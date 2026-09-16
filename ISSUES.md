@@ -1321,7 +1321,31 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   **98b34331** (the object was already built and verified at 22:24, so the
   chain's build was a no-op relink — "build ok (0 warnings)"). Probe, then
   the tier, then the standing blocks; a `[leghold]` line in any run is the
-  gate refusing to count a frozen sample.
+  gate refusing to count a frozen sample. **22:57 — the gate's first
+  exposures, and its own measurement corrected its design.** The probe
+  (8432) and the tier's first two cases passed — the **star at 3.5 m/s,
+  the very case that fell on the previous binary, PASS through a
+  453-samples/s second with ZERO trips** (run 8433), the atom likewise at
+  455/s (8434), control loop 2.02–2.06 ms throughout. But all three runs
+  logged exactly **50** `[leghold]` lines — the throttle cap — and zero
+  `[legv]`/`[legkin]`: held samples are ROUTINE, not the rare fault I had
+  assumed, and at ordinary cruise values (`|v|` 0.65–1.13 m/s, feet at
+  −0.26 m), which is just two control ticks landing on one sensor packet
+  at matched rates (500 Hz against ~500/s). My first cut SKIPPED unchanged
+  ticks, so it would have slowed every genuine trip in proportion to how
+  often the stream happens to hold — an input nobody chose, the exact
+  shape of `feedback-harness-names-every-input`. **Corrected at 23:10, to
+  a rule that needs no such bargain:** count every over-limit tick as
+  before, but require at least two DISTINCT values while over the limit
+  before tripping. A frozen sample reports one value however long it lasts
+  and can never trip; a real transient reports a different value every
+  tick and trips on schedule. Checked against both runs on record: 8407's
+  eight identical 9.749 m/s ticks never trip, 8315's 10.064 → 12.389 trips
+  on time. The 50-line log is replaced by heartbeat counters
+  (`[stm32mp1] held samples: held=N/s maxrun=N`, the max consecutive hold
+  per leg per second being the number that matters — a run of 5+ is long
+  enough to forge a persistent violation), built and compile-verified;
+  chain CK deploys it. `CTRL_LEG_HELD_GATE=0` restores the plain count.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every

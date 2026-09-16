@@ -92,3 +92,7 @@ void computeLegJacobianAndPosition(Quadruped<T>& quad, Vec3<T>& q, Mat3<T>* J,
 // OPEN-31 counters: joint-PD targets clamped into Unitree's operational range and soft stops applied (see LegController.cpp)
 #include <atomic>
 extern std::atomic<long> g_jointLimitClamps, g_jointLimitStops;
+// OPEN-39: how often locomotionSafe() saw a leg's state bit-for-bit unchanged
+// from the previous tick (a held sensor sample) and the longest such run, so
+// the heartbeat can report it instead of 50 throttled log lines.
+extern std::atomic<long> g_legHeldTicks, g_legHeldMaxRun;
