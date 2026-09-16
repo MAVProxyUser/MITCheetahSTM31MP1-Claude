@@ -1311,6 +1311,13 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   repeat. A genuine runaway holding a constant speed to the last bit for
   10 ms would be missed; the attitude checks and the debounced orientation
   E-stop still catch a robot actually going over. Chain CJ ships it.
+  **22:49 — CI closed after block 1** (wkc 12/12, both arms 6/6; the
+  hairpin block was skipped by STOP_CI so CJ's tier runs on the gated
+  binary instead). Its one block of the y-position/above-hip debounce
+  added no trips and no grazes. Running lie-down totals across CF–CI:
+  nodamp **n = 127** (max 1.2°, abad excursion 0.000 rad in all 127, zero
+  failures) vs stock n = 119 on the same binaries (max 18.1°, 39 of them
+  splayed). Chain CJ (pid 2490) has the rig.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the
