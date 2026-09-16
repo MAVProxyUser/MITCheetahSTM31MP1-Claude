@@ -1322,6 +1322,27 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   chain's build was a no-op relink — "build ok (0 warnings)"). Probe, then
   the tier, then the standing blocks; a `[leghold]` line in any run is the
   gate refusing to count a frozen sample.
+  **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
+  52 → 35 GB over the day, and compaction is NOT the problem: 4160
+  snapshots packed, **zero unpacked**, the packer keeping up at every
+  campaign start. The 47 GB of `archive/shm_trace` is genuine data with no
+  retention policy — 496–665 snapshots a day at ~11 MB compacted, i.e.
+  **~6 GB/day** (09-08 2.6 G, 09-09 6.0, 09-10 5.8, 09-11 7.4, 09-12 7.2,
+  09-13 7.0, 09-14 5.6, 09-15 5.7). At that rate 35 GB is about five days,
+  and the three `com.apple.os.update-*` APFS local snapshots from the
+  prepared macOS update are still pinning whatever has been deleted since
+  they were taken. Deleting run data is the operator's call, not mine, so
+  what I did instead is make the harness refuse to produce garbage: a DISK
+  GUARD at each campaign start (rename-installed 23:00) warns in the
+  campaign log below `DISK_WARN_GB` (20) with the hours remaining, and
+  below `DISK_STOP_GB` (8) stops the CHAIN cleanly — it touches the
+  STOP marker of every live chain by deriving the name from the running
+  process, prints the archive size, and exits 3 — rather than letting runs
+  fail oddly, logs truncate and the conductor wedge on a full volume. The
+  levers when it matters: thin the old days (09-08..09-12 is 29 GB and
+  every result from them is already in this record and the score cache),
+  move the archive to an external volume, or let the operator's pending
+  macOS restart clear the update snapshots.
 
 - **OPEN-36 · A fall that comes to rest propped at 40.5° and 0.11 m is
   neither "tipped" nor "collapsed" to the judge: the FSM ping-pongs for the

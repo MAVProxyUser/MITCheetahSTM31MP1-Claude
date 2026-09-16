@@ -44,6 +44,30 @@ campaign_claim "$NAME" || exit 1   # no overlapping campaigns, no stale markers
 # real time - OPEN-39's sample deficits do not care about nice), so it runs to
 # completion in the idle gap before the first launch, capped at five minutes.
 pgrep -f "^bash gazebo/tools/archive_compact.sh" >/dev/null || timeout 300 bash gazebo/tools/archive_compact.sh >/dev/null 2>&1
+
+# DISK GUARD (2026-09-15 23:00, ISSUES OPEN-35). The snapshot archive has no
+# retention policy and grows ~6 GB/day COMPACTED (496-665 snapshots a day at
+# ~11 MB each); compaction is keeping up (4160 packed, 0 unpacked) so what is
+# left is genuine data, and only the operator can decide to delete it. What the
+# harness can do is refuse to produce garbage: below DISK_WARN_GB the campaign
+# says so in its own log every time, and below DISK_STOP_GB it stops the CHAIN
+# cleanly (touching every STOP_?? marker) instead of letting runs fail in
+# confusing ways, logs truncate and the conductor wedge on a full volume. A
+# clean stop with a loud reason beats a night of corrupt data; RULE ONE's answer
+# is to free space, not to keep writing into 5 GB.
+DISK_WARN_GB="${DISK_WARN_GB:-20}"; DISK_STOP_GB="${DISK_STOP_GB:-8}"
+DISK_FREE_GB=$(df -g / | tail -1 | awk '{print $4}')
+if [ "${DISK_FREE_GB:-999}" -lt "$DISK_STOP_GB" ]; then
+  echo "DISK GUARD: only ${DISK_FREE_GB} GB free (floor ${DISK_STOP_GB} GB) - STOPPING the chain instead of writing into a full volume."
+  echo "  the archive is $(du -sh "$CHEETAH_DATA/conductor/archive" 2>/dev/null | cut -f1) with no retention policy; thin it or move it, then clear the STOP markers."
+  # stop whatever chains are actually alive, by their own two-letter marker
+  for cp in $(pgrep -fl 'campaign_chain_20260912[a-z][a-z][.]sh' 2>/dev/null | grep -oE 'campaign_chain_20260912[a-z][a-z]' | grep -oE '[a-z][a-z]$'); do
+    m="$CAMPAIGN_DIR/STOP_$(echo "$cp" | tr 'a-z' 'A-Z')"; touch "$m"; echo "  touched $(basename "$m")"
+  done
+  exit 3
+elif [ "${DISK_FREE_GB:-999}" -lt "$DISK_WARN_GB" ]; then
+  echo "DISK GUARD: ${DISK_FREE_GB} GB free (warn ${DISK_WARN_GB} GB, floor ${DISK_STOP_GB} GB) - about $(( (DISK_FREE_GB - DISK_STOP_GB) * 4 )) hours of runs left at ~6 GB/day."
+fi
 DIR="$CAMPAIGN_DIR/$NAME"; mkdir -p "$DIR"; OUT="$CAMPAIGN_DIR/$NAME.csv"
 [ -s "$OUT" ] || echo "wall,course,rep,verdict,waypoints,fall,peak_pitch,peak_roll,yawsat,peak_wz,run_id,bridge_dump,snapshot,loop_max_ms,speed,imu_gap_max_ms,mission_t_s,max_dwell_s,imu_rx_min" > "$OUT"
 FAILS=0
