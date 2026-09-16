@@ -3064,6 +3064,27 @@ Before deferring an analysis for cost, check WHERE IN THE DATA the answer lives.
 And the rest of the taxonomy is the more actionable half: two thirds of all falls
 are a genuine attitude E-stop, which is the envelope question, not this one.
 
+**SPLIT BY ERA, THOUGH, AND THE PRIORITY INVERTS - the pooled table averages two
+different robots**, because the turn cap and the single-lap fix shipped
+2026-09-13. Bare-orientation-E-stop falls per course, split at 09-14:
+
+| course | era A, to 09-13 | era B, 09-14..16 | |
+|---|---|---|---|
+| `wkc_finals` | 233 of 1063 = **21.9 %** | 3 of 623 = **0.5 %** | **44x** |
+| `hp_gap20` | 133 of 1299 = **10.2 %** | 1 of 527 = **0.2 %** | **51x** |
+
+All falls went 33.5 % to 2.4 % and 16.2 % to 1.5 % on those courses. That is
+OPEN-38's single lap plus the per-corner turn cap plus `WP_ALAT` 2.0, measured at
+1600+ runs an era - and it very nearly eliminated the class that dominates the
+pooled table. **What remains, 2026-09-14..16, 2060 runs, 42 falls (2.0 %):** the
+OPEN-40 cycle in 30 of them (**71 %**, 1.5 % of runs - 9 from an unambiguously
+healthy body, 21 from a body already under 0.24 m), bare orientation E-stop 5,
+no precursor 4, and one each of single per-leg trip, cycle aftermath and single
+attitude trip. So on the recipe we actually serve, the limit cycle is the
+dominant remaining fall mechanism and the envelope is not. **Never pool across a
+shipped fix**: the same archive says "two thirds are attitude E-stops" and "the
+cycle is 71 % of what is left", and both are true of different robots.
+
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
 the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it
