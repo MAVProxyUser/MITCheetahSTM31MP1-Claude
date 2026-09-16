@@ -2919,7 +2919,15 @@ withdrawn within the hour of being written. Two claims were corrected on the way
 a THROTTLED log or a recomputed column instead of reading the definition: "the star
 passed a 453-samples/s second" (that was a ramp second; `imu_rx_min` is the minimum
 over CRUISE seconds, `cmd_rx >= 400/s`) and "held samples are routine" (fifty lines
-was the log cap, not a rate).
+was the log cap, not a rate). A third followed the same night: `locomotionSafe` prints
+the foot's lateral position ONLY when it is over the limit, so every value in the log
+read 240-247 mm against a 240 mm limit and I described the gait as routinely exceeding
+it — an unconditional per-run maximum (`leg_y_max_mm`) then showed a passing run topping
+out at **225 mm with zero of 119 seconds at 240**. **A log line exists because a
+condition fired; counting lines measures the selection, not the population.** Before
+claiming "X happens this often" or "X reaches this value", ask what had to be true for
+the datum to be written — if the answer includes the claim, add an unconditional counter
+instead (memory: `feedback-a-log-line-is-a-selected-sample`).
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
