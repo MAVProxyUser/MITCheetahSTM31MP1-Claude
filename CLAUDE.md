@@ -1422,6 +1422,24 @@ one envelope. Roll still ranks worst of the four at 17.7 deg but keeps 10.9 deg
 of margin, while pitch has none. The lever, by analogy with the hairpin and NOT
 yet measured here, is to serve 2.5 on this course; the caveat is that the weave
 is the least-tested course in the catalog, ~39 runs against wkc_finals' 1684.
+**And it fails on the RE-ACCELERATION OUT OF ITS REVERSAL**, which localises it
+to a mechanism already in this file. Run 8967's nav trace: the planner registers
+`reversal at wp06 (53.4, 12.6) ... as a vertex stop (167 deg turn - curvature
+cannot see it)`, the follower pivots there correctly to v=0.25 m/s at w=-1.20,
+the heading swings +3 to 177 deg, and then the profile re-accelerates 0.75 ->
+1.17 -> 1.63 -> 2.10 -> 2.53 m/s over four nav ticks, with the E-stop firing at
+pitch 31.5 as it reaches cruise. **The reversal works; the EXIT is what fails** -
+the same class as the hairpin's documented runaway, "the profile re-accelerated,
+the body overshot its 2.6 cruise ... the rear-most stance knee was asked for
+43 N.m against a 35.55 N.m joint limit at full reach, and the shortfall arrived
+as nose-up pitch, stride after stride". That PREDICTS the 2.5 arm should help,
+since cruise is the target the climb aims at. It also reopens `WP_REACCEL_VMAX`,
+which was retired as a null - but on the HAIRPIN, at 22.5 vs 22.7 with 4-6 deg of
+margin to spare. The weave has none and overshoots by 2.9, so that null does not
+obviously transfer and this is the one place the cap deserves a re-measure.
+Caution for anyone reading the trace: the pivot to 0.25 m/s at the vertex is the
+follower's `ex < 0` branch working as designed, not a fault.
+
 **The general lesson: a course can fail two ways, and a single fall tells you
 which one it was, not which one binds.** One roll-dominant mechanism failure had
 me looking at the lateral budget for hours; nine runs of the unconditional

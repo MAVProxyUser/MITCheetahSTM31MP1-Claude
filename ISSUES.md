@@ -244,6 +244,39 @@ passed on its own in-suite retry.
   on is the shipped one and its comparison is valid. Its log line "no deploy
   needed - CR already deployed" is nonetheless WRONG, since CR never deployed;
   binary 22e0f456 is the pre-OPEN-40 build.
+
+  **WHERE ON THE WEAVE IT FAILS, and it is a mechanism this tree already
+  documented.** Run 8967's nav trace localises the pitch runaway exactly: the
+  planner registers `reversal at wp06 (53.4, 12.6) … as a vertex stop (167 deg
+  turn - curvature cannot see it)`, the follower pivots there correctly down to
+  **v=0.25 m/s at w=-1.20**, the heading comes round from +3° to 177°, and then
+  the profile re-accelerates:
+
+  | t (s) | 32.7 | 33.9 | 35.0 | 36.1 | 37.2 |
+  |---|---|---|---|---|---|
+  | v (m/s) | 0.75 | 1.17 | 1.63 | 2.10 | **2.53** |
+
+  and the E-stop fires at **pitch 31.5°** as it reaches cruise. **The reversal
+  itself works; the EXIT is what fails.** That is the same class as OPEN-28's
+  hairpin case, recorded in CLAUDE.md as "a pitch runaway on the straight out of
+  the reversal: the profile re-accelerated, the body overshot its 2.6 cruise…
+  the rear-most stance knee was asked for 43 N·m against a 35.55 N·m joint limit
+  at full reach, and the shortfall arrived as nose-up pitch, stride after
+  stride".
+  Two consequences for decision #9:
+  - **It PREDICTS the 2.5 arm should help**, because cruise is the target the
+    re-acceleration climbs to, and a lower target means less of the climb
+    happens at full reach. Chain CS therefore tests the right lever, and now on
+    a mechanism rather than an analogy.
+  - **`WP_REACCEL_VMAX` is the other lever aimed at exactly this phase**, and it
+    was retired as a measured NULL — but on the HAIRPIN, at peak pitch 22.5 vs
+    22.7, n = 12 an arm, where there was 4–6° of margin to work with. The weave
+    has none and overshoots by 2.9°, so the null does not obviously transfer:
+    this is the one place the cap deserves a re-measure, and it is the natural
+    second block for CS if 2.5 alone does not close the gap.
+  A caution for whoever reads the trace: the pivot to 0.25 m/s at the vertex is
+  the follower's `ex < 0` branch working as designed, not a fault. Do not
+  "fix" it.
   **Harness bug found and fixed in the same block**: with `ARMS=""` and
   `DUMP=1`, `open28_subcourse.sh`'s row label fell back through arm → env →
   course and the env it saw was the `BRIDGE_DUMP=` token the harness itself
