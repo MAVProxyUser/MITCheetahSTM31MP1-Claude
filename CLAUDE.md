@@ -3064,26 +3064,35 @@ Before deferring an analysis for cost, check WHERE IN THE DATA the answer lives.
 And the rest of the taxonomy is the more actionable half: two thirds of all falls
 are a genuine attitude E-stop, which is the envelope question, not this one.
 
-**SPLIT BY ERA, THOUGH, AND THE PRIORITY INVERTS - the pooled table averages two
-different robots**, because the turn cap and the single-lap fix shipped
-2026-09-13. Bare-orientation-E-stop falls per course, split at 09-14:
+**SPLIT BY ERA, AND DO IT AT EVERY SHIP DATE - the pooled table averages every
+robot that ever ran here.** Two fixes moved this one: the per-corner turn cap
+plus OPEN-38's single lap (2026-09-13 16:42) and OPEN-39's three debounced
+branches (2026-09-15, all three by 21:50; the first absorbed-event marker in any
+log is run 8315 at 19:19, which dates the build independently).
 
-| course | era A, to 09-13 | era B, 09-14..16 | |
-|---|---|---|---|
-| `wkc_finals` | 233 of 1063 = **21.9 %** | 3 of 623 = **0.5 %** | **44x** |
-| `hp_gap20` | 133 of 1299 = **10.2 %** | 1 of 527 = **0.2 %** | **51x** |
+| era | runs | falls | rate | genuine OPEN-40 falls |
+|---|---|---|---|---|
+| **A** to 09-13, pre turn-cap | 5026 | 1251 | **24.9 %** | 51 |
+| **B** 09-14 to 09-15 21:50, turn cap, pre-debounce | 1542 | 38 | **2.5 %** | 8 |
+| **C** 09-15 21:50 on, all three branches debounced | 531 | 4 | **0.8 %** | **1** |
 
-All falls went 33.5 % to 2.4 % and 16.2 % to 1.5 % on those courses. That is
-OPEN-38's single lap plus the per-corner turn cap plus `WP_ALAT` 2.0, measured at
-1600+ runs an era - and it very nearly eliminated the class that dominates the
-pooled table. **What remains, 2026-09-14..16, 2060 runs, 42 falls (2.0 %):** the
-OPEN-40 cycle in 30 of them (**71 %**, 1.5 % of runs - 9 from an unambiguously
-healthy body, 21 from a body already under 0.24 m), bare orientation E-stop 5,
-no precursor 4, and one each of single per-leg trip, cycle aftermath and single
-attitude trip. So on the recipe we actually serve, the limit cycle is the
-dominant remaining fall mechanism and the envelope is not. **Never pool across a
-shipped fix**: the same archive says "two thirds are attitude E-stops" and "the
-cycle is 71 % of what is left", and both are true of different robots.
+A 10x from the turn cap and single lap, a further 3x from the debounces, **31x
+together**. Per course across A to B, bare-orientation-E-stop falls went 21.9 %
+to 0.5 % on `wkc_finals` and 10.2 % to 0.2 % on `hp_gap20`. Era C's four falls:
+2 bare orientation E-stop, 1 cycle from an already-down body, 1 cycle from a
+healthy body, and that last one is run 8892. **So OPEN-40's genuine class on
+today's binary is 1 fall in 531 runs** - a count, not a rate to quote.
+**I withdrew a "71 % of what still falls" of my own here**: it pooled 09-14
+onward, mixing eras B and C, and the per-leg trip class is exactly what changed
+at 21:50 on 09-15. Nearly all of those were pre-debounce ONE-TICK trips, the
+OPEN-39 mode already fixed. The tell was in the log text all along - those lines
+read `leg 2 is moving too quickly (9.114 m/s)` with **no `, N ticks` suffix**,
+because the debounced build prints a tick count and the old one cannot. **A
+build's own log FORMAT dates it; use that, not the calendar.** And the per-leg
+BRANCH alone is not a sufficient admissibility test, because a collapsed robot's
+legs trip it too: of 21 such runs, 13 entered the cycle already BELOW the 0.20 m
+fold line and 8 between 0.20 and 0.24, so the cycle was their finisher, not their
+prime mover. Entry height needs bands, not one cutoff.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding

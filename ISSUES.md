@@ -23,7 +23,7 @@ shipped, and none of it needs more data to decide.
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. **And the star's own interlude is clear at depth: 38 interludes since the fix, 37 stood back up and PASSED**; the one exception (run 7763) stood up fine and tipped 22 s later mid-dash, i.e. not the interlude. That retires the "3 of 24 star interlude roll-overs" left unexplained on 09-14. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
 | 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED at n = 24 an arm, and it is a safety line, not a trade.** 2.6: **24/24 PASS**, pitch mean 19.1°, **worst 22.0 in twenty-four runs, 0 of 24 over 23°**, margin 6.6° to the 28.65° limit. 2.7: **22/24**, mean 23.0, worst **32.5**, **10 of 24 over 23°**, two course-clean E-stop falls. It buys 0.7 s of a 97 s lap. **Recommendation: keep 2.6.** | OPEN-28 |
-| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. **Now the highest-value item on this table.** | **The current answer is a 500 Hz limit cycle**, and on the SERVED recipe it is **71 % of what still falls** (30 of 42 falls, 2026-09-14..16, 2060 runs) — the envelope work cut bare-E-stop falls 44x on wkc_finals and 51x on hp_gap20, leaving this as the dominant residual. RecoveryStand reads only `control_mode`, which nav pins at locomotion, so a trip is handed back after ONE tick forever; trips and recovery entries are equal to the unit (45/45, 54/54). Of 79 runs entering from a healthy body, **61 fell (77 %)**, and bleed per cycle separates them (0.132 m vs 0.067 m) while entry height does not. Four response options are written up; a dwell (`CTRL_LOCO_UNSAFE_HOLD_MS`) is coded and default-off, chain CR measures it. | OPEN-40 |
+| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | **The current answer is a 500 Hz limit cycle.** RecoveryStand reads only `control_mode`, which nav pins at locomotion, so a trip is handed back after ONE tick forever; trips and recovery entries are equal to the unit (45/45, 54/54). Of 79 runs entering from a healthy body, **61 fell (77 %)**, and bleed per cycle separates them (0.132 m vs 0.067 m) while entry height does not. Historically 51 falls in era A; on the binary running today **1 fall in 531 runs** (an earlier "71 % of what still falls" was withdrawn — it pooled across the 09-15 debounce). So this is a correctness question, not a fire. Four response options are written up; the dwell (`CTRL_LOCO_UNSAFE_HOLD_MS`) and the counter reset (`CTRL_LEG_TRIP_RESET_ON_ENTRY`) are both coded and default-off, and chain CR measures the dwell against a pinned trigger. | OPEN-40 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
 | 7 | Desktop tenants running beside the rig. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night. **Added 2026-09-16 12:53**, sampled during a live tier: `searchpartyd` (Find My) spiked to **71.7 %** and re-sampled at 23.3 %, though its lifetime total is only 299 min over 22 days, so it is a spiky tenant rather than a runaway — worth a look precisely because it is new to this list and it spikes. `bluetoothd` 3.4 %, WindowServer 5.5 %. None of these is mine to kill. | OPEN-35 |
@@ -252,44 +252,56 @@ passed on its own in-suite retry.
      where the REST of the falls are: two thirds are a genuine attitude E-stop,
      which is the envelope question, not this one.
 
-  4. **SPLIT BY ERA, and the priority inverts: on the SERVED RECIPE the cycle is
-     71 % of what is left.** The archive-wide taxonomy above pools two different
-     robots, because the turn cap and the single-lap fix shipped on 2026-09-13.
-     Splitting at 09-14, bare-orientation-E-stop falls per course:
+  4. **SPLIT BY ERA — three eras, two documented ship dates, and it took me
+     three goes to get right.** An archive-wide rate averages every robot that
+     ever ran here. Two fixes moved this one: the per-corner turn cap plus
+     OPEN-38's single lap (2026-09-13 16:42), and OPEN-39's three debounced
+     branches (2026-09-15, all three by 21:50 — the first absorbed-event marker
+     in any log is run 8315 at 19:19, which dates the build independently of the
+     write-ups).
 
-     | course | era A, to 09-13 | era B, 09-14..16 | |
-     |---|---|---|---|
-     | `wkc_finals` | 233 of 1063 = **21.9 %** | 3 of 623 = **0.5 %** | **44x** |
-     | `hp_gap20` | 133 of 1299 = **10.2 %** | 1 of 527 = **0.2 %** | **51x** |
+     | era | runs | falls | rate | genuine OPEN-40 falls |
+     |---|---|---|---|---|
+     | **A** to 09-13, pre turn-cap | 5026 | 1251 | **24.9 %** | 51 |
+     | **B** 09-14 → 09-15 21:50, turn cap, pre-debounce | 1542 | 38 | **2.5 %** | 8 |
+     | **C** 09-15 21:50 →, all three branches debounced | 531 | 4 | **0.8 %** | **1** |
 
-     All falls on those two courses went 356/1063 (33.5 %) and 210/1299 (16.2 %)
-     to 15/623 (2.4 %) and 8/527 (1.5 %). That is the shipped envelope work
-     (OPEN-38's single lap, the per-corner turn cap, `WP_ALAT` 2.0) measured at
-     1600+ runs an era, and it very nearly eliminated the class that dominates
-     the pooled table.
-     **What is left, 2026-09-14..16, 2060 runs, 42 falls (2.0 %):**
+     The turn cap and single lap took the fall rate 24.9 % → 2.5 %, a 10x; the
+     debounces took it 2.5 % → 0.8 %, a further 3x; together **31x**. Per course
+     across A→B, bare-orientation-E-stop falls went 233 of 1063 (21.9 %) → 3 of
+     623 (0.5 %) on `wkc_finals`, and 133 of 1299 (10.2 %) → 1 of 527 (0.2 %) on
+     `hp_gap20`. That is the shipped envelope work and OPEN-39, both measured at
+     scale rather than asserted.
+     **Era C's four falls are: 2 bare orientation E-stop, 1 cycle from an
+     already-down body, 1 cycle from a healthy body — and that last one is run
+     8892, the weave.** So on the binary running today OPEN-40's genuine class is
+     **1 fall in 531 runs**. n is small and the interval is wide; that is a
+     count, not a rate to quote.
 
-     | cause | falls | % of falls | % of runs |
-     |---|---|---|---|
-     | OPEN-40 cycle, body already below 0.24 m | 21 | 50.0 % | 1.02 % |
-     | **OPEN-40 cycle, healthy body** | **9** | **21.4 %** | 0.44 % |
-     | bare orientation E-stop | 5 | 11.9 % | 0.24 % |
-     | no precursor in the tail | 4 | 9.5 % | 0.19 % |
-     | single per-leg trip / cycle aftermath / single attitude trip | 1 each | 7.1 % | 0.05 % each |
-
-     **The cycle is implicated in 30 of the 42 remaining falls — 71 % — and
-     1.5 % of all runs.** Both framings are true and they differ only by era:
-     across the whole archive the bare E-stop is 64.7 % of falls because era A
-     contributed hundreds of them; on the recipe we actually serve, that class
-     is 11.9 % and OPEN-40 is the dominant residual. **So decision #4 is now the
-     highest-value item on the board**, ahead of any envelope rung — and this is
-     also the honest resolution of a figure I withdrew earlier today: "~70 % of
-     recent falls" was right for the served era and wrong as an archive-wide
-     claim, which is exactly why the two must not be pooled.
-     Caveat kept: the 21 "already below 0.24 m" runs are per-leg trips that
-     entered the cycle from a sagging body, so whether the cycle or the sag is
-     the prime mover is not settled for them; 9 is the count where the body was
-     unambiguously at cruise height.
+     **WITHDRAWN, a claim of mine from an hour earlier: "on the served recipe
+     the cycle is 71 % of what is left."** It was computed over "09-14 onward",
+     30 of 42 falls, which MIXES eras B and C — and the per-leg trip class is
+     precisely what changed at 09-15 21:50. Nearly all 30 were pre-debounce
+     ONE-TICK trips, i.e. the OPEN-39 failure mode already fixed. The tell was
+     in the log text and in front of me the whole time: those runs' lines read
+     `leg 2 is moving too quickly (9.114 m/s)` with **no `, N ticks` suffix**,
+     because the debounced build prints a tick count and the old one cannot.
+     **A build's own log FORMAT dates it; use that, not the calendar.**
+     Two refinements from the same pass, both from re-reading the 21 ambiguous
+     runs IN FULL rather than through a window (all 21 files are 18–70 KB, so
+     nothing had ever been truncated): the per-leg BRANCH is not a sufficient
+     admissibility test, because a collapsed robot's legs trip it too — 13 of
+     the 21 entered the cycle with the body already **below the 0.20 m fold
+     line** (0.069–0.197 m) and 8 between 0.20 and 0.24, so for them the cycle
+     is the finisher and not the prime mover. Entry height needs BANDS, not one
+     cutoff with the remainder filed as ambiguous.
+     **Unchanged by all this:** the mechanism, the source defect, the 79-run
+     conditional (61 of 79 entries from a healthy body fell; bleed 0.132 m vs
+     0.067 m), and era A's 51 genuine falls. **Changed:** the urgency. This is a
+     real defect with a small CURRENT rate, not the dominant residual, so
+     decision #4 is a correctness question rather than a fire. It also
+     vindicates chain CR's redesign outright: at 1 in 531 a natural-trigger A/B
+     could never have measured anything.
 
 - **OPEN-38 · Every wkc_finals and hp_gap20 run on record was a DOUBLE LAP:
   the follower U-turned 4 m before the collinear reversal, the waypoint layer
