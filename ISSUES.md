@@ -12,6 +12,22 @@ archive), this file is the index of where we've been and what's left. Rules:
   reproduced, no root cause), `HARDWARE` (blocked on/scoped to the real
   machine), `PARKED` (built, unproven, default-off), `MITIGATED`
   (guarded, not eliminated), `DECISION` (operator's call).
+
+## DECISIONS WAITING ON THE OPERATOR (as of 2026-09-16 09:00)
+
+Everything below is measured and written up in its own issue; none of it is
+shipped, and none of it needs more data to decide.
+
+| # | the call | what the evidence says | where |
+|---|---|---|---|
+| 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. | OPEN-30 |
+| 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
+| 3 | The WKC envelope: is 2.7 a rung? | Being measured now (chain CP, same method). | OPEN-28 |
+| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | 8 of 8 runs that tripped it fell before the debounce; the trips are now rare and the check itself is well placed, but folding four legs mid-stride at 2.6 m/s is still a fall. This tree's own stall-mitigation history says a reflex here needs the operator. | OPEN-39 |
+| 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
+| 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. | OPEN-35 |
+| 7 | The aerial wallpaper's video decoder. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night beside the rig. | OPEN-35 |
+| 8 | The archive: thin it, move it, or leave it. | 50 GB, fully compacted, growing ~6 GB/day with no retention; 09-08…09-12 is 29 GB and every result from it is in this file. Free space 32 GB; the harness now warns at 20 and stops the chains at 8. | OPEN-35 |
 - A closed entry keeps: symptom → root cause → fix → evidence. If it was
   ever *wrongly* diagnosed, the wrong turn stays in the entry — how a wrong
   turn was found is worth as much as the fix.
