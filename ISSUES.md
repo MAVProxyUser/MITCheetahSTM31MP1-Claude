@@ -1363,6 +1363,27 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   chain CK deploys it. `CTRL_LEG_HELD_GATE=0` restores the plain count.
   **23:13 — deployed**: binary 98b34331 → **290ab874** (two distinct
   values required to trip, held samples counted in the heartbeat).
+  **23:16 — and the counter corrected the claim that motivated it.** The
+  probe (run 8446, 120 s, cruise stream 499/s) reports: **16 of 120
+  seconds carried any hold at all, 2044 held leg-ticks of 240 000 (0.85 %),
+  and the longest consecutive hold was ONE tick** — never two in a row,
+  though the per-second count swings 4 → 484 (a phase-drift pattern: two
+  control ticks occasionally landing inside one sensor-packet interval,
+  alternating, which is why the count can be high while the run length
+  stays 1). So my "held samples are ROUTINE" was ALSO wrong, and wrong the
+  same way as the 453/s: I inferred a frequency from a log that had hit
+  its 50-line throttle cap, which is exactly the one thing a capped log
+  cannot tell you. Consequences, stated straight: (a) the first design
+  (skip unchanged ticks) would in fact have been harmless at maxrun = 1,
+  so the reason I gave for replacing it was unfounded — the replacement
+  stands on its own merit instead (immune to hold frequency, slows no
+  trip, and provably separates the two runs on record); (b) the 8407
+  diagnosis gets STRONGER, because eight consecutive identical ticks is
+  extraordinary against a base rate whose longest run is one; and (c)
+  **`maxrun` is now a better freeze detector than anything upstream of
+  it** — per leg, per tick, inside the controller, where `maxrun >= 2`
+  means the state genuinely stopped updating. One run so far; the chain
+  will give the base rate across courses.
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
