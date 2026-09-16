@@ -1594,6 +1594,24 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   that fires in ~0.3 % of runs, i.e. to be the same experiment twice, so
   the A/B is retired too and the useful residue is the single-arm
   `leg_y_max` column the harness now collects on every run.
+  **04:19 — CM block 1 (12 runs, 12/12) gives the distribution, and it
+  refines BOTH of my characterisations.** Per arm, the per-run maximum
+  |p(1)|: `y024` min 212, mean 221.5, **max 239 mm** against its 240 limit;
+  `y030` min 211, mean 222.3, max 229 against 300 — statistically the same
+  arm, as they must be, since the limit is a monitor and not a control
+  input. So on **wkc the normal distribution's upper tail touches the
+  line**: 239 of 240 at n = 12, where the tier's other eleven courses sit
+  at ≤ 164 mm. My 03:31 statement ("never comes within 15 mm") was the
+  probe's single 225; my 01:40 statement ("routinely exceeds") was the
+  exceedance-only log. The truth is between them and course-specific — and
+  the useful discriminator is not the VALUE but the TRAJECTORY: 8507
+  hovered at 240–245 (the normal tail poking over the line; 54 trips,
+  harmless at standstill) while 8315 marched 240 → 308 (out of family,
+  fatal at cruise). A limit that cleared the normal tail with margin would
+  end the nuisance without hiding a march, but I am not proposing a number
+  on n = 12 — that is precisely the habit behind the three corrections
+  above, and the column now collects the tail on every run. The rig moves
+  to the open cornering question (chain CN).
   **23:00 — the disk, for the operator (OPEN-35).** Free space has gone
   52 → 35 GB over the day, and compaction is NOT the problem: 4160
   snapshots packed, **zero unpacked**, the packer keeping up at every
