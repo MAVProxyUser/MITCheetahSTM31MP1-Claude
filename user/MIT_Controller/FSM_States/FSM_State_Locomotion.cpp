@@ -229,23 +229,34 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
     // option (d), which never transitions at all above a speed.
     //
     // The gap test is what separates a cycle from two unrelated trips: inside the
-    // limit cycle successive trips are 2-3 ticks apart (trip -> RECOVERY_STAND for
-    // one tick -> back to LOCOMOTION -> trip), so any quiet gap longer than
-    // CTRL_LOCO_UNSAFE_CYCLE_GAP_TICKS ends the run of cycles and resets the count.
+    // limit cycle successive trips are 1-2 of THESE ticks apart (trip ->
+    // RECOVERY_STAND for one tick -> back to LOCOMOTION -> trip; g_locoTick only
+    // advances while LOCOMOTION owns the loop, so the RecoveryStand tick is not
+    // counted). Any quiet gap longer than CTRL_LOCO_UNSAFE_CYCLE_GAP_TICKS ends
+    // the run of cycles and clears both the count and the latch.
+    //
+    // COUNT ONLY ACTUAL TRANSITIONS, AND LATCH. The first draft of this
+    // incremented on every entry to this branch, which is wrong the moment
+    // suppression starts: with no transition there is no RecoveryStand round trip,
+    // so checkTransition() runs every tick while the leg is still out of bounds
+    // and the counter measures TICKS rather than cycles - it would have logged a
+    // 500 Hz runaway and called it a cycle count. The latch is also what gives the
+    // right hysteresis: once capped, stay advisory until the excursion has
+    // genuinely cleared for cycle_gap ticks, rather than re-arming on the next tick.
     static const long cycle_cap = (long)ctrl_tuning::num("CTRL_LOCO_UNSAFE_CYCLE_CAP", 0.0);
     static const long cycle_gap = (long)ctrl_tuning::num("CTRL_LOCO_UNSAFE_CYCLE_GAP_TICKS", 250.0);
-    static long cycle_count      = 0;
+    static long cycle_count      = 0;      // ACTUAL transitions in this run of cycles
+    static bool cycle_latched    = false;  // set when cycle_count reaches the cap
     static long last_unsafe_tick = -1000000;
     const long now_tick = g_locoTick.load();
-    if(now_tick - last_unsafe_tick > cycle_gap) cycle_count = 0;
+    if(now_tick - last_unsafe_tick > cycle_gap) { cycle_count = 0; cycle_latched = false; }
     last_unsafe_tick = now_tick;
-    ++cycle_count;
-    const bool cycle_capped = (cycle_cap > 0 && cycle_count > cycle_cap);
+    const bool cycle_capped = (cycle_cap > 0 && cycle_latched);
     if(cycle_capped) {
       static int cap_logged = 0;
       if(cap_logged < 20) {
         cap_logged++;
-        shmtrace::logf(0.0, "[lococap] unsafe trip %ld in this run of cycles (> cap %ld) at %.2f m/s - ADVISORY from here, staying in LOCOMOTION",
+        shmtrace::logf(0.0, "[lococap] %ld transitions already spent in this run of cycles (cap %ld) at %.2f m/s - ADVISORY from here, staying in LOCOMOTION",
                        cycle_count, cycle_cap, (double)v_body);
       }
     }
@@ -263,6 +274,11 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
       this->nextStateName = FSM_StateName::RECOVERY_STAND;
       this->transitionDuration = 0.;
       rc_control.mode = RC_mode::RECOVERY_STAND;
+      // This is the ONLY place the cycle count moves: one increment per real
+      // transition (OPEN-40 option (f)). Latch as soon as the cap is reached, so
+      // a cap of N permits exactly N transitions before the advisory takes over.
+      ++cycle_count;
+      if(cycle_cap > 0 && cycle_count >= cycle_cap) cycle_latched = true;
       // Arm the dwell so RecoveryStand is not handed back one tick later (OPEN-40).
       static const long hold_ticks = (long)(ctrl_tuning::num("CTRL_LOCO_UNSAFE_HOLD_MS", 0.0) / 2.0);
       if(hold_ticks > 0) g_locoUnsafeHold.store(hold_ticks);
