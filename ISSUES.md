@@ -23,7 +23,7 @@ shipped, and none of it needs more data to decide.
 | 1 | The lie-down JUDGE: judge after the rock settles, or draw a 25° belly line? | The tip mechanism is fixed (`WP_LIEDOWN_EDAMP=0`, n = 279 vs 261), so the judge now only mis-reads a transient it no longer sees. Cosmetic, but it is a judged criterion. **And the star's own interlude is clear at depth: 38 interludes since the fix, 37 stood back up and PASSED**; the one exception (run 7763) stood up fine and tipped 22 s later mid-dash, i.e. not the interlude. That retires the "3 of 24 star interlude roll-overs" left unexplained on 09-14. | OPEN-30 |
 | 2 | The HAIRPIN envelope: keep 2.6, or serve 2.5? | 2.5 buys **3.2° of peak pitch (22.2 → 19.0)** for **+0.2 s on a 49.5 s lap**, n = 18 an arm over three interleaved blocks, 36/36 PASS, p < 1e-5. The course's only course-clean fall in ~200 runs was a pitch runaway. | OPEN-28 |
 | 3 | The WKC envelope: is 2.7 a rung? | **ANSWERED at n = 24 an arm, and it is a safety line, not a trade.** 2.6: **24/24 PASS**, pitch mean 19.1°, **worst 22.0 in twenty-four runs, 0 of 24 over 23°**, margin 6.6° to the 28.65° limit. 2.7: **22/24**, mean 23.0, worst **32.5**, **10 of 24 over 23°**, two course-clean E-stop falls. It buys 0.7 s of a 97 s lap. **Recommendation: keep 2.6.**  **Independently re-confirmed 2026-09-16 from the archive, not a new campaign:** on the current binary in the same hours, `wkc_finals` at 2.70 fell **2 of 42 course runs (4.8 %)** against **1 of 202 (0.5 %) at the served 2.60** — about 10x — and both 2.7 falls were bare orientation E-stops at pitch 32.5° and 30.0°, i.e. the envelope itself rather than any mechanism. Keep 2.6. | OPEN-28 |
-| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. | **The current answer is a 500 Hz limit cycle.** RecoveryStand reads only `control_mode`, which nav pins at locomotion, so a trip is handed back after ONE tick forever; trips and recovery entries are equal to the unit (45/45, 54/54). Of 79 runs entering from a healthy body, **61 fell (77 %)**, and bleed per cycle separates them (0.132 m vs 0.067 m) while entry height does not. Historically 51 falls in era A. On the current binary at the SERVED 2.6 it is **1 fall in 202 course runs — and the ONLY cause among them**, which makes this the last known failure mode of the shipped configuration rather than a frequent one. (Two earlier figures of mine, "24 % of all falls" and "71 % of what still falls", are withdrawn: the first counted the cycle's footprint without testing causation, the second pooled across the 09-15 debounce.) For contrast the 2.70 rung falls 2 of 42 on the same binary, which independently confirms decision #3. Four response options are written up; the dwell (`CTRL_LOCO_UNSAFE_HOLD_MS`) and the counter reset (`CTRL_LEG_TRIP_RESET_ON_ENTRY`) are both coded and default-off, and chain CR measures the dwell against a pinned trigger. | OPEN-40 |
+| 4 | What `locomotionSafe()` should DO at cruise instead of RECOVERY_STAND. **ANSWERED — it should do NOTHING but log.** | **n = 78 an arm, 26 interleaved blocks, Fisher p = 1.1e-13.** With the trip pinned so every run trips, `CTRL_LOCO_UNSAFE_ADVISORY_VMAX=1.0` gives **78/78** against stock's **31/78**, with **zero** RecoveryStand entries for 5213 trips (stock: 5332 entries for 5308 trips, the cycle's 1:1 signature). And it is SAFER on every axis, which kills my own objection that it removes a guard: worst pitch **27.2° vs 34.1°** (it never reached the 28.65° E-stop in 78 runs), worst roll **19.4° vs 54.3°**, worst lateral foot 241 vs 283 mm, identical passing-pitch means (20.0) and **no lap cost** (97.0 vs 97.2 s). The guard's ACTION was the hazard. The other three options: dwell measured HARMFUL (10/10 inversions), fold gate a measured NULL, counter reset only partial. Scope: the trigger is induced, so 78/78 is not an envelope figure — the natural trip rate is ~1 in 531; the claim is that when the check trips at cruise, not transitioning wins. **Still default −1; shipping it is your call.** | OPEN-40 |
 | 5 | Spotlight indexing on `/System/Volumes/Data` (needs root). | `mds`/`mdworker_shared` reindexes cost stream samples and are booked as host falls; `sudo mdutil -i off /System/Volumes/Data` is the lever. | OPEN-35 |
 | 6 | The pending macOS 26.6.2 restart. | Would also clear the three `com.apple.os.update-*` APFS snapshots that pin deleted space. **Sharpened 2026-09-16: those snapshots are why compaction frees nothing** — the archive packs correctly and free space still fell 35 → 28 GB in seven hours, so #6 and #8 are the same decision from two directions, and #8 now carries a measured deadline. | OPEN-35 |
 | 7 | Desktop tenants running beside the rig. | `WallpaperAerialsExtension` + `VTDecoderXPCService` ran 8 %/2 % all night. **Added 2026-09-16 12:53**, sampled during a live tier: `searchpartyd` (Find My) spiked to **71.7 %** and re-sampled at 23.3 %, though its lifetime total is only 299 min over 22 days, so it is a spiky tenant rather than a runaway — worth a look precisely because it is new to this list and it spikes. `bluetoothd` 3.4 %, WindowServer 5.5 %. None of these is mine to kill. **And a note on `mediaanalysisd`, measured 2026-09-16 13:49:** the standing culler has made **32,401 kills in 1207 minutes — 26.8 per minute, a respawn about every 2.2 s** — and `com.apple.mediaanalysisd` is ALREADY `=> disabled` in this user's launchd disabled list, so the obvious lever has been pulled and something else is still launching it (system job or on-demand XPC). Each instance dies having used **0.01 s of CPU**, so the culler is holding it at effectively zero cost and it is not a meaningful tenant today; what remains is ~27 process spawns a minute of pure churn. Worth knowing the agent-level disable does not stop it before spending any more effort there. | OPEN-35 |
@@ -92,9 +92,32 @@ passed on its own in-suite retry.
   - **THE COROLLARY THAT MATTERS: the limit cycle is what was keeping the
     attitude guard alive.** It bounces the robot back into LOCOMOTION where the
     check applies. Any fix must keep the robot somewhere a guard is watching.
-  - **WHAT IS LEFT.** Option (d), the advisory trip
-    (`CTRL_LOCO_UNSAFE_ADVISORY_VMAX`) — the only untested one and the only one
-    that keeps the robot in LOCOMOTION. Coded, default off, chain CU measures it.
+  - **ANSWERED 2026-09-17 by chain CU at n = 78 AN ARM — option (d), the advisory
+    trip, IS the fix.** `CTRL_LOCO_UNSAFE_ADVISORY_VMAX=1.0`, trigger pinned at
+    `CTRL_MAX_PLEG_Y=0.21` on both arms, wkc_finals at 2.6, 26 interleaved
+    blocks. (The chain overran its stop marker when the session restarted,
+    turning a 36-row plan into 156 rows — the one time that has helped.)
+
+    | arm | verdicts | trips | RecovStand entries | folds | worst pitch | worst roll | leg_y max | lap |
+    |---|---|---|---|---|---|---|---|---|
+    | **advisory** | **78/78** | 5213 | **0** | **0** | **27.2°** | **19.4°** | 241 mm | 97.0 s |
+    | stock | **31/78** | 5308 | 5332 | 2388 | 34.1° | 54.3° | 283 mm | 97.2 s |
+
+    **Fisher p = 1.1e-13**, and the manipulation is perfect: 5213 trips with
+    **zero** RecoveryStand entries across 77 archived logs, against stock's 5332
+    entries for 5308 trips — the cycle's 1:1 signature reproduced at scale.
+  - **IT ALSO ANSWERS THE SAFETY OBJECTION I RAISED AGAINST MY OWN OPTION.** I
+    wrote that this "removes the guard in the regime where it fires". It does,
+    and the robot ends up **FURTHER from every limit, not closer**: worst pitch
+    27.2° against 34.1° — the advisory arm never once reached the 28.65° E-stop
+    in 78 runs — worst roll 19.4° against 54.3°, worst lateral foot 241 mm
+    against 283 mm. Among PASSING runs the pitch means are identical at 20.0, so
+    it is not a speed trade, and the lap is unchanged (97.0 vs 97.2 s).
+    **The guard's ACTION was the hazard.**
+  - **SCOPE, because it matters:** the trigger is INDUCED, so 78/78 is not an
+    envelope number — the natural trip rate is ~1 run in 531. The claim is
+    narrower and complete: **when the per-leg check trips at cruise, the advisory
+    response beats the transition on every axis measured.**
   - **NOTHING SHIPS.** Every knob defaults to stock and the fast tier is 13/13 on
     the deployed binary with all of them off. Decision #4 is the operator's.
 
