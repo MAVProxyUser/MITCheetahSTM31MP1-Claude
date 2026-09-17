@@ -3364,6 +3364,39 @@ cancelled could have produced: 7 real falls at the production trigger against
 0.07-3.3 expected engagements. It shows the mechanism and the ordering, not a
 counterfactual - the conversion evidence is CU's 78/78 vs 31/78.
 
+**THE SURVIVAL DISCRIMINATOR IS CYCLE COUNT, AND IT IS NOT ENTRY HEIGHT (new,
+2026-09-17).** Reading the ctrl logs of ALL 22 over-threshold runs rather than
+only the 7 that fell: the falls ran **31-107** trip/recover cycles (median 68)
+and bled a median **155 mm** of body height, while the survivors ran **1-42**
+(median 2) and bled a median **1 mm**. Entry height is the same in both groups -
+**FAIL median 0.295 m vs PASS median 0.293 m** - so the "headroom above 0.20 m at
+entry decides it" story is dead, and the bleed-vs-headroom race is really a race
+against HOW LONG THE CYCLE RUNS. Near-bimodal: **every run with <= 2 cycles
+survived (6/6)**, runs with **>= 31 cycles fell 7 of 11 (64 %)**. Not a clean
+threshold - 9213 died at 31 cycles having bled 71 mm to 0.197 m while 9221
+survived 41 cycles and the same 71 mm to 0.221 m, and 9172 survived crossing
+0.20 m at 0.198 - so nothing predicts an individual run. What it establishes is
+that **a single trip is harmless and a SUSTAINED cycle is the entire hazard**,
+which is the advisory's mechanism argument stated in production data: its effect
+is to make the cycle count zero. A further 5 of the 22 (9188, 9019, 8994, 9215,
+8963) never tripped at all - a sub-debounce graze - OPEN-39's debounce visibly
+working on the same signal.
+
+**AND THE ERA TABLE ABOVE IS A STALE SNAPSHOT - do not quote its era-C rate.**
+The "era C: 531 runs, 4 falls, 1 genuine OPEN-40" row was taken around midday on
+09-16, and **13 of the 16 falls now in the era-C campaign CSVs happened after it
+was written** (8850 09-16 10:57 through 9771 09-17 12:46, all dated from the
+archive log names). On the shipped `CTRL_MAX_PLEG_Y`, induced chains excluded:
+**241 course runs, 16 falls, 7 of them genuine OPEN-40 = 2.9 % of runs and 44 %
+of everything that still falls.** OPEN-40 is the dominant residual fall mode on
+the current binary at the envelope edge, not a 1-in-531 curiosity. Scope: those
+241 runs are deliberately hard (weave/vcruise at 2.6-2.7, reaccel, margin
+probes), so 2.9 % is the edge rate and the served-recipe rate is lower - the two
+numbers measure different course mixes, which is what diluted the 0.8 %.
+**Exposure at the shipped trigger, measured rather than bracketed:** 9.1 % graze
+240 mm on >= 1 sample, **7.1 % trip** the 5-tick debounce, **4.6 % go sustained**,
+**2.9 % fall**.
+
 **A CONTROL ARM'S BASE RATE DRIFTS ACROSS A NIGHT, BY MORE THAN MOST EFFECTS.**
 In the same 26-block chain, stock went **20/39 = 51 %** in the first half and
 **11/39 = 28 %** in the second (Fisher p = 0.063), while the advisory held 78/78
