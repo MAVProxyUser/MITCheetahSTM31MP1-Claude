@@ -109,12 +109,21 @@ for arm in arms:
         max([f["bled"] for _, f in sel] or [0]), sum(f["adv"] for _, f in sel),
         sum(f["cap"] for _, f in sel)))
 
-if len(arms) == 2:
-    a, b = cond[arms[0]], cond[arms[1]]
-    print("\n  CONDITIONED on tripping: %s %d/%d vs %s %d/%d   Fisher p = %.4f" % (
-        arms[0], a[0], a[1], arms[1], b[0], b[1], fisher(a[0], a[1]-a[0], b[0], b[1]-b[0])))
-    print("  Marginal (all runs, the DILUTED number): %s %d/%d vs %s %d/%d" % (
-        arms[0], a[0]+a[2], a[1]+a[3], arms[1], b[0]+b[2], b[1]+b[3]))
+# Pairwise, because a three-arm chain (stock vs advisory vs a cycle cap) has no
+# single comparison - what matters is whether the cap matches the advisory AND
+# whether it beats stock, and those are different questions.
+if len(arms) >= 2:
+    print("\n  CONDITIONED on tripping, pairwise:")
+    for i in range(len(arms)):
+        for j in range(i + 1, len(arms)):
+            a, b = cond[arms[i]], cond[arms[j]]
+            print("    %-9s %d/%-2d  vs  %-9s %d/%-2d   Fisher p = %.4f" % (
+                arms[i], a[0], a[1], arms[j], b[0], b[1],
+                fisher(a[0], a[1]-a[0], b[0], b[1]-b[0])))
+    print("  Marginal (all runs, the DILUTED numbers):")
+    for arm in arms:
+        c = cond[arm]
+        print("    %-9s %d/%-2d" % (arm, c[0]+c[2], c[1]+c[3]))
 
 print("\n  MANIPULATION CHECK - per run, not pooled:")
 bad = 0
