@@ -1,24 +1,5 @@
 [
  {
-  "ts": "2026-09-15 06:38:49",
-  "case": "corner_octagon_45deg",
-  "config": {
-   "slots": [
-    "circle:9:8"
-   ],
-   "gaits": [
-    "trotting"
-   ],
-   "speeds": [
-    2.5
-   ],
-   "dashes": [],
-   "extras": []
-  },
-  "verdict": "PASS",
-  "wall_s": 62.6
- },
- {
   "ts": "2026-09-15 06:40:06",
   "case": "oval_real_switch",
   "config": {
@@ -19023,5 +19004,20 @@
   },
   "verdict": "PASS",
   "wall_s": 68.5
+ },
+ {
+  "ts": "2026-09-17 11:47:03",
+  "case": "corner_probe_90deg",
+  "config": {
+   "slots": [
+    "corner:25:90"
+   ],
+   "gaits": [],
+   "speeds": [],
+   "dashes": [],
+   "extras": []
+  },
+  "verdict": "PASS",
+  "wall_s": 92.6
  }
 ]
