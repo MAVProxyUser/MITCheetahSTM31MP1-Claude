@@ -1006,6 +1006,40 @@ passed on its own in-suite retry.
      count and the 1 was a fall. The measured TRIP rate in this 241-run corpus is
      **17/241 = 7.1 %** (and 22/241 = 9.1 % merely graze 240 mm on at least one
      sample without satisfying the 5-tick debounce).
+     **RE-DERIVED 2026-09-17 14:50, and the headline multiplier does not survive.**
+     Cheap method, no archive log reads: `run_id` is monotonic in time, and one
+     directory glob per boundary dates it — the turn cap (09-13 16:42) lands
+     between runs 6606 and 6636, and the debounces (09-15 21:50) land between run
+     **8399** at 21:49:51 and run **8400** at 21:51:15. Classifying every campaign
+     CSV row by `run_id` gives **4,171 course runs, runs 3627–9823**:
+
+     | era | runs | falls | rate |
+     |---|---|---|---|
+     | A to 09-13, pre turn-cap | 2526 | 703 | **27.8 %** |
+     | B 09-14 → 09-15 21:50 | 1097 | 78 | **7.1 %** |
+     | C 09-15 21:50 → (induced chains CR/CU excluded) | 365 | 19 | **5.2 %** |
+
+     (With CR and CU left in, era C reads 87/548 = 15.9 % — they induced falls on
+     purpose, so they must come out.)
+     **So era C is 5.2 %, not 0.8 %, and the improvement is A→C ≈ 5.3x, not the
+     31x this entry claims above.** The discrepancy is the DENOMINATOR, not the
+     data: the old table counted archived ctrl logs, which include every
+     13-case fast suite tier and every probe — easy runs that nearly all pass.
+     Chain CV alone contributed 52 tier cases in four hours. Padding the
+     denominator with easy passes drives the rate down, and it does so harder in
+     the recent eras because that is when the tiers became routine, which
+     manufactures part of the improvement.
+     **What I am NOT claiming:** that the shipped work did not help. The A→B drop
+     is large in both derivations (27.8 % → 7.1 % here), and that is the turn cap
+     plus the single lap. What does not survive is the SIZE of the total
+     multiplier and era C's absolute rate.
+     **And both derivations share a confound neither can remove:** the course mix
+     changed across eras. Era A's campaigns are not era C's campaigns, so part of
+     every one of these numbers is which courses I chose to drive, not what the
+     controller does. The honest reading is that the turn cap bought a large,
+     real improvement, the debounces bought a smaller one, and **the current
+     course-run fall rate on the shipped binary is about 5 %**, of which OPEN-40
+     is the largest identified share.
      **The era table needs re-deriving over the full corpus before any era rate
      is quoted again**; it is left standing here only because its A/B/C
      comparison is still the evidence for the turn cap and the debounces.
