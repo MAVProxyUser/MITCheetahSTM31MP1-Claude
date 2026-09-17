@@ -3404,6 +3404,34 @@ throughout. So "stock passes 40 %" is a condition-dependent number, not a
 constant of the configuration: it is safe to use inside an interleaved contrast
 and never safe as a cross-chain comparator.
 
+**THE BLEED IS CONSTANT PER CYCLE, SO OPEN-40 IS ARITHMETIC (2026-09-17).** The
+`[Recovery Balance] body height is X` line printed on every RecoveryStand entry
+gives a free height series across a limit cycle. Over all eleven sustained-cycle
+runs at the shipped trigger the bleed is **median 2.29 mm per cycle, range
+1.19-2.98**. That makes the mechanism a budget:
+
+    cycles_to_fold  ~=  (entry_height - 0.20 m) / 2.29 mm
+
+and it reproduces the data. For a typical 0.295 m entry the budget is **41
+cycles**, against an independently observed PASS/FAIL boundary of **43** - 6 FAIL
+/ 0 PASS above it, 1 FAIL / 4 PASS below, Fisher **p = 0.0152**. Ordered by cycle
+count the eleven runs are almost monotone: `107 F, 89 F, 81 F, 68 F, 52 F, 45 F,
+42 P, 41 P, 41 P, 35 P, 31 F` - ONE inversion, and it is run **9213**, the lowest
+entry of all eleven at 0.267 m, whose budget is **29 cycles**; it died at 31.
+So the earlier "entry headroom decides it" and the newer "cycle count decides it"
+are the same statement: **height sets the size of the budget, cycles spend it.**
+The variance lives in the cycles (31-107, 3.5x) not the heights (0.267-0.310,
+43 mm), which is why cycle count looks like the discriminator on its own.
+**This is what makes option (f)'s cap calculable instead of guessed.** A cap of N
+costs N x 2.29 mm of the ~95 mm a normal entry carries: cap 2 = 4.8 %, **cap 5 =
+12.1 %**, cap 10 = 24.1 %, cap 20 = 48.2 %. Five spends an eighth of the headroom.
+Two honesties: the 2.29 mm rate is derived from the same eleven runs it then
+describes, so it is DESCRIPTIVE at n = 11, not a validated predictor; and run
+**8995** does not belong to the model at all - 68 cycles but only 81 mm bled,
+bottoming out at 0.213 m ABOVE the fold line and still failing at 31.2 deg of
+pitch. It died by the ATTITUDE route, not the bleed route, which is the
+two-kill-route split behaving exactly as recorded.
+
 **AND THE HOST HAD A SECOND SIMULATOR THROUGH ALL OF IT.** `interceptor-sim sim
 -s -r worlds/interceptor.sdf` (pid 28533, ppid 1, started Wed 2026-09-16
 22:10:49) overlapped 150 of the chain's 156 rows and is a REAL sustained tenant:
