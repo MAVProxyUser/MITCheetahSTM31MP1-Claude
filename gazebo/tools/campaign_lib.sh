@@ -175,7 +175,15 @@ campaign_host_sweep(){
   for p in $(ps -eo pid,ppid,command | awk '$2==1 && /(pose|contact|cam)_feed\.py/ && !/awk/ {print $1}'); do
     echo "  [sweep] killing orphaned feed pid $p"; kill "$p" 2>/dev/null
   done
-  echo "  [host] load$(uptime | sed 's/.*load averages*//'); busiest: $(ps -eo pcpu,comm -r | sed -n 2,4p | awk '{printf "%s %.0f%%  ", $2, $1}')"
+  echo "  [host] load$(uptime | sed 's/.*load averages*//')"
+  # The "busiest" line here used to read `ps -eo pcpu -r`, which is a DECAYED
+  # INSTANTANEOUS estimate and not sustained load (2026-09-17, ISSUES OPEN-35
+  # decisions #5 and #7). It hid a wedged corespotlightd holding 15.5 CPU-HOURS
+  # at 10.1 % sustained for six days, and it made a steady 36 % second simulator
+  # look spiky enough that I retracted a correct conclusion about contamination.
+  # host_tenants.sh divides CPU time by elapsed time instead, labels the rig's own
+  # processes, and reports without killing anything unauthorized.
+  bash gazebo/tools/host_tenants.sh 6 2>/dev/null || echo "  [tenants] sweep unavailable"
 }
 
 campaign_claim(){   # $1 = campaign name
