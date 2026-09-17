@@ -43,6 +43,7 @@ PAT  = sys.argv[1] if len(sys.argv) > 1 else "advship_cw*.csv"
 TRIP   = re.compile(r"y-position is bad \((-?[\d.]+) m, max ([\d.]+), (\d+) ticks\)")
 RECOV  = re.compile(r"\[Recovery Balance\] body height is ([\d.]+)")
 LOCOADV= re.compile(r"\[locoadv\]")
+LOCOCAP= re.compile(r"\[lococap\]")
 ORIENT = re.compile(r"Orientation safety check failed![^\n]*")
 
 def fisher(a, b, c, d):
@@ -80,6 +81,7 @@ for r in rows:
     facts.append((r, {
         "trips":  len(TRIP.findall(t)),
         "adv":    len(LOCOADV.findall(t)),
+        "cap":    len(LOCOCAP.findall(t)),
         "cycles": len(hs),
         "bled":   (hs[0] - min(hs)) * 1000 if hs else 0.0,
         "orient": o.group(0) if o else "",
@@ -99,10 +101,13 @@ for arm in arms:
     non = [(r, f) for r, f in sel if f["trips"] == 0]
     cond[arm] = (sum(1 for r, _ in trp if r["verdict"] == "PASS"), len(trp),
                  sum(1 for r, _ in non if r["verdict"] == "PASS"), len(non))
-    print("  %-9s  tripped %2d/%-2d PASS   never tripped %2d/%-2d PASS   trips %4d  cycles %4d  bled max %4.0f mm  [locoadv] %3d" % (
+    cyc = [f["cycles"] for _, f in trp]
+    print("  %-9s  tripped %2d/%-2d PASS   never tripped %2d/%-2d PASS   trips %4d  cycles %4d (per tripping run: %s)  bled max %4.0f mm  [locoadv] %3d  [lococap] %3d" % (
         arm, cond[arm][0], cond[arm][1], cond[arm][2], cond[arm][3],
         sum(f["trips"] for _, f in sel), sum(f["cycles"] for _, f in sel),
-        max([f["bled"] for _, f in sel] or [0]), sum(f["adv"] for _, f in sel)))
+        ",".join(str(c) for c in sorted(cyc, reverse=True)[:8]) or "-",
+        max([f["bled"] for _, f in sel] or [0]), sum(f["adv"] for _, f in sel),
+        sum(f["cap"] for _, f in sel)))
 
 if len(arms) == 2:
     a, b = cond[arms[0]], cond[arms[1]]
@@ -117,14 +122,26 @@ for r, f in facts:
     if f is None or f["trips"] == 0:
         continue
     arm = r["course"]
-    if "advisory" in arm or "adv" == arm:
-        ok = f["adv"] > 0 and f["cycles"] == 0
+    # Three arm kinds, three different expectations. A CAPPED run routes its
+    # suppressed trips through the same branch as the advisory, so it emits
+    # [locoadv] too - expecting [locoadv] == 0 there would flag correct behaviour
+    # as a violation. The distinguishing line is [lococap], and the distinguishing
+    # NUMBER is the cycle count: the advisory abolishes cycles, the cap BOUNDS
+    # them, so a cap arm must show cycles > 0 and cycles near its cap.
+    if arm.startswith("cap"):
+        ok  = f["cap"] > 0 and f["cycles"] > 0
+        why = "a cap arm must show [lococap] > 0 and cycles > 0 (bounded, not abolished)"
+    elif "advisory" in arm or arm == "adv":
+        ok  = f["adv"] > 0 and f["cycles"] == 0
+        why = "an advisory arm must show [locoadv] > 0 and ZERO cycles"
     else:
-        ok = f["adv"] == 0
+        ok  = f["adv"] == 0 and f["cap"] == 0
+        why = "a stock arm must show neither [locoadv] nor [lococap]"
     if not ok:
         bad += 1
-        print("    VIOLATION  run %s (%s): trips %d, [locoadv] %d, cycles %d" % (
-            r.get("run_id"), arm, f["trips"], f["adv"], f["cycles"]))
+        print("    VIOLATION  run %s (%s): trips %d, [locoadv] %d, [lococap] %d, cycles %d" % (
+            r.get("run_id"), arm, f["trips"], f["adv"], f["cap"], f["cycles"]))
+        print("               %s" % why)
 print("    %s" % ("all tripping runs consistent with their arm" if bad == 0 else
                   "%d row(s) inconsistent - the knob may not have taken; do not score those blocks" % bad))
 
