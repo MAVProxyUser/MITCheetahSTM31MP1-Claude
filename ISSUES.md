@@ -118,6 +118,29 @@ passed on its own in-suite retry.
     envelope number — the natural trip rate is ~1 run in 531. The claim is
     narrower and complete: **when the per-leg check trips at cruise, the advisory
     response beats the transition on every axis measured.**
+  - **WHY ignoring 5213 trips is safe, and the answer is better than "it just
+    is": the check's own ACTION makes the guarded quantity WORSE.** Lateral foot
+    excursion over the same 156 runs:
+
+    | | median | p90 | **max** |
+    |---|---|---|---|
+    | advisory (never transitions) | 219 | 234 | **241 mm** |
+    | stock (cycles) | 231 | 263 | **283 mm** |
+
+    against a shipped limit of 240 mm, the induced trigger at 210, and a
+    **MECHANICAL bound of 379 mm** (FK at Unitree's 49.5° abad stop). So
+    disabling the check left the worst excursion at **241 mm — 1 mm past the
+    shipped limit and 138 mm short of anything mechanical** — while the arm that
+    DID trip reached **283 mm**, because RECOVERY_STAND's commands throw the legs
+    further out than the gait ever does. **The guard increased the very lateral
+    excursion it exists to prevent**, by 42 mm at the max and 12 mm at the
+    median.
+    That is the mechanism of the fix's safety, not just its outcome: there was
+    never anything to protect against in this regime (96 mm of mechanical
+    headroom unused even at stock's worst), and the protection itself was the
+    largest source of the excursion. It does NOT license ignoring an arbitrary
+    excursion — at 350 mm the argument would be different — which is why the
+    knob is a SPEED gate rather than a deletion of the check.
   - **NOTHING SHIPS.** Every knob defaults to stock and the fast tier is 13/13 on
     the deployed binary with all of them off. Decision #4 is the operator's.
 
