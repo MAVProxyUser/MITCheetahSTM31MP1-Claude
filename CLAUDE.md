@@ -3283,6 +3283,35 @@ protection. Any future fix here has to keep the robot somewhere a guard is
 watching, which is the one argument for the advisory option
 (`CTRL_LOCO_UNSAFE_ADVISORY_VMAX`): it keeps the robot in LOCOMOTION, where the
 attitude check is live.
+**AND THAT OPTION IS THE ANSWER, measured 2026-09-17 at n = 78 AN ARM** (26
+interleaved blocks; the chain overran its stop marker across a session restart,
+which for once helped). Trigger pinned at `CTRL_MAX_PLEG_Y=0.21` on both arms,
+wkc_finals at 2.6:
+
+| arm | verdicts | trips | RecovStand entries | folds | worst pitch | worst roll | leg_y max | lap |
+|---|---|---|---|---|---|---|---|---|
+| **advisory** | **78/78** | 5213 | **0** | **0** | **27.2 deg** | **19.4 deg** | **241 mm** | 97.0 s |
+| stock | **31/78** | 5308 | 5332 | 2388 | 34.1 | 54.3 | 283 mm | 97.2 s |
+
+**Fisher p = 1.1e-13**, with 5213 trips producing ZERO RecoveryStand entries
+across 77 archived logs against stock's 5332-for-5308 - the cycle's 1:1
+signature at scale. And it is SAFER on every axis, which answers the obvious
+objection that it disables a guard: the advisory arm **never once reached the
+28.65 deg E-stop in 78 runs**, its worst roll is a third of stock's, and
+passing-run pitch means are identical at 20.0 with no lap cost.
+**The deepest part: the check's own ACTION makes the quantity it guards WORSE.**
+Lateral foot excursion, median/p90/max - advisory 219/234/**241 mm**, stock
+231/263/**283 mm** - against a shipped limit of 240 and a MECHANICAL bound of
+379 (FK at the 49.5 deg abad stop). RECOVERY_STAND's commands throw the legs
+further out than the gait ever does, so the guard added 42 mm to the worst
+excursion it exists to prevent, with 96 mm of mechanical headroom unused even at
+stock's worst. There was nothing to protect against in this regime and the
+protection was the largest source of the hazard.
+**Scope:** the trigger is INDUCED, so 78/78 is not an envelope number - the
+natural trip rate is ~1 run in 531. The claim is that WHEN this check trips at
+cruise, not transitioning wins. The knob is a SPEED GATE rather than a deletion,
+because at a genuinely large excursion the argument would be different, and it
+ships default OFF (-1) pending the operator's call.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
