@@ -978,6 +978,37 @@ passed on its own in-suite retry.
      **1 fall in 531 runs**. n is small and the interval is wide; that is a
      count, not a rate to quote.
 
+     **STALE, AND THE STALENESS MATTERS - corrected 2026-09-17 13:20.** That
+     era-C row is a SNAPSHOT taken around midday on 09-16, when era C held 531
+     archived logs and 4 falls. Era C has been running ever since, and **13 of
+     the 16 falls now in the era-C campaign CSVs happened AFTER this table was
+     written.** Dated from the archive log names, every one is era C:
+     8850 09-16 10:57 - 8871 11:36 - 8892 12:22 - 8967 14:23 - 8995 15:09 -
+     9005 15:23 - 9029 16:00 - 9053 16:37 - 9069 17:03 - 9170 19:32 -
+     9189 20:02 - 9212 20:38 - 9213 20:39 - 9214 20:40 - 9218 20:45 -
+     9771 09-17 12:46. So **"1 fall in 531 runs" is not OPEN-40's rate on the
+     current binary and must not be quoted as one.** What replaces it, measured
+     on the SHIPPED `CTRL_MAX_PLEG_Y` with the induced chains (CR, CU) excluded:
+     **241 course runs, 16 falls (15 `collapsed`, 1 `tipped`), and 7 of the 16
+     are genuine OPEN-40** - trip first at 242-245 mm, then 31-107 trip/recover
+     cycles, then the height bleed, each one verified in its own ctrl log rather
+     than inferred. That is **7/241 = 2.9 % of runs and 44 % of everything that
+     still falls**, which makes OPEN-40 the dominant residual fall mode on the
+     current binary at the envelope edge, not a 1-in-531 curiosity.
+     **The honest scope on that 2.9 %:** these 241 runs are deliberately hard -
+     `wkc_weave`/`wkc26_vcruise` at 2.6-2.7, the re-acceleration campaigns and
+     the margin probes - so 2.9 % is the rate at the edge of the envelope, and
+     the served-recipe rate on easy courses is lower. The two numbers measure
+     different course mixes, which is exactly why the 0.8 % was diluted.
+     **Also corrected: the "natural trip rate is ~1 run in 531" written in
+     decision #4 conflated a FALL rate with a TRIP rate** - 531 was era C's run
+     count and the 1 was a fall. The measured TRIP rate in this 241-run corpus is
+     **17/241 = 7.1 %** (and 22/241 = 9.1 % merely graze 240 mm on at least one
+     sample without satisfying the 5-tick debounce).
+     **The era table needs re-deriving over the full corpus before any era rate
+     is quoted again**; it is left standing here only because its A/B/C
+     comparison is still the evidence for the turn cap and the debounces.
+
      **WITHDRAWN, a claim of mine from an hour earlier: "on the served recipe
      the cycle is 71 % of what is left."** It was computed over "09-14 onward",
      30 of 42 falls, which MIXES eras B and C — and the per-leg trip class is
