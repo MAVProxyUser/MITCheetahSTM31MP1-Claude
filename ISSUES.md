@@ -674,6 +674,31 @@ passed on its own in-suite retry.
   interleaved run by run in one block.** Only that can rank them. What each lever
   beats — unmodified 2.6 — was measured against a control in its own chain and
   stands: 17/18 vs 15/18 for cruise, 12/12 vs 10/12 for the cap.
+
+  **CT FINAL, n = 18 an arm (20:53) — the cap's own control is what makes the
+  drift concrete:**
+
+  | | verdicts | PASSING worst | margin | sd | mean | lap | worst of ALL runs |
+  |---|---|---|---|---|---|---|---|
+  | cap 2.4 | **17/18** | **25.8** | **+2.8** | 2.56 | **18.3** | 55.8 s | **35.8** |
+  | no cap | 13/18 | 27.2 | +1.4 | 2.58 | 23.3 | 55.1 s | 31.5 |
+
+  Fisher on the verdicts: **p = 0.177** — suggestive, not significant. The cap
+  lowers the passing mean by **5.0°**, improves the worst PASSING case by 1.4°,
+  matches the control's spread exactly (2.56 vs 2.58), and costs +0.7 s.
+  **One caution about its failure mode: the cap's single fall peaked at 35.8°,
+  hotter than any control fall (max 31.5).** So it fails less often and harder,
+  which for a threshold guard is not obviously a good trade.
+  **No drift WITHIN the chain** — per-block passing means are nocap
+  23.7 / 23.1 / 23.2 and cap 18.9 / 17.6 / 18.5, flat in both arms, so the
+  interleaving did its job.
+  **But BETWEEN chains the same configuration moved 11 points.** Unmodified 2.6
+  on this course measured **15/18 (83 %) in CS** and **13/18 (72 %) in CT** —
+  Fisher p = 0.691 between the two controls, so they are statistically
+  compatible, and the point estimate still shifted by the same order as the
+  effects being chased. That is the drift argument made with data rather than
+  quoted, and it is why the cruise-vs-cap ranking needs chain CV. Pooled, 2.6
+  unmodified is **28/36 = 78 %** on the weave.
   **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
   because the second was a near-miss on the rig:**
   1. **Chain CR died silently and never ran.** It sat in its wait loop from
