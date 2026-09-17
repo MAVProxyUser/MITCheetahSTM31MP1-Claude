@@ -3336,9 +3336,33 @@ residual falls at the shipped trigger had `leg_y_max_mm` > 240, which reads as
 "the advisory addresses half of what still fails". It is circular: `leg_y_max_mm`
 is a max over the whole run and a falling robot splays its legs, so a FAIL
 inflates the number used to select it. The grading proves the circularity -
-241-260 mm passes **15/19 = 79 %**, while > 260 mm is **0/3**, i.e. legs at
-285-291 mm are a robot already on its way down. The non-circular test is the trip
-TIME against the fall time, from the `[legkin]`/unsafe lines and the traces.
+241-260 mm passes **15/19 = 79 %**, while > 260 mm is **0/3**.
+**RESOLVED 2026-09-17, AND IT RESOLVES THE OTHER WAY.** The ctrl logs are
+UNCOMPRESSED in the archive - only `shm_trace/*.json.zst` is packed - so reading
+all seven cost 7 small text reads. Per fall: first-trip leg_y, max reached,
+trip/recover cycles, RecoveryStand height series:
+| run | first trip | max | cycles | height | bled |
+|---|---|---|---|---|---|
+| 9212 | 244 mm | 291 mm | 107 | 0.307 -> 0.060 | 247 mm |
+| 9189 | 243 | 287 | 89 | 0.310 -> 0.072 | 238 |
+| 9029 | 242 | 285 | 81 | 0.300 -> 0.065 | 235 |
+| 9053 | 243 | 250 | 52 | 0.287 -> 0.132 | 155 |
+| 8995 | 242 | 246 | 68 | 0.295 -> 0.213 | 81 |
+| 9213 | 245 | 245 | 31 | 0.267 -> 0.197 | 71 |
+| 8892 | 242 | 243 | 45 | 0.295 -> 0.183 | 112 |
+The ordering is unambiguous in all seven: **trip first at 242-245 mm, then the
+cycle, then the height bleeds away, then the fall.** The 285-291 mm maxima are
+what the cycle GREW the excursion to, up to +47 mm AFTER the trip - so
+`leg_y_max_mm` is inflated by the GUARD'S OWN ACTION, not by a falling robot's
+splayed legs, and selecting the population on it is legitimate after all.
+**At the SHIPPED threshold with no induced trigger, every one of these fired at a
+2-5 mm exceedance of a 240 mm software limit that still had 139 mm of mechanical
+headroom (379 mm at the 49.5 deg abad stop), and the response bled the robot from
+~0.30 m to as low as 0.060 m over 31-107 cycles and dropped it.** Three bled
+below the 0.20 m fold line. This is better pre-ship evidence than the tier I
+cancelled could have produced: 7 real falls at the production trigger against
+0.07-3.3 expected engagements. It shows the mechanism and the ordering, not a
+counterfactual - the conversion evidence is CU's 78/78 vs 31/78.
 
 **A CONTROL ARM'S BASE RATE DRIFTS ACROSS A NIGHT, BY MORE THAN MOST EFFECTS.**
 In the same 26-block chain, stock went **20/39 = 51 %** in the first half and
