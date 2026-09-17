@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Score an OPEN-40 advisory A/B by CONDITIONING on whether the guard fired.
+
+WHY THIS EXISTS (2026-09-17, ISSUES OPEN-40 decision #4).
+
+At the SHIPPED CTRL_MAX_PLEG_Y (0.240) only about 7 % of runs trip the leg-y
+guard at all.  The advisory knob can only change the outcome of a run where the
+guard FIRES - on every other run the two arms are running identical code.  So a
+marginal pass rate mixes a handful of informative runs into a majority of runs
+that carry no information, and it dilutes the effect toward nothing.  Chain CW
+block 1 is the worked example: marginally stock 4/6 vs advisory 5/6, which says
+nothing at all, while conditioned on tripping it is stock 0/2 vs advisory 2/2.
+
+It also keeps two mistakes out of the numbers:
+
+  * A fall in the advisory arm is only the advisory's if the guard actually
+    engaged.  CW's 9859 fell with ZERO leg-y trips, on a bare pitch E-stop
+    0.05 deg over the 28.65 limit - counting it against the advisory would be
+    wrong, and the marginal rate does exactly that.
+  * The `[locoadv]` log line is throttled at 20 per run, so its count is NOT the
+    trip count.  The throttle-proof manipulation check is ">= 1 advisory line AND
+    zero RecoveryStand cycles", which is what this asserts.
+
+The continuous endpoint is RecoveryStand CYCLES and the height BLED, not the
+verdict: the hazard is the sustained cycle, the bleed runs at ~2.29 mm a cycle,
+and the advisory drives the cycle count to zero by construction.
+
+The per-run facts come from each run's own ctrl log, which is UNCOMPRESSED in the
+archive (only shm_trace/*.json.zst is packed), so this is cheap - a few hundred
+small text reads, not a snapshot decompression.
+
+usage:  python3 gazebo/tools/open40_conditioned.py [csv-glob]
+        python3 gazebo/tools/open40_conditioned.py 'advship_cw*.csv'
+"""
+import csv, glob, os, re, sys, statistics as st
+from math import comb
+
+DATA = os.environ.get("CHEETAH_DATA", os.path.expanduser("~/Desktop/Cheetah/rundata"))
+CAMP = os.path.join(DATA, "campaigns")
+ARCH = os.path.join(DATA, "conductor", "archive")
+PAT  = sys.argv[1] if len(sys.argv) > 1 else "advship_cw*.csv"
+
+TRIP   = re.compile(r"y-position is bad \((-?[\d.]+) m, max ([\d.]+), (\d+) ticks\)")
+RECOV  = re.compile(r"\[Recovery Balance\] body height is ([\d.]+)")
+LOCOADV= re.compile(r"\[locoadv\]")
+ORIENT = re.compile(r"Orientation safety check failed![^\n]*")
+
+def fisher(a, b, c, d):
+    n = a + b + c + d
+    if n == 0 or (a + c) == 0:
+        return 1.0
+    obs = comb(a + b, a) * comb(c + d, c) / comb(n, a + c)
+    tot = 0.0
+    for i in range(0, min(a + b, a + c) + 1):
+        k = a + c - i
+        if (a + b - i) < 0 or k < 0 or (c + d - k) < 0:
+            continue
+        pr = comb(a + b, i) * comb(c + d, k) / comb(n, a + c)
+        if pr <= obs + 1e-12:
+            tot += pr
+    return tot
+
+rows = []
+for f in sorted(glob.glob(os.path.join(CAMP, PAT))):
+    rows += list(csv.DictReader(open(f)))
+if not rows:
+    sys.exit("no rows matched %s under %s" % (PAT, CAMP))
+
+facts = []
+for r in rows:
+    rid = (r.get("run_id") or "").strip()
+    logs = glob.glob(os.path.join(ARCH, "*_run%s_ctrl_0.log" % rid)) if rid else []
+    if not logs:
+        # A run's log is live until the NEXT launch archives it, so the most
+        # recent row routinely has none yet. Say so rather than scoring it as 0.
+        facts.append((r, None)); continue
+    t = open(logs[0], errors="replace").read()
+    hs = [float(m.group(1)) for m in RECOV.finditer(t)]
+    o  = ORIENT.search(t)
+    facts.append((r, {
+        "trips":  len(TRIP.findall(t)),
+        "adv":    len(LOCOADV.findall(t)),
+        "cycles": len(hs),
+        "bled":   (hs[0] - min(hs)) * 1000 if hs else 0.0,
+        "orient": o.group(0) if o else "",
+    }))
+
+unread = sum(1 for _, f in facts if f is None)
+print("  OPEN-40 conditioned scoring: %d rows from %s%s" % (
+    len(rows), PAT, ("  (%d without an archived log yet - excluded)" % unread) if unread else ""))
+print("  Conditioning on whether the leg-y guard FIRED, because the arms run identical")
+print("  code on every run where it did not.\n")
+
+arms = sorted({r["course"] for r in rows})
+cond = {}
+for arm in arms:
+    sel = [(r, f) for r, f in facts if r["course"] == arm and f is not None]
+    trp = [(r, f) for r, f in sel if f["trips"] > 0]
+    non = [(r, f) for r, f in sel if f["trips"] == 0]
+    cond[arm] = (sum(1 for r, _ in trp if r["verdict"] == "PASS"), len(trp),
+                 sum(1 for r, _ in non if r["verdict"] == "PASS"), len(non))
+    print("  %-9s  tripped %2d/%-2d PASS   never tripped %2d/%-2d PASS   trips %4d  cycles %4d  bled max %4.0f mm  [locoadv] %3d" % (
+        arm, cond[arm][0], cond[arm][1], cond[arm][2], cond[arm][3],
+        sum(f["trips"] for _, f in sel), sum(f["cycles"] for _, f in sel),
+        max([f["bled"] for _, f in sel] or [0]), sum(f["adv"] for _, f in sel)))
+
+if len(arms) == 2:
+    a, b = cond[arms[0]], cond[arms[1]]
+    print("\n  CONDITIONED on tripping: %s %d/%d vs %s %d/%d   Fisher p = %.4f" % (
+        arms[0], a[0], a[1], arms[1], b[0], b[1], fisher(a[0], a[1]-a[0], b[0], b[1]-b[0])))
+    print("  Marginal (all runs, the DILUTED number): %s %d/%d vs %s %d/%d" % (
+        arms[0], a[0]+a[2], a[1]+a[3], arms[1], b[0]+b[2], b[1]+b[3]))
+
+print("\n  MANIPULATION CHECK - per run, not pooled:")
+bad = 0
+for r, f in facts:
+    if f is None or f["trips"] == 0:
+        continue
+    arm = r["course"]
+    if "advisory" in arm or "adv" == arm:
+        ok = f["adv"] > 0 and f["cycles"] == 0
+    else:
+        ok = f["adv"] == 0
+    if not ok:
+        bad += 1
+        print("    VIOLATION  run %s (%s): trips %d, [locoadv] %d, cycles %d" % (
+            r.get("run_id"), arm, f["trips"], f["adv"], f["cycles"]))
+print("    %s" % ("all tripping runs consistent with their arm" if bad == 0 else
+                  "%d row(s) inconsistent - the knob may not have taken; do not score those blocks" % bad))
+
+print("\n  FALLS, with whether the guard was even involved:")
+for r, f in facts:
+    if r["verdict"] == "PASS":
+        continue
+    if f is None:
+        print("    %-9s run %-6s  (no archived log yet)" % (r["course"], r.get("run_id"))); continue
+    tag = "guard FIRED (%d trips, %d cycles, bled %.0f mm)" % (f["trips"], f["cycles"], f["bled"]) \
+          if f["trips"] else "guard NEVER FIRED - not attributable to the knob"
+    print("    %-9s run %-6s  %s" % (r["course"], r.get("run_id"), tag))
+    if f["orient"]:
+        print("        %s" % f["orient"])
