@@ -13,10 +13,48 @@ archive), this file is the index of where we've been and what's left. Rules:
   machine), `PARKED` (built, unproven, default-off), `MITIGATED`
   (guarded, not eliminated), `DECISION` (operator's call).
 
-## DECISIONS WAITING ON THE OPERATOR (as of 2026-09-16 09:00)
+## DECISIONS WAITING ON THE OPERATOR (as of 2026-09-17 16:45)
 
 Everything below is measured and written up in its own issue; none of it is
 shipped, and none of it needs more data to decide.
+
+**What changed on 2026-09-17, so you can skip to what is actually open:**
+
+- **#4 is the one to read.** `locomotionSafe()`'s response to a trip at cruise
+  should be to do nothing but log. It is now measured TWICE, at two different
+  thresholds: at an induced 0.21 (chain CU, 78/78 vs 31/78, p = 1.1e-13) and at
+  the SHIPPED 0.240 with nothing induced (chain CW, conditioned on the guard
+  firing, 5/5 vs 2/7, p = 0.0278). The mechanism is closed end to end — trip at
+  242-246 mm, a 1:1 limit cycle in 4 of 5 stock falls, height bleeding at
+  ~2.2 mm a cycle (a rate fitted on 11 historical runs and since validated on 5
+  it never saw), then depth kills. **And the guard's own quantity is worse for
+  its acting**: among tripping runs the worst lateral foot is 305 mm with the
+  guard live against 251 mm with it advisory, on a 240 mm limit and a 379 mm
+  mechanical bound. No axis got less safe, at either threshold. Still default
+  −1; shipping it is your call. **Option (f), a cycle cap, is the conservative
+  alternative** if giving up the guard above 1 m/s is too much — coded,
+  syntax-clean, NOT built.
+- **#9 is answered and it is a TIE.** Cruise 2.5 and the 2.4 re-acceleration cap
+  are indistinguishable head to head at n = 18 an arm (16/18 each, pitch
+  Mann-Whitney p = 0.109, lap difference 0.1 s). Decide on simplicity. The
+  cross-chain comparison that suggested a difference was measuring the rig's own
+  inter-chain drift: the SAME 2.5 config read 22.7° worst in one chain and 26.7°
+  in another.
+- **#3 is answered** (2.7 is not a rung).
+- **#8 now has two levers, and one needs no reboot.** `diskutil apfs
+  listSnapshots` separates what `tmutil` lumps together: the three
+  non-purgeable `os.update` snapshots are on the SYSTEM volume and are what your
+  restart (#6) clears, but a Time Machine `.local` snapshot from 09-16 11:40 on
+  the DATA volume ALSO pins the shared container, and it is purgeable. Measured:
+  `rundata` grew 0.513 GB while the container lost over 1.1 GB, so half to two
+  thirds of the burn is retained deletions rather than new data. The archive
+  reclaim table is real but not realizable until the snapshots go.
+- **Corrected today, because it was quoted in these decisions:** the era table's
+  "era C = 0.8 % fall rate, 31x improvement" does not survive re-derivation. On
+  course runs it is **5.2 %** and **≈5.3x**; the old denominator counted every
+  13-case suite tier. And "the natural trip rate is ~1 in 531" was a FALL count
+  reused as a trip rate — the measured trip rate is 7.1 %.
+- **Still genuinely open and needing you: #1, #2, #5, #6, #7.**
 
 | # | the call | what the evidence says | where |
 |---|---|---|---|
