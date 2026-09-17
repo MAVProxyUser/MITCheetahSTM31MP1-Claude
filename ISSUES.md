@@ -636,9 +636,32 @@ passed on its own in-suite retry.
   threshold, the worst case and the spread are the quantities that decide, and
   cruise wins both.
   n = 6 an arm and the spread is driven by one 25.8 run, so this is a first
-  block, not the answer; two more follow. But the early read is that the cheaper
-  lever is not cheaper and not better, which would leave decision #9 exactly
-  where CS put it.
+  block, not the answer.
+  **CT BLOCK 2 (n = 12 an arm, 20:15) SOFTENS THAT — the spread was the outlier,
+  and the cap is now genuinely comparable:**
+
+  | | verdicts | PASSING mean | sd | PASSING worst | margin | lap |
+  |---|---|---|---|---|---|---|
+  | cap 2.4 | **12/12** | **18.3** | **2.74** | 25.8 | +2.8 | 55.8 s |
+  | no cap | 10/12 | 23.4 | 2.64 | 27.2 | +1.4 | 55.1 s |
+  | *cruise 2.5 (CS, n = 18)* | *17/18* | *19.7* | *1.34* | *22.7* | *+5.9* | *55.8 s* |
+
+  The cap's sd fell from 3.76 to **2.74** as the block filled, confirming that
+  block 1's spread was the single 25.8 run rather than a property of the lever —
+  so **"worse where it counts" was an over-read of one outlier and is withdrawn
+  in that form.** At n = 12 the cap is **12/12 with the LOWEST passing mean of
+  the three options** (18.3), against 2.5's 17/18 and 19.7.
+  What survives of the criticism is narrower and still real: the cap's worst
+  PASSING case is 25.8 against 2.5's 22.7, so its margin is +2.8 against +5.9 —
+  and since the E-stop is a threshold, the worst case is what decides. But that
+  gap now rests on ONE run of twelve, which is exactly the kind of tail this
+  tree keeps being wrong about in both directions.
+  **So the honest state of decision #9 is two levers at the SAME cost (+0.7 s a
+  lap) with different shapes:** cruise 2.5 gives a tight distribution and the
+  best worst case; the 2.4 re-acceleration cap gives a lower mean and, so far, no
+  failures at all. One more block decides whether the cap's single hot run was
+  noise. The one thing settled either way is that **serving 2.6 unmodified is
+  the option with no margin.**
   **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
   because the second was a near-miss on the rig:**
   1. **Chain CR died silently and never ran.** It sat in its wait loop from
