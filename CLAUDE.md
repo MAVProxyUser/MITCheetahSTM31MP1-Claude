@@ -3349,18 +3349,24 @@ and never safe as a cross-chain comparator.
 
 **AND THE HOST HAD A SECOND SIMULATOR THROUGH ALL OF IT.** `interceptor-sim sim
 -s -r worlds/interceptor.sdf` (pid 28533, ppid 1, started Wed 2026-09-16
-22:10:49) overlapped 150 of the chain's 156 rows, sampling **42.4 / 63.3 /
-25.0 %** CPU - spiky, not flat. `imu_gap_max_ms` roughly doubled over the chain
-(median 3.2 -> 6.2 ms, worst 8.9 -> 72.9), and whether that was the tenant or my
-own archive/trace analysis is **UNRESOLVED** - a spiky tenant predicts no clean
-step at its start, so the step-vs-drift argument I first wrote does not settle
-it. The result survives regardless, on four things that do not depend on the load
+22:10:49) overlapped 150 of the chain's 156 rows and is a REAL sustained tenant:
+**315 min 08 s of CPU over 14 h 35 m elapsed = 36.0 %, 5.25 CPU-hours.**
+`imu_gap_max_ms` roughly doubled over the chain (median 3.2 -> 6.2 ms, worst
+8.9 -> 72.9), but the drift is NOT primarily this tenant: a sustained 36 % load
+arriving at 22:10:49 predicts a STEP at 22:10, and there is none (+0.6 ms,
+against +2.2 ms for the drift 7-13 h later).
+**`ps -o pcpu` IS NOT SUSTAINED LOAD - it is a decayed instantaneous estimate,
+and I retracted a correct conclusion on three of them before measuring CPU time
+over elapsed time.** Worked examples from the same sweep: `ANECompilerService`
+sampled at **97.8 % pcpu** but consumed **7 min 57 s in 8 days 9 h = 0.04 %**, and
+`photolibraryd` sampled at **81.0 %** but used **3 min 31 s in 2 h 38 m = 2.2 %** -
+neither is a runaway. Use `ps -o time,etime` for a tenant, never `pcpu` alone. The result survives regardless, on four things that do not depend on the load
 profile: the gap does not predict the outcome (stock FAILs had SMALLER gaps than
 stock PASSes), the arms were interleaved run-by-run, stock's base rate did not
 move across the tenant's arrival (p = 1.00), and the advisory passed 78/78
 through the two worst gaps on record. **Design for this**: interleaving is what
-makes a host you do not control survivable, and a load profile needs several
-samples before you argue from its shape.
+makes a host you do not control survivable, and a tenant's load profile comes
+from CPU time over elapsed time, not from instantaneous samples.
 
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
