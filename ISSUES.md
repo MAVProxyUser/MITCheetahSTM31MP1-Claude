@@ -662,6 +662,18 @@ passed on its own in-suite retry.
   failures at all. One more block decides whether the cap's single hot run was
   noise. The one thing settled either way is that **serving 2.6 unmodified is
   the option with no margin.**
+  **AND A CAVEAT ON THAT WHOLE COMPARISON — my own rule turned on me: cruise 2.5
+  and the 2.4 cap were measured in DIFFERENT CHAINS, hours apart.** CS ran
+  15:06–17:01, CT from 19:19. This tree's own finding is that *"blocks run at
+  different times are not comparable on this rig"*, which is exactly why every
+  arm INSIDE a chain is interleaved run by run. So the cruise-vs-cap numbers
+  share a course and a scoring method but NOT their host conditions, and the 3°
+  worst-case gap between them is precisely the size of effect inter-block drift
+  has faked here before.
+  **Chain CV is queued to settle it properly: cruise 2.5 against the 2.4 cap,
+  interleaved run by run in one block.** Only that can rank them. What each lever
+  beats — unmodified 2.6 — was measured against a control in its own chain and
+  stands: 17/18 vs 15/18 for cruise, 12/12 vs 10/12 for the cap.
   **TWO OPERATIONAL FAILURES while queueing this, both mine, both recorded
   because the second was a near-miss on the rig:**
   1. **Chain CR died silently and never ran.** It sat in its wait loop from
