@@ -36,6 +36,8 @@
 std::atomic<long> g_locoUnsafeHold{0};
 std::atomic<long> g_locoEntrySeq{0};   // bumped on every LOCOMOTION onEnter (OPEN-40 option b)
 std::atomic<long> g_locoUnsafeAdvisory{0};  // trips suppressed by OPEN-40 option (d)
+std::atomic<long> g_locoTick{0};       // monotonic across LOCOMOTION re-entries, unlike `iter`,
+                                       // which onEnter() resets and so restarts every cycle
 //#include <rt/rt_interface_lcm.h>
 
 /**
@@ -144,6 +146,7 @@ template <typename T>
 FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
   // Get the next state
   iter++;
+  g_locoTick.fetch_add(1);
 
   // Switch FSM control mode
   if(locomotionSafe()) {
@@ -213,7 +216,41 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
     // operator's call (ISSUES decision #4).
     static const double advisory_vmax = ctrl_tuning::num("CTRL_LOCO_UNSAFE_ADVISORY_VMAX", -1.0);
     const T v_body = this->_data->_stateEstimator->getResult().vBody.template head<2>().norm();
-    if(advisory_vmax > 0.0 && (double)v_body > advisory_vmax) {
+
+    // OPEN-40 option (f), the CYCLE CAP - added 2026-09-17 and DEFAULT OFF.
+    // ((e) is already the fold gate, CTRL_RECOVER_FOLD_VMAX.)
+    // Measured at the SHIPPED trigger (241 runs, ctrl logs read individually):
+    // the hazard is not the trip, it is the SUSTAINED cycle. Runs with <= 2
+    // trip/recover cycles survived 6 of 6; runs with >= 31 cycles fell 7 of 11
+    // while bleeding a median 155 mm of body height, and entry height did NOT
+    // discriminate (FAIL median 0.295 m vs PASS 0.293 m). So keep the guard's
+    // ACTION for a genuine one-off trip and only fall back to advisory once the
+    // pattern has proved itself a cycle. That is strictly more conservative than
+    // option (d), which never transitions at all above a speed.
+    //
+    // The gap test is what separates a cycle from two unrelated trips: inside the
+    // limit cycle successive trips are 2-3 ticks apart (trip -> RECOVERY_STAND for
+    // one tick -> back to LOCOMOTION -> trip), so any quiet gap longer than
+    // CTRL_LOCO_UNSAFE_CYCLE_GAP_TICKS ends the run of cycles and resets the count.
+    static const long cycle_cap = (long)ctrl_tuning::num("CTRL_LOCO_UNSAFE_CYCLE_CAP", 0.0);
+    static const long cycle_gap = (long)ctrl_tuning::num("CTRL_LOCO_UNSAFE_CYCLE_GAP_TICKS", 250.0);
+    static long cycle_count      = 0;
+    static long last_unsafe_tick = -1000000;
+    const long now_tick = g_locoTick.load();
+    if(now_tick - last_unsafe_tick > cycle_gap) cycle_count = 0;
+    last_unsafe_tick = now_tick;
+    ++cycle_count;
+    const bool cycle_capped = (cycle_cap > 0 && cycle_count > cycle_cap);
+    if(cycle_capped) {
+      static int cap_logged = 0;
+      if(cap_logged < 20) {
+        cap_logged++;
+        shmtrace::logf(0.0, "[lococap] unsafe trip %ld in this run of cycles (> cap %ld) at %.2f m/s - ADVISORY from here, staying in LOCOMOTION",
+                       cycle_count, cycle_cap, (double)v_body);
+      }
+    }
+
+    if(cycle_capped || (advisory_vmax > 0.0 && (double)v_body > advisory_vmax)) {
       ++g_locoUnsafeAdvisory;
       static int adv_logged = 0;
       if(adv_logged < 20) {
