@@ -3313,6 +3313,55 @@ cruise, not transitioning wins. The knob is a SPEED GATE rather than a deletion,
 because at a genuinely large excursion the argument would be different, and it
 ships default OFF (-1) pending the operator's call.
 
+**PRE-SHIP EXPOSURE, and why I cancelled the tier I had promised (2026-09-17).**
+I said I would run one tier with the advisory at the SHIPPED `CTRL_MAX_PLEG_Y`
+(0.24) before recommending it. I did not, because the event count says the tier
+cannot answer anything. The advisory engages only on a real TRIP, and the trip is
+debounced: `CTRL_LEGY_TRIP_TICKS` = **5 consecutive ticks** (10 ms) over the
+threshold AND the value must have MOVED (`CTRL_LEG_HELD_GATE`, default on), so a
+held sample cannot trip it - `FSM_State_Locomotion.cpp:325,362,434`. That gives
+two rates which BRACKET production exposure:
+  * **upper bound 22/241 = 9.1 % of runs** graze 240 mm on >= 1 sample
+    (`leg_y_max_mm` > 240)
+  * **recorded natural trip rate ~1 in 531 = 0.2 %** of runs actually trip
+The gap between them IS the debounce working. A 36-run tier therefore expects
+between **0.07 and 3.3** engagements, P(zero) between **93 % and 3 %** - it can
+easily buy nothing, and at the top of the range 3 engagements carry no power
+beside the 5213 already measured at 0.21. **The mechanism does not change with
+the threshold; only its rate does.** When a knob's exposure is bracketed this
+wide, bracket it from the corpus before booking rig time.
+
+**A `*_max` COLUMN CANNOT SELECT THE POPULATION ITS OUTCOME CAUSES.** 7 of the 15
+residual falls at the shipped trigger had `leg_y_max_mm` > 240, which reads as
+"the advisory addresses half of what still fails". It is circular: `leg_y_max_mm`
+is a max over the whole run and a falling robot splays its legs, so a FAIL
+inflates the number used to select it. The grading proves the circularity -
+241-260 mm passes **15/19 = 79 %**, while > 260 mm is **0/3**, i.e. legs at
+285-291 mm are a robot already on its way down. The non-circular test is the trip
+TIME against the fall time, from the `[legkin]`/unsafe lines and the traces.
+
+**A CONTROL ARM'S BASE RATE DRIFTS ACROSS A NIGHT, BY MORE THAN MOST EFFECTS.**
+In the same 26-block chain, stock went **20/39 = 51 %** in the first half and
+**11/39 = 28 %** in the second (Fisher p = 0.063), while the advisory held 78/78
+throughout. So "stock passes 40 %" is a condition-dependent number, not a
+constant of the configuration: it is safe to use inside an interleaved contrast
+and never safe as a cross-chain comparator.
+
+**AND THE HOST HAD A SECOND SIMULATOR THROUGH ALL OF IT.** `interceptor-sim sim
+-s -r worlds/interceptor.sdf` (pid 28533, ppid 1, started Wed 2026-09-16
+22:10:49) overlapped 150 of the chain's 156 rows, sampling **42.4 / 63.3 /
+25.0 %** CPU - spiky, not flat. `imu_gap_max_ms` roughly doubled over the chain
+(median 3.2 -> 6.2 ms, worst 8.9 -> 72.9), and whether that was the tenant or my
+own archive/trace analysis is **UNRESOLVED** - a spiky tenant predicts no clean
+step at its start, so the step-vs-drift argument I first wrote does not settle
+it. The result survives regardless, on four things that do not depend on the load
+profile: the gap does not predict the outcome (stock FAILs had SMALLER gaps than
+stock PASSes), the arms were interleaved run-by-run, stock's base rate did not
+move across the tenant's arrival (p = 1.00), and the advisory passed 78/78
+through the two worst gaps on record. **Design for this**: interleaving is what
+makes a host you do not control survivable, and a load profile needs several
+samples before you argue from its shape.
+
 The detector zeroes the legs and then **exits the process**, which is right for
 a sweep and dangerous on a machine: process exit also stops whatever was feeding
 the motor watchdog. Hardware wants latch-limp-and-hold under supervision, and it
