@@ -31,9 +31,14 @@ shipped, and none of it needs more data to decide.
   its acting**: among tripping runs the worst lateral foot is 305 mm with the
   guard live against 251 mm with it advisory, on a 240 mm limit and a 379 mm
   mechanical bound. No axis got less safe, at either threshold. Still default
-  −1; shipping it is your call. **Option (f), a cycle cap, is the conservative
-  alternative** if giving up the guard above 1 m/s is too much — coded,
-  syntax-clean, NOT built.
+  −1; shipping it is your call. **Option (f), a cycle cap, is now BUILT AND MEASURED and it WORKS** — chain CY,
+  trigger pinned so every run trips: stock **0/3** (cycles 109/93/60, bled 240 mm),
+  advisory **3/3** (cycles 0, bled 0), **cap5 2/2** (cycles 10 and 6, bled 19 mm).
+  Bounding the cycle buys what abolishing it does, so **you can keep the guard's
+  action for a one-off trip rather than surrender it above a speed gate**. cap5 vs
+  advisory p = 1.00; each vs stock p = 0.10 at n = 2-3 an arm, with CY still running.
+  **The decision is now WHICH fix, not WHETHER** — (d) is the simpler code and has
+  far more evidence behind it; (f) is the smaller change to a safety guard.
 - **#9 is answered and it is a TIE.** Cruise 2.5 and the 2.4 re-acceleration cap
   are indistinguishable head to head at n = 18 an arm (16/18 each, pitch
   Mann-Whitney p = 0.109, lap difference 0.1 s). Decide on simplicity. The

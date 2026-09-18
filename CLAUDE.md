@@ -3404,6 +3404,34 @@ throughout. So "stock passes 40 %" is a condition-dependent number, not a
 constant of the configuration: it is safe to use inside an interleaved contrast
 and never safe as a cross-chain comparator.
 
+**AND OPTION (f), THE CYCLE CAP, WORKS - measured 2026-09-17 19:42, chain CY.**
+Trigger pinned at 0.21 on all three arms so every run trips, 3 reps an arm,
+interleaved:
+
+| arm | verdict | cycles per tripping run | bled max |
+|---|---|---|---|
+| stock | **0/3** | 109 / 93 / 60 | **240 mm** |
+| advisory (d) | **3/3** | 0 / 0 / 0 | 0 mm |
+| cap5 (f) | **2/2** | **10 and 6** | **19 mm** |
+
+**So BOUNDING the cycle buys what ABOLISHING it does**, and the guard's action can
+be kept for a genuine one-off trip instead of surrendered above a speed gate.
+cap5 vs advisory is p = 1.00 (indistinguishable); each against stock is p = 0.10
+at this n. The verdicts are small-n but the mechanism numbers are not a sampling
+question: **16 cycles against stock's 262, 19 mm of bleed against 240 mm.**
+**A pre-registered prediction of mine failed here, informatively.** I predicted
+cap5's cycles would be exact MULTIPLES OF 5 and got 10 and 6. The 6 is correct:
+a capped episode contributes AT MOST 5, and the latch re-arms once the leg is
+clean for `CTRL_LOCO_UNSAFE_CYCLE_GAP_TICKS` = 250 ticks, so a run's total is a
+sum of per-episode contributions each <= 5 - **10 = 5+5**, **6 = 5+1**. Register
+"a small sum of contributions each at most the cap", not "a multiple of the cap".
+The bleed corroborates independently: 10 cycles x 2.29 mm predicts 23 mm and the
+run measured 19.
+**Where that leaves the choice:** (d) gives up the guard's action above 1 m/s and
+drives cycles to zero; (f) gives up nothing and holds them to single digits. Both
+convert the fall. If the goal is the smallest change to a safety guard, (f) is now
+the defensible pick, and it was not before this block.
+
 **THE BLEED IS CONSTANT PER CYCLE, SO OPEN-40 IS ARITHMETIC (2026-09-17).** The
 `[Recovery Balance] body height is X` line printed on every RecoveryStand entry
 gives a free height series across a limit cycle. Over all eleven sustained-cycle
