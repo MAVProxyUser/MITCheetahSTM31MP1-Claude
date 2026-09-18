@@ -37,8 +37,21 @@ shipped, and none of it needs more data to decide.
   Bounding the cycle buys what abolishing it does, so **you can keep the guard's
   action for a one-off trip rather than surrender it above a speed gate**. cap5 vs
   advisory p = 1.00; each vs stock p = 0.10 at n = 2-3 an arm, with CY still running.
-  **The decision is now WHICH fix, not WHETHER** — (d) is the simpler code and has
-  far more evidence behind it; (f) is the smaller change to a safety guard.
+  **The decision is now WHICH fix, not WHETHER, and my recommendation is (d) with
+  (f) held in reserve.** Both are indistinguishable on outcomes (p = 1.00 between
+  them, each p <= 0.0006 against stock). (d) wins on three counts: simpler code,
+  far more evidence (78/78 induced, 6/6 at the shipped trigger, 11/11 here), and
+  it keeps the OTHER safety guard live — `RecoveryStand` sets
+  `checkSafeOrientation = false`, so the 28.65° attitude E-stop is OFF for every
+  tick spent there: stock 60-198 such ticks a run, cap5 5-10, advisory ZERO.
+  (f)'s case is that it still aborts locomotion on a genuine one-off trip, so it
+  is the option for a reviewer who will not accept a guard suppressed above a
+  speed gate. Its cost is 5-10 ticks (10-20 ms) of attitude-guard exposure and a
+  bleed of 19-36 mm rather than 0.
+  **What NEITHER fix does, stated so it is not a surprise later:** they convert the
+  BLEED route only. The ATTITUDE-runaway route remains — cap5's one loss and three
+  advisory-arm losses across CW/CX were all attitude E-stops, two of them with ZERO
+  trips. Expect the residual fall rate to be non-zero after shipping either.
 - **#9 is answered and it is a TIE.** Cruise 2.5 and the 2.4 re-acceleration cap
   are indistinguishable head to head at n = 18 an arm (16/18 each, pitch
   Mann-Whitney p = 0.109, lap difference 0.1 s). Decide on simplicity. The
