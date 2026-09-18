@@ -137,7 +137,33 @@ passed on its own in-suite retry.
   still stuck on (`circle:9:36`). Read as six robot failures it looks like a
   catastrophic regression on a new binary; it is one dead thread.
 
-  **The defect.** `server.py:2644` read
+  **THE REAL ROOT CAUSE, found 03:36 and corrected here rather than appended: the
+  conductor process had lost filesystem access to `~/Desktop` entirely.** The
+  narrow `except` below is a real defect and it turned the failure into a
+  four-hour wedge, but it is not why the rig stopped working. The evidence:
+  at 03:33 a fresh launch attempt failed with
+  `world build FAILED ... PermissionError: [Errno 1] Operation not permitted:
+  '.../OP Revo Redux/NinjaPilot-15.02.ninja/ground/gazebo_bridge/venv/pyvenv.cfg'`
+  — the conductor's OWN interpreter (it runs under that venv for its
+  `gz.transport13` bindings, `conductor/conductor.sh:14`) could no longer read its
+  own `pyvenv.cfg` when spawning a child. Two different `~/Desktop` paths, both
+  `EPERM`, both readable from a Claude Code shell at the same moment. So that
+  process — detached, `ppid 1`, up 30 h since Wed 21:29 — had lost Desktop access
+  while a shell started later still had it. **Every launch after 22:41 was going to
+  fail regardless of the poller.**
+  **Fixed by replacing the process:** old conductor stopped via `/api/stop` and
+  terminated, fresh one started from a shell that demonstrably can run that
+  interpreter and `import gz.transport13`. `phase` went `error` → `idle`, no
+  `PermissionError` in the new log, and **run 10158 archived 40 s later**, which is
+  the first completed run since 22:41.
+  **What to watch for, because the cause is environmental:** if this recurs, the
+  question is what grants the conductor's launcher access to `~/Desktop` — a
+  macOS privacy/TCC grant on the terminal or app that starts it. The pending
+  26.6.2 update (#6) is a plausible trigger for a grant being reset under a
+  running process. A conductor that has been up for days is the one at risk.
+
+  **The secondary defect, which made it a four-hour outage instead of a
+  fifteen-minute one.** `server.py:2644` read
   `try: open(path) ... except FileNotFoundError: continue` — so the ONE error it
   anticipated was a missing file, and any other `OSError` took the thread out.
   The file was mode 644, unflagged and readable again minutes later, so the EPERM
