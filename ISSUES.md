@@ -3027,6 +3027,31 @@ asymmetry (rho 0.61 wkc, 0.78 hairpin).
   | locomotion (hp_gap20 1.9) | −157 .. −50.9 | 0.01 % | 0.22–0.36 % | 0.01 % |
   | finish (last 12 s) | −161.6 .. −51 | **3.7–30.5 %** | 0–0.3 % | 0.6–14 % |
 
+  **A PER-SECOND RATE AT THE SHIPPED CRUISE SPEED, added 2026-09-17 20:45.** The
+  numbers above are from five runs at **1.9 m/s** on 09-10. The bridge now logs
+  `[stm32mp1] joint limits: clamps=N stops=M` every second, and both counters are
+  `.exchange(0)` so each line is that second's count summed over 12 joints
+  (`Stm32mp1HardwareBridge.cpp:611`). Measured over 19 runs of `wkc_weave` at
+  **2.6 m/s** (chain CY), across a matched 25-second window every run has:
+  **457 clamps/s (sd 1-2) and 226 soft stops/s (sd 0)** - about **19 soft stops
+  per joint per second** at cruise. That is the hardware-relevant figure OPEN-31
+  needs and it did not exist at the shipped speed before.
+
+  **AND A HYPOTHESIS OF MINE FAILED HERE, which is worth recording because the
+  first two analyses both pointed the wrong way.** I expected OPEN-40's limit
+  cycle to hammer the joint limits, since RecoveryStand throws the legs out to
+  283-305 mm. Two confounds had to be removed before the question could even be
+  asked: **per-run TOTALS said the opposite** (stock 17,020 clamps vs advisory
+  31,620) purely because stock falls early and logs 34 seconds against 78; and
+  **whole-run per-second rates still said stock was 22 % higher** (494 vs 405)
+  because stock's 34 s is the EARLY mission while the others' 78 s includes the
+  quieter later part. Over the matched window the three arms are
+  **indistinguishable** - which also independently confirms the arms run identical
+  code until the guard fires, as designed. **What is NOT answered:** whether the
+  cycle itself adds joint-limit work, because the seconds in which it happens are
+  also the seconds in which the robot is falling, and this instrument cannot
+  separate them. Do not quote the 22 % either way.
+
   −161.5° IS the world's mechanical calf limit and −50.9° its other end:
   the boot fold and the lie-down park the calves against the stop for
   seconds at a time (kp = 8 driving a target the joint cannot reach — on
