@@ -85,6 +85,7 @@ for r in rows:
         "cycles": len(hs),
         "bled":   (hs[0] - min(hs)) * 1000 if hs else 0.0,
         "entry":  hs[0] if hs else 0.0,
+        "min_h":  min(hs) if hs else 0.0,
         "orient": o.group(0) if o else "",
     }))
 
@@ -178,12 +179,28 @@ if budget_rows:
     for ratio, r, f in sorted(scored, reverse=True):
         print("    %-9s %-7s %6d  %.3f %8.0f %13.2f  %s" % (
             r["course"], r.get("run_id"), f["cycles"], f["entry"], f["bled"], ratio, r["verdict"]))
+    # The budget predicts the BLEED route only. OPEN-40 has two kill routes, and a
+    # run that pitches out with its height intact is not a counterexample to the
+    # model - CY's run 10100 failed at 0.22x having bled 18 mm and died at 37.2 deg
+    # of pitch, with the cap working exactly as designed. So split the fallers by
+    # whether they actually approached the 0.20 m fold line before quoting a
+    # boundary, or the one attitude death makes the model look broken.
+    BLEED_ROUTE_M = 0.21
     surv = [x[0] for x in scored if x[1]["verdict"] == "PASS"]
-    fell = [x[0] for x in scored if x[1]["verdict"] != "PASS"]
-    if surv and fell:
-        print("    survivors spent up to %.2fx; the lowest-spending faller was %.2fx" % (max(surv), min(fell)))
+    # scored rows are (ratio, csv_row, facts) - the verdict lives on the row and
+    # min_h on the facts, so these are x[1] and x[2] respectively.
+    bled_fell = [x[0] for x in scored
+                 if x[1]["verdict"] != "PASS" and x[2]["min_h"] < BLEED_ROUTE_M]
+    att_fell  = [(x[0], x[2]) for x in scored
+                 if x[1]["verdict"] != "PASS" and x[2]["min_h"] >= BLEED_ROUTE_M]
+    if surv and bled_fell:
+        print("    BLEED route (min height < %.2f m): survivors spent up to %.2fx, "
+              "lowest-spending faller %.2fx" % (BLEED_ROUTE_M, max(surv), min(bled_fell)))
     elif surv:
-        print("    every run here survived, spending up to %.2fx - consistent if all are below ~1.2x" % max(surv))
+        print("    every run here survived, spending up to %.2fx" % max(surv))
+    for ratio, f in att_fell:
+        print("    ATTITUDE route, NOT predicted by the budget: %.2fx spent, only %.0f mm bled, "
+              "height held at %.3f m - a different kill mode" % (ratio, f["bled"], f["min_h"]))
 
 print("\n  FALLS, with whether the guard was even involved:")
 for r, f in facts:
