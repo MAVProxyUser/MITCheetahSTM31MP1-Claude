@@ -70,16 +70,16 @@ wait_idle; sleep 30; wait_idle; tm_wait
 # assuming - a chain that silently ran a relabelled stock arm would be worse than
 # no chain at all.
 BIN=$(md5 -q host-run/mit_ctrl_sim | cut -c1-8)
-KNOB=$(strings host-run/mit_ctrl_sim | grep -c 'CTRL_LOCO_UNSAFE_CZCLE_CAP')
+KNOB=$(strings host-run/mit_ctrl_sim | grep -c 'CTRL_LOCO_UNSAFE_CYCLE_CAP')
 TAG=$(strings host-run/mit_ctrl_sim | grep -c 'lococap')
 ADV=$(strings host-run/mit_ctrl_sim | grep -c 'CTRL_LOCO_UNSAFE_ADVISORY_VMAX')
-say "no build needed - binary $BIN; knob check: CZCLE_CAP x$KNOB, [lococap] x$TAG, ADVISORY_VMAX x$ADV"
+say "no build needed - binary $BIN; knob check: CYCLE_CAP x$KNOB, [lococap] x$TAG, ADVISORY_VMAX x$ADV"
 if [ "$KNOB" -lt 1 ] || [ "$TAG" -lt 1 ] || [ "$ADV" -lt 1 ]; then
   say "ABORTING CZ: a response knob is missing from the deployed binary, so an arm would be a relabelled stock arm."
   exit 1
 fi
 
-A="stock:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_ADVISORY_VMAX=-1,CTRL_LOCO_UNSAFE_CZCLE_CAP=0 advisory:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_ADVISORY_VMAX=1.0,CTRL_LOCO_UNSAFE_CZCLE_CAP=0 cap5:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_ADVISORY_VMAX=-1,CTRL_LOCO_UNSAFE_CZCLE_CAP=5"
+A="stock:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_ADVISORY_VMAX=-1,CTRL_LOCO_UNSAFE_CYCLE_CAP=0 advisory:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_ADVISORY_VMAX=1.0,CTRL_LOCO_UNSAFE_CYCLE_CAP=0 cap5:CTRL_MAX_PLEG_Y=0.21,CTRL_LOCO_UNSAFE_ADVISORY_VMAX=-1,CTRL_LOCO_UNSAFE_CYCLE_CAP=5"
 say "arms (interleaved run by run; trigger PINNED at 0.21 on all three so every run trips): $A"
 say "SCOPE: 0.21 is an INDUCED trigger. This chain measures the RESPONSE, not the envelope -"
 say "  the production-rate question is already answered by CW at the shipped 0.240 (p = 0.0097)."
@@ -90,7 +90,7 @@ while [ ! -f "$CAMPAIGN_DIR/STOP_CZ" ]; do
   disk_ok || break
   i=$((i+1)); wait_idle; sleep 30; wait_idle; tm_wait; say "block $i: rig idle (phase $(phase)) - binary $(md5 -q host-run/mit_ctrl_sim | cut -c1-8)"
   COURSES="wkc_finals" ARMS="$A" run "genzz_cz$i" 3 2.6
-  say "OPEN-40 (d) vs (f) vs stock with the trigger pinned. READ THE CAP ARM'S CZCLE"
+  say "OPEN-40 (d) vs (f) vs stock with the trigger pinned. READ THE CAP ARM'S CYCLE"
   say "  DISTRIBUTION FIRST - it is the manipulation check and it has three outcomes:"
   python3 gazebo/tools/open40_conditioned.py 'genzz_cz*.csv' 2>&1 | tee -a "$LOG"
   tier "$i"
