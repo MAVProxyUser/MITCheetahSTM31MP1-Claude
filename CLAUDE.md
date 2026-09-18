@@ -3432,6 +3432,34 @@ drives cycles to zero; (f) gives up nothing and holds them to single digits. Bot
 convert the fall. If the goal is the smallest change to a safety guard, (f) is now
 the defensible pick, and it was not before this block.
 
+**AND AT 18 ROWS BOTH FIXES ARE SIGNIFICANT AND INDISTINGUISHABLE (CY blocks 1+2,
+20:14).** Conditioned on tripping, which is every run because the trigger is
+pinned: **advisory 6/6 · cap5 5/5 · stock 0/6**. Pairwise, **advisory vs stock
+p = 0.0022**, **cap5 vs stock p = 0.0022**, **advisory vs cap5 p = 1.00**.
+The cycle distributions are the mechanism in three lines:
+
+    stock      186 / 109 / 93 / 87 / 60 / 47    582 trips -> 582 entries  bled 254 mm
+    advisory     0 /   0 /  0 /  0 /  0 /  0    723 trips -> 0 entries    bled   0 mm
+    cap5        10 /  10 /  6 /  5 /  5         410 trips -> 36 entries   bled  19 mm
+
+**Stock is 1:1 EXACTLY, six for six** - 186/186, 109/109, 93/93, 87/87, 60/60,
+47/47 - which is the limit cycle with no ambiguity left in it. And every cap5
+value is a sum of per-episode contributions each <= 5 (5+5, 5+5, 5+1, 5, 5), so
+the corrected prediction holds across five runs rather than the two that forced
+the revision.
+**So "which fix" is answered: either.** The grounds for choosing are not
+effectiveness. (d) is simpler code with far more evidence; (f) changes less about
+a safety guard and can be handed to a reviewer who will not accept a guard
+disabled above a speed gate - an option that did not exist before it was built.
+**A process note worth keeping:** the first suite failure in 170 tier cases landed
+in the middle of this (CY tier 1, the `atom` case, pitch 34.9 deg). It was
+investigated rather than waved away, and it is not the change - the failing run
+logged 0 leg trips, 0 RecoveryStand entries and 0 knob lines, so the branch the
+change touches never executed. `atom` is 10/10 on the old binary and 3/4 on the
+new, which is Fisher p = 0.29 and therefore does NOT by itself exclude a binary
+effect; the load-bearing evidence is that the code provably did not run. If
+`atom` fails again on this binary, treat the mechanistic argument as insufficient.
+
 **THE BLEED IS CONSTANT PER CYCLE, SO OPEN-40 IS ARITHMETIC (2026-09-17).** The
 `[Recovery Balance] body height is X` line printed on every RecoveryStand entry
 gives a free height series across a limit cycle. Over all eleven sustained-cycle
