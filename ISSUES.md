@@ -183,6 +183,34 @@ passed on its own in-suite retry.
   twice a minute apart, clears with `POST /api/stop`, and **gives up after 6
   clears** rather than looping on a wedge that is not transient.
 
+  **THE WATCHDOG I ARMED AS THE RECOVERY NET ABORTED A HEALTHY RUN AND IS NOW
+  DISARMED (03:41).** It fired at 03:39:15 claiming "the archive has not gained a
+  ctrl log for 296 min" and `POST /api/stop`ped `star` run 10159 **45 seconds into
+  a perfectly healthy mission** — the suite case then read `FAIL` with no fall, no
+  E-stop, `leg_y_max` 94–125 mm and `clamps=19 stops=0`, and the only tell in its
+  log is `fleet stopped`. Two independent errors, both mine:
+  **(1) it read `mtime` when the freshness is in the FILENAME.** The conductor
+  archives by MOVING logs under a new name, preserving content mtime. After the
+  outage it archived the stale live `ctrl_0.log` — last written 22:42 — as
+  `20260918_033812_run10158_ctrl_0.log`. The name said 03:38, the mtime said
+  22:42, and the watchdog stat'd the mtime. Same family as "read the writer, not
+  the field name".
+  **(2) the premise was wrong regardless.** "The archive gained a file" is not a
+  progress signal, because the conductor archives at the NEXT LAUNCH, not when a
+  run ends — **a rule already written in this tree**. During any single run the
+  archive is static BY DESIGN, so any run longer than the stall window looks
+  wedged.
+  A correct version needs a signal that advances DURING a run (the conductor's own
+  `run_id`, or the live `ctrl_0.log`'s size), a window clear of the longest
+  legitimate run, and a refusal to act until it has seen that signal advance at
+  least once — so it can never fire against a baseline inherited from before it
+  started. The script is kept in the tree, with its mistakes at the top and a
+  hard refusal to run, because the failure it was built for is real and the next
+  attempt should start from these errors rather than rediscover them.
+  **Net effect on the night: the watchdog cost one suite run; the conductor's lost
+  Desktop access cost 4 h 44 m.** The rig is currently running WITHOUT a watchdog,
+  which is the safer of the two states until the rewrite.
+
   **What is still open.** The fix is in the tree but the RUNNING conductor (pid
   13470) is the old code — the watchdog is what protects tonight, and the fix
   lands whenever the conductor is next restarted. Worth deciding separately:
