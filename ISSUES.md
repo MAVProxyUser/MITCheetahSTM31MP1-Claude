@@ -211,6 +211,42 @@ passed on its own in-suite retry.
   Desktop access cost 4 h 44 m.** The rig is currently running WITHOUT a watchdog,
   which is the safer of the two states until the rewrite.
 
+  **CHAIN CZ'S OVERNIGHT RESULT DOES NOT REPLICATE CU, AND IT MUST NOT BE READ AS
+  "THE FIX DOES NOT TRANSFER" (102 rows, 11 blocks, scored 10:20 on 09-18).**
+  Same course `wkc_finals`, same pinned 0.21, same 2.6, and the locked recipe
+  string is character-identical to CU's apart from the response knobs (verified in
+  both chains' `run.log`). Mission shape matches too — median `mission_t_s` 97.0
+  in CU and 97.0/97.1/97.7 in CZ — so OPEN-38's double-lap caveat is not the
+  explanation. Yet:
+
+  | | stock | advisory | cap5 |
+  |---|---|---|---|
+  | CU (09-16/17, binary `8b0dcd1d`) | 31/78 = **40 %** | 78/78 = **100 %** | — |
+  | CZ (overnight, binary `dd6e914e`) | 4/25 = **16 %** | 8/26 = **31 %** | 9/25 = 36 % |
+
+  **BOTH arms degraded, which is the tell.** Conditioned pairwise, CZ separates
+  nothing: advisory vs stock **p = 0.32**, cap5 vs stock **p = 0.20**, the two
+  fixes **p = 0.77**. On `wkc_weave` the same comparison was p ≈ 1e-05. A control
+  arm whose own base rate moves 40 % → 16 % has moved further than the effect
+  being measured, which is precisely the condition under which this tree's own
+  rule says the chain cannot be read. **So CZ is currently evidence about the RIG,
+  not about the knobs.**
+  **The mechanism counts still hold**, which narrows it: the advisory arm logged
+  3,012 trips and **0 RecoveryStand cycles in 25 of its 26 tripping runs**, and
+  cap5 held its cycles to 10-15. The knobs are doing exactly what they did on the
+  weave. The runs are dying anyway, and **~17 of the falls are ATTITUDE route** —
+  0.00-0.55x of budget spent, 0-46 mm bled, height intact — the kill mode neither
+  fix addresses.
+  **Two candidates for the shift, neither yet tested:** the binary changed between
+  the chains (`8b0dcd1d` → `dd6e914e`, whose only delta is option (f) plus one
+  `g_locoTick` atomic per tick in `checkTransition`), and the conductor was
+  restarted at 03:37 after losing Desktop access. **And one loose end that must be
+  chased first:** the manipulation check flags **run 10267 (advisory) with 202
+  trips, 20 `[locoadv]` lines and 100 RecoveryStand cycles** — an advisory run that
+  transitioned 100 times. One violation in 26 means the knob is not unconditionally
+  suppressing, and until that is explained the arm's numbers are suspect
+  independently of everything above.
+
   **What is still open.** The fix is in the tree but the RUNNING conductor (pid
   13470) is the old code — the watchdog is what protects tonight, and the fix
   lands whenever the conductor is next restarted. Worth deciding separately:
