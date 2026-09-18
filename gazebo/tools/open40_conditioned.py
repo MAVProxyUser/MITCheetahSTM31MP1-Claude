@@ -170,15 +170,28 @@ FOLD_M = 0.20
 budget_rows = [(r, f) for r, f in facts
                if f is not None and f["cycles"] > 0 and f["entry"] > FOLD_M]
 if budget_rows:
-    print("\n  BUDGET MODEL - cycles / ((entry_h - %.2f m) / %.2f mm), sorted:" % (FOLD_M, BLEED_MM_PER_CYCLE))
-    print("    arm        run     cycles  entry   bled mm   spent/budget  verdict")
+    print("\n  BUDGET MODEL - MEASURED bled / headroom above %.2f m (proxy shown beside it):" % FOLD_M)
+    print("    arm        run     cycles  entry  headroom  bled   MEASURED  proxy  verdict")
     scored = []
     for r, f in budget_rows:
-        budget = (f["entry"] - FOLD_M) * 1000.0 / BLEED_MM_PER_CYCLE
-        scored.append((f["cycles"] / budget if budget > 0 else float("inf"), r, f))
-    for ratio, r, f in sorted(scored, reverse=True):
-        print("    %-9s %-7s %6d  %.3f %8.0f %13.2f  %s" % (
-            r["course"], r.get("run_id"), f["cycles"], f["entry"], f["bled"], ratio, r["verdict"]))
+        # TWO FORMS OF THE SAME MODEL, and the measured one is the real predictor.
+        #   proxy    = cycles x 2.29 mm / headroom   (assumes the median bleed rate)
+        #   measured = bled mm / headroom            (uses the run's own bleed)
+        # The proxy OVERLAPS: CY's run 10148 survived at 1.95x proxy because it bled
+        # only 1.06 mm a cycle, half the median, so cycles x 2.29 overstated its
+        # spend. The measured form is DISJOINT over the same 18 runs - survivors up
+        # to 0.91, lowest faller 1.12, Fisher p = 3.3e-04 - and its threshold is 1.0
+        # by definition rather than by fitting: bleed more height than you had above
+        # the fold line and you fall. The per-cycle rate varies 0.92-2.53 mm, which
+        # is exactly why cycles are a lossy proxy for it.
+        headroom_mm = (f["entry"] - FOLD_M) * 1000.0
+        proxy = (f["cycles"] * BLEED_MM_PER_CYCLE / headroom_mm) if headroom_mm > 0 else float("inf")
+        measured = (f["bled"] / headroom_mm) if headroom_mm > 0 else float("inf")
+        scored.append((measured, r, f, proxy))
+    for ratio, r, f, proxy in sorted(scored, key=lambda x: -x[0]):
+        print("    %-9s %-7s %6d  %.3f %8.0f %5.0f %9.2f %6.2f  %s" % (
+            r["course"], r.get("run_id"), f["cycles"], f["entry"],
+            (f["entry"] - FOLD_M) * 1000.0, f["bled"], ratio, proxy, r["verdict"]))
     # The budget predicts the BLEED route only. OPEN-40 has two kill routes, and a
     # run that pitches out with its height intact is not a counterexample to the
     # model - CY's run 10100 failed at 0.22x having bled 18 mm and died at 37.2 deg
@@ -194,8 +207,9 @@ if budget_rows:
     att_fell  = [(x[0], x[2]) for x in scored
                  if x[1]["verdict"] != "PASS" and x[2]["min_h"] >= BLEED_ROUTE_M]
     if surv and bled_fell:
-        print("    BLEED route (min height < %.2f m): survivors spent up to %.2fx, "
-              "lowest-spending faller %.2fx" % (BLEED_ROUTE_M, max(surv), min(bled_fell)))
+        print("    BLEED route (min height < %.2f m), MEASURED bleed / headroom: survivors up to "
+              "%.2f, lowest faller %.2f -> %s" % (BLEED_ROUTE_M, max(surv), min(bled_fell),
+              "DISJOINT, threshold near 1.0 as physics requires" if max(surv) < min(bled_fell) else "OVERLAP"))
     elif surv:
         print("    every run here survived, spending up to %.2fx" % max(surv))
     for ratio, f in att_fell:
