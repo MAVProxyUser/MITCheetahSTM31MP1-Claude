@@ -2645,6 +2645,20 @@ class Fleet:
                             text = f.read()
                     except FileNotFoundError:
                         continue
+                    except OSError as e:
+                        # 2026-09-17 22:41: this caught FileNotFoundError ONLY, and a
+                        # transient PermissionError (errno 1, EPERM) on this very path
+                        # propagated out of the thread. That killed the log poller, which
+                        # is the only thing that notices a run finishing and tears the sim
+                        # down - so the fleet sat at phase=running with an orphaned gz sim
+                        # at 56 % CPU for 4 h 44 m until someone called /api/stop by hand.
+                        # The file was mode 644 and readable again minutes later, so the
+                        # error was transient; the defect is the narrow except, not the file.
+                        # A poll tick that cannot read one log must skip that tick, never
+                        # take the thread down with it.
+                        self._note("log poll could not read %s (%s) - skipping this tick"
+                                   % (os.path.basename(path), e))
+                        continue
                     # Incremental scan: only NEW complete lines since last
                     # tick, so a discrete event is logged once, not re-noted
                     # every poll while it sits in the file. A trailing

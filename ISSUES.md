@@ -118,6 +118,51 @@ passed on its own in-suite retry.
 
 ### In progress
 
+- **OPEN-41 · One unhandled `OSError` in the conductor's log poller wedges the
+  whole rig indefinitely, and nothing notices** — `SIM HARNESS`, `MITIGATED`.
+  Opened 2026-09-18 03:30. **Cost on the night it was found: 4 h 44 m of idle
+  rig.**
+
+  **What happened.** At 22:41:11 the conductor launched run 10157 for chain CY's
+  sixth suite tier. Its log poller — spawned per launch at `server.py:3010`, and
+  the ONLY thing that notices a run finishing and tears the sim down — hit
+  `PermissionError: [Errno 1] Operation not permitted` opening
+  `rundata/conductor/ctrl_0.log` and died. The fleet then sat at `phase=running`
+  with an orphaned `gz sim` at **55.8 % CPU** and a bridge at 10.9 % until
+  03:29, when a single `POST /api/stop` cleared it instantly and tore both down.
+  Chain CY spun in its own `wait_idle` for the whole period and chain CZ sat
+  parked behind it. The tier itself reported `7 PASS, 6 FAIL` — **and those six
+  are one wedge, not six failures**: they are the last six cases in order, and
+  the first of them, `circle_smooth_36gon`, is exactly the slot the conductor was
+  still stuck on (`circle:9:36`). Read as six robot failures it looks like a
+  catastrophic regression on a new binary; it is one dead thread.
+
+  **The defect.** `server.py:2644` read
+  `try: open(path) ... except FileNotFoundError: continue` — so the ONE error it
+  anticipated was a missing file, and any other `OSError` took the thread out.
+  The file was mode 644, unflagged and readable again minutes later, so the EPERM
+  was transient; **the bug is the narrow except, not the file.** Fixed: the poll
+  tick now catches `OSError`, notes it, and skips that tick. A tick that cannot
+  read one log must never take the poller down with it.
+
+  **Why a fix alone is not enough, and what else was added.** The fix only takes
+  effect when the conductor is restarted, and the failure CLASS — "the poller
+  dies, so `phase` never leaves `running`" — has other possible members. There
+  was no timeout anywhere: not in the conductor, not in the chain's `wait_idle`,
+  not in any monitor. So `gazebo/tools/rig_wedge_watchdog.sh` is now the external
+  deadline the tree's own rule asks for. Its wedge test is not a timer but
+  progress-based: a healthy rig archives a ctrl log at every launch, so **"phase
+  has been `running` AND the archive has not gained a file for 15 minutes"** is a
+  wedge, while a slow legitimate case still archives on its way in. It confirms
+  twice a minute apart, clears with `POST /api/stop`, and **gives up after 6
+  clears** rather than looping on a wedge that is not transient.
+
+  **What is still open.** The fix is in the tree but the RUNNING conductor (pid
+  13470) is the old code — the watchdog is what protects tonight, and the fix
+  lands whenever the conductor is next restarted. Worth deciding separately:
+  `wait_idle` in every chain will wait forever by construction, and that is the
+  second half of why this cost four hours rather than fifteen minutes.
+
 - **OPEN-40 · `locomotionSafe()`'s answer to a sustained trip is a 500 Hz LIMIT
   CYCLE, and every fix that reaches RECOVERY_STAND better is worse than the bug**
   — `CONTROLLER`, `DECISION`. Opened and measured 2026-09-16.
