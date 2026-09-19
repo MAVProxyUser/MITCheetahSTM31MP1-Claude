@@ -247,6 +247,30 @@ passed on its own in-suite retry.
   suppressing, and until that is explained the arm's numbers are suspect
   independently of everything above.
 
+  **BOTH HALVES OF THAT WERE WRONG — resolved 2026-09-19 10:35 at 482 rows.**
+  **(1) The effect DOES transfer; the 102-row read was underpowered, not null.**
+  At 482 rows on `wkc_finals`: **advisory 38/121 vs stock 15/109, p = 0.0017**;
+  **cap5 30/119 vs stock 15/109, p = 0.0318**; the two fixes still
+  indistinguishable at **p = 0.32**. CZ now agrees with CY in direction and
+  significance. The caution above was right on the data available and the wrong
+  thing to carry forward.
+  **(2) All 7 "manipulation violations" were MY SCORING TOOL, not the knobs.**
+  Neither knob is unconditional and the tool assumed both were. The **advisory only
+  suppresses ABOVE `CTRL_LOCO_UNSAFE_ADVISORY_VMAX`**
+  (`FSM_State_Locomotion.cpp:264`) — below the gate stock behaviour is intact BY
+  DESIGN, so run `10766` logging **20 `[locoadv]` suppressions at ~1.6 m/s AND 136
+  transitions** at lower speed is the gate working, not failing. And the **cap only
+  emits `[lococap]` once it LATCHES**, so a run with fewer trips than the cap
+  correctly shows none (`10717`: 1 trip, 1 cycle). Both checks corrected;
+  violations are now **0 on CZ and 0 on CY**. "Advisory implies zero cycles" only
+  ever held on `wkc_weave` because the robot never dropped below 1.0 m/s there.
+  **WHAT THAT LEAVES, and it matters for shipping:** the advisory's protection is
+  **partial on any course with sub-gate sections** — below 1.0 m/s the limit cycle
+  is untouched. That is deliberate in option (d), but it means the benefit depends
+  on the course's speed profile. **Still unexplained:** both arms are down versus
+  CU on the same course (stock 40 % → 14 %), which is the one live question —
+  binary `8b0dcd1d` → `dd6e914e`, or the host/conductor restart.
+
   **What is still open.** The fix is in the tree but the RUNNING conductor (pid
   13470) is the old code — the watchdog is what protects tonight, and the fix
   lands whenever the conductor is next restarted. Worth deciding separately:
