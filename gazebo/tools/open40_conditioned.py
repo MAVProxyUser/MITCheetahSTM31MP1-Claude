@@ -139,12 +139,31 @@ for r, f in facts:
     # as a violation. The distinguishing line is [lococap], and the distinguishing
     # NUMBER is the cycle count: the advisory abolishes cycles, the cap BOUNDS
     # them, so a cap arm must show cycles > 0 and cycles near its cap.
+    # BOTH of these checks were WRONG until 2026-09-19, and they manufactured 7
+    # false violations on chain CZ - which then cast doubt on that chain's whole
+    # advisory arm for a day. Neither knob is unconditional:
+    #
+    #   The ADVISORY only suppresses ABOVE CTRL_LOCO_UNSAFE_ADVISORY_VMAX
+    #   (FSM_State_Locomotion.cpp:264: `advisory_vmax > 0.0 && v_body > advisory_vmax`).
+    #   Below the gate stock behaviour is intact BY DESIGN, so an advisory run on a
+    #   course with sub-gate sections legitimately shows BOTH paths: CZ's run 10766
+    #   logged 20 [locoadv] suppressions at ~1.6 m/s AND 136 transitions at lower
+    #   speed. "advisory implies zero cycles" only held on wkc_weave because the
+    #   robot never dropped below the gate there.
+    #
+    #   The CAP only emits [lococap] once it LATCHES, i.e. after `cap` transitions.
+    #   A run with fewer trips than the cap correctly shows no [lococap] at all -
+    #   CZ's 10717 had 1 trip and 1 cycle.
+    #
+    # So the only thing worth asserting per run is the direction each knob can move
+    # things, and a stock arm showing either tag at all.
     if arm.startswith("cap"):
-        ok  = f["cap"] > 0 and f["cycles"] > 0
-        why = "a cap arm must show [lococap] > 0 and cycles > 0 (bounded, not abolished)"
+        ok  = (f["cap"] == 0) or (f["cycles"] > 0)
+        why = "a cap arm that latched ([lococap] > 0) must still show cycles > 0 - it BOUNDS, never abolishes"
     elif "advisory" in arm or arm == "adv":
-        ok  = f["adv"] > 0 and f["cycles"] == 0
-        why = "an advisory arm must show [locoadv] > 0 and ZERO cycles"
+        ok  = f["adv"] > 0 or f["cycles"] > 0
+        why = ("an advisory arm that tripped must show [locoadv] suppressions or transitions; "
+               "cycles > 0 alone is legitimate when the robot was below the speed gate")
     else:
         ok  = f["adv"] == 0 and f["cap"] == 0
         why = "a stock arm must show neither [locoadv] nor [lococap]"
