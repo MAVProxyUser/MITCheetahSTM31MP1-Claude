@@ -3308,10 +3308,49 @@ excursion it exists to prevent, with 96 mm of mechanical headroom unused even at
 stock's worst. There was nothing to protect against in this regime and the
 protection was the largest source of the hazard.
 **Scope:** the trigger is INDUCED, so 78/78 is not an envelope number - the
-natural trip rate is ~1 run in 531. The claim is that WHEN this check trips at
-cruise, not transitioning wins. The knob is a SPEED GATE rather than a deletion,
-because at a genuinely large excursion the argument would be different, and it
-ships default OFF (-1) pending the operator's call.
+natural trip rate at the shipped `CTRL_MAX_PLEG_Y` is **7.1 %** (measured over
+241 course runs by reading their ctrl logs; an earlier "~1 run in 531" here was
+a FALL count reused as a trip rate and is withdrawn). The claim is that WHEN
+this check trips at cruise, not transitioning wins. The knob is a SPEED GATE
+rather than a deletion, because at a genuinely large excursion the argument
+would be different.
+
+**SHIPPED 2026-09-19 14:19 BY OPERATOR DECISION** ("do what you think is best
+looks like option d"). `FSM_State_Locomotion.cpp:246` reads `ctrl_tuning::num(
+"CTRL_LOCO_UNSAFE_ADVISORY_VMAX", 1.0)` where it read `-1.0`; built clean and
+deployed via `deploy_host.sh`. `CTRL_LOCO_UNSAFE_ADVISORY_VMAX=-1` restores
+stock for an A/B. The code default rather than `host-run/ctrl_tuning.yaml` is
+the home on purpose - this has to reach the STM32MP1 board build, where that
+yaml may not be present.
+
+**CHECK THE OVERRIDE PATHS BEFORE THE PROBE, because resolution is env > yaml >
+code and a yaml line would have silently beaten the new default.** Both were
+read rather than assumed: `ctrl_tuning.yaml` sets 36 `CTRL_` knobs and none is
+this one, and `ADVISORY_VMAX` appears nowhere in `server.py` or a course recipe
+- only inside the CU/CW/CX/CY/CZ chain scripts as an experiment arm.
+
+**THE PROBE (run 11384), and it is the shape every future default-flip probe
+should copy: pin the TRIGGER, pass NOTHING for the knob.** With
+`CTRL_MAX_PLEG_Y=0.21` so every run trips, and deliberately no
+`ADVISORY_VMAX` in the environment so the COMPILED default is what runs:
+**147 `Unsafe locomotion` trips -> 20 `[locoadv]` lines (the code's own throttle
+cap) -> ZERO `Recovery Balance` entries, ZERO `Folding legs`.** Stock turns 147
+trips into ~147 entries, so the cycle is provably off and the default is live on
+the deployed binary. Setting the knob in the env would have proven only that the
+env works, which is the trap "probe a default before a campaign" was written
+about (lead 3 was physically lead 4, 6/6 collapses before anyone read the
+manipulation-check columns).
+
+**AND THE PROBE RUN STILL FELL - read why, because it is NOT a counterexample.**
+Bare orientation E-stop at pitch 37.2 deg held 62 ms, with zero RecoveryStand
+entries, zero folds and `leg_y_max` 234 mm: the ATTITUDE route, the one this fix
+has never claimed to convert (the bleed route is what it removes). It also
+carries the host signature - `held_maxrun=22` against a norm of 1,
+`imu_gap_max` 46.5 ms, `imu_rx_min` 494/s - and it ran while a second simulator
+(`interceptor-sim`, pid 28533, orphaned at ppid 1) was taking **59.4 % sustained
+of the host, 38.16 CPU-hours over 64 h**. That tenant was killed at 14:25 on
+operator authorisation. So run 11384 is not clean evidence in either direction
+and must not be quoted against CU's 78/78.
 
 **PRE-SHIP EXPOSURE, and why I cancelled the tier I had promised (2026-09-17).**
 I said I would run one tier with the advisory at the SHIPPED `CTRL_MAX_PLEG_Y`

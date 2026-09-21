@@ -192,7 +192,8 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
                        (int)K_LOCOMOTION, (int)this->_data->controlParameters->control_mode);
     }
   } else {
-    // OPEN-40 option (d), CTRL_LOCO_UNSAFE_ADVISORY_VMAX (default -1 = stock/off).
+    // OPEN-40 option (d), CTRL_LOCO_UNSAFE_ADVISORY_VMAX (default 1.0 m/s = ON
+    // since 2026-09-19; a NEGATIVE value restores stock/off for an A/B).
     // THIS DISABLES A SAFETY TRANSITION ABOVE A SPEED, and it is written because
     // the measurements say the transition is what kills:
     //   * the trip hands the FSM to RecoveryStand, which reads only control_mode
@@ -212,9 +213,38 @@ FSM_StateName FSM_State_Locomotion<T>::checkTransition() {
     // THE RISK, stated plainly: this removes the guard in the regime where it
     // fires. Every y-position line in the archive grazes the limit by 0-11 mm of
     // 240, which is the argument that there is nothing to guard against there;
-    // that argument is not proof, the knob defaults OFF, and shipping it is the
-    // operator's call (ISSUES decision #4).
-    static const double advisory_vmax = ctrl_tuning::num("CTRL_LOCO_UNSAFE_ADVISORY_VMAX", -1.0);
+    // that argument is not proof.
+    //
+    // SHIPPED ON 2026-09-19 at a 1.0 m/s gate, by operator decision (ISSUES
+    // decision #4, "do what you think is best looks like option d"). It was
+    // default -1 (off) from 2026-09-16 to 2026-09-19 while the evidence was
+    // collected. What it rests on - four (arm, course, trigger) cells, every
+    // one interleaved run-by-run:
+    //   induced 0.21, wkc_finals  78/78 vs 31/78   p = 1.1e-13
+    //   induced 0.21, wkc_weave   14/14 vs  3/15   p = 1.05e-05
+    //   induced 0.21, wkc_finals  38/121 vs 15/109 p = 0.0017  (later, n = 482)
+    //   shipped 0.240, wkc_weave   6/6  vs  2/8    p = 0.0097
+    // And it is SAFER on every axis measured, which answers the objection that
+    // it disables a guard: across 78 induced-trigger runs the advisory arm
+    // never once reached the 28.65 deg attitude E-stop (worst pitch 23.5 vs
+    // stock 31.5, worst roll 19.1 vs 32.0), and its worst LATERAL FOOT
+    // excursion - the quantity this very check exists to bound - was 251 mm
+    // against stock's 305 mm, both against a 240 mm limit with a 379 mm
+    // mechanical bound. RECOVERY_STAND's own commands threw the foot 54 mm
+    // FURTHER OUT than not transitioning at all, so the guard's action was the
+    // largest source of the hazard it guards.
+    //
+    // SCOPE, and it is a real limit: the gate is a SPEED gate, so below 1.0 m/s
+    // stock behaviour is intact BY DESIGN - a genuinely fallen or slow robot
+    // still recovers, and a course with sub-1.0 m/s sections is only partially
+    // covered. It also addresses the BLEED route only (the cycle bleeding
+    // ~2.29 mm of body height per pass until RecoveryStand folds below 0.20 m);
+    // the ATTITUDE route, where the cycle re-commands a stand pose mid-stride
+    // and attitude runs away with height intact, is not converted by this or by
+    // any other candidate measured. Option (f), CTRL_LOCO_UNSAFE_CYCLE_CAP, is
+    // the alternative that keeps the guard's action and bounds the cycle
+    // instead; measured indistinguishable from this one (p = 1.00).
+    static const double advisory_vmax = ctrl_tuning::num("CTRL_LOCO_UNSAFE_ADVISORY_VMAX", 1.0);
     const T v_body = this->_data->_stateEstimator->getResult().vBody.template head<2>().norm();
 
     // OPEN-40 option (f), the CYCLE CAP - added 2026-09-17 and DEFAULT OFF.
