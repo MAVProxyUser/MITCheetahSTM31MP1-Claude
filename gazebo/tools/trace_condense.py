@@ -47,21 +47,64 @@ from trace_slim import REC, D            # verified field order + rad->deg
 import snapio
 
 # Filenames look like
-#   20260908_125146_dog0_a150r4_open28_corner_PASS.json.zst
-# i.e. <stamp>_<dog>_<arm>_<campaign>_<VERDICT>. The verdict and arm are only
-# in the name, so they are parsed out here - losing them with the raw file
-# would make the condensed rows much harder to group.
-NAME = re.compile(r"^(\d{8}_\d{6})_(dog\d+)_(.*)_([A-Z]+)$")
+#   20260919_111449_run11360_dog0_wkc_finalsr3_genzz_cz55_FAIL.json.zst
+#   20260919_051633_run11134_dog0_FALL.json.zst              (no course part)
+#   20260908_125146_dog0_a150r4_open28_corner_PASS.json.zst  (legacy, pre run-id)
+# i.e. <stamp>_run<ID>_<dog>[_<course+rep>_<campaign>]_<VERDICT>.
+#
+# THE RUN ID IS THE WHOLE POINT OF PARSING THIS. It is the join key to every
+# campaign CSV, and the snapshot's own JSON header carries `"run_id": null`, so
+# the FILENAME is the only place it exists. A first version of this regex
+# expected `dog` immediately after the stamp and therefore matched only the 65
+# legacy files - 5,842 of 5,907 rows came out with no run id and no verdict.
+# Caught by checking the verdict histogram before pruning, which is the only
+# reason the raw files were still there to re-read.
+VERDICTS = "PASS|FAIL|FALL|NONE"
+NAME_RUN = re.compile(r"^(\d{8}_\d{6})_run(\d+)_(dog\d+)(?:_(.+))?_([A-Z]+)$")
+NAME_OLD = re.compile(r"^(\d{8}_\d{6})_(dog\d+)(?:_(.+))?_([A-Z]+)$")
+# The open28_yawtruth campaign (2026-09-09) put the verdict in the MIDDLE:
+#   20260909_185510_run4132_dog0_PASS_open28_yawtruth
+# Five files, found by listing the names that matched neither pattern above
+# rather than by assuming the two covered everything.
+NAME_MID = re.compile(r"^(\d{8}_\d{6})_run(\d+)_(dog\d+)_(%s)_(.+)$" % VERDICTS)
 
-SEC_HDR = ["stamp", "dog", "arm_campaign", "verdict", "sec", "n", "post_stand",
+
+def parse_name(base):
+    m = NAME_MID.match(base)
+    if m:
+        stamp, run_id, dog, verdict, arm = m.groups()
+        return stamp, run_id, dog, arm, verdict
+    m = NAME_RUN.match(base)
+    if m:
+        stamp, run_id, dog, arm, verdict = m.groups()
+        return stamp, run_id, dog, arm or "", verdict
+    m = NAME_OLD.match(base)
+    if m:
+        stamp, dog, arm, verdict = m.groups()
+        return stamp, "", dog, arm or "", verdict
+    return base, "", "", "", ""
+
+SEC_HDR = ["run_id", "stamp", "dog", "arm_campaign", "verdict",
+           "sec", "n", "post_stand",
            "pitch_max", "roll_max", "spd_mean", "spd_max",
            "z_min", "kinz_min", "contacts_mean"]
 
-SUM_HDR = ["file", "stamp", "dog", "arm_campaign", "verdict", "parse",
+SUM_HDR = ["file", "run_id", "stamp", "dog", "arm_campaign", "verdict", "parse",
            "n_ticks", "span_s", "t_stood", "pitch_max", "roll_max",
            "spd_max", "spd_mean",
            "z_min", "z_max", "kinz_min", "contacts_mean",
-           "t_estop", "pitch_at_estop", "roll_at_estop", "t_fall", "other_tags"]
+           "t_event", "tag_event", "pitch_at_event", "roll_at_event",
+           "tag_counts"]
+
+# THERE IS NO `ESTOP` TAG IN A TRACE. An earlier version of this file looked for
+# one and emitted three permanently-empty columns; measured over all 5,907
+# traces the tags that actually occur are `tick`, `FALL` and `recover_wait`.
+# The orientation E-stop is logged by the CONTROLLER ("Orientation safety check
+# failed!" in the ctrl log), not by ShmTrace - so the attitude AT the E-stop,
+# which `feedback-classify-at-the-event` wants, is not recoverable from a trace
+# at all and must come from the ctrl logs, which this prune deliberately KEEPS.
+# What is recoverable is the first non-tick event and the attitude at it, so
+# that is what is captured, generically, without assuming a tag name.
 
 # THE BOOT WINDOW MUST BE EXCLUDED FROM EVERY PER-RUN PEAK, and this is not a
 # tuning choice - it is a real artifact with a known cause. The robot spawns
@@ -102,8 +145,7 @@ def condense_one(path):
         if base.endswith(ext):
             base = base[: -len(ext)]
             break
-    m = NAME.match(base)
-    stamp, dog, arm, verdict = m.groups() if m else (base, "", "", "")
+    stamp, run_id, dog, arm, verdict = parse_name(base)
 
     try:
         text = snapio.read_bytes(path).decode("utf-8", "replace")
@@ -147,7 +189,7 @@ def condense_one(path):
     for sec in sorted(buckets):
         b = buckets[sec]
         post = 1 if (t_stood is not None and b[0][6] >= t_stood) else 0
-        sec_rows.append([stamp, dog, arm, verdict, sec, len(b), post,
+        sec_rows.append([run_id, stamp, dog, arm, verdict, sec, len(b), post,
                          round(max(x[0] for x in b), 2),
                          round(max(x[1] for x in b), 2),
                          round(sum(x[2] for x in b) / len(b), 3),
@@ -156,20 +198,20 @@ def condense_one(path):
                          round(min(x[5] for x in b), 4),
                          round(sum(x[4] for x in b) / len(b), 2)])
 
-    # the EVENT, not the end: first E-stop and the attitude at it
-    t_estop = pi_estop = ro_estop = t_fall = ""
-    others = set()
+    # the EVENT, not the end: the FIRST non-tick record and the attitude at it
+    t_event = tag_event = pi_event = ro_event = ""
+    counts = {}
     for t, tag, pi, ro, _sp, _z, _nc, _kz in recs:
         if tag == "tick":
             continue
-        others.add(tag)
-        if tag == "ESTOP" and t_estop == "":
-            t_estop, pi_estop, ro_estop = round(t, 3), round(pi, 2), round(ro, 2)
-        if tag == "FALL" and t_fall == "":
-            t_fall = round(t, 3)
+        counts[tag] = counts.get(tag, 0) + 1
+        if t_event == "":
+            t_event, tag_event = round(t, 3), tag
+            pi_event, ro_event = round(pi, 2), round(ro, 2)
 
     summary = dict(
-        file=base, stamp=stamp, dog=dog, arm_campaign=arm, verdict=verdict,
+        file=base, run_id=run_id, stamp=stamp, dog=dog, arm_campaign=arm,
+        verdict=verdict,
         parse=parse, n_ticks=len(ticks),
         span_s=round(ticks[-1][0] - ticks[0][0], 2),
         t_stood=("" if t_stood is None else round(t_stood, 3)),
@@ -181,8 +223,9 @@ def condense_one(path):
         z_max=round(max(r[5] for r in scored), 4),
         kinz_min=round(min(r[7] for r in scored), 4),
         contacts_mean=round(sum(r[6] for r in scored) / len(scored), 2),
-        t_estop=t_estop, pitch_at_estop=pi_estop, roll_at_estop=ro_estop,
-        t_fall=t_fall, other_tags="|".join(sorted(others)))
+        t_event=t_event, tag_event=tag_event,
+        pitch_at_event=pi_event, roll_at_event=ro_event,
+        tag_counts="|".join("%s:%d" % kv for kv in sorted(counts.items())))
     return sec_rows, summary, None
 
 

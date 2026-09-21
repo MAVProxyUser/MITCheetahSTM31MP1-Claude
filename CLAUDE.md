@@ -1590,6 +1590,48 @@ reproduce the hold on a quiet host. The 1 Hz line then carries `extrap=/s` and
 `dropped=/s`. `stream_gap_report.sh DATE [MIN_MS]` gives the worst gap per
 archived run for runs that did not go through the harness (the suite).
 
+**THE PER-TICK TRACES ARE GONE. What replaced them, and what that costs
+(2026-09-21).** Operator: *"remove this. keep what ever you need, or process it
+to be smaller usable stats"*. `gazebo/tools/trace_condense.py` reduced all
+**5,907 `shm_trace` traces, 63 GB, to 56.3 MB** and the raw `.json.zst` were
+deleted (rundata 70 -> 7.6 GB, container free 31 -> 138 GiB). Two files now
+carry the whole archive:
+
+    rundata/distilled/trace_seconds.csv   527,754 rows - ONE ROW PER RUN-SECOND
+    rundata/distilled/trace_summary.csv     5,907 rows - one row per trace
+
+Per-second was chosen because it is the shape that has actually decided
+something here: "peak |pitch| per second beside mean body speed" is what showed
+the weave's pitch event is a reproducible feature of the reversal
+re-acceleration. That was then used as the ACCEPTANCE TEST - the condensed file
+reproduces the published table for runs 8959/8963/8967 at sec 55/56/57 to the
+decimal (17.58/22.73/19.11, 20.45/22.78/33.24, 8.1/7.67/5.69 against a record
+of 17.6/22.7/19.1, 20.5/22.8/33.2, 8.1/7.7/5.7).
+
+**What can no longer be answered: anything needing individual ticks.** The
+8-consecutive-identical-samples freeze that motivated `CTRL_LEG_HELD_GATE` could
+not be found from this output. That is the trade, stated here rather than
+discovered later. **The ctrl logs were deliberately KEPT** (47,839 files, ~1 GB)
+because they carry the pre-trip ticks, the `[Recovery Balance] body height`
+series, and - the one that matters most - the orientation E-stop and the
+attitude AT it, which is NOT in a trace at all.
+
+**Three traps in that reduction, all caught by verifying before pruning**, which
+is the only reason they were fixable at all:
+  * tick `seq=0` is written BEFORE the first sensor packet and carries
+    `roll: 3.14159265` (pi rad = exactly 180 deg) at `z: 2e-10` - OPEN-6's
+    uninitialised `VectorNavData` showing through. Left in, `roll_max` reads
+    **180.0 for every run in the archive, passes included**. Peaks are now gated
+    on `RobotRunner.cpp:551`'s own `stood` latch (z > 0.25 m), not a new number.
+  * **`run_id` lives only in the FILENAME** - the snapshot's own JSON header has
+    `"run_id": null`. A regex that assumed `dog` followed the stamp dropped it
+    on 5,842 of 5,907 rows, which would have made the whole dataset unjoinable
+    to the campaign CSVs.
+  * **there is no `ESTOP` tag in a trace.** The tags that occur are `tick`,
+    `FALL`, `recover_wait`, `recover_giveup`. Three columns were emitting blanks.
+  * and **`run_id` is not unique**: 963 runs have TWO traces (`_FAIL` and
+    `_FALL`), so `file` is the key, not `run_id`.
+
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
 
