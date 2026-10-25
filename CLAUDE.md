@@ -1632,6 +1632,43 @@ is the only reason they were fixable at all:
   * and **`run_id` is not unique**: 963 runs have TWO traces (`_FAIL` and
     `_FALL`), so `file` is the key, not `run_id`.
 
+**AND THEN THE REST WENT TOO (2026-10-24). `rundata` is 7.6 GB -> 156 MB, and
+what survives is three CSVs.** Operator: delete the bridge dumps, the conductor
+logs and reports, and the yawtruth streams. Removed: 1,151 `bridge_*.csv`
+per-tick joint dumps (4.88 GB), every campaign `.jsonl` contact/truth stream
+(555 MB of it in two `open28_yawtruth` files alone), and the archived ctrl/bridge
+logs plus `conductor/reports`. The ctrl logs were digested FIRST, because they
+were the last home of several quantities that exist nowhere else -
+`gazebo/tools/ctrl_log_digest.py`, 9,602 logs -> **1.1 MB**:
+
+    rundata/distilled/ctrl_digest.csv      9,602 rows - one per ctrl log
+    rundata/distilled/trace_seconds.csv  527,754 rows - one per run-second
+    rundata/distilled/trace_summary.csv    5,907 rows - one per trace
+
+The digest keeps per-run COUNTS of every marker (trips by branch, RecoveryStand
+entries, folds, `[locoadv]`/`[lococap]`, absorbed `[legv]`/`[legkin]`/
+`[leghold]`, stalls, E-stops) plus the VALUES that decide things: the
+RecoveryStand height series reduced to first/min/`bled_mm`, the leg-y first-trip
+and max in mm, and - the one `feedback-classify-at-the-event` exists for - the
+attitude AT the orientation E-stop, which is in no trace. Counts rather than
+matched lines, because a log line exists only when its condition fired
+(`feedback-a-log-line-is-a-selected-sample`).
+**Validated before the delete by reproducing the published OPEN-40 table exactly** -
+all seven falls at the shipped trigger, all six columns, e.g. run 9212 at
+244/291 mm, 107 cycles, 0.3065 -> 0.0599 m, 246.6 mm bled against a record of
+244/291, 107, 0.307 -> 0.060, 247 - and the ship probe's 147 trips -> 20
+`[locoadv]` -> 0 entries -> 0 folds.
+**What is now unrecoverable:** commanded per-joint torque (the bridge dump was
+its only home, so `liedown_handoff.py` and any future per-exchange scorer need a
+fresh `DUMP=1` run), the raw per-tick streams, and the full text of any ctrl log -
+only the digested columns above survive. The 482 campaign RESULT CSVs are KEPT
+(4.1 MB); they were always the thing the conclusions were re-derived from.
+**Disk note:** removing 7.4 GB did NOT return space immediately - two purgeable
+Time Machine local snapshots (`2026-10-23-110511`, which carries the
+container-minimum marker, and `2026-10-24-103650`) pin the freed blocks, which is
+the same ordering trap OPEN-35 documents. `sudo tmutil deletelocalsnapshots
+<stamp>` is the operator's lever; macOS also purged one on its own on 09-21.
+
 
 ## Final measured state (Mac SITL, corrected model + RE fixes)
 
